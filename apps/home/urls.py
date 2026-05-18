@@ -32,6 +32,7 @@ urlpatterns = [
     ########    PLANIFICACIÓN CREAR    ######
     #########################################
     path('crear-planificacion-citacion/', login_required(views.CREAR_PLANIFICACION_CITACION), name='crear_planificacion_citacion'),
+    path('crear-citacion-no-planificada/<int:pk>/', login_required(views.CREAR_CITACION_NO_PLANIFICADA), name='crear_citacion_no_planificada'),
         #########################################
     ########         EMPRESA     NUEVO    ########
     #########################################

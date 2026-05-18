@@ -66,6 +66,7 @@ def CREAR_PLANIFICACION_CITACION(request):
 
         citaciones_json = request.POST.get('citaciones_json', '[]')
         es_sobrecupo = request.POST.get('es_sobrecupo', 'No').strip()
+        cantidad_sobrecupo_raw = request.POST.get('cantidad_sobrecupo', '0')
 
         try:
             citaciones_data = json.loads(citaciones_json)
@@ -88,15 +89,37 @@ def CREAR_PLANIFICACION_CITACION(request):
 
         cantidad_repetir = len(citaciones_data)
         pl_sobrecupo = True if es_sobrecupo == 'Si' else False
+        try:
+            cantidad_sobrecupo = int(cantidad_sobrecupo_raw)
+        except (TypeError, ValueError):
+            cantidad_sobrecupo = 0
+
+        if not pl_sobrecupo:
+            cantidad_sobrecupo = 0
+
+        if cantidad_sobrecupo < 0:
+            cantidad_sobrecupo = 0
 
         fecha_llegada_obj = datetime.strptime(fecha_llegada, '%Y-%m-%d')
         fecha_termino_obj = fecha_llegada_obj.replace(hour=23, minute=59, second=0)
 
-        secuencia = SECUENCIA.objects.filter(
-            EP_NID_id=Empresa,
-            SE_CTIPO=tipo_operacion.upper(),
-            SE_BHABILITADO=True
-        ).first()
+        secuencia_id = primera_citacion.get('secuencia_id')
+        secuencia = None
+
+        if secuencia_id:
+            secuencia = SECUENCIA.objects.filter(
+                pk=secuencia_id,
+                EP_NID_id=Empresa,
+                SE_CTIPO=tipo_operacion.upper(),
+                SE_BHABILITADO=True
+            ).first()
+
+        if not secuencia:
+            secuencia = SECUENCIA.objects.filter(
+                EP_NID_id=Empresa,
+                SE_CTIPO=tipo_operacion.upper(),
+                SE_BHABILITADO=True
+            ).first()
 
         if not secuencia:
             return JsonResponse({
@@ -137,6 +160,7 @@ def CREAR_PLANIFICACION_CITACION(request):
         planificacion.PL_CTIPOCUPO = tipo_operacion.upper()
         planificacion.PL_NCANTIDADCUPOS = cantidad_repetir
         planificacion.PL_NSOBRECUPO = pl_sobrecupo
+        planificacion.PL_NCANTIDADSOBRECUPO = cantidad_sobrecupo
         planificacion.PL_BARCHIVADO = False
         planificacion.save()
 
@@ -147,6 +171,16 @@ def CREAR_PLANIFICACION_CITACION(request):
             proveedor_codigo = item.get('proveedor', '').strip()
             proveedor_codigo_hidden = item.get('proveedor_codigo', '').strip()
             proveedor_codigo_final = proveedor_codigo_hidden or proveedor_codigo
+            secuencia_item_id = item.get('secuencia_id') or secuencia_id
+            secuencia_item = secuencia
+
+            if secuencia_item_id:
+                secuencia_item = SECUENCIA.objects.filter(
+                    pk=secuencia_item_id,
+                    EP_NID_id=Empresa,
+                    SE_CTIPO=item.get('tipo_operacion', tipo_operacion).upper(),
+                    SE_BHABILITADO=True
+                ).first() or secuencia
 
             cliente_sn = SOCIONEGOCIO.objects.filter(
                 EP_NID_id=Empresa,
@@ -170,7 +204,7 @@ def CREAR_PLANIFICACION_CITACION(request):
                 PL_NID=planificacion,
                 SN_NID=cliente_sn,
                 PRO_NID=proveedor_sn,
-                SC_NID=secuencia,
+                SC_NID=secuencia_item,
                 CI_FFECHAREGISTRO=timezone.now(),
                 CI_FFECHACITACION=fecha_llegada_obj,
                 CI_NCUPO=i + 1,
@@ -209,6 +243,128 @@ def CREAR_PLANIFICACION_CITACION(request):
             'success': False,
             'message': str(e)
         })
+
+def CREAR_CITACION_NO_PLANIFICADA(request, pk):
+    try:
+        if request.method != 'POST':
+            return JsonResponse({'success': False, 'message': 'MÃ©todo no permitido.'})
+
+        Empresa = Verificar_empresa(request)
+
+        if Empresa is None:
+            return JsonResponse({'success': False, 'message': 'Debe seleccionar una empresa.'})
+
+        planificacion = PLANIFICACION.objects.get(pk=pk, EP_NID_id=Empresa)
+        tipo_operacion = planificacion.PL_CTIPOCUPO
+        fecha_llegada = request.POST.get('fecha_llegada', '').strip()
+        secuencia_id = request.POST.get('secuencia_id')
+
+        if not fecha_llegada:
+            fecha_llegada = planificacion.PL_FFECHAINICIO.strftime('%Y-%m-%d')
+
+        secuencia = SECUENCIA.objects.filter(
+            pk=secuencia_id,
+            EP_NID_id=Empresa,
+            SE_CTIPO=tipo_operacion,
+            SE_BHABILITADO=True
+        ).first()
+
+        if not secuencia:
+            return JsonResponse({
+                'success': False,
+                'message': f'Debe seleccionar una secuencia activa de tipo {tipo_operacion}.'
+            })
+
+        sobrecupos_disponibles = planificacion.PL_NCANTIDADSOBRECUPO or 0
+
+        if sobrecupos_disponibles <= 0:
+            return JsonResponse({
+                'success': False,
+                'message': 'No quedan sobrecupos disponibles para esta planificaciÃ³n.'
+            })
+
+        cliente_codigo = request.POST.get('cliente', '').strip()
+        proveedor_codigo = request.POST.get('proveedor', '').strip()
+        proveedor_codigo_hidden = request.POST.get('proveedor_codigo', '').strip()
+        proveedor_codigo_final = proveedor_codigo_hidden or proveedor_codigo
+
+        cliente_sn = SOCIONEGOCIO.objects.filter(
+            EP_NID_id=Empresa,
+            SN_CCODIGO_SAP=cliente_codigo,
+            SN_CTIPO='C',
+            SN_BHABILITADO=True
+        ).first()
+
+        proveedor_sn = SOCIONEGOCIO.objects.filter(
+            EP_NID_id=Empresa,
+            SN_CCODIGO_SAP=proveedor_codigo_final,
+            SN_CTIPO='S',
+            SN_BHABILITADO=True
+        ).first()
+
+        fecha_citacion = datetime.strptime(fecha_llegada, '%Y-%m-%d')
+        numero_cupo = CITACION.objects.filter(PL_NID=planificacion).count() + 1
+
+        comentario_data = {
+            'origen': 'camion_no_planificado',
+            'inf_24hrs': request.POST.get('inf_24hrs', ''),
+            'codigo': request.POST.get('codigo', ''),
+            'insumo': request.POST.get('insumo', ''),
+            'pedido': request.POST.get('pedido', ''),
+            'sap_opor_id': request.POST.get('sap_opor_id', ''),
+            'proveedor_codigo': proveedor_codigo_final,
+            'bl': request.POST.get('bl', ''),
+            'cantidad_disponible': request.POST.get('cantidad_disponible', ''),
+            'docentry': request.POST.get('docentry', ''),
+            'productor': request.POST.get('productor', ''),
+            'estanque_destino': request.POST.get('estanque_destino', ''),
+            'observacion': request.POST.get('observacion', ''),
+        }
+
+        citacion = CITACION.objects.create(
+            US_NID=request.user,
+            EP_NID_id=Empresa,
+            PL_NID=planificacion,
+            SN_NID=cliente_sn,
+            PRO_NID=proveedor_sn,
+            SC_NID=secuencia,
+            CI_FFECHAREGISTRO=timezone.now(),
+            CI_FFECHACITACION=fecha_citacion,
+            CI_NCUPO=numero_cupo,
+            CI_CTIPO=tipo_operacion,
+            CI_CTIPO_FLETE=request.POST.get('tipo_carga', ''),
+            CI_CESTADO='Insumo Programado',
+            CI_CCOMENTARIO=json.dumps(comentario_data, ensure_ascii=False),
+            CI_BHABILITADO=True,
+            CI_BARCHIVADO=False,
+            CI_BSOBRECUPO=True,
+            CI_BAVISADO=False,
+            CI_BCONFIRMADO=False,
+            CI_BARRIBADO=False,
+            CI_BCONFORME=False
+        )
+
+        CITACION_ITEM.objects.create(
+            CI_NID=citacion,
+            EP_NID_id=Empresa,
+            IT_NID_id=26
+        )
+
+        planificacion.PL_NSOBRECUPO = True
+        planificacion.PL_NCANTIDADSOBRECUPO = max(sobrecupos_disponibles - 1, 0)
+        planificacion.save(update_fields=['PL_NSOBRECUPO', 'PL_NCANTIDADSOBRECUPO'])
+
+        return JsonResponse({
+            'success': True,
+            'message': 'CamiÃ³n no planificado agregado correctamente.',
+            'citacion_id': citacion.id
+        })
+
+    except PLANIFICACION.DoesNotExist:
+        return JsonResponse({'success': False, 'message': 'No se encontrÃ³ la planificaciÃ³n.'})
+    except Exception as e:
+        print('ERROR CREAR_CITACION_NO_PLANIFICADA:', e)
+        return JsonResponse({'success': False, 'message': str(e)})
 
 ##########################################################################
 #####################  CONSULTA CLIENTES EN BD  ##########################
@@ -283,10 +439,16 @@ def PLANIFICACION_ADDONE(request):
             'SOP_CARDNAME'
         ).distinct().order_by('SOP_CARDNAME')
 
+        secuencias = SECUENCIA.objects.filter(
+            EP_NID_id=Empresa,
+            SE_BHABILITADO=True
+        ).order_by("SE_CTIPO", "SE_CNOMBRE")
+
         ctx = {
             'form': form,
             'clientes_sap': clientes_sap,
-            'proveedores_sap': proveedores_sap
+            'proveedores_sap': proveedores_sap,
+            'secuencias': secuencias
         }
 
         return render(request, 'home/PLANIFICACION/pla_addone.html', ctx)
@@ -3693,6 +3855,12 @@ def PLANIFICACION_LISTONE(request, pk):
             'SOP_CARDNAME'
         ).distinct().order_by('SOP_CARDNAME')
 
+        secuencias = SECUENCIA.objects.filter(
+            EP_NID_id=Empresa,
+            SE_CTIPO=planificacion.PL_CTIPOCUPO,
+            SE_BHABILITADO=True
+        ).order_by('SE_CNOMBRE')
+
         citaciones = CITACION.objects.filter(
             PL_NID=planificacion,
             CI_BHABILITADO=True
@@ -3788,6 +3956,7 @@ def PLANIFICACION_LISTONE(request, pk):
             'empresa_id': Empresa,
             'clientes_sap': clientes_sap,
             'proveedores_sap': proveedores_sap,
+            'secuencias': secuencias,
         }
 
         return render(request, 'home/PLANIFICACION/pla_listone.html', ctx)

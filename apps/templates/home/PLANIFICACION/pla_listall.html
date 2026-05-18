@@ -139,7 +139,7 @@
                                                         </span>
                                                     </td>
                                                 {% endif %}
-                                                <td>{{ object.TOTAL_SOBRECUPO }}</td>
+                                                <td>{{ object.PL_NCANTIDADSOBRECUPO|default:0 }}</td>
                                             </tr>
                                         {% endfor %}
                                     </tbody>

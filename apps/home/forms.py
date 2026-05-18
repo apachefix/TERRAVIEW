@@ -424,7 +424,7 @@ class formPLANIFICACION(forms.ModelForm):
     class Meta:
         model = PLANIFICACION
         #Asignacion de la tabla PLANIFICACION para crear el formulario
-        fields = ['US_NID', 'EP_NID', 'CAL_NID', 'PL_CTIPOCUPO', 'PL_FFECHAINICIO', 'PL_FFECHAFIN', 'PL_NCANTIDADCUPOS', 'PL_NSOBRECUPO', 'PL_FFECHAREGISTRO']
+        fields = ['US_NID', 'EP_NID', 'CAL_NID', 'PL_CTIPOCUPO', 'PL_FFECHAINICIO', 'PL_FFECHAFIN', 'PL_NCANTIDADCUPOS', 'PL_NSOBRECUPO', 'PL_NCANTIDADSOBRECUPO', 'PL_FFECHAREGISTRO']
         labels = '__all__'
         #Widgets para el formulario
         widgets = {
@@ -433,7 +433,8 @@ class formPLANIFICACION(forms.ModelForm):
             'PL_CTIPOCUPO': forms.Select(attrs={'class': 'form-control js-example-placeholder-multiple','placeholder': 'Seleccione un tipo de planificación', 'id': 'id_tipo_cupo'}),
             'PL_FFECHAINICIO': forms.DateTimeInput(attrs={'class': 'form-control', 'id': 'fecha_inicio_id', 'type': 'datetime-local'}),
             'PL_FFECHAFIN': forms.DateTimeInput(attrs={'class': 'form-control', 'id': 'fecha_termino_id', 'type': 'datetime-local'}),
-            'PL_NCANTIDADCUPOS': forms.NumberInput(attrs={'class': 'form-control', 'placeholder': 'Ingrese cantidad de cupos', 'id': 'cantidad_cupos_id'})
+            'PL_NCANTIDADCUPOS': forms.NumberInput(attrs={'class': 'form-control', 'placeholder': 'Ingrese cantidad de cupos', 'id': 'cantidad_cupos_id'}),
+            'PL_NCANTIDADSOBRECUPO': forms.NumberInput(attrs={'class': 'form-control', 'placeholder': 'Ingrese cantidad de sobrecupos', 'id': 'cantidad_sobrecupos_id'})
         }
 
 ########################################

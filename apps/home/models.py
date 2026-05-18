@@ -293,6 +293,7 @@ class PLANIFICACION(models.Model):
     PL_FFECHAARCHIVADO = models.DateField(("Fecha de archivado"), null=True, blank=True)
     PL_NCANTIDADCUPOS = models.IntegerField(("Cantidad de cupos"), null=True, blank=True)
     PL_NSOBRECUPO = models.BooleanField(("Es sobre cupo"), default=False)
+    PL_NCANTIDADSOBRECUPO = models.IntegerField(("Cantidad de sobrecupos"), default=0)
     PL_BARCHIVADO = models.BooleanField(("Archivado"), default=False)
 
 
