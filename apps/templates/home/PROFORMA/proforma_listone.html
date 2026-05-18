@@ -1,0 +1,1314 @@
+{% extends "layouts/base.html" %}
+
+{% block title %} Proforma {% endblock %} 
+
+<!-- Specific CSS goes HERE -->
+{% block stylesheets %}
+    {% load humanize %}
+    {% load i18n %}
+    {% load l10n %}
+    {% load formats %}
+    <style>
+        #basic-btn td {
+            text-align: center;
+        }
+        /* Opcional: mejora la separación entre etapas */
+        .card .d-flex > div:not(:last-child) {
+            margin-right: 2px;
+        }
+        
+        /* Estilos responsive para tablas */
+        .table-responsive {
+            overflow-x: auto;
+            -webkit-overflow-scrolling: touch;
+            width: 100%;
+        }
+        
+        /* Asegurar que las tablas se adapten al ancho disponible */
+        .table {
+            width: 100%;
+            max-width: 100%;
+            margin-bottom: 1rem;
+            table-layout: auto;
+        }
+        
+        /* En pantallas pequeñas, hacer las tablas más compactas */
+        @media (max-width: 768px) {
+            .table {
+                font-size: 0.875rem;
+            }
+            
+            .table th,
+            .table td {
+                padding: 0.5rem;
+                white-space: nowrap;
+            }
+            
+            /* Permitir scroll horizontal en móviles */
+            .table-responsive {
+                display: block;
+                width: 100%;
+                overflow-x: auto;
+            }
+            
+            .table-responsive .table {
+                width: 100%;
+                margin-bottom: 0;
+            }
+        }
+        
+        /* En pantallas medianas, ajustar el tamaño de fuente */
+        @media (min-width: 769px) and (max-width: 1024px) {
+            .table {
+                font-size: 0.9rem;
+            }
+            
+            .table th,
+            .table td {
+                padding: 0.6rem;
+            }
+        }
+        
+        /* Asegurar que las tablas con nowrap tengan scroll horizontal */
+        .table.nowrap {
+            white-space: nowrap;
+        }
+        
+        .table-responsive .table.nowrap {
+            min-width: 100%;
+        }
+        
+        /* Mejorar el contenedor principal */
+        #printTable {
+            width: 100%;
+            max-width: 100%;
+            overflow-x: auto;
+        }
+        
+        /* Asegurar que el contenedor se adapte en pantallas pequeñas */
+        @media (max-width: 1200px) {
+            #printTable.container {
+                max-width: 100%;
+                padding-left: 15px;
+                padding-right: 15px;
+            }
+        }
+        
+        /* Ajustar columnas específicas para mejor visualización */
+        .invoice-detail-table th,
+        .invoice-detail-table td {
+            min-width: 100px;
+        }
+        
+        .invoice-detail-table th:first-child,
+        .invoice-detail-table td:first-child {
+            min-width: 120px;
+        }
+        
+        /* Tablas de extras */
+        #row-grouping {
+            width: 100%;
+        }
+        
+        @media (max-width: 576px) {
+            .invoice-detail-table th,
+            .invoice-detail-table td {
+                font-size: 0.8rem;
+                padding: 0.4rem;
+            }
+            
+            .btn {
+                padding: 0.25rem 0.5rem;
+                font-size: 0.75rem;
+            }
+        }
+    </style>
+{% endblock stylesheets %}
+
+{% block content %}	
+    <!-- [ Main Content ] start -->
+	<section class="pcoded-main-container">
+		<div class="pcoded-content">
+			<!-- [ breadcrumb ] start -->
+			<div class="page-header">
+				<div class="page-block">
+					<div class="row align-items-center">
+						<div class="col-md-12">
+							<div class="page-header-title">
+								<h5 class="m-b-10">Proforma</h5>
+							</div>
+							<ul class="breadcrumb">
+								<li class="breadcrumb-item"><a href="index.html"><i class="feather icon-home"></i></a></li>
+								<li class="breadcrumb-item"><a href="#!">Proforma</a></li>
+							</ul>
+						</div>
+					</div>
+				</div>
+			</div>
+			<!-- [ breadcrumb ] end -->
+			<!-- [ Main Content ] start -->
+			<div class="row">
+				<!-- [ Invoice ] start -->
+				<div class="container" id="printTable">
+					<div>
+						<div class="card mb-4">
+							<div class="card-body">
+								<div class="d-flex justify-content-between align-items-center mt-3" style="gap: 0.5em;">
+									{% if proforma.PRO_BBORRADOR %}
+										<div style="flex:1;">
+											<div
+												style="
+													border-radius: 8px;
+													padding: 0.8em 0;
+													text-align: center;
+													font-weight: bold;
+													color: #ffffff;
+													background: #6c757d;
+													transition: background 0.3s;
+												">
+												BORRADOR
+											</div>
+										</div>
+									{% else %}
+										<div style="flex:1;">
+											<div
+												style="
+													border-radius: 8px;
+													padding: 0.8em 0;
+													text-align: center;
+													font-weight: bold;
+													color: #222;
+													background:rgb(44, 190, 105);
+													transition: background 0.3s;
+												">
+												{{ proforma.PRO_CESTADO|capfirst }}
+											</div>
+										</div>
+									{% endif %}
+								</div>
+							</div>
+							<div class="col-md-12 text-right mr-4 mb-4">
+								{% if proforma.PRO_BBORRADOR and request.user.is_superuser  or request.user.userv.UX_IS_AUTORIZADOR == 1 %}
+									<a class="btn btn-success aprobar_proforma mr-2" data-href="{% url 'proforma_autorizar_ajax' proforma.pk  %}">Aprobar Proforma</a>
+								{% endif %}
+								{% if request.user.is_superuser and logs_proforma %}
+									<button class="btn btn-warning mr-2" type="button" data-toggle="modal" data-target="#ModalHistorialModificarcionTarifa">Historial Modificaciones</button>
+								{% endif %}
+								<!-- Agregar este botón donde quieras que aparezca, por ejemplo después del botón de aprobar -->
+								<a class="btn btn-info mr-2" href="{% url 'proforma_pdf' proforma.pk %}" target="_blank">
+									<i class="fas fa-download"></i> Descargar PDF
+								</a>
+								{% if not proforma.PRO_BBORRADOR %}
+									<button class="btn btn-info mr-2" type="button" data-toggle="modal" data-target="#ModalSubirDocumento">
+										<i class="fas fa-download"></i> Subir Documento
+									</button>
+								{% endif %}
+								{% if documentos %}
+									<button class="btn btn-info mr-2" data-toggle="modal" data-target="#ModalListadoDocumentos">
+										<i class="fas fa-upload"></i> Ver Documentos
+									</button>
+								{% endif %}
+							</div>
+							<br>
+						</div>
+						<div class="card">
+							
+							<div class="row invoice-contact">
+								<div class="col-md-8">
+									<div class="invoice-box row">
+										<div class="col-sm-12">
+											<table class="table table-responsive invoice-table table-borderless p-l-20">
+												<tbody>
+													<tr>
+														<td><a href="/" class="b-brand">
+																<img class="img-fluid" src="/static/assets/images/logo-terramar.png" style="width: 150px;"  alt="Logo Terramar">
+															</a>
+														</td>
+													</tr>
+													<tr>
+														<td>{{ proforma.EP_NID.EP_CRAZONSOCIAL|default_if_none:"-" }}</td>
+													</tr>
+													<tr>
+														<td>{{ proforma.EP_NID.EP_CDIRECCION|default_if_none:"-" }}</td>
+													</tr>
+													<tr>
+														<td><a class="text-secondary" href="mailto:{{ proforma.EP_NID.EP_CEMAIL }}" target="_top">{{ proforma.EP_NID.EP_CEMAIL|default_if_none:"-" }}</a></td>
+													</tr>
+													<tr>
+														<td>{{ proforma.EP_NID.EP_CTELEFONO }}</td>
+													</tr>
+												</tbody>
+											</table>
+										</div>
+									</div>
+								</div>
+								<div class="col-md-4"></div>
+							</div>
+							
+							<div class="card-body">
+								<div class="row invoive-info">
+									<div class="col-md-4 col-xs-12 invoice-client-info">
+										<h6>Proveedor :</h6>
+										<h6 class="m-0">{{ proforma.SN_NID.SN_CRAZONSOCIAL|default_if_none:"" }}</h6>
+										<p class="m-0 m-t-10">{{ proforma.SN_NID.SN_CDIRECCION|default_if_none:"" }}</p>
+										<p class="m-0">{{ proforma.SN_NID.SN_CTELEFONO|default_if_none:"" }}</p>
+										<p><a class="text-secondary" href="mailto:{{ proforma.SN_NID.SN_CEMAIL }}" target="_top">{{ proforma.SN_NID.SN_CEMAIL|default_if_none:"" }}</a></p>
+									</div>
+									<div class="col-md-4 col-sm-6">
+										<h6>Informacion proforma :</h6>
+										<table class="table table-responsive invoice-table invoice-order table-borderless" data-page-length='300'>
+											<tbody>
+												<tr>
+													
+													{% if proforma.pk %}
+														<th>Número Proforma: </th>
+														<td><span># {{proforma.pk}}</span></td>
+													{% endif %}
+												</tr>
+												<tr>
+													<th>Fecha emision : </th>
+													<td> {{proforma.PRO_FFECHAEMISION|date:"d/m/Y"}}</td>
+												</tr>
+												{% if not proforma.PRO_BBORRADOR %}
+													<tr>
+														<th>N° SAP : </th>
+														<td> {{proforma.PRO_DOC_NUM}}</td>
+													</tr>
+												{% endif %}
+											</tbody>
+										</table>
+									</div>
+									{% if proforma.PRO_CCOMENTARIO %}
+										<div class="col-md-6 col-sm-6">
+											<h6>Comentario :</h6>
+											<p> {{proforma.PRO_CCOMENTARIO}}</p> 
+										</div>
+									{% endif %}
+								</div>
+								<div class="row">
+									<div class="col-sm-12">
+										<div class="table-responsive">
+											<table class="table invoice-detail-table">
+												<thead>
+													<tr class="thead-default">
+														<th>ACCIONES</th>
+														<th>NÚMERO CITACION</th>
+														<th>FECHA CITACIÓN</th>
+														<th>N° DOCUMENTO</th>
+                                                        <th>CONDUCTOR</th>
+                                                        <th>CAMIÓN</th>
+                                                        <th>CLIENTE</th>
+                                                        <th>RUTA</th>
+														<th>TARIFA</th>
+													</tr>
+												</thead>
+												<tbody>
+													{% for object in citaciones_proforma %}
+                                                        <tr {% if object.CI_NID.pk in citaciones_sin_rutas %}class="table-warning"{% endif %}>
+                                                            <td>
+                                                                <a class="ml-2 btn btn-primary" href="{% url 'cit_listone' object.CI_NID.pk %}">
+                                                                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-eye" viewBox="0 0 16 16">
+                                                                        <path d="M16 8s-3-5.5-8-5.5S0 8 0 8s3 5.5 8 5.5S16 8 16 8zM1.173 8a13.133 13.133 0 0 1 1.66-2.043C4.12 4.668 5.88 3.5 8 3.5c2.12 0 3.879 1.168 5.168 2.457A13.133 13.133 0 0 1 14.828 8c-.058.087-.122.183-.195.288-.335.48-.83 1.12-1.465 1.755C11.879 11.332 10.119 12.5 8 12.5c-2.12 0-3.879-1.168-5.168-2.457A13.134 13.134 0 0 1 1.172 8z"/>
+                                                                        <path d="M8 5.5a2.5 2.5 0 1 0 0 5 2.5 2.5 0 0 0 0-5zM4.5 8a3.5 3.5 0 1 1 7 0 3.5 3.5 0 0 1-7 0z"/>
+                                                                    </svg>
+                                                                </a>
+																{% if proforma.PRO_BBORRADOR %}
+																	<a class="ml-2 btn btn-danger" data-href="{% url 'proforma_delete_citacion' object.CI_NID.pk %}" id="delete_citacion_{{object.CI_NID.pk}}">
+																		<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-trash" viewBox="0 0 16 16">
+																			<path d="M5.5 5.5A.5.5 0 0 1 6 6v6a.5.5 0 0 1-1 0V6a.5.5 0 0 1 .5-.5zm2.5 0a.5.5 0 0 1 .5.5v6a.5.5 0 0 1-1 0V6a.5.5 0 0 1 .5-.5zm3 .5a.5.5 0 0 0-1 0v6a.5.5 0 0 0 1 0V6z" />
+																			<path fill-rule="evenodd" d="M14.5 3a1 1 0 0 1-1 1H13v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V4h-.5a1 1 0 0 1-1-1V2a1 1 0 0 1 1-1H6a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1h3.5a1 1 0 0 1 1 1v1zM4.118 4 4 4.059V13a1 1 0 0 0 1 1h6a1 1 0 0 0 1-1V4.059L11.882 4H4.118zM2.5 3V2h11v1h-11z" />
+																		</svg>
+																	</a>
+																	
+																	{% if request.user.is_superuser or has_permiso_modificaciones %}
+																		<button class="ml-2 btn btn-warning" type="button" onclick="openModalTarifas({{object.CI_NID.pk}})">
+																			<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-pencil-square" viewBox="0 0 16 16">
+																				<path d="M15.502 1.94a.5.5 0 0 1 0 .706L14.459 3.69l-2-2L13.502.646a.5.5 0 0 1 .707 0l1.293 1.293zm-1.75 2.456-2-2L4.939 9.21a.5.5 0 0 0-.121.196l-.805 2.414a.25.25 0 0 0 .316.316l2.414-.805a.5.5 0 0 0 .196-.12l6.813-6.814z"/>
+																				<path fill-rule="evenodd" d="M1 13.5A1.5 1.5 0 0 0 2.5 15h11a1.5 1.5 0 0 0 1.5-1.5v-6a.5.5 0 0 0-1 0v6a.5.5 0 0 1-.5.5h-11a.5.5 0 0 1-.5-.5v-11a.5.5 0 0 1 .5-.5H9a.5.5 0 0 0 0-1H2.5A1.5 1.5 0 0 0 1 2.5v11z"/>
+																			</svg>
+																		</button>
+																	{% endif %}
+																{% endif %}
+                                                            </td>
+                                                            <td style="text-align: center;">{{ object.CI_NID.pk }}</td>
+                                                            <td>{{ object.CI_NID.CI_FFECHACITACION|date:"d/m/Y H:i" }}</td>
+                                                            <td>{{ object.valor_campo_38|default:object.CI_NID.CI_CNUMERODOCUMENTO }}</td>
+															<td>{{ object.CI_NID.CON_NID.CON_CNOMBRE|default:"" }} {{ object.CI_NID.CON_NID.CON_CAPELLIDO|default:"" }}</td>
+                                                            <td>{{ object.CI_NID.CA_NID.CAM_CPATENTE|default:"No definido" }}</td>
+                                                            <td>{{ object.CI_NID.SN_NID.SN_CRAZONSOCIAL|default:"No definido" }}</td>
+                                                            <td>{{ object.CI_NID.RUT_NID.RUT_CNOMBRE|default:"Sin ruta" }}</td>
+                                                            <td>$ {{ object.CI_NID.CI_NVALORTARIFA|custom_number_format }}</td>
+                                                        </tr>
+                                                    {% endfor %}
+													{% if proforma.PRO_BBORRADOR %}
+														{% if listado_citaciones %}
+															<tr class="table-success">
+																<th><button type="button" class="btn btn-success" data-toggle="modal" data-target="#ModalAgregarCitacion"><i class="fas fa-plus"></i></button></th>
+																<th> AGREGAR UNA CITACIÓN</th>
+																<th></th>
+																<th></th>
+																<th></th>
+																<th></th>
+																<th></th>
+																<th></th>
+																<th></th>
+															</tr>
+														{% endif %}
+													{% endif %}
+													<tr>
+														<th></th>
+														<th></th>
+														<th></th>
+														<th></th>
+														<th></th>
+														<th></th>
+														<th></th>
+														<th class="bg-success text-right">Subtotal tarifas</th>
+														<th class="bg-success text-right">$ {{total_tarifas|custom_number_format}}</th>
+													</tr>
+												</tbody>
+											</table>
+										</div>
+									</div>
+								</div>
+								{% if extras_proforma_ingreso %}
+									<hr class="">
+									<h3>Ingresos asociados a las citaciones</h3>
+									<br>
+									{% for tipo_extra in tipos_extras_ingreso %}
+										<div class="col-sm-12" id='accordion{{tipo_extra.0}}' data-page-length='300' id="tabla_interna">
+											<div class="group mb-3 row" id="citacion{{tipo_extra.0}}" >
+												<a class="btn btn-secondary col-6" id="colapsar_citacion_{{tipo_extra.0}}" href="#!" data-toggle="collapse" data-target="#collapse{{tipo_extra.0}}" aria-expanded="false" aria-controls="collapse{{tipo_extra.0}}"  style="font-size: 20px; "><span class="float-left">{{tipo_extra.1|capfirst}}</span><span class="float-right"> <i class="fas fa-caret-down"></i></span> </a> 
+												<div class="bg-success col-6 text-right d-flex flex-column align-items-end" id="total_extra_citacion{{tipo_extra.0}}" style="display: initial;">
+													<span class="ml-5 font-weight-bold">Subtotal {{tipo_extra.1|capfirst}}:</span>
+													<span class="ml-5 font-weight-bold">$ {{tipo_extra.2|custom_number_format}}</span>
+												</div>
+												
+											</div>
+											<div class="table-responsive dt-responsive card-body collapse" id="collapse{{tipo_extra.0}}"  aria-labelledby="headingTwo" data-parent="#accordion{{tipo_extra.0}}">
+												<table id="row-grouping" class="table table-striped table-bordered nowrap">
+													<thead>
+														<tr class="thead-default">
+															{% if proforma.PRO_BBORRADOR %}
+																<th>ACCIONES</th>
+															{% endif %}
+															<th>TIPO EXTRA</th>
+															<th>NÚMERO CITACIÓN</th>
+															<th>FECHA REGISTRO</th>
+															<th>COMENTARIO</th>
+															<th>TOTAL</th>
+														</tr>
+													</thead>
+													<tbody>
+														{% for detalle in extras_proforma_ingreso %}
+															{% if detalle.CIE_NID.EXT_NID.pk == tipo_extra.0 %}
+																<tr>
+																	{% if proforma.PRO_BBORRADOR %}
+																		<td>
+																			<a class="btn btn-danger delete_extra_ingreso" data-href="{% url 'proforma_delete_extra' detalle.pk %}" id="delete_extra_ingreso">
+																				<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-trash" viewBox="0 0 16 16">
+																					<path d="M5.5 5.5A.5.5 0 0 1 6 6v6a.5.5 0 0 1-1 0V6a.5.5 0 0 1 .5-.5zm2.5 0a.5.5 0 0 1 .5.5v6a.5.5 0 0 1-1 0V6a.5.5 0 0 1 .5-.5zm3 .5a.5.5 0 0 0-1 0v6a.5.5 0 0 0 1 0V6z" />
+																					<path fill-rule="evenodd"d="M14.5 3a1 1 0 0 1-1 1H13v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V4h-.5a1 1 0 0 1-1-1V2a1 1 0 0 1 1-1H6a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1h3.5a1 1 0 0 1 1 1v1zM4.118 4 4 4.059V13a1 1 0 0 0 1 1h6a1 1 0 0 0 1-1V4.059L11.882 4H4.118zM2.5 3V2h11v1h-11z" />
+																				</svg>
+																			</a>
+																		</td>
+																	{% endif %}
+																	<td>{{detalle.CIE_NID.EXT_NID.EXT_CNOMBRE}}</td>
+																	<td>{{detalle.CIE_NID.CI_NID.pk}}</td>
+																	<td>{{detalle.CIE_NID.CI_NID.CI_FFECHACITACION|date:"d/m/Y"}}</td>
+																	<td>{{detalle.CIE_NID.CIE_CCOMENTARIO|default:""}}</td>
+																	<td> $ {{detalle.EPR_NVALOR|custom_number_format}}</td>
+																</tr>
+															{% endif %}
+														{% endfor %}
+														<tr>
+															{% if proforma.PRO_BBORRADOR %}
+																<th></th>
+															{% endif %}
+															<th></th>
+															<th></th>
+															<th></th>
+															<th class="bg-success text-right">Subtotal {{id.1|capfirst }}</th>
+															<th class="bg-success text-left">$ {{tipo_extra.2|custom_number_format}}</th>
+														</tr>
+													</tbody>
+												</table>
+											</div>
+										</div>
+									{% endfor %}
+								{% endif %}
+								{% if extras_proforma_descuento %}
+									<hr class="">
+									<h3>Descuentos asociados a las citaciones</h3>
+									<br>
+									{% for tipo_extra in tipos_extras_descuento %}
+										<div class="col-sm-12" id='accordion{{tipo_extra.0}}' data-page-length='300' id="tabla_interna">
+											<div class="group mb-3 row" id="citacion{{tipo_extra.0}}" >
+												<a class="btn btn-secondary col-6" id="colapsar_citacion_{{tipo_extra.0}}" href="#!" data-toggle="collapse" data-target="#collapse{{tipo_extra.0}}" aria-expanded="false" aria-controls="collapse{{tipo_extra.0}}"  style="font-size: 20px; "><span class="float-left">{{tipo_extra.1|capfirst}}</span><span class="float-right"> <i class="fas fa-caret-down"></i></span> </a> 
+												<div class="bg-danger col-6 text-right d-flex flex-column align-items-end" id="total_extra_citacion{{tipo_extra.0}}" style="display: initial;">
+													<span class="ml-5 font-weight-bold">Subtotal {{tipo_extra.1|capfirst}}:</span>
+													<span class="ml-5 font-weight-bold">$ {{tipo_extra.2|custom_number_format}}</span>
+												</div>
+												
+											</div>
+											<div class="table-responsive dt-responsive card-body collapse" id="collapse{{tipo_extra.0}}"  aria-labelledby="headingTwo" data-parent="#accordion{{tipo_extra.0}}">
+												<table id="row-grouping" class="table table-striped table-bordered nowrap">
+													<thead>
+														<tr class="thead-default">
+															{% if proforma.PRO_BBORRADOR %}
+																<th>ACCIONES</th>
+															{% endif %}
+															<th>TIPO EXTRA</th>
+															<th>NÚMERO CITACIÓN</th>
+															<th>FECHA REGISTRO</th>
+															<th>COMENTARIO</th>
+															<th>TOTAL</th>
+														</tr>
+													</thead>
+													<tbody>
+														{% for detalle in extras_proforma_descuento %}
+															{% if detalle.CIE_NID.EXT_NID.pk == tipo_extra.0 %}
+																<tr>
+																	{% if proforma.PRO_BBORRADOR %}
+																		<td>
+																			<a class="btn btn-danger delete_extra_descuento" data-href="{% url 'proforma_delete_extra' detalle.pk %}" id="delete_extra_descuento">
+																				<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-trash" viewBox="0 0 16 16">
+																					<path d="M5.5 5.5A.5.5 0 0 1 6 6v6a.5.5 0 0 1-1 0V6a.5.5 0 0 1 .5-.5zm2.5 0a.5.5 0 0 1 .5.5v6a.5.5 0 0 1-1 0V6a.5.5 0 0 1 .5-.5zm3 .5a.5.5 0 0 0-1 0v6a.5.5 0 0 0 1 0V6z" />
+																					<path fill-rule="evenodd"d="M14.5 3a1 1 0 0 1-1 1H13v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V4h-.5a1 1 0 0 1-1-1V2a1 1 0 0 1 1-1H6a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1h3.5a1 1 0 0 1 1 1v1zM4.118 4 4 4.059V13a1 1 0 0 0 1 1h6a1 1 0 0 0 1-1V4.059L11.882 4H4.118zM2.5 3V2h11v1h-11z" />
+																				</svg>
+																			</a>
+																		</td>
+																	{% endif %}
+																	<td>{{detalle.CIE_NID.EXT_NID.EXT_CNOMBRE}}</td>
+																	<td>{{detalle.CIE_NID.CI_NID.pk}}</td>
+																	<td>{{detalle.CIE_NID.CI_NID.CI_FFECHACITACION|date:"d/m/Y"}}</td>
+																	<td>{{detalle.CIE_NID.CIE_CCOMENTARIO|default:""}}</td>
+																	<td> $ {{detalle.EPR_NVALOR|custom_number_format}}</td>
+																</tr>
+															{% endif %}
+														{% endfor %}
+														<tr>
+															{% if proforma.PRO_BBORRADOR %}
+																<th></th>
+															{% endif %}
+															<th></th>
+															<th></th>
+															<th></th>
+															<th class="bg-danger text-right">Subtotal {{tipo_extra.1|capfirst }}</th>
+															<th class="bg-danger text-left">$ {{tipo_extra.2|custom_number_format}}</th>
+														</tr>
+													</tbody>
+												</table>
+											</div>
+										</div>
+									{% endfor %}
+								{% endif %}
+								<div class="row">
+									<div class="col-sm-12">
+										<table class="table table-responsive invoice-table invoice-total">
+											<tbody>
+												<tr>
+													<th>Total tarifas :</th>
+													<td>$ {{total_tarifas|custom_number_format}}</td>
+												</tr>
+												{% if extras_proforma_ingreso %}
+													<tr>
+														<th>Ingresos:</th>
+														<td>$ {{total_extras_ingreso|custom_number_format|default:0}}</td>
+													</tr>
+												{% endif %}
+												{% if extras_proforma_descuento %}
+													<tr>
+														<th>Descuentos:</th>
+														<td>$ - {{total_extras_descuento|custom_number_format|default:0}}</td>
+													</tr>
+												{% endif %}
+												<tr>
+													<th>Neto: </th>
+													<td>$ {{proforma.PRO_NSUBTOTAL|custom_number_format}}</td>
+												</tr>
+												<tr>
+													<th>IVA: </th>
+													<td>$ {{proforma.PRO_NIVA|custom_number_format}}</td>
+												</tr>
+												<tr class="text-info">
+													<td>
+														<hr />
+														<h5 class="text-primary m-r-10">Total :</h5>
+													</td>
+													<td>
+														<hr />
+														<h5 class="text-primary">$ {{proforma.PRO_NTOTAL|custom_number_format}}</h5>
+													</td>
+												</tr>
+											</tbody>
+										</table>
+									</div>
+								</div>
+							</div>
+						</div>
+					</div>
+				</div>
+				<!-- [ Invoice ] end -->
+			</div>
+			<!-- [ Main Content ] end -->
+		</div>
+	</section>
+	<!-- [ Main Content ] end -->
+
+	{% if proforma.PRO_BBORRADOR %}
+		<!-- Modal de spinner para autorización -->
+		<div id="exampleModalCenter" class="modal fade bd-example-modal-sm" tabindex="-1" role="dialog" aria-labelledby="exampleModalCenterTitle" aria-hidden="true">
+			<div class="modal-dialog modal-dialog-centered modal-sm" role="document">                
+				<div class="spinner-border text-light" role="status" id="spinner" style="height: 80px;width: 80px;top: auto;margin: auto;color:white"></div>
+				<span class="sr-only text-white">Cargando...</span>
+			</div>
+		</div>
+		<!-- Modal Content agregar conductor-->
+		<div class="modal fade" id="ModalAgregarCitacion" tabindex="-1" role="dialog" aria-labelledby="ModalAgregarCitacionLabel" aria-hidden="true">
+			<div class="modal-dialog modal-dialog-centered modal-xl" role="document">
+				<div class="modal-content">
+					<div class="modal-header">
+						<h5 class="modal-title" id="ModalAgregarCitacionLabel">Agregar Citación</h5>
+						<button type="button" class="close" data-dismiss="modal" aria-label="Close">
+							<span aria-hidden="true">&times;</span>
+						</button>
+					</div>
+					<div class="modal-body">
+						<form action="{% url 'proforma_add_citacion' proforma.pk %}" method="POST" id="formAgregarCitacion">
+							{% csrf_token %}
+							<div class="fieldWrapper">
+								<label class="my-1 me-2">Listado de citaciones del proveedor:</label>
+								<br><br>
+								<select class="form-control" name="CI_NID" id="add_citacion" style="width: 100%;" required>
+									<option value="">Seleccione una citación</option>
+									{% for citacion in listado_citaciones %}
+										<option value="{{citacion.0}}">{{citacion.1}}</option>
+									{% endfor %}
+								</select>
+							</div>
+							<br>
+							<div class="d-flex justify-content-end">
+								<button type="submit" class="m-2 btn btn-primary" id="btn_addcitacion">Guardar</button>
+								<button type="button" class="m-2 btn btn-danger" data-dismiss="modal">Cerrar</button>
+							</div>
+						</form>
+					</div>
+				</div>
+			</div>
+		</div>
+
+		<div class="modal fade" id="ModalModificarTarifa" tabindex="-1" role="dialog" aria-labelledby="ModalModificarTarifaLabel" aria-hidden="true">
+			<div class="modal-dialog modal-dialog-centered modal-xl modal-lg" role="document">
+				<div class="modal-content">
+					<div class="modal-header">
+						<h5 class="modal-title" id="ModalModificarTarifaLabel">Modificar Tarifa</h5>
+						<button type="button" class="close" data-dismiss="modal" aria-label="Close">
+							<span aria-hidden="true">&times;</span>
+						</button>
+					</div>
+					<div class="modal-body">
+						<form method="POST" id="formModificarTarifa" action="{% url 'proforma_modificar_tarifa' %}">
+							{% csrf_token %}
+							<input type="hidden" id="id_citacion" name="id_citacion">
+							<input type="hidden" id="id_proforma" name="id_proforma">
+							<div class="fieldWrapper" id="rutas_proveedor">
+								<label class="my-1 me-2">Listado de rutas:</label>
+								<br><br>
+								<select class="form-control" name="ruta" id="ruta" style="width: 100%;" required>
+									<option value="">Seleccione una ruta</option>
+									{% for ruta in ltsRutas %}
+										<option value="{{ruta.id}}">{{ruta.RUT_CNOMBRE}}</option>
+									{% endfor %}
+								</select>
+							</div>
+							<div class="fieldWrapper">
+								<label class="my-1 me-2">Valor Tarifa:</label>
+								<br><br>
+								<input type="number" class="form-control" id="valor_tarifa" name="valor_tarifa">
+							</div>
+							<div class="fieldWrapper">
+								<label class="my-1 me-2">Número de Documento:</label>
+								<br><br>
+								<input type="text" class="form-control" id="numero_documento" name="numero_documento" placeholder="Ingrese el número de documento">
+							</div>
+							<br>
+							<div class="d-flex justify-content-end">
+								<button type="button" class="m-2 btn btn-primary" onclick="modificar_tarifa()">Guardar</button>
+								<button type="button" class="m-2 btn btn-danger" data-dismiss="modal">Cerrar</button>
+							</div>
+						</form>
+					</div>
+				</div>
+			</div>
+		</div>
+		<!-- End of Modal Content -->
+		 <!-- Modal Content agregar conductor-->
+		<!-- End of Modal Content -->
+	{% endif %}
+	{% if request.user.is_superuser %}
+		<div class="modal fade" id="ModalHistorialModificarcionTarifa" tabindex="-1" role="dialog" aria-labelledby="ModalHistorialModificarcionLabel" aria-hidden="true">
+			<div class="modal-dialog modal-dialog-centered modal-xl modal-lg" role="document">
+				<div class="modal-content">
+					<div class="modal-header">
+						<h5 class="modal-title" id="ModalHistorialModificarcionTarifaLabel">Historial Modificaciones</h5>
+						<button type="button" class="close" data-dismiss="modal" aria-label="Close">
+							<span aria-hidden="true">&times;</span>
+						</button>
+					</div>
+					<div class="modal-body">
+						<div class="dt-responsive table-responsive">
+							<table class="table table-striped table-bordered nowrap">
+								<thead>
+									<tr>
+										<th>Usuario</th>
+										<th>Fecha</th>
+										<th>Descripcion</th>
+									</tr>
+								</thead>
+								<tbody>
+									{% for object in logs_proforma %}
+										<tr>
+											<td>{{ object.US_NID.username }}</td>
+											<td>{{ object.LOG_FFECHAREGISTRO|date:"d/m/Y H:i" }}</td>
+											<td>{{ object.LOG_CDESCRIPCION }}</td>
+										</tr>
+									{% endfor %}
+								</tbody>
+							</table>
+						</div>
+					</div>
+				</div>
+			</div>
+		</div>
+	{% endif %}
+	<div class="modal fade" id="ModalSubirDocumento" tabindex="-1" role="dialog" aria-labelledby="ModalSubirDocumentoLabel" aria-hidden="true">
+		<div class="modal-dialog modal-dialog-centered" role="document">
+			<div class="modal-content">
+				<div class="modal-header">
+					<h5 class="modal-title" id="ModalSubirDocumentoLabel">Subir Documento</h5>
+					<button type="button" class="close" data-dismiss="modal" aria-label="Close">
+						<span aria-hidden="true">&times;</span>
+					</button>
+				</div>
+				<div class="modal-body">
+					<form method="POST" action="{% url 'cargar_documento_proforma' proforma.pk %}" enctype="multipart/form-data">
+						{% csrf_token %}
+						<div class="fieldWrapper">
+							<label class="my-1 me-2" >Seleccione documento:</label>
+							<input type="file" id="file_proforma" name="file_proforma">
+						</div>							
+						<hr>
+						<div class="form-group nav justify-content-end">
+							<button class="btn btn-success"  type="submit">Guardar</button>
+							<p>&nbsp&nbsp</p>
+							<button type="button" class="btn btn-danger" data-dismiss="modal" aria-label="Close">
+								Cerrar
+							</button>
+						</div>
+					</form>
+				</div>
+			</div>
+		</div>
+	</div>
+	<div class="modal fade" id="ModalListadoDocumentos" tabindex="-1" role="dialog" aria-labelledby="ModalListadoDocumentosLabel" aria-hidden="true">
+		<div class="modal-dialog modal-dialog-centered" role="document">
+			<div class="modal-content">
+				<div class="modal-header">
+					<h5 class="modal-title" id="ModalListadoDocumentosLabel">Listado Documentos</h5>
+					<button type="button" class="close" data-dismiss="modal" aria-label="Close">
+						<span aria-hidden="true">&times;</span>
+					</button>
+				</div>
+				<div class="modal-body">
+					<div class="dt-responsive table-responsive">
+						<table class="table table-striped table-bordered nowrap">
+							<thead>
+								<tr>
+									<th>Nombre Documento</th>
+									<th>Fecha Registro</th>
+									<th>Usuario</th>
+									<th>Acciones</th>
+								</tr>
+							</thead>
+							<tbody>
+								{% for object in documentos %}
+									<tr>
+										<td>{{ object.DP_CNOMBREDOCUMENTO }}</td>
+										<td>{{ object.DP_FFECHAREGISTRO|date:"d/m/Y H:i" }}</td>
+										<td>{{ object.US_NID.first_name }} {{ object.US_NID.last_name }}</td>
+										<td>
+											<span class="fw-normal">
+												{% if object.pk %}
+													<a class="btn btn-primary mr-2" href="{% url 'download_documento_proforma' object.pk %}">
+														<i class="fas fa-download"></i>
+													</a>
+													<a class="btn btn-danger mr-2" href="{% url 'documento_proforma_delete' object.pk %}">
+														<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-trash" viewBox="0 0 16 16">
+															<path d="M5.5 5.5A.5.5 0 0 1 6 6v6a.5.5 0 0 1-1 0V6a.5.5 0 0 1 .5-.5zm2.5 0a.5.5 0 0 1 .5.5v6a.5.5 0 0 1-1 0V6a.5.5 0 0 1 .5-.5zm3 .5a.5.5 0 0 0-1 0v6a.5.5 0 0 0 1 0V6z" />
+															<path fill-rule="evenodd" d="M14.5 3a1 1 0 0 1-1 1H13v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V4h-.5a1 1 0 0 1-1-1V2a1 1 0 0 1 1-1H6a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1h3.5a1 1 0 0 1 1 1v1zM4.118 4 4 4.059V13a1 1 0 0 0 1 1h6a1 1 0 0 0 1-1V4.059L11.882 4H4.118zM2.5 3V2h11v1h-11z" />
+														</svg>
+													</a>
+												{% else %}
+													<span class="text-danger">Documento inválido</span>
+												{% endif %}
+											</span>
+										</td>
+									</tr>
+								{% empty %}
+									<tr>
+										<td colspan="4" class="text-center">No hay documentos cargados</td>
+									</tr>
+								{% endfor %}
+							</tbody>
+						</table>
+					</div>
+				</div>
+			</div>
+		</div>
+	</div>
+	<!-- Barra de etapas de estado de la Proforma -->
+
+</div>
+
+{% endblock content %}
+
+<!-- Specific Page JS goes HERE  -->
+{% block javascripts %}
+<script src="https://raw.githack.com/eKoopmans/html2pdf/master/dist/html2pdf.bundle.js"></script>
+
+<script src="/static/assets/js/plugins/jquery.dataTables.min.js"></script>
+<script src="/static/assets/js/plugins/dataTables.bootstrap4.min.js"></script>
+<script src="/static/assets/js/plugins/buttons.colVis.min.js"></script>
+<script src="/static/assets/js/plugins/buttons.print.min.js"></script>
+<script src="/static/assets/js/plugins/pdfmake.min.js"></script>
+<script src="/static/assets/js/plugins/jszip.min.js"></script>
+<script src="/static/assets/js/plugins/dataTables.buttons.min.js"></script>
+<script src="/static/assets/js/plugins/buttons.html5.min.js"></script>
+<script src="/static/assets/js/plugins/buttons.bootstrap4.min.js"></script>
+<script src="/static/assets/js/pages/data-export-custom.js"></script>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.4.0/jspdf.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.3.2/html2canvas.min.js"></script>
+
+<script>
+	if (localStorage.getItem('scrollPosition')) {
+		window.scrollTo(0, localStorage.getItem('scrollPosition'));
+		localStorage.removeItem('scrollPosition');
+	}
+
+	// Delegación de eventos para los botones de eliminar citación
+	$(document).on('click', '[id^="delete_citacion"]', function(e) {
+		e.preventDefault();
+		const url = $(this).data('href');
+		
+		// Guardar la posición actual del scroll
+		localStorage.setItem('scrollPosition', window.pageYOffset);
+		
+		Swal.fire({
+			title: '¿Estás seguro de eliminar esta citación?',
+			text: 'Esta acción es irreversible',
+			icon: 'warning',
+			showCancelButton: true,
+			confirmButtonText: 'Sí, eliminar',
+			cancelButtonText: 'Cancelar',
+			confirmButtonColor: '#d33',
+			cancelButtonColor: '#3085d6'
+		}).then((result) => {
+			if (result.isConfirmed) {
+				window.location.href = url;
+			} else {
+				// Si se cancela, eliminar la posición guardada
+				localStorage.removeItem('scrollPosition');
+			}
+		});
+	});
+
+	// Mantener el código existente para agregar citación
+	$('#formAgregarCitacion').on('submit', function(e) {
+		e.preventDefault();
+		
+		const citacionId = $('#add_citacion').val();
+		if (!citacionId) {
+			Swal.fire({
+				title: 'Error',
+				text: 'Debe seleccionar una citación',
+				icon: 'error'
+			});
+			return;
+		}
+
+		$.ajax({
+			url: $(this).attr('action'),
+			type: 'POST',
+			data: $(this).serialize(),
+			success: function(response) {
+				if (response.valid) {
+					// Primero cerramos el modal
+					$('#ModalAgregarCitacion').modal('hide');
+					// Esperamos a que se cierre el modal antes de mostrar el mensaje
+					setTimeout(function() {
+						Swal.fire({
+							title: 'Éxito',
+							text: response.msg,
+							icon: 'success'
+						}).then(function() {
+							window.location.reload();
+						});
+					}, 500); // Esperamos 500ms para asegurar que el modal se cerró
+				} else {
+					Swal.fire({
+						title: 'Error',
+						text: response.msg,
+						icon: 'error'
+					});
+				}
+			},
+			error: function(xhr) {
+				let errorMessage = 'Ocurrió un error al agregar la citación';
+				if (xhr.responseJSON && xhr.responseJSON.msg) {
+					errorMessage = xhr.responseJSON.msg;
+				}
+				Swal.fire({
+					title: 'Error',
+					text: errorMessage,
+					icon: 'error'
+				});
+			}
+		});
+	});
+
+	// Mantener otros eventos existentes para extras
+	$('.delete_extra_ingreso').on('click', function() {
+		const url = $(this).data('href');
+		Swal.fire({
+			title: '¿Estas seguro de eliminar este extra?',
+			text: 'Esta acción es irreversible',
+			icon: 'warning',
+			showCancelButton: true,
+			confirmButtonText: 'Sí',
+			cancelButtonText: 'No'
+		}).then(function(result){
+			if(result.dismiss){
+				return;
+			}
+			window.location.href = url;
+		});
+	});
+
+	$('.delete_extra_descuento').on('click', function() {
+		const url = $(this).data('href');
+		Swal.fire({
+			title: '¿Estas seguro de eliminar este extra?',
+			text: 'Esta acción es irreversible',
+			icon: 'warning',
+			showCancelButton: true,
+			confirmButtonText: 'Sí',
+			cancelButtonText: 'No'
+		}).then(function(result){
+			if(result.dismiss){
+				return;
+			}
+			window.location.href = url;
+		});
+	});
+
+	{% if proforma.PRO_BBORRADOR %}
+		function modificar_tarifa(){
+			$("#ModalModificarTarifa").modal("hide");
+			Swal.fire({
+				title: '¿Estás seguro de modificar la tarifa?',
+				text: 'Esta acción es irreversible',
+				icon: 'warning',
+				showCancelButton: true,
+				confirmButtonText: 'Sí',
+				cancelButtonText: 'No',
+			}).then(function(result){
+				if(result.dismiss){
+					return;
+				}
+				$("#formModificarTarifa").submit();
+			});
+		};
+
+		function openModalTarifas(id_citacion){
+			$.ajax({
+				url:`/cit_tarifa_ruta/${id_citacion}`,
+				method:"GET",
+				success: function(response) {
+					// La vista no retorna 'success', sino que directamente los datos o un error
+					if (response.error) {
+						Swal.fire({
+							icon: "error",
+							text: response.error,
+							title: 'Error',
+						});
+						return;
+					}
+
+					const id_proforma = response.id_proforma;
+					const id_citacion = response.id_citacion;
+					const id_ruta = response.id_ruta;
+					const valor_tarifa = response.valor_tarifa;
+					const numero_documento = response.numero_documento || '';
+
+					// Establecer los valores ocultos del formulario
+					$('#id_citacion').val(id_citacion);
+					$('#id_proforma').val(id_proforma);
+					$('#valor_tarifa').val(valor_tarifa);
+					$('#numero_documento').val(numero_documento);
+
+					// Seleccionar la ruta en el selector
+					if(id_ruta){
+						$('#ruta').val(id_ruta);
+						// Forzar el trigger del evento change si usas Select2
+						$('#ruta').trigger('change');
+					} else {
+						// Si no hay ruta, resetear el selector
+						$('#ruta').val('');
+						$('#ruta').trigger('change');
+					}
+					
+					// Mostrar el modal
+					$('#ModalModificarTarifa').modal('show');
+				},
+				error: function(xhr, status, error) {
+					Swal.fire({
+						icon: "error",
+						text: 'Error al cargar los datos de la tarifa',
+						title: 'Error de conexión',
+					});
+				}
+			});
+		}
+		
+		function toggleSpinner(show = true) {
+			if (show) {
+				// Verificar si ya existe el modal, si no, crearlo
+				if (!document.getElementById('exampleModalCenter')) {
+					const spinnerHTML = `
+						<div id="exampleModalCenter" class="modal fade bd-example-modal-sm" tabindex="-1" role="dialog" aria-labelledby="exampleModalCenterTitle" aria-hidden="true">
+							<div class="modal-dialog modal-dialog-centered modal-sm" role="document">                
+								<div class="spinner-border text-light" role="status" id="spinner" style="height: 80px;width: 80px;top: auto;margin: auto;color:white"></div>
+								<span class="sr-only text-white">Cargando...</span>
+							</div>
+						</div>
+					`;
+					document.body.insertAdjacentHTML('beforeend', spinnerHTML);
+				}
+				$("#exampleModalCenter").modal('show');
+			} else {
+				$("#exampleModalCenter").modal('hide');
+				$('.modal-backdrop').remove();
+				$('body').removeClass('modal-open');
+				$('body').css('overflow', '');
+				$('body').css('padding-right', '');
+			}
+		}
+
+		// Función simple para autorizar proforma con spinner básico
+		function autorizarProformaSimple(url) {
+			// Mostrar el spinner existente del template
+			toggleSpinner(true);
+			
+			// Realizar la petición AJAX
+			$.ajax({
+				url: url,
+				type: 'POST',
+				data: {
+					'csrfmiddlewaretoken': $('[name=csrfmiddlewaretoken]').val()
+				},
+				success: function(response) {
+					// Ocultar spinner
+					toggleSpinner(false);
+					
+					if (response.success) {
+						Swal.fire({
+							title: 'Éxito',
+							text: response.message,
+							icon: 'success',
+							confirmButtonText: 'OK'
+						}).then(() => {
+							window.location.reload();
+						});
+					} else {
+						Swal.fire({
+							title: 'Error',
+							text: response.error,
+							icon: 'error',
+							confirmButtonText: 'OK'
+						});
+					}
+				},
+				error: function(xhr, status, error) {
+					toggleSpinner(false);
+					Swal.fire({
+						title: 'Error',
+						text: 'Error de conexión. Por favor, intente nuevamente.',
+						icon: 'error',
+						confirmButtonText: 'OK'
+					});
+				}
+			});
+		}
+
+		// Modificar el evento existente
+		$('.aprobar_proforma').off('click').on('click', function(e) {
+			e.preventDefault();
+			const url = $(this).data('href');
+			
+			Swal.fire({
+				title: '¿Estás seguro de autorizar esta proforma?',
+				text: 'Esta acción es irreversible',
+				icon: 'warning',
+				showCancelButton: true,
+				confirmButtonText: 'Sí',
+				cancelButtonText: 'No',
+			}).then(function(result) {
+				if (result.isConfirmed) {
+					autorizarProformaSimple(url);
+				}
+			});
+		});
+
+		// Función para manejar el cambio de tarifa y actualizar la ruta
+		function handleTarifaChange(tarifaId) {
+			if (!tarifaId) {
+				// Si no hay tarifa seleccionada, limpiar el selector de rutas
+				const selectRutas = document.getElementById('ruta');
+				selectRutas.innerHTML = '<option value="">Seleccione una ruta</option>';
+				return;
+			}
+
+			$.ajax({
+				url: `/get_ruta_xtarifa/${tarifaId}`,
+				method: "GET",
+				success: function(response) {
+					if (response.success) {
+						const selectRutas = document.getElementById('ruta');
+						
+						// Limpiar el selector de rutas
+						selectRutas.innerHTML = '<option value="">Seleccione una ruta</option>';
+						
+						// Agregar la nueva opción de ruta
+						const option = document.createElement('option');
+						option.value = response.id_ruta;
+						option.textContent = response.nombre_ruta;
+						option.selected = true; // Auto-seleccionar la ruta correspondiente
+						
+						selectRutas.appendChild(option);
+
+						const valorTarifa = response.valor_tarifa
+						$('#valor_tarifa').val(valorTarifa);
+						
+					} else {
+						Swal.fire({
+							icon: "error",
+							text: response.error,
+							title: 'Error al cargar la ruta',
+						});
+					}
+				},
+				error: function(xhr, status, error) {
+					Swal.fire({
+						icon: "error",
+						text: 'Error al conectar con el servidor',
+						title: 'Error de conexión',
+					});
+				}
+			});
+		}
+
+		// Event listener para el cambio en el selector de tarifa
+		$(document).ready(function() {
+			// Agregar el event listener al selector de tarifa
+			$('#tarifa').on('change', function() {
+				const tarifaId = $(this).val();
+				handleTarifaChange(tarifaId);
+			});
+		});
+	{% endif %}
+
+	function descargarPDFAvanzado() {
+		const element = document.getElementById('printTable');
+		if (!element) {
+			Swal.fire({
+				icon: 'error',
+				title: 'Error',
+				text: 'No se encontró el elemento a imprimir'
+			});
+			return;
+		}
+
+		// Mostrar carga con SweetAlert
+		Swal.fire({
+			title: 'Generando PDF...',
+			text: 'Por favor espere',
+			allowOutsideClick: false,
+			didOpen: () => Swal.showLoading()
+		});
+
+		// Clonar el elemento para no modificar el original
+		const clonedElement = element.cloneNode(true);
+		
+		// --- 1️⃣ Eliminar botones del header ---
+		const headerButtons = clonedElement.querySelectorAll('.col-md-12.text-right button, .col-md-12.text-right a.btn');
+		headerButtons.forEach(btn => btn.remove());
+		
+		// --- 2️⃣ Ocultar columna "ACCIONES" ---
+		const tables = clonedElement.querySelectorAll('table');
+		tables.forEach((table) => {
+			const thead = table.querySelector('thead');
+			if (!thead) return;
+			
+			const headersRow = thead.querySelector('tr');
+			if (!headersRow) return;
+			
+			const headers = Array.from(headersRow.querySelectorAll('th'));
+			let accionesIndex = -1;
+			
+			headers.forEach((th, index) => {
+				if (th.textContent.trim().toUpperCase() === 'ACCIONES') {
+					accionesIndex = index;
+				}
+			});
+			
+			if (accionesIndex !== -1) {
+				// Ocultar header
+				headers[accionesIndex].style.display = 'none';
+				
+				// Ocultar celdas del cuerpo
+				const tbody = table.querySelector('tbody');
+				if (tbody) {
+					const rows = tbody.querySelectorAll('tr');
+					rows.forEach((row) => {
+						const cells = Array.from(row.children);
+						if (cells[accionesIndex]) {
+							cells[accionesIndex].style.display = 'none';
+						}
+					});
+				}
+			}
+		});
+
+		// --- 3️⃣ Expandir todos los elementos colapsados (acordeones) ---
+		const collapseElements = clonedElement.querySelectorAll('.collapse');
+		collapseElements.forEach(collapse => {
+			collapse.classList.add('show');
+			collapse.style.display = 'block';
+			collapse.style.height = 'auto';
+		});
+		
+		// --- 4️⃣ Aplicar estilos para PDF ---
+		// Asegurar que el contenedor tenga fondo blanco
+		clonedElement.style.backgroundColor = '#ffffff';
+		clonedElement.style.padding = '20px';
+		
+		// Aplicar estilos a todas las tablas para que se ajusten correctamente
+		const allTables = clonedElement.querySelectorAll('table');
+		allTables.forEach(table => {
+			table.style.width = '100%';
+			table.style.tableLayout = 'auto';
+			table.style.borderCollapse = 'collapse';
+			table.style.pageBreakInside = 'auto';
+			
+			// Asegurar que las celdas no se corten
+			const allCells = table.querySelectorAll('th, td');
+			allCells.forEach(cell => {
+				cell.style.whiteSpace = 'normal';
+				cell.style.wordWrap = 'break-word';
+				cell.style.overflow = 'visible';
+				cell.style.pageBreakInside = 'avoid';
+			});
+		});
+		
+		// Asegurar que los contenedores de tablas se muestren correctamente
+		const tableResponsive = clonedElement.querySelectorAll('.table-responsive');
+		tableResponsive.forEach(container => {
+			container.style.overflow = 'visible';
+			container.style.width = '100%';
+		});
+		
+		// --- 5️⃣ Agregar clon al DOM temporalmente para renderizar ---
+		clonedElement.id = 'printTableClone';
+		clonedElement.style.position = 'absolute';
+		clonedElement.style.left = '-9999px';
+		clonedElement.style.top = '0';
+		clonedElement.style.width = '210mm'; // Ancho A4 en landscape
+		clonedElement.style.maxWidth = '210mm';
+		document.body.appendChild(clonedElement);
+		
+		// Esperar un momento para que se renderice el clon
+		setTimeout(() => {
+			// Configuración de html2pdf.js
+			const opt = {
+				margin: [10, 10, 10, 10],
+				filename: `Proforma_{{ proforma.pk }}_${new Date().toISOString().split('T')[0]}.pdf`,
+				image: { type: 'jpeg', quality: 0.98 },
+				html2canvas: { 
+					scale: 2,
+					useCORS: true,
+					letterRendering: true,
+					logging: false,
+					backgroundColor: '#ffffff',
+					width: clonedElement.scrollWidth,
+					height: clonedElement.scrollHeight,
+					windowWidth: clonedElement.scrollWidth,
+					windowHeight: clonedElement.scrollHeight
+				},
+				jsPDF: { 
+					unit: 'mm', 
+					format: 'a4', 
+					orientation: 'landscape',
+					compress: true
+				},
+				pagebreak: { 
+					mode: ['avoid-all', 'css', 'legacy'],
+					before: '.page-break-before',
+					after: '.page-break-after',
+					avoid: ['tr', 'thead', 'tbody']
+				}
+			};
+			
+			// Generar PDF usando html2pdf.js
+			html2pdf()
+				.set(opt)
+				.from(clonedElement)
+				.save()
+				.then(() => {
+					// Remover el clon del DOM
+					if (document.body.contains(clonedElement)) {
+						document.body.removeChild(clonedElement);
+					}
+					
+					Swal.close();
+					Swal.fire({
+						icon: 'success',
+						title: 'PDF generado correctamente',
+						timer: 2000,
+						showConfirmButton: false
+					});
+				})
+				.catch((error) => {
+					// Remover el clon del DOM en caso de error
+					if (document.body.contains(clonedElement)) {
+						document.body.removeChild(clonedElement);
+					}
+					
+					Swal.close();
+					Swal.fire({
+						icon: 'error',
+						title: 'Error',
+						text: 'No se pudo generar el PDF: ' + (error.message || 'Error desconocido')
+					});
+					console.error('Error al generar PDF:', error);
+				});
+		}, 500);
+	}
+
+	function cargarDocumento(){
+
+	}
+
+</script>
+{% endblock javascripts %}

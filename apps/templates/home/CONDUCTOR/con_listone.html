@@ -1,0 +1,496 @@
+{% extends "layouts/base.html" %}
+
+{% block title %} {{ conductor.SN_NID }} {% endblock %} 
+
+<!-- Specific CSS goes HERE -->
+{% block stylesheets %}
+
+    <!-- data tables css -->
+    <link rel="stylesheet" href="/static/assets/css/plugins/dataTables.bootstrap4.min.css">
+    {% load humanize %}
+    {% load i18n %}
+    {% load l10n %}
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+{% endblock stylesheets %}
+
+{% block content %}	
+
+    <!-- [ Main Content ] start -->
+    <section class="pcoded-main-container">
+        <div class="pcoded-content">
+            <!-- [ breadcrumb ] start -->
+            <div class="page-header">
+                <div class="page-block">
+                    <div class="row align-items-center">
+                        <div class="col-md-12">
+                            <div class="page-header-title">
+                                <h5 class="m-b-10">{{ conductor.SN_NID }}</h5>
+                            </div>
+                            <ul class="breadcrumb">
+                                <li class="breadcrumb-item"><a href="/"><i class="feather icon-home"></i></a></li>
+                                <li class="breadcrumb-item"><a href="/">Sistema Camiones</a></li>
+                                <li class="breadcrumb-item"><a href="{% url 'con_listall' %}">Conductor</a></li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <!-- [ breadcrumb ] end -->
+            <!-- [ Main Content ] start -->
+            <div class="container-fluid row">
+                <!-- HTML5 Export Buttons table start -->
+                <div class="col-sm-7">
+                    <div class="card">
+                        <div class="card-body">
+                            {% if not request.user.userv.UX_IS_PROVEEDOR %}
+                                <div class="d-flex justify-content-end">
+                                    <a class="btn btn-info" href="{% url 'con_update' conductor.id %}?next={{request.path}}">
+                                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-pencil-square" viewBox="0 0 16 16">
+                                        <path d="M15.502 1.94a.5.5 0 0 1 0 .706L14.459 3.69l-2-2L13.502.646a.5.5 0 0 1 .707 0l1.293 1.293zm-1.75 2.456-2-2L4.939 9.21a.5.5 0 0 0-.121.196l-.805 2.414a.25.25 0 0 0 .316.316l2.414-.805a.5.5 0 0 0 .196-.12l6.813-6.814z"/>
+                                        <path fill-rule="evenodd" d="M1 13.5A1.5 1.5 0 0 0 2.5 15h11a1.5 1.5 0 0 0 1.5-1.5v-6a.5.5 0 0 0-1 0v6a.5.5 0 0 1-.5.5h-11a.5.5 0 0 1-.5-.5v-11a.5.5 0 0 1 .5-.5H9a.5.5 0 0 0 0-1H2.5A1.5 1.5 0 0 0 1 2.5v11z"/>
+                                    </svg> Editar conductor
+                                    </a>
+                                </div>
+                            {% endif %}
+                            <div class="form-group">                                
+                                <label class="my-1 me-2">Proveedor:</label>
+                                <p class="form-control col-12">{{conductor.SN_NID}}</p>
+                            </div>
+                            <div class="form-group">
+                                <label class="my-1 me-2">Rut:</label>
+                                {% if conductor.CON_CRUT %}
+                                    <p class="form-control col-12">{{conductor.CON_CRUT}}</p>
+                                {% else %}
+                                    <p class="form-control col-12">No registrado</p>
+                                {% endif %}
+                            </div>
+                            <div class="form-group">
+                                <label class="my-1 me-2">Nombre:</label>
+                                {% if conductor.CON_CNOMBRE %}
+                                    <p class="form-control col-12">{{conductor.CON_CNOMBRE}}</p>
+                                {% else %}
+                                    <p class="form-control col-12">No registrado</p>
+                                {% endif %}
+                            </div>
+                            <div class="form-group">
+                                <label class="my-1 me-2">Apellido:</label>
+                                {% if conductor.CON_CAPELLIDO %}
+                                    <p class="form-control col-12">{{conductor.CON_CAPELLIDO}}</p>
+                                {% else %}
+                                    <p class="form-control col-12">No registrado</p>
+                                {% endif %}
+                            </div>
+                            <div class="form-group">
+                                <label class="my-1 me-2">Teléfono:</label>
+                                {% if conductor.CON_CTELEFONO %}
+                                    <p class="form-control col-12">{{conductor.CON_CTELEFONO}}</p>
+                                {% else %}
+                                    <p class="form-control col-12">No registrado</p>
+                                {% endif %}
+                            </div>
+                            <div class="form-group">
+                                <label class="my-1 me-2">Dirección:</label>
+                                {% if conductor.CON_CDIRECCION %}
+                                    <p class="form-control col-12">{{conductor.CON_CDIRECCION}}</p>
+                                {% else %}
+                                    <p class="form-control col-12">No registrado</p>
+                                {% endif %}
+                            </div>
+                            <div class="form-group">
+                                <label class="my-1 me-2">Email:</label>
+                                {% if conductor.CON_CEMAIL %}
+                                    <p class="form-control col-12">{{conductor.CON_CEMAIL}}</p>
+                                {% else %}
+                                    <p class="form-control col-12">No registrado</p>
+                                {% endif %}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            
+                {% for documento in tipos_documentos %}
+                    <p class="data_list" hidden>{{documento}}</p>
+                {% endfor %}
+                <!-- BOTONES DE MODALES -->
+                <div class="col-sm-4">
+                    <div class="accordion" id="accordionExample" >
+                        <!--------------------------- DOCUMENTOS GENERALES ---------------------------->
+                        <div class="card">
+                            <div class="card-header" id="headingTwo">
+                                <h4 class="mb-0">
+                                    <a  href="#!" data-toggle="collapse" data-target="#collapseTwo" aria-expanded="false" aria-controls="collapseTwo">Listado de documentos <i class="fas fa-caret-down"></i>
+                                    </a>
+                                </h4>
+                            </div>
+                            <div id="collapseTwo" class=" card-body collapse" aria-labelledby="headingTwo" data-parent="#accordionExample">
+                                {% for documento in list_doc %}
+                                    <div class="d-flex justify-content-between">
+                                        {% if documento.1 == 'CARGADO' %}
+                                            {% if documento.2 == 'AL DÍA' or documento.2 == '--' %}
+                                                <a href="{% url 'download_doc_con' documento.4 %}"><p class="w-100 p-1 m-b-0 col text-left">{{documento.0}}</p></a>    
+                                                <i class="fas fa-check" style="color: green;"></i>
+                                            {% else %}
+                                                <p class="w-100 p-1 m-b-0 col text-left">{{documento.0}}</p>
+                                                <i class="fas fa-times" style="color: red;"></i>
+                                            {% endif %}
+                                        {% else %}
+                                            <p class="w-100 p-1 m-b-0 col text-left">{{documento.0}}</p>
+                                            <i class="fas fa-times" style="color: red;"></i>
+                                        {% endif %}
+                                    </div>
+                                    <hr>
+                                {% endfor %}
+                            </div>
+                        </div>
+                    </div>
+                    {% if bool_dias == 2 %}
+                        <div class="col-sm-6 col-lg-12"  data-toggle="tooltip" data-placement="bottom" title="" data-original-title="Hay documentos que vencieron">
+                            <button class="col-sm-9 card bg-c-red order-card" data-toggle="modal" data-target="#ModalDocumentos">
+                                <div class="card-body">
+                                    <i class="fas fa-ban" style="color: rgb(255, 0, 0);top: 10px;right: 10px;position: absolute;"></i>
+                                    <h6 class="text-white center">DOCUMENTOS</h6>
+                                    <h2 class="text-right text-white"><i class="fas fa-file-alt float-left"></i><span>{{count_list.0}}</span></h2>
+                                    <p class="w-100 p-1 m-b-0 col">VER DOCUMENTOS DE &nbsp<span class="text-uppercase">{{conductor.CON_CNOMBRE}}  {{conductor.CON_CAPELLIDO}}</span></p>
+                                </div>
+                            </button>
+                        </div>
+                    {% elif bool_dias == 1 %}
+                        <div class="col-sm-6 col-lg-12"  data-toggle="tooltip" data-placement="bottom" title="" data-original-title="Documentos proximos a vencer">
+                            <button class="col-sm-9 card bg-c-yellow order-card" data-toggle="modal" data-target="#ModalDocumentos">
+                                <div class="card-body">
+                                    <i class="fas fa-exclamation-circle" style="color: rgb(255, 230, 0);top: 10px;right: 10px;position: absolute;"></i>
+                                    <h6 class="text-white">DOCUMENTOS </h6>
+                                    <h2 class="text-right text-white"><i class="fas fa-file-alt float-left"></i><span>{{count_list.0}}</span></h2>
+                                    <p class="w-100 p-1 m-b-0 col">VER DOCUMENTOS DE &nbsp<span class="text-uppercase">{{conductor.CON_CNOMBRE}}  {{conductor.CON_CAPELLIDO}}</span></p>
+                                </div>
+                            </button>
+                        </div>
+                    {% else %}
+                        <div class="col-sm-6 col-lg-12">
+                            <button class="col-sm-9 card bg-c-blue order-card" data-toggle="modal" data-target="#ModalDocumentos">
+                                <div class="card-body">
+                                    <h6 class="text-white">DOCUMENTOS </h6>
+                                    <h2 class="text-right text-white"><i class="fas fa-file-alt float-left"></i><span>{{count_list.0}}</span></h2>
+                                    <p class="w-100 p-1 m-b-0 col">VER DOCUMENTOS DE &nbsp<span class="text-uppercase">{{conductor.CON_CNOMBRE}}  {{conductor.CON_CAPELLIDO}}</span></p>
+                                </div>
+                            </button>
+                        </div>
+                    {% endif %}
+                </div>
+            </div>
+            <!-- [ Main Content ] end -->
+        </div>
+    </section>
+    <!-- [ Main Content ] end -->
+
+<!-- Modal Content Documentos-->
+<div class="modal fade " id="ModalDocumentos" tabindex="-1" role="dialog" aria-labelledby="ModalDocumentosLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered modal-xl modal-dialog-scrollable" role="document">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="ModalDocumentosLabel">Documentos </h5>
+                <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                <span aria-hidden="true">&times;</span>
+                </button>
+            </div>
+            <div class="modal-body">
+                {% if documentos %}
+                    <table id="basic-btn" class="table table-striped table-bordered nowrap table-responsive">
+                        <thead>
+                            <tr>
+                                <th>ESTADO VENCIMIENTO</th>
+                                <th>TIPO DOCUMENTO</th>
+                                <th>FECHA REGISTRO</th>
+                                <th>FECHA EMISION</th>
+                                <th>FECHA VENCIMIENTO</th>
+                                <th>DIAS PARA VENCER </th>
+                                <th>DOCUMENTO</th>
+                                <th>ACCIONES</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <!-- BOTÓN PARA AGREGAR DOCUMENTOS -->
+                            <div class=" mb-2 mb-md-0" style="right:20px;top: 10px; position: absolute;">
+                                <button type='button' data-toggle="modal" data-target="#ModalAgregarDocumento" class="btn  btn-primary d-inline-flex align-items-center"><i class="fas fa-user-plus"></i>
+                                    &nbsp&nbsp Agregar Documento
+                                </button>
+                            </div> 
+                            {% for documento in documentos %}
+                                {% if documento.DCON_FFECHAVENCIMIENTO %}
+                                    {% if documento.DIAS_VENCIMIENTO < 30 and documento.DIAS_VENCIMIENTO >= 1 %}
+                                        <tr>
+                                            <td class="text-center bg-warning"><span class="fw-normal">PROXIMO A VENCER <i class="fas fa-exclamation" style="color: rgb(252, 233, 0);"></i></span></td>
+                                            <td><span class="fw-normal">{{ documento.DCON_CTIPO}}</span></td>
+                                            <td><span class="fw-normal">{{ documento.DCON_FFECHAREGISTRO|date:"d/m/Y H:i" }}</span></td>
+                                            <td><span class="fw-normal">{{ documento.DCON_FFECHAEMISION|date:"d/m/Y" }}</span></td>
+                                            <td><span class="fw-normal">{{ documento.DCON_FFECHAVENCIMIENTO|date:"d/m/Y" }}</span></td>
+                                            <td><span class="fw-normal">{{ documento.DIAS_VENCIMIENTO }} dias <i class="fas fa-exclamation" style="color: rgb(252, 233, 0);"></i></span></td>
+                                            <td><span class="fw-normal"><a href="{% url 'download_doc_con' documento.id %}"><i class="fas fa-file-pdf"></i>  Descargar</a></span></td>
+                                            <td>
+                                                <button class="btn btn-danger btn-sm" onclick="confirmDelete({{ documento.id }})">
+                                                    <i class="fas fa-trash"></i>
+                                                </button>
+                                            </td>
+                                        </tr>
+                                    {% elif documento.DIAS_VENCIMIENTO <= 0  %}
+                                        <tr>
+                                            <td class="text-center bg-danger"><span class="fw-warning">VENCIDO <i class="fas fa-ban" style="color: rgb(255, 0, 0);"></i></span></td>
+                                            <td><span class="fw-normal">{{ documento.DCON_CTIPO}} </span></td>
+                                            <td><span class="fw-normal">{{ documento.DCON_FFECHAREGISTRO|date:"d/m/Y H:i" }} </span></td>
+                                            <td><span class="fw-normal">{{ documento.DCON_FFECHAEMISION|date:"d/m/Y" }} </span></td>
+                                            <td><span class="fw-normal">{{ documento.DCON_FFECHAVENCIMIENTO|date:"d/m/Y" }} </span></td>
+                                            <td><span class="fw-normal">{{ documento.DIAS_VENCIMIENTO }} dias <i class="fas fa-ban" style="color: rgb(255, 0, 0);"></i></span></td>
+                                            <td><span class="fw-normal"><a href="{% url 'download_doc_con' documento.id %}"><i class="fas fa-file-pdf"></i>  Descargar</a></span></td>
+                                            <td>
+                                                <button class="btn btn-danger btn-sm" onclick="confirmDelete({{ documento.id }})">
+                                                    <i class="fas fa-trash"></i>
+                                                </button>
+                                            </td>
+                                        </tr>
+                                    {% else %}
+                                        <tr >
+                                            <td class="text-center" style="background-color: rgba(46, 216, 91, 0.8);"><span class="fw-success" style="color:white">OK </span><i class="fas fa-check" style="color: green;"></i></td>
+                                            <td><span class="fw-normal">{{ documento.DCON_CTIPO}}</span></td>
+                                            <td><span class="fw-normal">{{ documento.DCON_FFECHAREGISTRO|date:"d/m/Y H:i" }}</span></td>
+                                            <td><span class="fw-normal">{{ documento.DCON_FFECHAEMISION|date:"d/m/Y" }}</span></td>
+                                            <td><span class="fw-normal">{{ documento.DCON_FFECHAVENCIMIENTO|date:"d/m/Y" }}</span></td>
+                                            <td><span class="fw-normal">{{ documento.DIAS_VENCIMIENTO }} dias</span></td>
+                                            <td><span class="fw-normal"><a href="{% url 'download_doc_con' documento.id %}"><i class="fas fa-file-pdf"></i>  Descargar</a></span></td>
+                                            <td>
+                                                <button class="btn btn-danger btn-sm" onclick="confirmDelete({{ documento.id }})">
+                                                    <i class="fas fa-trash"></i>
+                                                </button>
+                                            </td>
+                                        </tr>
+                                    {% endif %}
+                                {% else %}
+                                    <tr >
+                                        <td class="text-center" style="background-color: rgba(46, 216, 91, 0.8);"><span class="fw-success">OK <i class="fas fa-check" style="color: green;"></i></span></td>
+                                        <td><span class="fw-normal">{{ documento.DCON_CTIPO}}</span></td>
+                                        <td><span class="fw-normal">{{ documento.DCON_FFECHAREGISTRO|date:"d/m/Y H:i" }}</span></td>
+                                        <td><span class="fw-normal">{{ documento.DCON_FFECHAEMISION|date:"d/m/Y" }}</span></td>
+                                        <td><span class="fw-normal">No registrada</span></td>
+                                        <td><span class="fw-normal">No registrada</span></td>
+                                        <td><span class="fw-normal"><a href="{% url 'download_doc_con' documento.id %}"><i class="fas fa-file-pdf"></i>  Descargar</a></span></td>
+                                        <td>
+                                            <button class="btn btn-danger btn-sm" onclick="confirmDelete({{ documento.id }})">
+                                                <i class="fas fa-trash"></i>
+                                            </td>
+                                        </tr>
+                                {% endif %} 
+                            {% endfor %}
+                        </tbody>
+                    </table>   
+                {% else %}
+                    <div class="d-flex flex-column justify-content-center">
+                        <label class="text-center my-1 me-2">No se ha agregado ningun documento para este conductor</label>
+                        <label class="text-center my-1 me-2">¿Quiere agregar uno ahora?</label>
+                        <br>
+                        <button type="button" id="add_container" class="btn btn-primary"  data-toggle="modal" data-target="#ModalAgregarDocumento" >Agregar documento</button>
+                    </div>
+                {% endif %}                        
+            </div>
+            <div class="modal-footer d-flex justify-content-end">
+                <button type="button" class="btn btn-danger" data-dismiss="modal">Cerrar</button>
+            </div>
+        </div>
+    </div>
+</div>
+<!-- End of Modal Content -->
+
+<!-- Modal Content agregar Documento-->
+<div class="modal fade " id="ModalAgregarDocumento" tabindex="-1" role="dialog" aria-labelledby="ModalAgregarDocumentoLabel" aria-hidden="true" modal-backdrop-opacity=".9">
+    <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable" role="document">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="ModalAgregarDocumentoLabel">Agregar Documento</h5>
+                <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                    <span aria-hidden="true">&times;</span>
+                </button>
+                </div>
+            <div class="modal-body"> 
+                <form class="agregar-documento" method="POST" name="form_adddoc" id="form_adddoc" action="{% url 'con_doc_addone' conductor.id %}" enctype="multipart/form-data">    
+                    {% csrf_token %} 
+                    <input type="text" name="EP_NID" hidden value="{{conductor.EP_NID.id}}">
+                    <input type="text" name="CON_NID" hidden value="{{conductor.id}}">
+                    <div class="fieldWrapper" id="uploadForm">
+                        <label class="my-1 me-2" >Seleccione documento:</label>
+                        <div class="d-flex justify-content-flex">
+                            <input type="file" name='DCON_CRUTADOC' id='file' class="form-control-file validation-file"/>
+                            <button type="button" data-toggle="modal" data-target="#ModalVerPdf" class="btn btn-primary" id="btn_ver" style="display: none;"><i class="fas fa-eye" ></i></button>
+                        </div>
+                        <br>
+                    </div>
+                    <div class="fieldWrapper" style="display: none;" id="tipo_doc_div">
+                        <label class="my-1 me-2" >Tipo de documento:</label>
+                        <select class="form-control" name="DCON_CTIPO" id="add_doc" required>
+                        </select>
+                        <br>
+                    </div>
+                    <div class="fieldWrapper" style="display:none" id="fecha_emi_div">
+                        <label class="my-1 me-2" >Seleccione Fecha de emision del documento:</label>
+                        <input class="form-control" type="date" name="DCON_FFECHAEMISION" id="fecha_emi_id" required>
+                        <br>
+                    </div>
+                    
+                    <div class="fieldWrapper" style="display:none" id="fecha_venc_div">
+                        <label class="my-1 me-2" >Seleccione fecha de vencimiento del documento:</label>
+                        <input class="form-control" type="date" name="DCON_FFECHAVENCIMIENTO" id="fecha_venc_id" required>
+                    </div>
+                        <p class="text-danger text-center" id="onError" style="display: none;font-size: 20px;"></p>
+                    <br>
+                    <div class="d-flex justify-content-end">
+                        <button type="submit" class="m-2 btn btn-primary" id="btn_guardar" disabled>Guardar</button>
+                        <button type="button" class="m-2 btn btn-danger" data-dismiss="modal">Cerrar</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+<!-- End of Modal Content -->
+
+<!-- Modal Content Ver Documento-->
+<div class="modal fade " id="ModalVerPdf" tabindex="-1" role="dialog" aria-labelledby="ModalVerPdfLabel" aria-hidden="true" >
+    <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable modal-lg" role="document">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="ModalVerPdfLabel">PDF</h5>
+                <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                    <span aria-hidden="true">&times;</span>
+                </button>
+                </div>
+            <div class="modal-body"> 
+                <span>1.- Zoom = mantener letra "CTRL" y mover la rueda del mouse arriba y abajo</span>
+                <br>
+                <span>2.-Mover = Presionar la rueda del mouse para desplazarse en el archivo</span>
+                <embed  type="application/pdf" id="vs_pdf"  style="width: 100%;height: 600px;">
+            </div>
+        </div>
+    </div>
+</div>
+<!-- End of Modal Content -->
+        
+<!-- Modal Content solicitar Documento-->
+<div class="modal fade " id="ModalSolicitarDocumento" tabindex="-1" role="dialog" aria-labelledby="ModalSolicitarDocumentoLabel" aria-hidden="true" >
+    <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable" role="document">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="ModalSolicitarDocumentoLabel">Solicitar Documento</h5>
+                <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                    <span aria-hidden="true">&times;</span>
+                </button>
+                </div>
+            <div class="modal-body"> 
+                <form class="agregar-documento"  method="POST" id="form_soldoc" action="" enctype="multipart/form-data">    
+                    {% csrf_token %} 
+                    <input type="text" name="CON_NID" hidden value="{{conductor.CON_NID}}">
+                    <br>
+                    <div class="fieldWrapper">
+                        <label class="my-1 me-2" >Para:</label>
+                        <input type="text" name="EMAIL" id="email" value="{{conductor.CON_CEMAIL}}" class="form-control">
+                    </div>
+                    <br>
+                    <div class="form-group">
+                        <label for="message-text" class="col-form-label">Mensaje:</label>
+                        <textarea class="form-control" id="message-text" style="height: 316px;" name="mensaje"></textarea>
+                    </div>
+                    <div class="d-flex justify-content-end">
+                        <button type="submit" class="m-2 btn btn-primary">Guardar</button>
+                        <button type="button" class="m-2 btn btn-danger" data-dismiss="modal">Cerrar</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+<!-- End of Modal Content -->
+
+{% endblock content %}
+
+<!-- Specific Page JS goes HERE  -->
+{% block javascripts %}
+
+    <!-- datatable Js -->
+    <script src="/static/assets/js/plugins/jquery.dataTables.min.js"></script>
+    <script src="/static/assets/js/plugins/dataTables.bootstrap4.min.js"></script>
+    <script src="/static/assets/js/plugins/buttons.colVis.min.js"></script>
+    <script src="/static/assets/js/plugins/buttons.print.min.js"></script>
+    <script src="/static/assets/js/plugins/pdfmake.min.js"></script>
+    <script src="/static/assets/js/plugins/jszip.min.js"></script>
+    <script src="/static/assets/js/plugins/dataTables.buttons.min.js"></script>
+    <script src="/static/assets/js/plugins/buttons.html5.min.js"></script>
+    <script src="/static/assets/js/plugins/buttons.bootstrap4.min.js"></script>
+    <script src="/static/assets/js/pages/data-export-custom.js"></script>
+    
+<script>
+ $("#form_adddoc").on('submit', function(evt){
+    evt.preventDefault();  
+    const error = document.querySelector('#onError')
+    if ($('#file')[0].files.length === 0) {
+        error.style.display = 'block'
+        error.innerHTML = "No se ha seleccionado archivo";
+        } else {
+            document.form_adddoc.submit()
+        }
+});
+    $('#file').change(function () {
+        filePreview(this); 
+        const btnGuardar = document.querySelector('#btn_guardar');            // Esto es por si tenemos un error 
+        const tipo_doc = document.querySelector('#add_doc');            
+        const fecha_venc = document.querySelector('#fecha_venc_id');    
+        const fecha_emi = document.querySelector('#fecha_emi_id');      
+        const label_extra = document.querySelector('#label_extra');        
+        const data_extra = document.querySelector('#data_extra');           
+        const tipo_doc_div = document.querySelector('#tipo_doc_div');        
+        const fecha_ven_div = document.querySelector('#fecha_venc_div');        
+        const fecha_emi_div = document.querySelector('#fecha_emi_div');
+        const input_doc = document.querySelector('#add_doc');
+        let datos = document.getElementsByClassName('data_list');
+        let lista_doc = [];
+        for (let i = 0; i < datos.length; i++) {
+            var a = datos[i].innerHTML.split(',');
+            lista_doc.push(a);
+        } 
+        for (let i = 0; i < lista_doc.length; i++) {
+            $('#add_doc').append('<option value="'+lista_doc[i]+'">'+lista_doc[i]+'</option>');
+        }
+        tipo_doc_div.style.display =    "block";
+        fecha_ven_div.style.display =   "block";
+        fecha_emi_div.style.display =   "block";
+        btnGuardar.disabled = false;
+        input_doc.removeAttribute('readonly','readonly');
+});
+    function filePreview(input) {
+
+        if (input.files && input.files[0]) {
+            let pdf  = input.files[0];
+            let pdfURL = URL.createObjectURL(pdf)+"#toolbar=0";
+            console.log(pdfURL);
+            const embed = document.querySelector('#vs_pdf');
+            const btn_ver = document.querySelector('#btn_ver');
+            embed.style.display = 'block';
+            btn_ver.style.display = 'block';
+            embed.setAttribute('src',pdfURL);
+            }
+        }
+    function confirmDelete(documentId) {
+        $('#ModalDocumentos').modal('hide');
+        Swal.fire({
+            title: '¿Estás seguro?',
+            text: "¡No podrás revertir esta acción!",
+            icon: 'warning',
+            showCancelButton: true,
+            confirmButtonColor: '#3085d6',
+            cancelButtonColor: '#d33',
+            confirmButtonText: 'Sí, eliminar',
+            cancelButtonText: 'Cancelar'
+        }).then((result) => {
+            if (result.isConfirmed) {
+                window.location.href = `/delete_doc_con/${documentId}`;
+            }
+        })
+    }
+    
+</script>
+{% endblock javascripts %}

@@ -1,0 +1,394 @@
+# -*- encoding: utf-8 -*-
+"""
+Copyright (c) 2019 - present AppSeed.us
+"""
+
+from django.urls import path, re_path
+from apps.home import views
+from django.contrib.auth.views import login_required
+from django.conf import settings
+from django.conf.urls.static import static
+
+urlpatterns = [
+
+    # The home page
+    path('dashboard_grafico/', login_required(views.DASHBOARD_GRAFICO), name="dashboard_grafico"),
+    path('', login_required(views.inicio), name='home'),
+    path('cambio_contraseña/', login_required(views.CambioContraseña.as_view()), name="cambio_contraseña"),
+    #########################################
+    ########         INICIO         ########
+    #########################################
+    path('inicio/', login_required(views.inicio), name='inicio'),
+    path('obtener_detalles_citacion/<int:citacion_id>/', views.obtener_detalles_citacion, name='obtener_detalles_citacion'),
+    path('get_detalle_citaciones/<int:id_citacion>/', views.get_detalle_citaciones, name='get_detalle_citaciones'),
+
+    #########################################
+    ########         SAP             ########
+    #########################################
+    path('buscar-opor-codigo/', login_required(views.BUSCAR_OPOR_POR_CODIGO), name='buscar_opor_codigo'),
+    path('buscar-opor-pedido/', login_required(views.BUSCAR_OPOR_POR_PEDIDO), name='buscar_opor_pedido'),
+
+    #########################################
+    ########    PLANIFICACIÓN CREAR    ######
+    #########################################
+    path('crear-planificacion-citacion/', login_required(views.CREAR_PLANIFICACION_CITACION), name='crear_planificacion_citacion'),
+        #########################################
+    ########         EMPRESA     NUEVO    ########
+    #########################################
+    path('emp_listall/', login_required(views.EMPRESA_LISTALL), name='emp_listall'),
+    path('emp_addone/', login_required(views.EMPRESA_ADDONE), name='emp_addone'),
+    path('emp_update/<int:pk>', login_required(views.EMPRESA_UPDATE), name='emp_update'),
+
+    # Selección de empresa activa para usuarios multiempresa
+    path('seleccionar_empresa/', login_required(views.seleccionar_empresa), name='seleccionar_empresa'),
+    path('cambiar_empresa/<int:empresa_id>/', login_required(views.cambiar_empresa), name='cambiar_empresa'),
+    #########################################
+    ########       CONDUCTOR         ########
+    #########################################
+    path('con_listall/', login_required(views.CONDUCTOR_LISTALL), name='con_listall'),
+    path('con_listall_inhabilitado/', login_required(views.CONDUCTOR_LISTALL_INHABILITADO), name='con_listall_inhabilitado'),
+    path('con_addone/', login_required(views.CONDUCTOR_ADDONE), name='con_addone'),
+    path('con_update/<int:pk>', login_required(views.CONDUCTOR_UPDATE), name='con_update'),
+    path('con_delete/<int:pk>', login_required(views.CONDUCTOR_DELETE), name='con_delete'),
+    path('con_listone/<int:pk>', login_required(views.CONDUCTOR_LISTONE), name='con_listone'),
+    path('con_habilitar/<int:pk>', login_required(views.CONDUCTOR_HABILITAR), name='con_habilitar'),
+    #########################################
+    ########    DOCUMENTO CONDUCTOR    ######
+    #########################################
+    path('con_doc_addone/<int:pk>', login_required(views.DOCUMENTO_CONDUCTOR_ADDONE), name='con_doc_addone'),
+    path('download_doc_con/<int:pk>', login_required(views.DOCUMENTO_CONDUCTOR_DOWNLOAD), name='download_doc_con'),
+    path('delete_doc_con/<int:pk>', login_required(views.DOCUMENTO_CONDUCTOR_DELETE), name='delete_doc_con'),
+    #########################################
+    ########       PROVEEDOR         ########
+    #########################################
+    path('pro_listall/', login_required(views.PROVEEDOR_LISTALL), name='pro_listall'),
+    path('pro_listall_inhabilitado/', login_required(views.PROVEEDOR_LISTALL_INHABILITADO), name='pro_listall_inhabilitado'),
+    path('pro_delete/<int:pk>', login_required(views.PROVEEDOR_DELETE), name='pro_delete'),
+    path('pro_listone/<int:pk>', login_required(views.PROVEEDOR_LISTONE), name='pro_listone'),
+    path('pro_habilitar/<int:pk>', login_required(views.PROVEEDOR_HABILITAR), name='pro_habilitar'),
+    path('ajax_data_proveedor/<int:pk>', login_required(views.ajax_data_proveedor), name='ajax_data_proveedor'),
+    #########################################
+    ########    DOCUMENTO PROVEEDOR    ######
+    #########################################
+    path('add_doc_pro/<int:pk>', login_required(views.DOCUMENTO_PROVEEDOR_ADDONE), name='add_doc_pro'),
+    path('download_doc_pro/<int:pk>', login_required(views.DOCUMENTO_PROVEEDOR_DOWNLOAD), name='download_doc_pro'),
+    #########################################
+    ########        CLIENTE          ########
+    #########################################
+    path('cli_listall/', login_required(views.CLIENTE_LISTALL), name='cli_listall'),
+    path('cli_listall_inhabilitado/', login_required(views.CLIENTE_LISTALL_INHABILITADO), name='cli_listall_inhabilitado'),
+    path('cli_delete/<int:pk>', login_required(views.CLIENTE_DELETE), name='cli_delete'),
+    path('cli_listone/<int:pk>', login_required(views.CLIENTE_LISTONE), name='cli_listone'),
+    path('cli_habilitar/<int:pk>', login_required(views.CLIENTE_HABILITAR), name='cli_habilitar'),
+    path('ajax_get_data_cliente/<int:pk>', views.ajax_get_data_cliente, name='ajax_get_data_cliente'),
+    #########################################
+    ########    DOCUMENTO CLIENTE    ########
+    #########################################
+    path('add_doc_cli/<int:pk>', login_required(views.DOCUMENTO_CLIENTE_ADDONE), name='add_doc_cli'),
+    path('download_doc_cli/<int:pk>', login_required(views.DOCUMENTO_CLIENTE_DOWNLOAD), name='download_doc_cli'),
+    #########################################
+    ########         CAMION          ########
+    #########################################
+    path('cam_listall/', login_required(views.CAMION_LISTALL), name='cam_listall'),
+    path('cam_listall_inhabilitado/', login_required(views.CAMION_LISTALL_INHABILITADO), name='cam_listall_inhabilitado'),
+    path('cam_addone/', login_required(views.CAMION_ADDONE), name='cam_addone'),
+    path('cam_update/<int:pk>', login_required(views.CAMION_UPDATE), name='cam_update'),
+    path('cam_delete/<int:pk>', login_required(views.CAMION_DELETE), name='cam_delete'),
+    path('cam_listone/<int:pk>', login_required(views.CAMION_LISTONE), name='cam_listone'),
+    path('cam_habilitar/<int:pk>', login_required(views.CAMION_HABILITAR), name='cam_habilitar'),
+    path('ajax_get_data_conductor_xcamion/<int:pk>', login_required(views.ajax_get_data_conductor_xcamion), name='ajax_get_data_conductor_xcamion'),
+    path('cam_delete_selected/', login_required(views.CAMION_DELETE_SELECTED), name='cam_delete_selected'),
+    path('con_delete_selected/', login_required(views.CONDUCTOR_DELETE_SELECTED), name='con_delete_selected'),
+    #########################################
+    ########    DOCUMENTO CAMION    #########
+    #########################################
+    path('add_doc_cam/<int:pk>', login_required(views.DOCUMENTO_CAMION_ADDONE), name='add_doc_cam'),
+    path('download_doc_cam/<int:pk>', login_required(views.DOCUMENTO_CAMION_DOWNLOAD), name='download_doc_cam'),
+    path('delete_doc_cam/<int:pk>', login_required(views.DOCUMENTO_CAMION_DELETE), name='delete_doc_cam'),
+    #########################################
+    ########       DOCUMENTO         ########
+    #########################################
+    path('doc_listall/', login_required(views.DOCUMENTO_LISTALL), name='doc_listall'),
+    path('doc_addone/', login_required(views.DOCUMENTO_ADDONE), name='doc_addone'),
+    path('doc_update/<int:pk>', login_required(views.DOCUMENTO_UPDATE), name='doc_update'),
+    path('doc_delete/<int:pk>', login_required(views.DOCUMENTO_DELETE), name='doc_delete'),
+    #########################################
+    ########       CAMPO             ########
+    #########################################
+    path('camp_listall/', login_required(views.CAMPO_LISTALL), name='camp_listall'),
+    path('camp_addone/', login_required(views.CAMPO_ADDONE), name='camp_addone'),
+    path('camp_update/<int:pk>', login_required(views.CAMPO_UPDATE), name='camp_update'),
+    path('camp_delete/<int:pk>', login_required(views.CAMPO_DELETE), name='camp_delete'),
+    #########################################
+    ########       ETAPA             ########
+    #########################################
+    path('etap_listall/', login_required(views.ETAPA_LISTALL), name='etap_listall'),
+    path('etap_addone/', login_required(views.ETAPA_ADDONE), name='etap_addone'),
+    path('etap_update/<int:pk>', login_required(views.ETAPA_UPDATE), name='etap_update'),
+    path('etap_delete/<int:pk>', login_required(views.ETAPA_DELETE), name='etap_delete'),
+    #########################################
+    ########       SECUENCIA         ########
+    #########################################
+    path('sec_listall/', login_required(views.SECUENCIA_LISTALL), name='sec_listall'),
+    path('sec_duplicar/', login_required(views.SECUENCIA_DUPLICAR), name='sec_duplicar'),
+    path('sec_addone/', login_required(views.SECUENCIA_ADDONE), name='sec_addone'),
+    path('sec_update/<int:pk>', login_required(views.SECUENCIA_UPDATE), name='sec_update'),
+    path('sec_delete/<int:pk>', login_required(views.SECUENCIA_DELETE), name='sec_delete'),
+    #########################################
+    ########  DETALLE - SECUENCIA    ########
+    #########################################
+    path('det_sec_listall/', login_required(views.DETALLE_SECUENCIA_LISTALL), name='det_sec_listall'),
+    path('det_sec_addone/', login_required(views.DETALLE_SECUENCIA_ADDONE), name='det_sec_addone'),
+    path('det_sec_update/<int:pk>', login_required(views.DETALLE_SECUENCIA_UPDATE), name='det_sec_update'),
+    path('det_sec_delete/<int:pk>', login_required(views.DETALLE_SECUENCIA_DELETE), name='det_sec_delete'),
+    #########################################
+    ########       DETALLE-ETAPA     ########
+    #########################################
+    path('det_etap_listall/', login_required(views.DETALLE_ETAPA_LISTALL), name='det_etap_listall'),
+    path('det_etap_addone/', login_required(views.DETALLE_ETAPA_ADDONE), name='det_etap_addone'),
+    path('det_etap_update/<int:pk>', login_required(views.DETALLE_ETAPA_UPDATE), name='det_etap_update'),
+    path('det_etap_delete/<int:pk>', login_required(views.DETALLE_ETAPA_DELETE), name='det_etap_delete'),
+    #########################################
+    ########       CAMPO - OPCIONES  ########
+    #########################################
+    path('camp_op_listall/', login_required(views.CAMPO_OPCIONES_LISTALL), name='camp_op_listall'),
+    path('camp_op_addone/', login_required(views.CAMPO_OPCIONES_ADDONE), name='camp_op_addone'),
+    path('camp_op_update/<int:pk>', login_required(views.CAMPO_OPCIONES_UPDATE), name='camp_op_update'),
+    path('camp_op_delete/<int:pk>', login_required(views.CAMPO_OPCIONES_DELETE), name='camp_op_delete'),
+    #########################################
+    ########       Usuario - Empresa  ########
+    #########################################
+    path('us_emp_listall/', login_required(views.EMPRESA_USUARIOS_LISTALL), name='us_emp_listall'),
+    path('us_emp_addone/', login_required(views.EMPRESA_USUARIOS_ADDONE), name='us_emp_addone'),
+    path('obtener-empresa-usuario/', views.OBTENER_EMPRESA_USUARIO, name='obtener_empresa_usuario'),
+    path('us_emp_update/<int:pk>', login_required(views.EMPRESA_USUARIOS_UPDATE), name='us_emp_update'),
+    path('us_emp_delete/<int:pk>', login_required(views.EMPRESA_USUARIOS_DELETE), name='us_emp_delete'),
+    path('actualizar-empresa-usuario/<int:ep_id>', views.ACTUALIZAR_EMPRESA_USUARIO, name='actualizar-empresa-usuario'),
+    #########################################
+    ############  CALENDARIO  ###############
+    #########################################
+    path('cal_listall/', login_required(views.CALENDARIO_LISTALL), name='cal_listall'),
+    path('cal_add_holiday/', login_required(views.CALENDARIO_ADD_HOLIDAY), name='cal_add_holiday'),
+    path('cal_modify_hours/', login_required(views.CALENDARIO_MODIFY_HOURS), name='cal_modify_hours'),
+    path('ajax_calendario_addone/', login_required(views.ajax_calendario_addone), name='ajax_calendario_addone'),
+    #########################################
+    ########       RUTAS            #########
+    #########################################
+    path('rut_listall/', login_required(views.RUTA_LISTALL), name='rut_listall'),
+    path('rut_listall_inhabilitado/', login_required(views.RUTA_LISTALL_INHABILITADO), name='rut_listall_inhabilitado'),
+    path('rut_addone/', login_required(views.RUTA_ADDONE), name='rut_addone'),
+    path('rut_update/<int:pk>', login_required(views.RUTA_UPDATE), name='rut_update'),
+    path('rut_delete/<int:pk>', login_required(views.RUTA_DELETE), name='rut_delete'),
+    path('rut_habilitar/<int:pk>', login_required(views.RUTA_HABILITAR), name='rut_habilitar'),
+    path('ajax_get_data_tarifa_ruta', login_required(views.ajax_get_data_tarifa_ruta), name='ajax_get_data_tarifa_ruta'),
+    #########################################
+    ######  LISTAR PROVINCIA Y COMUNA  ######
+    #########################################
+    path('get_provincias/', views.get_provincias, name='get_provincias'),
+    path('get_comunas/', views.get_comunas, name='get_comunas'),
+    #########################################
+    ########       TARIFA GLOBAL     ########
+    #########################################
+    path('tg_listall/', login_required(views.TARIFA_GLOBAL_LISTALL), name='tg_listall'),
+    path('tg_listall_inhabilitado/', login_required(views.TARIFA_GLOBAL_LISTALL_INHABILITADO), name='tg_listall_inhabilitado'),
+    path('tg_addone/', login_required(views.TARIFA_GLOBAL_ADDONE), name='tg_addone'),
+    path('tg_update/<int:pk>', login_required(views.TARIFA_GLOBAL_UPDATE), name='tg_update'),
+    path('tg_delete/<int:pk>', login_required(views.TARIFA_GLOBAL_DELETE), name='tg_delete'),
+    path('tg_habilitar/<int:pk>', login_required(views.TARIFA_GLOBAL_HABILITAR), name='tg_habilitar'),
+    path('ajax_get_data_tarifa/<int:pk>', views.ajax_get_data_tarifa, name='ajax_get_data_tarifa'),
+    path('tg_addmasive/', login_required(views.TARIFA_GLOBAL_ADDMASIVE), name="tg_addmasive"),
+    path('tg_download_platilla', login_required(views.TARIFA_GLOBAL_DOWNLOAD_PLANTILLA), name="tg_download_platilla"),
+    #########################################
+    ########  LISTAR SOCIOS Y RUTAS  ########
+    #########################################
+    path('get_socios_negocio/', views.get_socios_negocio, name='get_socios_negocio'),
+    path('get_rutas_socios/', views.get_rutas_socios, name='get_rutas_socios'),
+    #########################################
+    ########       PREVIEW        ########
+    #########################################
+    path('get_preview_etapa/<int:pk>', views.ETAPA_PREVIEW, name='get_preview_etapa'),
+    path('get_preview_secuencia/<int:pk>', views.SECUENCIA_PREVIEW, name='get_preview_secuencia'),
+    #########################################
+    ########       PARAMETROS        ########
+    #########################################
+    path('guardar_parametro/', views.guardar_parametro, name='guardar_parametro'),
+    path('obtener_tarifas/', views.obtener_tarifas, name='obtener_tarifas'),
+    #########################################
+    ########     PLANIFICACION       ########
+    #########################################
+    path('pla_listall/', login_required(views.PLANIFICACION_LISTALL), name='pla_listall'),
+    path('pla_listone/<int:pk>', login_required(views.PLANIFICACION_LISTONE), name='pla_listone'),
+    path('pla_addone/', login_required(views.PLANIFICACION_ADDONE), name='pla_addone'),
+    path('pla_filedone/<int:pk>', login_required(views.PLANIFICACION_FILEDONE), name="pla_filedone"),
+    path('pla_filedlistall/', login_required(views.PLANIFICACION_FILEDLISTALL), name="pla_filedlistall"),
+    path('ajax_validar_calendario_planificacion/', login_required(views.ajax_validar_calendario_planificacion), name='ajax_validar_calendario_planificacion'),
+    path('ajax_validar_nueva_planificacion/', login_required(views.ajax_validar_nueva_planificacion), name='ajax_validar_nueva_planificacion'),
+    path('ajax_archivar_planificaciones/', login_required(views.ajax_archivar_planificaciones_seleccionadas), name="ajax_archivar_planificaciones"),
+    #########################################
+    ############     EXTRA       ############
+    #########################################
+    path('ext_listall/', login_required(views.EXTRA_LISTALL), name='ext_listall'),
+    path('ext_listall_del/', login_required(views.EXTRA_LISTALL_INHABILITADOS), name='ext_listall_del'),
+    path('ext_addone/', login_required(views.EXTRA_ADDONE), name='ext_addone'),
+    path('ext_update/<int:pk>', login_required(views.EXTRA_UPDATE), name='ext_update'),
+    path('ext_delete/<int:pk>', login_required(views.EXTRA_DELETE), name='ext_delete'),
+    path('ext_habilitar/<int:pk>', login_required(views.EXTRA_HABILITAR), name='ext_habilitar'),
+    #########################################
+    ############     EXTRA       ############
+    #########################################
+    path('ajax_addone_extra/<int:pk>', login_required(views.ajax_addone_extra), name='ajax_addone_extra'),
+    path('ciex_import/', login_required(views.CITACION_EXTRA_ADDMASIVO), name='ciex_import'),
+    path('download_excel_plantilla_extra_citacion/', login_required(views.download_excel_plantilla_extra_citacion), name='download_excel_plantilla_extra_citacion'),
+    path('download_excel_plantilla_extra_planificacion/', login_required(views.download_excel_plantilla_extra_planificacion), name='download_excel_plantilla_extra_planificacion'),
+    #########################################
+    #########       CITACION       ##########
+    #########################################
+    path('cit_listall_despachos/', login_required(views.CITACION_LISTALL_DESPACHOS), name='cit_listall_despachos'),
+    path('cit_listall_recepciones/', login_required(views.CITACION_LISTALL_RECEPCIONES), name='cit_listall_recepciones'),
+    path('cit_addvariospre/', login_required(views.CITACION_ADDVARIOSPRE), name='cit_addvariospre'),
+    path('cit_addvarios/', login_required(views.CITACION_ADDVARIOS), name='cit_addvarios'),
+    path('ajax_validar_citaciones/', login_required(views.ajax_validar_citaciones), name='ajax_validar_citaciones'),
+    path('cit_listone/<int:pk>', login_required(views.CITACION_LISTONE), name='cit_listone'),
+    path('cit_update_data/<int:pk>', login_required(views.CITACION_UPDATE_DATA), name='cit_update_data'),
+    path('cit_finalizar_secuencia/<int:pk>', login_required(views.FINALIZAR_SECUENCIA), name='cit_finalizar_secuencia'),
+    path('cit_finalizar/<int:pk>', login_required(views.CITACION_FINALIZAR), name='cit_finalizar'),
+    path('cit_delete/<int:pk>', login_required(views.CITACION_DELETE), name='cit_delete'),
+    path('cit_iniciar_secuencia/<int:pk>', login_required(views.CITACION_INICIAR_SECUENCIA), name='cit_iniciar_secuencia'),
+    path('cit_addstep/<int:pk>', login_required(views.CITACION_ADDSTEP), name='cit_addstep'),
+    path('cit_download_file/<int:pk>', login_required(views.DOWNLOAD_DATO_OPERACION_FILE), name='cit_download_file'),
+    path('ajax_listar_archivos_tickets/', login_required(views.ajax_listar_archivos_tickets), name='ajax_listar_archivos_tickets'),
+    path('ajax_descargar_archivo_ticket/', login_required(views.ajax_descargar_archivo_ticket), name='ajax_descargar_archivo_ticket'),
+    path('cit_editar_secuencia/<int:pk>', login_required(views.ajax_edit_secuencia), name='cit_editar_secuencia'),
+    path('citacion_backward/<int:pk>', login_required(views.CITACION_BACKWARD), name='citacion_backward'),
+    path('cam_validar_sap/', login_required(views.CITACION_CAMPO_VALIDAR_SAP), name='cam_validar_sap'),
+    path('cit_add_lineas/', login_required(views.CITACION_ENVIAR_SAP), name='cit_add_lineas'),
+    path('cit_omitir_etapa/', login_required(views.CITACION_OMITIR_ETAPA), name='cit_omitir_etapa'),
+    path('cit_replace/<int:pk>', login_required(views.CITACION_REEMPLAZAR), name='cit_replace'),
+    path('cit_data/<int:pk>', login_required(views.CITACION_DATA), name='cit_data'),
+    path('cit_editar_etapa_terminada', login_required(views.CITACION_EDITAR_ETAPA_TERMINADA), name='cit_editar_etapa_terminada'),
+    path('export_citaciones_despachos_excel/', views.export_citaciones_despachos_excel, name='export_citaciones_despachos_excel'),
+    path('export_citaciones_recepciones_excel/', views.export_citaciones_recepciones_excel, name='export_citaciones_recepciones_excel'),
+    path('cit_entrega_conforme/<int:pk>', login_required(views.CIT_CONFORME), name="cit_entrega_conforme"),
+    #########################################
+    ########     PERFILAMIENTO       ########
+    #########################################
+    path('per_listall/', login_required(views.PERFIL_LISTALL), name='per_listall'),
+    path('per_assi_perm_prof/', login_required(views.PERFIL_ASSIGN_PERMISSION), name='per_assi_perm_prof'),
+    path('per_assi_us_prof/', login_required(views.PERFIL_ASSIGN_USER), name='per_assi_us_prof'),
+    path('modificar-permiso/', views.modificar_permiso, name='modificar_permiso'),
+    path('verificar-permiso/', views.verificar_permiso, name='verificar_permiso'),
+    path('modificar-perfil-usuario/', views.modificar_perfil_usuario, name='modificar_perfil_usuario'),
+    path('verificar-perfil-usuario/', views.verificar_perfil_usuario, name='verificar_perfil_usuario'),
+    #########################################
+    ########     USUARIOS       ########
+    #########################################
+    path('usr_listall/', login_required(views.USERS_LISTALL), name='usr_listall'),
+    path('usr_addone/', login_required(views.USERS_ADDONE), name='usr_addone'),
+    path('usr_update/<int:pk>', login_required(views.USERS_UPDATE), name='usr_update'), 
+    path('usr_updatepassword/<int:pk>', login_required(views.USERS_UPDATEPASSWORD), name='usr_updatepassword'),
+    path('usr_delete/<int:pk>', login_required(views.USERS_DELETE), name='usr_delete'),
+    path('usr_habilitar/<int:pk>', login_required(views.USERS_HABILITAR), name='usr_habilitar'),
+    #########################################
+    #########       PROFORMA       ##########
+    #########################################
+    path('proforma_listall', login_required(views.PROFORMA_LISTALL), name='proforma_listall'),
+    path('proforma_listall_borrador', login_required(views.BORRADOR_PROFORMA_LISTALL), name='proforma_listall_borrador'),
+    path('proforma_listone/<int:pk>', login_required(views.PROFORMA_LISTONE), name='proforma_listone'),
+    path('proforma_listone_extras/<int:pk>', login_required(views.PROFORMA_LISTONE_SOLO_EXTRAS), name="proforma_listone_extras"),
+    path('proforma_delete/<int:pk>', login_required(views.PROFORMA_DELETE), name='proforma_delete'),
+    path('prof_listall', login_required(views.PROFORMA_CITACION_LISTALL), name='prof_listall'),
+    path('proforma_extras_listall/', login_required(views.PROFORMA_EXTRAS_LISTALL), name="proforma_extras_listall"),
+    path('proforma_extras/', login_required(views.PROFORMA_EXTRAS), name="proforma_extras"),
+    path('proforma_unitaria/', login_required(views.PROFORMA_UNITARIA), name='proforma_unitaria'),
+    path('proforma_todo/', login_required(views.PROFORMA_TODO), name='proforma_todo'),
+    path('proforma_delete_citacion/<int:pk>', login_required(views.PROFORMA_DELETE_CITACION), name='proforma_delete_citacion'),
+    path('proforma_add_citacion/<int:pk>', login_required(views.PROFORMA_ADD_CITACION), name='proforma_add_citacion'),
+    path('proforma_delete_extra/<int:pk>', login_required(views.PROFORMA_DELETE_EXTRA), name='proforma_delete_extra'),
+    path('proforma_autorizar/<int:pk>', login_required(views.PROFORMA_AUTORIZAR), name='proforma_autorizar'),
+    path('proforma_autorizar_ajax/<int:pk>/', views.PROFORMA_AUTORIZAR_AJAX, name='proforma_autorizar_ajax'),
+    path('cit_tarifa_ruta/<int:pk>', login_required(views.cit_tarifa_ruta), name="cit_tarifa_ruta"),
+    path('get_ruta_xtarifa/<int:pk>', login_required(views.get_ruta_xtarifa), name="get_ruta_xtarifa"),
+    path('proforma_modificar_tarifa', login_required(views.PROFORMA_MODIFICAR_TARIFA_CITACION), name="proforma_modificar_tarifa"),
+    path('proforma_add_extra/<int:pk>', login_required(views.PROFORMA_ADD_EXTRA), name="proforma_add_extra"),
+    path('proforma-manual/<int:pk>/', login_required(views.PROFORMA_LISTONE_MANUAL), name='proforma_manual_listone'),
+    path('proforma-manual-add', login_required(views.PROFORMA_MANUAL_ADD), name='proforma_manual_add'),    
+    path('ajax/proforma-manual/add-linea/', login_required(views.proforma_manual_add_linea), name='proforma_manual_add_linea'),
+    path('ajax/proforma-manual/delete-linea/', login_required(views.proforma_manual_delete_linea), name='proforma_manual_delete_linea'),
+    path('ajax/proforma-manual/get-linea/', login_required(views.proforma_manual_get_linea), name='proforma_manual_get_linea'),
+    path('ajax/proforma-manual/edit-linea/', login_required(views.proforma_manual_edit_linea), name='proforma_manual_edit_linea'),
+    path('documento_proforma_delete/<int:pk>/', login_required(views.DOCUMENTO_PROFORMA_DELETE), name='documento_proforma_delete'),
+    #########################################
+    #########          CHAT         #########
+    #########################################
+    path('axonask/', login_required(views.AXONASK), name='axonask'),
+    path('axonmessage/', login_required(views.AXONCHECKMESSAGE), name='axonmessage'),
+    path('axongetusers/', login_required(views.AXONGETUSERS), name='axongetusers'),
+    path('check_notifications/', login_required(views.CHECK_NOTIFICATIONS), name='check_notifications'),
+    path('axongetcurrentuser/', login_required(views.AXONGETCURRENTUSER), name='axongetcurrentuser'),
+    path('axongetunreadmessages/', login_required(views.AXONGETUNREADMESSAGES), name='axongetunreadmessages'),
+    #########################################
+    ########     CUPOS PROVEEDOR     ########
+    #########################################
+    path('cupo_addmasive/<int:pk>', login_required(views.CUPO_PROVEEDOR_ADD_MASIVE), name='cupo_addmasive'),
+    path('cupo_addone/<int:pk>', login_required(views.CUPO_PROVEEDOR_ADDONE), name='cupo_addone'),
+    path('download_plantilla_cupos/', login_required(views.download_plantilla_cupos), name='download_plantilla_cupos'),
+    #########################################
+    ########          ZONAS          ########
+    #########################################
+    path('zon_listall/', login_required(views.ZONA_LISTALL), name='zon_listall'),
+    path('zon_addone/', login_required(views.ZONA_ADDONE), name='zon_addone'),
+    path('zon_update/<int:pk>', login_required(views.ZONA_UPDATE), name='zon_update'),
+    path('zon_delete/<int:pk>', login_required(views.ZONA_DELETE), name='zon_delete'),
+    #########################################
+    ########          PLANO ZONAS    ########
+    #########################################
+    path('guardar_posicion_zona', views.guardar_posicion_zona, name='guardar_posicion_zona'),
+    path('obtener_posiciones_zonas', views.obtener_posiciones_zonas, name='obtener_posiciones_zonas'),
+    path('guardar_zona', views.guardar_zona, name='guardar_zona'),
+    path('obtener_zonas', views.obtener_zonas, name='obtener_zonas'),
+    # NUEVA URL para actualizar coordenadas de zona
+    path('actualizar_coordenadas_zona', views.actualizar_coordenadas_zona, name='actualizar_coordenadas_zona'),    
+    # URL opcional para obtener coordenadas específicas de una zona
+    path('obtener_coordenadas_zona', views.obtener_coordenadas_zona, name='obtener_coordenadas_zona'),
+    # NUEVA URL para eliminar zona
+    path('eliminar_zona', views.eliminar_zona, name='eliminar_zona'),
+    path('cambiar_imagen_plano', views.cambiar_imagen_plano, name='cambiar_imagen_plano'),
+    #########################################
+    ########          ZONAS          ########
+    #########################################
+    path('cit_addmasive/<int:pk>', login_required(views.IMPORTACION_PLANIFICACION), name='cit_addmasive'),
+    path('download_plantilla_planificacion/', login_required(views.download_plantilla_planificacion), name='download_plantilla_planificacion'),
+    path('download_citaciones_data/<int:pk>', login_required(views.download_citaciones_data), name="download_citaciones_data"),
+    path('obtener_cupos_disponibles', login_required(views.obtener_cupos_disponibles), name='obtener_cupos_disponibles'),
+    path('get_citation_data/<int:pk>/', views.get_citation_data, name='get_citation_data'),
+    path('update_citation/<int:pk>/', views.update_citation, name='update_citation'),
+    path('get_proveedor_data/<int:proveedor_id>/', views.get_proveedor_data, name='get_proveedor_data'),
+    path('buscar_proveedores/', views.buscar_proveedores, name='buscar_proveedores'),
+    path('buscar_clientes/', views.buscar_clientes, name='buscar_clientes'),
+    path('update_extra/<int:pk>/', views.update_extra, name='update_extra'),
+    path('delete_extra/<int:pk>/', views.delete_extra, name='delete_extra'),
+    path('get_extra_data/<int:pk>/', views.get_extra_data, name='get_extra_data'),
+    path("guardar_zona", views.guardar_zona, name="guardar_zona"),
+    path('obtener_zonas', views.obtener_zonas, name='obtener_zonas'),
+    path('get_camiones_zona', views.get_camiones_x_zona, name="get_camiones_zona"),
+    path('cit_ruta_edit/<int:pk>', views.cit_ruta_edit, name='cit_ruta_edit'),
+    path('proforma_download/<int:pk>', views.download_proforma_details, name='proforma_download'),
+    path('get_flete_empresa', views.get_flete_empresa, name='get_flete_empresa'),
+    path('cit_edit_flete/<int:pk>', views.CITACION_EDITAR_FLETE, name='cit_edit_flete'),
+    path('cargar_documento_proforma/<int:pk>', views.DOCUMENTO_PROFORMA_ADDONE, name='cargar_documento_proforma'),
+    path('download_documento_proforma/<int:pk>', views.DOCUMENTO_PROFORMA_DOWNLOAD, name='download_documento_proforma'),
+    path('filter_proforma_inicio', views.filter_proforma_inicio, name='filter_proforma_inicio'),
+    path('parametro_list', views.parametro_list, name='parametro_list'),
+    path('parametro_create', views.parametro_create, name='parametro_create'),
+    path('parametro_update/<int:pk>', views.parametro_update, name='parametro_update'),
+    path('parametro_delete/<int:pk>', views.parametro_delete, name='parametro_delete'),
+    path('ajax/info-proveedor/', views.info_proveedor, name='info_proveedor'),
+    path('proforma_pdf/<int:pk>', login_required(views.PROFORMA_PDF), name='proforma_pdf'),
+    path('ajax/get-tipos-items/', views.get_tipos_items, name='get_tipos_items'),
+    path('buscar-patente/', views.buscar_patente_ajax, name='buscar_patente'),
+    path('ajax_obtener_pesaje/', views.ajax_obtener_pesaje, name='ajax_obtener_pesaje'),
+    path('ajax_actualizar_peso_dato_operacion/', views.ajax_actualizar_peso_dato_operacion, name='ajax_actualizar_peso_dato_operacion'),
+    
+    # Matches any html file
+    re_path(r'^.*\.*', views.pages, name='pages'),
+] + static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)

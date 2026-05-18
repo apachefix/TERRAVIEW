@@ -1,0 +1,189 @@
+{% extends "layouts/base.html" %}
+
+{% block title %} Campo {% endblock %} 
+
+<!-- Specific CSS goes HERE -->
+{% block stylesheets %}{% endblock stylesheets %}
+
+{% block content %}		
+    <!-- [ Main Content ] start -->
+    <section class="pcoded-main-container">
+        <div class="pcoded-content">
+            <!-- [ breadcrumb ] start -->
+            <div class="page-header">
+                <div class="page-block">
+                    <div class="row align-items-center">
+                        <div class="col-md-12">
+                            <div class="page-header-title">
+                                <h5 class="m-b-10">Campo</h5>
+                            </div>
+                            <ul class="breadcrumb">
+                                <li class="breadcrumb-item"><a href="/"><i class="feather icon-home"></i></a></li>
+                                <li class="breadcrumb-item"><a href="{% url 'camp_listall' %}">Campos</a></li>
+                                <li class="breadcrumb-item"><a href="#!">Agregar Campo</a></li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <!-- [ breadcrumb ] end -->
+            <!-- [ Main Content ] start -->
+            <div class="row">
+                <!-- [ form-element ] start -->
+                <div class="col-sm-12">
+                    <div class="card">
+                        <div class="card-header">
+                            <h5>Campo</h5>
+                        </div>
+                        <div class="card-body">
+                            <h5>Ingrese datos</h5>
+                            <hr>
+                            <div class="row">
+                                <div class="col-md-8">
+                                    <form method="POST" id="validation-form123"  enctype="multipart/form-data" > 
+                                    {% csrf_token %}
+                                        {{ form.non_field_errors }}
+                                        {{ form.EP_NID }}
+                                        <div class="fieldWrapper">
+                                            {{ form.CA_CTIPO.errors }}
+                                            <label class="my-1 me-2" for="{{ form.CA_CTIPO.id_for_label }}">Tipo de campo</label>
+                                            {{ form.CA_CTIPO }}
+                                        </div>
+                                        <div class="fieldWrapper">
+                                            {{ form.CA_CCODIGO.errors }}
+                                            <label class="my-1 me-2" for="{{ form.CA_CCODIGO.id_for_label }}">Código</label>
+                                            {{ form.CA_CCODIGO }}
+                                        </div>
+                                        <div class="fieldWrapper">
+                                            {{ form.subject.errors }}
+                                            <label class="my-1 me-2" for="{{ form.CA_CETIQUETA.id_for_label }}">Etiqueta:</label>
+                                            {{ form.CA_CETIQUETA }}
+                                        </div>
+                                        <div class="fieldWrapper">
+                                            {{ form.CA_CVALORDEFAULT.errors }}
+                                            <label class="my-1 me-2" for="{{ form.CA_CVALORDEFAULT.id_for_label }}">Valor por defecto:</label>
+                                            {{ form.CA_CVALORDEFAULT }}
+                                        </div>
+                                        <div class="fieldWrapper">
+                                            {{ form.CA_CPLACEMARK.errors }}
+                                            <label class="my-1 me-2" for="{{ form.CA_CPLACEMARK.id_for_label }}">Placeholder:</label>
+                                            {{ form.CA_CPLACEMARK }}
+                                        </div>
+                                        <div class="fieldWrapper">
+                                            {{ form.CA_CQUERY.errors }}
+                                            <label class="my-1 me-2" for="{{ form.CA_CQUERY.id_for_label }}">Query:</label>
+                                            {{ form.CA_CQUERY }}
+                                        </div>
+                                        <div class="fieldWrapper">
+                                            {{ form.CA_NLARGO.errors }}
+                                            <label class="my-1 me-2" for="{{ form.CA_NLARGO.id_for_label }}">Largo:</label>
+                                            {{ form.CA_NLARGO }}
+                                        </div>
+                                        <div class="fieldWrapper">
+                                            {{ form.CA_BOBLIGATORIO.errors }}
+                                            <label class=" font-weight-bold mr-3">¿Es obligatorio? </label>
+                                            <div class="switch switch-success d-inline m-r-10">
+                                                <label>No</label>
+                                                {{form.CA_BOBLIGATORIO}}
+                                                <label for="switch-s-1" class="cr"></label>
+                                            </div>
+                                            <label>Si</label>
+                                        </div>
+                                        <div class="form-group">
+                                            {{ form.CA_BHABILITADO.errors }}
+                                            <label class=" font-weight-bold mr-3">¿Habilitado? </label>
+                                            <div class="switch switch-success d-inline m-r-10">
+                                                <label>No</label>
+                                                {{form.CA_BHABILITADO}}
+                                                <label for="switch-s-2" class="cr"></label>
+                                            </div>
+                                            <label>Si</label>
+                                        </div>
+                                        <div class="form-group">
+                                            {{ form.CA_BASIGNARVALOR.errors }}
+                                            <label class=" font-weight-bold mr-3">¿Asignar valor? </label>
+                                            <div class="switch switch-success d-inline m-r-10">
+                                                <label>No</label>
+                                                {{form.CA_BASIGNARVALOR}}
+                                                <label for="switch-s-4" class="cr"></label>
+                                            </div>
+                                            <label>Si</label>
+                                        </div>
+                                        <br>
+                                        <div class="form-group">
+                                            {{ form.CA_BVALIDARSAP.errors }}
+                                            <label class=" font-weight-bold mr-3">¿Validar en SAP? </label>
+                                            <div class="switch switch-success d-inline m-r-10">
+                                                <label>No</label>
+                                                {{form.CA_BVALIDARSAP}}
+                                                <label for="switch-s-3" class="cr"></label>
+                                            </div>
+                                            <label>Si</label>
+                                        </div>
+                                        <div class="form-group">
+                                            <label class=" font-weight-bold mr-3">Campo de SAP </label>
+                                            <div class="switch switch-success d-inline m-r-10">
+                                                <label>No</label>
+                                                <input class="form-check-input" type="checkbox" id="switch-s-4"> 
+                                                <label for="switch-s-4" class="cr"></label>
+                                            </div>
+                                            <label>Si</label>
+                                        </div>
+                                        <hr>
+                                        <div id="opciones_campo_sap" style="display: none;">
+                                            <h5>Opciones SAP</h5>
+                                            <div class="fieldWrapper">
+                                                {{ form_opciones.CA_CTABLA.errors }}
+                                                <label class="my-1 me-2" for="{{ form_opciones.CA_CTABLA.id_for_label }}">Nombre tabla SAP:</label>
+                                                {{ form_opciones.CA_CTABLA }}
+                                            </div>
+                                            <div class="fieldWrapper">
+                                                {{ form_opciones.CA_CNOMBRECAMPO.errors }}
+                                                <label class="my-1 me-2" for="{{ form_opciones.CA_CNOMBRECAMPO.id_for_label }}">Nombre campo SAP:</label>
+                                                {{ form_opciones.CA_CNOMBRECAMPO }}
+                                            </div>
+                                            <br>
+                                            <hr>
+                                        </div>
+                                        {{ form.errors }}
+                                        <div class="form-group nav justify-content-end">
+                                            <button class="btn btn-success mr-4" 
+                                            type="submit">Guardar</button>
+                                            <a class="btn btn-danger mr-1"
+                                                onclick="window.history.go(-1); return false;">Volver
+                                            </a>
+                                        </div>
+                                    </form>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <!-- [ form-element ] end -->
+            </div>
+            <!-- [ Main Content ] end -->
+        </div>
+    </section>
+    <!-- [ Main Content ] end -->
+{% endblock content %}
+
+<!-- Specific Page JS goes HERE  -->
+{% block javascripts %}
+    <!-- bootstrap-tagsinput-latest Js -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/typeahead.js/0.11.1/typeahead.bundle.min.js"></script>
+    <script src="/static/assets/js/plugins/bootstrap-tagsinput.min.js"></script>
+    <!-- bootstrap-maxlength Js -->
+    <script src="/static/assets/js/plugins/bootstrap-maxlength.js"></script>
+    <!-- form-advance custom js -->
+    <script src="/static/assets/js/pages/form-advance-custom.js"></script>
+    <script>
+        $("#switch-s-3").change(function(){
+            if($(this).is(":checked")){
+                $("#opciones_campo_sap").show();
+            }else{
+                $("#opciones_campo_sap").hide();
+            }
+        });
+    </script>
+    
+{% endblock javascripts %}

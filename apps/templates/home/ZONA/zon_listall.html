@@ -1,0 +1,160 @@
+{% extends "layouts/base.html" %}
+
+{% block title %} Zonas {% endblock %} 
+
+<!-- Specific CSS goes HERE -->
+{% block stylesheets %}
+
+    <!-- data tables css -->
+    <link rel="stylesheet" href="/static/assets/css/plugins/dataTables.bootstrap4.min.css">
+
+    {% load humanize %}
+    {% load i18n %}
+    {% load l10n %}
+{% endblock stylesheets %}
+
+{% block content %}	
+
+	<!-- [ chat user list ] start -->
+	<!-- chatbot -->
+	<!-- [ chat user list ] end -->
+
+	<!---->
+
+    <!-- [ Main Content ] start -->
+    
+    <section class="pcoded-main-container">
+        <div class="pcoded-content">
+            <!-- [ breadcrumb ] start -->
+            <div class="page-header">
+                <div class="page-block">
+                    <div class="row align-items-center">
+                        <div class="col-md-12">
+                            <div class="page-header-title">
+                                <h5 class="m-b-10">Zonas</h5>
+                            </div>
+                            <ul class="breadcrumb">
+                                <li class="breadcrumb-item"><a href="/"><i class="feather icon-home"></i></a></li>
+                                <li class="breadcrumb-item"><a href="/">Sistema Camiones</a></li>
+                                <li class="breadcrumb-item"><a href="{% url 'zon_listall' %}">Zonas</a></li>
+                                
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+            <!-- [ breadcrumb ] end -->
+            <!-- [ Main Content ] start -->
+            <div class="row">
+                <!-- HTML5 Export Buttons table start -->
+                <div class="col-sm-12">
+                    <div class="card">
+                        <div class="d-flex justify-content-between">
+                            <div class="card-header table-card-header">
+                                <h5>Opciones de exportación</h5>
+                            </div>
+                            <div class=" mb-2 mb-md-0" style="margin-right: 50px;margin-top: 20px;">
+                                <a href="{% url 'zon_addone' %}" class="btn  btn-primary d-inline-flex align-items-center mr-2"><i class="feather icon-map-pin"></i>
+                                    &nbsp&nbsp Nuevo
+                                </a>
+                            </div>
+                        </div>
+                        <div class="card-body">
+                            <div class="dt-responsive table-responsive">
+                                <table id="basic-btn" class="table table-striped table-bordered nowrap">
+                                    <thead>
+                                        <tr>
+                                            <th>ACCIONES</th>
+                                            <th>NOMBRE</th>
+                                            <th>CUPOS</th>
+                                            <th>COLOR</th>
+                                            <th>LATITUD 1</th>
+                                            <th>LONGITUD 1</th>
+                                            <th>LATITUD 2</th>
+                                            <th>LONGITUD 2</th>
+                                            <th>LATITUD 3</th>
+                                            <th>LONGITUD 3</th>
+                                            <th>LATITUD 4</th>
+                                            <th>LONGITUD 4</th>
+                                            <th>DESCRIPCION</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {% for object in object_list %}
+                                            <tr>
+                                                <td>
+                                                    <a class="btn btn-primary mr-2" href="{% url 'zon_update' object.pk %}">
+                                                        <!-- https://feathericons.dev/?search=edit&iconset=feather -->
+                                                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="24" height="24" class="main-grid-item-icon" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2">
+                                                            <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
+                                                            <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
+                                                        </svg>  
+                                                    </a>
+                                                    <a class="btn btn-danger mr-2 delete-detail" data-href="{% url 'zon_delete' object.pk %}">
+                                                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="24" height="24" class="main-grid-item-icon" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2">
+                                                            <polyline points="3 6 5 6 21 6" />
+                                                            <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+                                                            <line x1="10" x2="10" y1="11" y2="17" />
+                                                            <line x1="14" x2="14" y1="11" y2="17" />
+                                                        </svg>
+                                                    </a>
+                                                </td>
+                                                <td>{{ object.ZON_CNOMBRE }}</td>
+                                                <td>{{ object.ZON_NCANTIDADCUPOS|default_if_none:"0" }}</td>
+                                                <td style="background-color: {{object.ZON_CCOLOR|default:'#FFFF'}};">{{object.ZON_CCOLOR|default:'#FFFF'}}</td>
+                                                <td>{{ object.ZON_CLATITUD1 }}</td>
+                                                <td>{{ object.ZON_CLONGITUD1 }}</td>
+                                                <td>{{ object.ZON_CLATITUD2 }}</td>
+                                                <td>{{ object.ZON_CLONGITUD2 }}</td>
+                                                <td>{{ object.ZON_CLATITUD3 }}</td>
+                                                <td>{{ object.ZON_CLONGITUD3 }}</td>
+                                                <td>{{ object.ZON_CLATITUD4 }}</td>
+                                                <td>{{ object.ZON_CLONGITUD4 }}</td>
+                                                <td>{{ object.ZON_CDESCRIPCION }}</td>
+                                            </tr>
+                                        {% endfor %}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <!-- [ Main Content ] end -->
+        </div>
+    </section>
+    <!-- [ Main Content ] end -->
+
+{% endblock content %}
+
+<!-- Specific Page JS goes HERE  -->
+{% block javascripts %}
+
+    <!-- datatable Js -->
+    <script src="/static/assets/js/plugins/jquery.dataTables.min.js"></script>
+    <script src="/static/assets/js/plugins/dataTables.bootstrap4.min.js"></script>
+    <script src="/static/assets/js/plugins/buttons.colVis.min.js"></script>
+    <script src="/static/assets/js/plugins/buttons.print.min.js"></script>
+    <script src="/static/assets/js/plugins/pdfmake.min.js"></script>
+    <script src="/static/assets/js/plugins/jszip.min.js"></script>
+    <script src="/static/assets/js/plugins/dataTables.buttons.min.js"></script>
+    <script src="/static/assets/js/plugins/buttons.html5.min.js"></script>
+    <script src="/static/assets/js/plugins/buttons.bootstrap4.min.js"></script>
+    <script src="/static/assets/js/pages/data-export-custom.js"></script>
+
+    <script>
+        $('.delete-detail').on('click', function() {
+            const urlToNavigate = $(this).data('href');
+            Swal.fire({
+                title: "Atención!",
+                icon: 'warning',
+                text: '¿Estás seguro eliminar esta zona?'
+            }).then((resultado) => {
+                if(resultado.isConfirmed){
+                    window.location.href = urlToNavigate;
+                }
+            });
+        });
+    </script>
+{% endblock javascripts %}

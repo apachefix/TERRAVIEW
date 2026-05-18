@@ -1,0 +1,2352 @@
+{% extends "layouts/base.html" %}
+{% block title %} Citación {% endblock %} 
+<!-- Specific CSS goes HERE -->
+{% block stylesheets %}
+    <!-- data tables css -->
+    <link rel="stylesheet" href="/static/assets/css/plugins/dataTables.bootstrap4.min.css">
+    {% load humanize %}
+    {% load i18n %}
+    {% load l10n %}
+    {% load formats %}
+
+    <style>
+        .cont-temporizador{
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            text-align: center;
+        }
+
+        .cont-temporizador .bloque{
+            margin: 0px 4px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            text-align: center;
+            justify-content: center;
+        }
+        .cont-temporizador .bloque div{
+            margin: 0px 4px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            background-color: rgb(80, 80, 80);
+            box-shadow: 0px 0px 6px 2px #727272 inset;
+            color: #ffff;
+            font-size: medium;
+            font-weight: bold;
+            border-radius: 5px;
+            width: 50px;
+            height: 40px;
+        }
+        .cont-temporizador .bloque p{
+            font-weight: bold;
+            color: rgb(80, 80, 80);
+        }
+        #ModalEditarCamion {
+            z-index: 1051; /* Un valor más alto que el modal base */
+        }
+        .modal-backdrop.show {
+            z-index: 1049; /* Asegúrate de que el backdrop esté detrás del segundo modal */
+        }
+
+        .swal-over-modal {
+            z-index: 9999 !important;
+        }
+
+        /* Asegurarse que el backdrop de SweetAlert2 también esté por encima */
+        .swal2-backdrop-show {
+            z-index: 9998 !important;
+        }
+        .modal .select2-container {
+            z-index: 10060 !important;
+        }
+
+        .modal .select2-dropdown {
+            z-index: 10061 !important;
+        }
+    </style>
+{% endblock stylesheets %}
+{% block content %}	
+    <!-- [ Main Content ] start -->
+    <section class="pcoded-main-container">
+        <div class="pcoded-content">
+            <!-- [ breadcrumb ] start -->
+            <div class="page-header">
+                <div class="page-block">
+                    <div class="row align-items-center">
+                        <div class="col-md-12">
+                            <div class="page-header-title d-flex justify-content-between">
+                                <h5 class="m-b-10"> Planificación #{{citacion.PL_NID.pk}} - cupo {{citacion.CI_NCUPO}}/{{citacion.PL_NID.PL_NCANTIDADCUPOS}}</h5>
+                                <h5> Número citación: {{citacion.id}}</h5>
+                            </div>
+                            <ul class="breadcrumb">
+                                <li class="breadcrumb-item"><a href="/"><i class="feather icon-home"></i></a></li>
+                                <li class="breadcrumb-item"><a href="/">Sistema Camiones</a></li>
+                                <li class="breadcrumb-item"><a href="{% if citacion.CI_CTIPO == 'DESPACHO' %}{% url 'cit_listall_despachos' %}{% else %}{% url 'cit_listall_recepciones' %}{% endif %}">Citación</a></li>
+                                
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <!-- [ breadcrumb ] end -->
+
+            <!-- [ Main Content ] start -->
+            <div class="container-fluid row">
+                <!-- HTML5 Export Buttons table start -->
+                <div class="col-12 col-sm-12 col-md-12 col-lg-12 col-xl-8">
+                    <!-- ESTADO DE LA CITACIÓN -->
+                    <div class="d-flex justify-content-end">
+                        <div class="card-body " id="div_estado_viaje">
+                            {% if citacion.CI_CESTADO == 'CREADO'%}  
+                                <div class="d-flex justify-content-end align-self-center" >
+                                    <span class="btn bg-primary text-white align-middle" data-estado='CREADO' id="span_estado" style="font-size: 20px;">
+                                        Creado
+                                    </span>
+                                </div>
+                            {% else %}
+                                {% if citacion.CI_CESTADO == 'EN PROCESO'%}  
+                                <div class="d-flex justify-content-end align-self-center">
+                                    <span class="btn text-white align-middle" data-estado='EN PROCESO' id="span_estado" style="font-size: 20px; background: linear-gradient(to right, #17a2b8, #17a2b8);">
+                                        En proceso
+                                    </span>
+                                </div>
+                                {% else %}
+                                <div class="d-flex justify-content-end align-self-center">
+                                    <span class="btn bg-secondary text-white align-middle" data-estado='TERMINADO' id="span_estado" style="font-size: 20px;">
+                                        Terminado
+                                    </span>
+                                </div>
+                                {% endif %}
+                            {% endif %}
+                        </div>
+                    </div>
+                    <!-- FIN ESTADO DE VIAJE -->
+                     <div class="d-flex justify-content-end" >
+                        <div class="card-body ">
+                            {% if citacion.CI_CESTADO == 'TERMINADO' and not citacion.CI_BCONFORME %}
+                                {% if request.user.is_superuser or has_permiso %}
+                                    <a class="btn btn-primary float-right entrega-conforme mr-2" data-href="{% url 'cit_entrega_conforme' citacion.pk %}">
+                                        Conforme
+                                    </a>
+                                {% endif %}
+                            {% endif %}
+                            {% if citacion.GET_STATUS_PROFORMA and request.user.is_superuser %}
+                                    <button class="btn btn-warning float-right mr-2" data-toggle="modal" data-target="#ModalEditarFlete">
+                                        <i class="fas fa-edit"></i> Flete
+                                    </button>
+                            {% endif %}
+                        </div>
+                    </div>
+                    <!-- DETALLES DEL VIAJE -->
+                    <div class="card">
+                        <div class="card-body">
+                            <ul class="nav nav-pills mb-3" id="pills-tab" role="tablist">
+								<li class="nav-item">
+									<a class="nav-link active" id="pills-home-tab" data-toggle="pill" href="#pills-general" role="tab" aria-controls="pills-home" aria-selected="true">General</a>
+								</li>
+								<li class="nav-item">
+									<a class="nav-link" id="pills-secuence-tab" data-toggle="pill" href="#pills-secuence" role="tab" aria-controls="pills-secuence" aria-selected="false">Secuencia</a>
+								</li>
+                                {% if citacion.CI_CESTADO != 'CREADO' %}
+                                    <li class="nav-item">
+                                        <a class="nav-link" id="pills-record-tab" data-toggle="pill" href="#pills-record" role="tab" aria-controls="pills-record" aria-selected="false">Historial etapas</a>
+                                    </li>
+                                {% endif %}
+							</ul>
+                            <hr>
+                            <div class="tab-content" id="pills-tabContent">
+                                <div class="tab-pane fade show active" id="pills-general" role="tabpanel" aria-labelledby="pills-general-tab">
+                                    <div class="form-group">
+                                        <label class="my-1 me-2">Tipo flete:</label>
+                                        <p class="form-control col-12">{{ citacion.CI_CTIPO_FLETE|default:"" }}</p>
+                                    </div>
+                                    <div class="form-group">
+                                        <label class="my-1 me-2">Tipo documento:</label>
+                                        <p class="form-control col-12">{{ citacion.CI_CTIPODOCUMENTO|default:"" }}</p>
+                                    </div>
+                                    <div class="form-group">
+                                        <label class="my-1 me-2">Número documento:</label>
+                                        <p class="form-control col-12">{{ citacion.CI_CNUMERODOCUMENTO|default:"" }}</p>
+                                    </div>
+                                    <div class="form-group">
+                                        <label class="my-1 me-2">Producto:</label>
+                                        <p class="form-control col-12">{{ citacion_item.IT_NID.IT_CCODIGO }} - {{ citacion_item.IT_NID.IT_CNOMBRE }}</p>
+                                    </div>
+                                    {% if citacion.TAR_NID and request.user.is_superuser == True %}
+                                        <div class="form-group" >
+                                            <label class="my-1 me-2">Tarifa original:</label>
+                                            <p class="form-control col-12">$ {{ citacion.TAR_NID.TAR_NVALOR|custom_number_format}}</p>
+                                        </div>
+                                        <div class="form-group" >                                
+                                            <label class="my-1 me-2">Tarifa venta:</label>
+                                            <p class="form-control col-12">$ {{ citacion.CI_NVALORTARIFA|custom_number_format }}</p>
+                                        </div>
+                                        <div class="form-group">
+                                            <label class="my-1 me-2">Diferencia tarifa:</label>
+                                            <p class="form-control col-12">$ {{ citacion.CI_NDIFERENCIATARIFA|custom_number_format }}</p>
+                                        </div>
+                                    {% endif %}
+                                    <div class="form-group">
+                                        <label class="my-1 me-2">Observación:</label>
+                                        <p class="form-control col-12">{{citacion.CI_CCOMENTARIO}}</p>
+                                    </div>
+                                    <div class="d-flex flex-column flex-sm-column flex-md-row flex-lg-row justify-content-lg-around">
+                                        <div class="form-group col-12 col-sm-12 col-md-2 col-lg-6 col-xl-6">
+                                            <label class="my-1 me-2">Fecha citación:</label>
+                                            <input type="datetime" class="form-control col-12" id="citacion" value="{{citacion.CI_FFECHACITACION|date:'d/m/Y H:i'}}" readonly>
+                                        </div>
+                                        <div class="form-group col-12 col-sm-12 col-md-6 col-lg-6 col-xl-6">
+                                            <label class="my-1 me-2">Fecha registro:</label>
+                                            <input type="datetime" class="form-control col-12" id="descarga" value="{{citacion.CI_FFECHAREGISTRO|date:'d/m/Y H:i'}}" readonly>
+                                        </div>
+                                    </div>
+                                    {% if citacion.RUT_NID %}
+                                        <div class="d-flex flex-column mt-4 mb-4">
+                                            <h5>Ruta  : </h5>
+                                            <div class="row container-fluid">
+                                                <div class="col-12 col-sm-8 col-md-12 col-lg-7 col-xl-3 d-flex flex-column text-center m-3" style="border: #151515; border-style: solid; border-radius: 15px; border-width: 2px; background-color: #e0eef7;">
+                                                    <span>
+                                                        <lord-icon
+                                                            src="https://cdn.lordicon.com/oaflahpk.json" trigger="hover" colors="primary:#4bb3fd" style="width:70px;height:70px">
+                                                        </lord-icon>
+                                                    </span>
+                                                    <label class="my-1 me-2">Inicio:</label>
+                                                    <p class="">{{citacion.RUT_NID.COM_NID_INICIO.COM_CNOMBRE}}, {{ citacion.RUT_NID.RG_NID_INICIO.RG_CNOMBRE }}</p>
+                                                </div>
+                                                <div class="d-flex align-items-center">
+                                                    <i class="fas fa-arrow-right animation-toggle animated" style="color: #005eff; font-size: 30px;" data-animate="wobble"></i>
+                                                </div>
+                                                <div class="col-12 col-sm-8 col-md-12 col-lg-7 col-xl-3 d-flex flex-column text-center m-3" style="border: #151515; border-style: solid; border-radius: 15px; border-width: 2px; background-color: #e0eef7;">
+                                                    <span>
+                                                        <lord-icon
+                                                            src="https://cdn.lordicon.com/oaflahpk.json" trigger="hover" colors="primary:#4bb3fd" style="width:70px;height:70px">
+                                                        </lord-icon>
+                                                    </span>
+                                                    <label class="my-1 me-2">Termino:</label>
+                                                    <p class="">{{ citacion.RUT_NID.COM_NID_TERMINO.COM_CNOMBRE}}, {{ citacion.RUT_NID.RG_NID_TERMINO.RG_CNOMBRE }}</p>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    {% endif %}
+                                </div>
+                                <div class="tab-pane fade" id="pills-secuence" role="tabpanel" aria-labelledby="pills-secuence-tab">
+                                    <div class="d-flex justify-content-between align-items-center">
+                                        <h5>{{ citacion.SC_NID.SE_CNOMBRE }}</h5>
+                                        {% if citacion.CI_CESTADO == 'CREADO' %}
+                                            <div>
+                                                <button class="btn btn-primary ml-2" id="init-secuence" data-href="{% url 'cit_iniciar_secuencia' citacion.id %}">Iniciar</button>
+                                                <button class="btn btn-primary ml-2" data-toggle="modal" data-target="#ModalPreviewSecuencia">Previsualizar</button>
+                                            </div>
+                                            {% else %}
+                                            <div class="d-flex justify-content-between align-items-center">
+                                                <div class="d-flex align-items-center"> <!-- Contenedor para el temporizador y el botón -->
+                                                    <div class="cont-temporizador mr-2"> <!-- Temporizador -->
+                                                        <div class="bloque">
+                                                            <div class="horas" id="horas"></div>
+                                                            <p style="margin-bottom: 0px;">HORAS</p>
+                                                        </div>
+                                                        :
+                                                        <div class="bloque">
+                                                            <div class="minutos" id="minutos"></div>
+                                                            <p style="margin-bottom: 0px;">MIN</p>
+                                                        </div>
+                                                        :
+                                                        <div class="bloque">
+                                                            <div class="segundos" id="segundos"></div>
+                                                            <p style="margin-bottom: 0px;">SEG</p>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        {% endif %}
+                                    </div>
+                                    <hr>
+                                    <ul class="nav nav-pills mb-3" id="pills-tab" role="tablist">
+                                        {% for etapa_key, etapa_value in datos_etapa.items %}
+                                            <li class="nav-item" role="presentation">
+                                                <a class="nav-link text-uppercase {% if not grouped_data_etapa_actual and forloop.first %}active{% endif %}" id="pills-{{ forloop.counter }}-tab" data-toggle="pill" href="#pills-{{ forloop.counter }}" role="tab" aria-controls="pills-{{ forloop.counter }}" aria-selected="false">{{ etapa_key }}</a>
+                                            </li>
+                                        {% endfor %}
+                                        {% if grouped_data_etapa_actual %}
+                                            <li class="nav-item" role="presentation">
+                                                <a class="nav-link text-uppercase active" id="pills-current-tab" data-toggle="pill" href="#pills-current" role="tab" aria-controls="pills-current" aria-selected="true">{{ citacion.ETAPA_ACTUAL.ET_CCODIGO }}</a>
+                                            </li>
+                                        {% endif %}
+                                    </ul>
+                                    <div class="tab-content" id="pills-tabContent">
+                                        {% for etapa_key, etapa_value in datos_etapa.items %}
+                                        
+                                            <div class="tab-pane fade {% if not grouped_data_etapa_actual and forloop.first %}show active{% endif %}" id="pills-{{ forloop.counter }}" role="tabpanel" aria-labelledby="pills-{{ forloop.counter }}-tab">
+                                                {% for campo in etapa_value %}
+                                                    <div class="fieldWrapper">
+                                                        <label>{{ campo.ETIQUETA }}:</label>
+                                                        {% if campo.TYPE == 'texto' %}
+                                                            <input type="text" class="form-control" value="{{ campo.VALOR|default:'' }}" readonly>
+                                                        {% elif campo.TYPE == 'multilinea' %}
+                                                            <input type ='text' class="form-control" value="{{ campo.VALOR|default:'' }}" readonly></input >
+                                                        {% elif campo.TYPE == 'numero' %}
+                                                            <input type="number" class="form-control" value="{{ campo.VALOR|default:'' }}" readonly>
+                                                        {% elif campo.TYPE == 'decimal' %}
+                                                            <input type="number" step="0.01" class="form-control" value="{{ campo.VALOR|default:'' }}" readonly>
+                                                        {% elif campo.TYPE == 'fecha' %}
+                                                            <input type="date" class="form-control" value="{{ campo.VALOR|default:'' }}" readonly>
+                                                        {% elif campo.TYPE == 'fecha/hora' %}
+                                                            <input type="datetime-local" class="form-control" value="{{ campo.VALOR|default:'' }}" readonly>
+                                                        <!-- 
+                                                            Sección para renderizar un campo de tipo 'archivo':
+                                                            - Muestra un botón para descargar el archivo asociado si existe (campo.VALOR).
+                                                            - Si la etiqueta del campo contiene la palabra 'pesaje', se agrega un input numérico y un botón con ícono de balanza (usualmente para ingresar o mostrar cantidades de peso).
+                                                            - A la derecha del botón balanza se muestra la patente actual del camión (citacion.CA_NID.CAM_CPATENTE).
+                                                            - El href del botón descargar direcciona a la URL de descarga si hay archivo, o a "#" si no hay archivo disponible.
+                                                            - Botón de lupa removido según instrucción.
+                                                        -->
+                                                        {% elif campo.TYPE == 'archivo' %}
+                                                            <div class="d-flex align-items-center">
+                                                                <span class="fw-normal">
+                                                                    <a class="btn btn-primary" {% if campo.VALOR %} href="{% url 'cit_download_file' campo.ID %}" {% else %} href="#" {% endif %}>
+                                                                        <i class="fas fa-file-pdf"></i> Descargar archivos
+                                                                    </a>
+                                                                </span>
+                                                                {% if "pesaje" in campo.ETIQUETA|lower %}
+                                                                    {% with campo_id=campo.ID_CAMPO|default:campo.ID %}
+                                                                    <input type="number" id="peso_entrada_{{ campo_id }}" class="form-control ml-2 campo-peso-input" style="width: 100px;" data-campo-id="{{ campo_id }}" data-peso="{{ campo.PESO|default:'' }}">
+                                                                    <button type="button" class="btn btn-secondary ml-2 btn-obtener-pesaje" data-patente="{{ citacion.CA_NID.CAM_CPATENTE }}" data-campo-id="{{ campo_id }}">
+                                                                        <i class="fas fa-balance-scale"></i>
+                                                                    </button>
+                                                                    <button type="button" class="btn btn-info ml-2 btn-carpeta-pesaje" data-campo-id="{{ campo_id }}" data-citacion-id="{{ citacion.pk }}" data-patente="{{ citacion.CA_NID.CAM_CPATENTE }}" title="Abrir carpeta de tickets">
+                                                                        <i class="fas fa-folder"></i>
+                                                                    </button>
+                                                                    <span class="ml-2 font-weight-bold">
+                                                                        {{ citacion.CA_NID.CAM_CPATENTE }}
+                                                                    </span>
+                                                                    {% endwith %}
+                                                                {% endif %}
+                                                            </div>
+                                                        {% elif campo.TYPE == 'lista' %}
+                                                            <select class="form-control" readonly>
+                                                                <option value="{{ campo.VALOR }}">{{ campo.VALOR }}</option>
+                                                            </select>
+                                                        {% elif campo.TYPE == 'check' %}
+                                                            <div class="form-group">
+                                                                <div class="switch switch-success d-inline m-r-10">
+                                                                    <label>No</label>
+                                                                    <input type="checkbox" id='switch-s-{{ forloop.counter }}' class='form-check-input' {% if campo.VALOR == 'on' %} checked {% endif %} readonly>
+                                                                    <label for="switch-s-{{ forloop.counter }}" class="cr"></label>
+                                                                    <label>Si</label>
+                                                                </div>
+                                                            </div>
+                                                        {% endif %}
+                                                    </div>
+                                                {% endfor %}
+                                                <button class="btn btn-primary edit-etapa" data-etapa-key="{{ etapa_key }}">Editar Etapa</button>
+                                            </div>
+                                        {% endfor %}
+                                        {% if grouped_data_etapa_actual %}
+                                            <div class="tab-pane fade show active" id="pills-current" role="tabpanel" aria-labelledby="pills-current-tab">
+                                                <form id="form-step-secuence" method="POST" action="{% url 'cit_addstep' citacion.pk %}" enctype="multipart/form-data">
+                                                    {% csrf_token %}
+                                                    {% for campo in grouped_data_etapa_actual %}
+                                                        <div class="fieldWrapper">
+                                                            <label>{{ campo.PLACEHOLDER }}:</label>
+                                                            {% if campo.TYPE == 'texto' %}
+                                                                <input id="{{ campo.ID_CAMPO }}" name="{{ campo.ID_CAMPO }}" type="text" class="form-control" value="{{ campo.DEFAULT_VALUE|default:'' }}" {% if campo.LARGO %} maxlength="{{ campo.LARGO }}" {% endif %} {% if campo.OBLIGATORIO %} required{% endif %}>
+                                                            {% elif campo.TYPE == 'multilinea' %}
+                                                                <textarea id="{{ campo.ID_CAMPO }}" name="{{ campo.ID_CAMPO }}" class="form-control" value="{{ campo.DEFAULT_VALUE|default:'' }}" {% if campo.LARGO %} maxlength="{{ campo.LARGO }}" {% endif %} {% if campo.OBLIGATORIO %} required{% endif %}></textarea>
+                                                            {% elif campo.TYPE == 'numero' %}
+                                                                <input id="{{ campo.ID_CAMPO }}" name="{{ campo.ID_CAMPO }}" type="number" class="form-control" value="{{ campo.DEFAULT_VALUE|default:'' }}" {% if campo.OBLIGATORIO %} required{% endif %} >
+                                                            {% elif campo.TYPE == 'decimal' %}
+                                                                <input id="{{ campo.ID_CAMPO }}" name="{{ campo.ID_CAMPO }}" type="number" step="0.01" class="form-control" value="{{ campo.DEFAULT_VALUE|default:'' }}" {% if campo.OBLIGATORIO %} required{% endif %} >
+                                                            {% elif campo.TYPE == 'fecha' %}
+                                                                <input id="{{ campo.ID_CAMPO }}" name="{{ campo.ID_CAMPO }}" type="date" class="form-control" value="{{ campo.DEFAULT_VALUE|default:'' }}" {% if campo.OBLIGATORIO %} required{% endif %} >
+                                                            {% elif campo.TYPE == 'fecha/hora' %}
+                                                                <input id="{{ campo.ID_CAMPO }}" name="{{ campo.ID_CAMPO }}" type="datetime-local" class="form-control" value="{{ campo.DEFAULT_VALUE|default:'' }}" {% if campo.OBLIGATORIO %} required{% endif %} >
+                                                            {% elif campo.TYPE == 'archivo' %}
+                                                                <input id="{{ campo.ID_CAMPO }}" name="{{ campo.ID_CAMPO }}" type="file" value="{{ campo.DEFAULT_VALUE }}" {% if campo.OBLIGATORIO %} required{% endif %} >
+                                                            {% elif campo.TYPE == 'lista' %}
+                                                                <select id="{{ campo.ID_CAMPO }}" name="{{ campo.ID_CAMPO }}" class="form-control js-example-placeholder-multiple" style="width:100%" {% if campo.OBLIGATORIO %} required{% endif %} >
+                                                                    <option value="">Seleccione una opción</option>
+                                                                    {% for dato in campo.DATOS %}
+                                                                        <option value="{{ dato.0 }}">{{ dato.1 }}</option>
+                                                                    {% endfor %}
+                                                                </select>
+                                                            {% elif campo.TYPE == 'check' %}
+                                                                <div class="form-group">
+                                                                    <div class="switch switch-success d-inline m-r-10">
+                                                                        <label>No</label>
+                                                                        <input id="{{ campo.ID_CAMPO }}" name="{{ campo.ID_CAMPO }}" type="checkbox" class='form-check-input' {% if campo.OBLIGATORIO %} required{% endif %} >
+                                                                        <label for="{{ campo.ID_CAMPO }}" class="cr"></label>
+                                                                        <label>Si</label>
+                                                                    </div>
+                                                                </div>
+                                                            {% endif %}
+                                                        </div>
+                                                        <br>
+                                                    {% endfor %}
+                                                    {% if lineas_etapa %}
+                                                        <hr>
+                                                        <br>
+                                                        <div class="d-flex justify-content-between">
+                                                            <h5>Lineas</h5>
+                                                            <button class="btn btn-primary" type="button" onclick="agregarLinea()">Agregar nueva línea</button>
+                                                        </div>
+                                                        <div id="lineas_etapa">
+                                                            {% for campo in lineas_etapa %}
+                                                                <div class="fieldWrapper">
+                                                                    <label>{{ campo.PLACEHOLDER }}:</label>
+                                                                    {% if campo.TYPE == 'texto' %}
+                                                                        <input id="{{ campo.ID_CAMPO }}" name="{{ campo.ID_CAMPO }}" type="text" class="form-control" value="{{ campo.DEFAULT_VALUE|default:'' }}" {% if campo.LARGO %} maxlength="{{ campo.LARGO }}" {% endif %} {% if campo.OBLIGATORIO %} required{% endif %}>
+                                                                    {% elif campo.TYPE == 'multilinea' %}
+                                                                        <textarea id="{{ campo.ID_CAMPO }}" name="{{ campo.ID_CAMPO }}" class="form-control" value="{{ campo.DEFAULT_VALUE|default:'' }}" {% if campo.LARGO %} maxlength="{{ campo.LARGO }}" {% endif %} {% if campo.OBLIGATORIO %} required{% endif %}></textarea>
+                                                                    {% elif campo.TYPE == 'numero' %}
+                                                                        <input id="{{ campo.ID_CAMPO }}" name="{{ campo.ID_CAMPO }}" type="number" class="form-control" value="{{ campo.DEFAULT_VALUE|default:'' }}" {% if campo.OBLIGATORIO %} required{% endif %} >
+                                                                    {% elif campo.TYPE == 'decimal' %}
+                                                                        <input id="{{ campo.ID_CAMPO }}" name="{{ campo.ID_CAMPO }}" type="number" step="0.01" class="form-control" value="{{ campo.DEFAULT_VALUE|default:'' }}" {% if campo.OBLIGATORIO %} required{% endif %} >
+                                                                    {% elif campo.TYPE == 'fecha' %}
+                                                                        <input id="{{ campo.ID_CAMPO }}" name="{{ campo.ID_CAMPO }}" type="date" class="form-control" value="{{ campo.DEFAULT_VALUE|default:'' }}" {% if campo.OBLIGATORIO %} required{% endif %} >
+                                                                    {% elif campo.TYPE == 'fecha/hora' %}
+                                                                        <input id="{{ campo.ID_CAMPO }}" name="{{ campo.ID_CAMPO }}" type="datetime-local" class="form-control" value="{{ campo.DEFAULT_VALUE|default:'' }}" {% if campo.OBLIGATORIO %} required{% endif %} >
+                                                                    {% elif campo.TYPE == 'archivo' %}
+                                                                        <input id="{{ campo.ID_CAMPO }}" name="{{ campo.ID_CAMPO }}" type="file" value="{{ campo.DEFAULT_VALUE }}" {% if campo.OBLIGATORIO %} required{% endif %} >
+                                                                    {% elif campo.TYPE == 'lista' %}
+                                                                        <select id="{{ campo.ID_CAMPO }}" name="{{ campo.ID_CAMPO }}" class="form-control js-example-placeholder-multiple" {% if campo.OBLIGATORIO %} required{% endif %} >
+                                                                            <option value="">Seleccione una opción</option>
+                                                                            {% for dato in campo.DATOS %}
+                                                                                <option value="{{ dato.0 }}">{{ dato.1 }}</option>
+                                                                            {% endfor %}
+                                                                        </select>
+                                                                    {% elif campo.TYPE == 'check' %}
+                                                                        <div class="form-group">
+                                                                            <div class="switch switch-success d-inline m-r-10">
+                                                                                <label>No</label>
+                                                                                <input id="{{ campo.ID_CAMPO }}" name="{{ campo.ID_CAMPO }}" type="checkbox" class='form-check-input' {% if campo.OBLIGATORIO %} required{% endif %} >
+                                                                                <label for="{{ campo.ID_CAMPO }}" class="cr"></label>
+                                                                                <label>Si</label>
+                                                                            </div>
+                                                                        </div>
+                                                                    {% endif %}
+                                                                </div>
+                                                            {% endfor %}
+                                                        </div>
+                                                    {% endif %}
+                                                    <hr>
+                                                    <br>
+                                                    {% if citacion.CI_CESTADO == 'EN PROCESO' %}
+                                                        <div class="form-group nav justify-content-end">
+                                                            {% if request.user.id in responsables %}
+                                                                {% if etapas_salida == True %}
+                                                                    <button class="btn btn-primary ml-2" id="finalizar_secuencia-btn" onclick="finalizar_secuencia('{{ citacion.pk }}')">Finalizar Secuencia</button>
+                                                                {% endif %}
+                                                                {% if campo_validate_sap and citacion.ETAPA_ACTUAL.ET_BISCABECERA == 0  %}
+                                                                    <button class="btn btn-primary ml-2" id="validar_sap" type="button">Validar</button>
+                                                                {% elif citacion.ETAPA_ACTUAL.ET_BISCABECERA == 1  %}
+                                                                    <button class="btn btn-primary ml-2" id="enviar_sap" type="button">Enviar a SAP</button>
+                                                                {% else %}
+                                                                    <button class="btn btn-success ml-2" id="guardar_ruta" type="submit">Guardar</button>
+                                                                {% endif %}
+                                                                {% if not detalle_secuencia_actual.SE_BOBLIGATORIO %}
+                                                                    <button class="btn btn-danger ml-2" id="omitir_etapa" type="button">Omitir Etapa</button>
+                                                                {% endif %}
+                                                                <p>&nbsp&nbsp</p>
+                                                                {% if detalle_secuencia_actual.SE_NPASO != 1 %}
+                                                                    <a class="btn btn-danger mr-1" data-href="{% url 'citacion_backward' citacion.pk %}" id="backward">Volver</a>
+                                                                {% endif %}
+                                                            {% endif %}
+                                                        </div>
+                                                    {% endif %}
+                                                </form>
+                                            </div>
+                                        {% endif %}
+                                    </div>
+                                </div>
+                                {% if citacion.CI_CESTADO != 'CREADO' %}
+                                    <div class="tab-pane fade" id="pills-record" role="tabpanel" aria-labelledby="pills-record-tab">
+                                        <div class="dt-responsive table-responsive">
+                                            <table id="basic-btn3" class="table table-striped table-bordered">
+                                                <thead>
+                                                    <tr>
+                                                        <th>Etapa</th>
+                                                        <th>Ingreso</th>
+                                                        <th>Salida</th>
+                                                        <th>Tiempo transcurrido</th>
+                                                        <th>Tiempo máximo</th>
+                                                    </tr>
+                                                </thead>
+                                                <tbody>
+                                                    {% for log in etapa_log %}
+                                                        <tr>
+                                                            <td>{{ log.ET_NID.ET_CNOMBRE }}</td>
+                                                            <td>{{ log.EL_FFECHAINICIO|date:'d/m/Y H:i:s' }}</td>
+                                                            <td>{{ log.EL_FFECHAFIN|date:'d/m/Y H:i:s' }}</td>
+                                                            <td style="text-align: center;">{{ log.TIEMPO_TRANSCURRIDO }}</td>
+                                                            <td style="text-align: center;">{{ log.ET_NID.ET_TTIEMPOMAXIMO|date:"H:i:s" }}</td>
+                                                        </tr>
+                                                    {% endfor %}
+                                                </tbody>
+                                            </table>
+                                        </div>
+                                    </div>
+                                {% endif %}
+                            </div>
+                        </div>
+                        <!-- FIN DETALLES DE VIAJE -->
+                    </div>
+                </div>
+                <!-- BOTONES PARA ABRIR MODALES CON DETALLES DEL VIAJE -->
+                <div class="col-12 col-sm-12 col-md-12 col-lg-12 col-xl-4">
+                    <div class="col-12 col-sm-12 col-md-12 col-lg-12 col-xl-12">
+                        <button class="col-sm-8 card  order-card" data-toggle="modal" data-target="#ModalPreviewSecuencia" style="background: #1e3c72;">
+                            <div class="card-body">
+                                <h6 class="text-white">SECUENCIA</h6>
+                                <h2 class="text-center text-white"><i class="fas fa-random"></i></h2>
+                                <p class="w-100 p-1 m-b-0 col">VER DETALLES </p>
+                            </div>
+                        </button>
+                    </div>
+                    {% if citacion.SN_NID %}
+                        <div class="col-12 col-sm-12 col-md-12 col-lg-12 col-xl-12">
+                            <button class="col-sm-8 card order-card" data-toggle="modal" data-target="#ModalCliente" style="background-color: #1e3c72; opacity: .9;">
+                                <div class="card-body">
+                                    <h6 class="text-white">CLIENTE</h6>
+                                    <h2 class="text-center text-white"><i class="fas fa-user-tie"></i></h2>
+                                    <p class="w-100 p-1 m-b-0 col">VER DETALLES </p>
+                                </div>
+                            </button>
+                        </div>
+                    {% endif %}
+                    <div class="col-12 col-sm-12 col-md-12 col-lg-12 col-xl-12">
+                        <button class="col-sm-8 card  order-card" data-toggle="modal" data-target="#ModalExtraViaje" style="background-color: #1e3c72; opacity: .8;">
+                            <div class="card-body">
+                                <h6 class="text-white">EXTRA</h6>
+                                <h2 class="text-center text-white"><i class="fas fa-file-invoice-dollar"></i></h2>
+                                <p class="w-100 p-1 m-b-0 col">VER DETALLES</p>
+                            </div>
+                        </button>
+                    </div>
+                    {% if citacion.CON_NID %}
+                        <div class="col-12 col-sm-12 col-md-12 col-lg-12 col-xl-12">
+                            <button class="col-sm-8 card  order-card" data-toggle="modal" data-target="#ModalConductor" style="background-color: #1e3c72; opacity: .7;">
+                                <div class="card-body">
+                                    <h6 class="text-white">CONDUCTOR</h6>
+                                    <h2 class="text-center text-white"><i class="fas fa-id-card"></i></h2>
+                                    {% if not citacion.CON_NID %}
+                                        <p class="w-100 p-1 m-b-0 col"><strong class="text-danger "> NO ASIGNADO </strong></p>
+                                    {% else %}
+                                        <p class="w-100 p-1 m-b-0 col">VER DETALLES </p>
+                                    {% endif %}
+                                </div>
+                            </button>
+                        </div>
+                        <div class="col-12 col-sm-12 col-md-12 col-lg-12 col-xl-12">
+                            <button class="col-sm-8 card  order-card" data-toggle="modal" data-target="#ModalProveedor" style="background-color: #1e3c72; opacity: .6;">
+                                <div class="card-body">
+                                    <h6 class="text-white">PROVEEDOR</h6>
+                                    <h2 class="text-center text-white"><i class="fas fa-industry"></i></h2>
+                                    <p class="w-100 p-1 m-b-0 col">VER DETALLES </p>
+                                </div>
+                            </button>
+                        </div>
+                    {% endif %}
+                    {% if citacion.CA_NID %}
+                        <div class="col-12 col-sm-12 col-md-12 col-lg-12 col-xl-12">
+                            <button class="col-sm-8 card order-card" data-toggle="modal" data-target="#ModalCamion" style="background-color: #1e3c72; opacity: .5;">
+                                <div class="card-body">
+                                    <h6 class="text-white">CAMIÓN</h6>
+                                    <h2 class="text-center text-white"><i class="fas fa-truck"></i></h2>
+                                    {% if not citacion.CA_NID %}
+                                        <p class="w-100 p-1 m-b-0 col"><strong class="text-danger "> NO ASIGNADO </strong></p>
+                                    {% else %}
+                                        <p class="w-100 p-1 m-b-0 col">VER DETALLES </p>
+                                    {% endif %}
+                                </div>
+                            </button>
+                        </div>
+                    {% endif %}
+                    <div class="col-12 col-sm-12 col-md-12 col-lg-12 col-xl-12">
+                        <button class="col-sm-8 card  order-card" data-toggle="modal" data-target="#ModalRuta" style="background-color: #1e3c72; opacity: .4;">
+                            <div class="card-body">
+                                <h6 class="text-white">RUTA</h6>
+                                <h2 class="text-center text-white"><i class="fas fa-route"></i></h2>
+                                <p class="w-100 p-1 m-b-0 col">VER DETALLES </p>
+                            </div>
+                        </button>
+                    </div>
+                <!-- FIN BOTONES -->
+            </div>
+            <!-- [ Main Content ] end -->
+        </div>
+    </section>
+    <!-- [ Main Content ] end -->
+
+<!-------------------------- MODALES -------------------------------------->
+
+<!------------------------------------------------------------------------------------------------------------>
+<!------------------------------------- MODALES CLIENTE -------------------------------------------------------->
+<!------------------------------------------------------------------------------------------------------------>
+<!-- Modal Content Cliente-->
+<div class="modal fade " id="ModalCliente" tabindex="-1" role="dialog" aria-labelledby="ModalClienteLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable" role="document">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="ModalClienteLabel">Cliente {{citacion.SN_NID.SN_CRAZONSOCIAL}}</h5>
+                <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                  <span aria-hidden="true">&times;</span>
+                </button>
+            </div>
+            <div class="modal-body">
+                <div class="form-group">
+                    <label class="my-1 me-2">Razon social:</label>
+                    <p class="form-control col-12">{{citacion.SN_NID.SN_CRAZONSOCIAL}}</p>
+                </div>
+                <div class="form-group">
+                    <label class="my-1 me-2">Rut:</label>
+                    <p class="form-control col-12">{{citacion.SN_NID.SN_CRUT}}</p>
+                </div>
+                <div class="form-group">
+                    <label class="my-1 me-2">Código SAP:</label>
+                    <p class="form-control col-12">{{citacion.SN_NID.SN_CCODIGO_SAP}}</p>
+                </div>
+                <div class="form-group">
+                    <label class="my-1 me-2">Direccion:</label>
+                    <p class="form-control col-12">{{citacion.SN_NID.SN_CDIRECCION}}</p>
+                </div>
+                <div class="form-group">
+                    <label class="my-1 me-2">Contacto:</label>
+                    <p class="form-control col-12">{{citacion.SN_NID.SN_CCONTACTO}}</p>
+                </div>
+                <div class="form-group">
+                    <label class="my-1 me-2">Telefono:</label>
+                    <p class="form-control col-12">{{citacion.SN_NID.SN_CTELEFONO}}</p>
+                </div>
+                <div class="form-group">
+                    <label class="my-1 me-2">Correo:</label>
+                    <p class="form-control col-12">{{citacion.SN_NID.SN_CEMAIL}}</p>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-danger" data-dismiss="modal">Cerrar</button>
+            </div>
+        </div>
+    </div>
+</div>
+<!-- End of Modal Cliente -->
+<!------------------------------------------------------------------------------------------------------------>
+<!------------------------------------- MODALES CONDUCTOR ---------------------------------------------------->
+<!------------------------------------------------------------------------------------------------------------>
+
+<!-- Modal Content Conductor-->
+<div class="modal fade " id="ModalConductor" tabindex="-1" role="dialog" aria-labelledby="ModalConductorLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered" role="document">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="ModalConductorLabel">Conductor</h5>
+                <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                    <span aria-hidden="true">&times;</span>
+                </button>
+            </div>
+            <div class="modal-body">
+                {% if not citacion.CON_NID %}
+                    <div class="d-flex flex-column justify-content-center">
+                        <label class="text-center my-1 me-2">No se ha asignado un conductor para este viaje</label>
+                        {% if citacion.CI_BHABILITADO == 1 %}
+                            <label class="text-center my-1 me-2">¿Quiere asignar uno ahora?</label>
+                            <br>
+                            <button type="button" id="add_container" class="btn btn-primary"  data-toggle="modal" data-target="#ModalAgregarConductor" >Agregar conductor</button>
+                        {% endif %}
+                    </div>
+                {% else%}
+                    <div class="modal-body">
+                        <div class="d-flex justify-content-end">
+                            <button type="button" class="btn btn-primary" data-toggle="modal" data-target="#ModalEditarConductor">Editar conductor</button>
+                        </div>
+                        <div class="form-group">
+                            <label class="my-1 me-2">Nombre completo:</label>
+                            <p class="form-control col-12">{{citacion.CON_NID.CON_CNOMBRE}} {{citacion.CON_NID.CON_CAPELLIDO}}</p>
+                        </div>
+                        <div class="form-group">
+                            <label class="my-1 me-2">Rut:</label>
+                            <p class="form-control col-12">{{citacion.CON_NID.CON_CRUT}}</p>
+                        </div> 
+                        <div class="form-group">
+                            <label class="my-1 me-2">Dirección:</label>
+                            <p class="form-control col-12">{{citacion.CON_NID.CON_CDIRECCION}}</p>
+                        </div> 
+                        <div class="form-group">
+                            <label class="my-1 me-2">Teléfono:</label>
+                            <p class="form-control col-12">{{citacion.CON_NID.CON_CTELEFONO}}</p>
+                        </div> 
+                        <div class="form-group">
+                            <label class="my-1 me-2">Correo:</label>
+                            <p class="form-control col-12">{{citacion.CON_NID.CON_CEMAIL}}</p>
+                        </div>       
+                    </div>
+                {% endif %}
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-danger" data-dismiss="modal">Cerrar</button>
+            </div>
+        </div>
+    </div>
+</div>
+<!-- End of Modal Content -->
+
+<!-- Modal Content Editar Conductor-->
+<div class="modal fade " id="ModalEditarConductor" tabindex="-1" role="dialog" aria-labelledby="ModalEditarConductorLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered" role="document">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="ModalEditarConductorLabel">Editar conductor</h5>
+                <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                    <span aria-hidden="true">&times;</span>
+                </button>
+            </div>
+            <div class="modal-body">
+                <form method="POST" action="{% url 'cit_update_data' citacion.pk %}">
+                    {% csrf_token %}
+                    <select class="form-control" name="CON_NID" style="width: 100%;z-index: 9999;">
+                        <option value="">Seleccione un conductor</option>
+                        {% for conductor in ltsConductores %}
+                            <option value="{{conductor.pk}}">{{conductor.CON_CNOMBRE}} {{conductor.CON_CAPELLIDO}} - {{conductor.CON_CRUT}}</option>
+                        {% endfor %}
+                    </select>
+                    <div class="d-flex justify-content-end">
+                        <button type="submit" class="btn btn-primary">Guardar</button>
+                        <button type="button" class="btn btn-danger" data-dismiss="modal">Cerrar</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+<!-- End of Modal Content -->
+
+<!------------------------------------------------------------------------------------------------------------>
+<!------------------------------------- MODAL PROVEEDOR -------------------------------------------------------->
+<!------------------------------------------------------------------------------------------------------------>
+<!-- Modal Content Proveedor-->
+<div class="modal fade " id="ModalProveedor" tabindex="-1" role="dialog" aria-labelledby="ModalProveedorLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable" role="document">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="ModalProveedorLabel">Proveedor {{citacion.PRO_NID.SN_CRAZONSOCIAL}}</h5>
+                <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                  <span aria-hidden="true">&times;</span>
+                </button>
+            </div>
+            <div class="modal-body">
+                <div class="d-flex justify-content-end">
+                    <button type="button" class="btn btn-primary" data-toggle="modal" data-target="#ModalEditarProveedor">Editar proveedor</button>
+                </div>
+                <div class="form-group">
+                    <label class="my-1 me-2">Razon social:</label>
+                    <p class="form-control col-12">{{citacion.PRO_NID.SN_CRAZONSOCIAL}}</p>
+                </div>
+                <div class="form-group">
+                    <label class="my-1 me-2">Rut:</label>
+                    <p class="form-control col-12">{{citacion.PRO_NID.SN_CRUT}}</p>
+                </div> 
+                <div class="form-group">
+                    <label class="my-1 me-2">Código SAP:</label>
+                    <p class="form-control col-12">{{citacion.PRO_NID.SN_CCODIGO_SAP}}</p>
+                </div> 
+                <div class="form-group">
+                    <label class="my-1 me-2">Dirección:</label>
+                    <p class="form-control col-12">{{citacion.PRO_NID.SN_CDIRECCION}}</p>
+                </div> 
+                <div class="form-group">
+                    <label class="my-1 me-2">Contacto:</label>
+                    <p class="form-control col-12">{{citacion.PRO_NID.SN_CCONTACTO}}</p>
+                </div>
+                <div class="form-group">
+                    <label class="my-1 me-2">Teléfono:</label>
+                    <p class="form-control col-12">{{citacion.PRO_NID.SN_CTELEFONO}}</p>
+                </div> 
+                <div class="form-group">
+                    <label class="my-1 me-2">Correo:</label>
+                    <p class="form-control col-12">{{citacion.PRO_NID.SN_CEMAIL}}</p>
+                </div>             
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-danger" data-dismiss="modal">Cerrar</button>
+            </div>
+        </div>
+    </div>
+</div>
+<!-- End of Modal Proveedor -->
+
+<!-- Modal Content Editar Proveedor-->
+<div class="modal fade " id="ModalEditarProveedor" tabindex="-1" role="dialog" aria-labelledby="ModalEditarProveedorLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered" role="document">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="ModalEditarProveedorLabel">Editar proveedor</h5>
+                <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                    <span aria-hidden="true">&times;</span>
+                </button>
+            </div>
+            <div class="modal-body">
+                <form method="POST" action="{% url 'cit_update_data' citacion.pk %}">
+                    {% csrf_token %}
+                    <select id="id_proveedor_select" class="form-control" name="PRO_NID" style="width: 100%;z-index: 9999;">
+                        <option value="">Seleccione un proveedor</option>
+                        {% for proveedor in ltsProveedores %}
+                            <option value="{{proveedor.pk}}">{{proveedor.SN_CRAZONSOCIAL}} - {{proveedor.SN_CRUT}}</option>
+                        {% endfor %}
+                    </select>
+                    <div class="d-flex justify-content-end mt-3">
+                        <button type="submit" class="btn btn-primary">Guardar</button>
+                        <button type="button" class="btn btn-danger ml-2" data-dismiss="modal">Cerrar</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+<!-- End of Modal Content -->
+
+<!------------------------------------------------------------------------------------------------------------>
+<!--------------------------------------- MODALES CAMIÓN ----------------------------------------------------->
+<!------------------------------------------------------------------------------------------------------------>
+
+<!-- Modal Content Camión-->
+<div class="modal fade " id="ModalCamion" tabindex="-1" role="dialog" aria-labelledby="ModalCamionLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable" role="document">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="ModalCamionLabel">Camión </h5>
+                <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                    <span aria-hidden="true">&times;</span>
+                </button>
+                </div>
+            <div class="modal-body">
+                {% if not citacion.CA_NID %}
+                    <div class="d-flex flex-column justify-content-center">
+                        <label class="text-center my-1 me-2">No se ha asignado un camión para esta citación</label>
+                    </div>
+                {% else%}
+                    <div class="d-flex justify-content-end">
+                        <button type="button" class="btn btn-primary" id="btnEditarCamion">Editar camión</button>
+                    </div>
+                    <div class="form-group">
+                        <label class="my-1 me-2">Patente:</label>
+                        <p class="form-control col-12">{{citacion.CA_NID.CAM_CPATENTE}}</p>
+                    </div>
+                    <div class="form-group">
+                        <label class="my-1 me-2">Marca:</label>
+                        <p class="form-control col-12">{{citacion.CA_NID.CAM_CMARCA}}</p>
+                    </div>
+                    <div class="form-group">
+                        <label class="my-1 me-2">Modelo:</label>
+                        <p class="form-control col-12">{{citacion.CA_NID.CAM_CMODELO}}</p>
+                    </div>
+                    <div class="form-group">
+                        <label class="my-1 me-2">Pies cubicos:</label>
+                        <p class="form-control col-12">{{citacion.CA_NID.CAM_NMETROS3}}</p>
+                    </div>
+                    <div class="form-group">
+                        <label class="my-1 me-2">Año:</label>
+                        <p class="form-control col-12">{{citacion.CA_NID.CAM_NANO}}</p>
+                    </div>
+                    <div class="form-group">
+                        <label class="my-1 me-2">Color:</label>
+                        <p class="form-control col-12">{{citacion.CA_NID.CAM_CCOLOR}}</p>
+                    </div>
+                    <div class="form-group">
+                        <label class="my-1 me-2">Kilometraje:</label>
+                        <p class="form-control col-12">{{citacion.CA_NID.CAM_NKILOMETRAJE}}</p>
+                    </div>
+                {% endif %}
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-danger" data-dismiss="modal">Cerrar</button>
+            </div>
+        </div>
+    </div>
+</div>
+<!-- End of Modal Camión -->
+<!-- Modal Content Editar Camión-->
+<div class="modal fade " id="ModalEditarCamion" tabindex="-1" role="dialog" aria-labelledby="ModalEditarCamionLabel" aria-hidden="true" style="z-index: 9998;">
+    <div class="modal-dialog modal-dialog-centered" role="document">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="ModalEditarCamionLabel">Editar camión</h5>
+                <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                    <span aria-hidden="true">&times;</span>
+                </button>
+            </div>
+            <div class="modal-body">
+                <form method="POST" action="{% url 'cit_update_data' citacion.pk %}">
+                    {% csrf_token %}
+                    <select class="form-control" name="CA_NID" style="width: 100%;z-index: -1;">
+                        <option value="">Seleccione un camión</option>
+                        {% for camion in ltsCamiones %}
+                            <option value="{{camion.pk}}">{{camion.CAM_CPATENTE}} - {{camion.CAM_CMARCA}}</option>
+                        {% endfor %}
+                    </select>
+                    <hr>
+                    <div class="d-flex justify-content-end">
+                        <button type="submit" class="btn btn-primary">Guardar</button>
+                        <button type="button" class="btn btn-danger" data-dismiss="modal">Cerrar</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+<!-- End of Modal Content -->
+
+<!------------------------------------------------------------------------------------------------------------>
+<!--------------------------------------- MODAL RUTA --------------------------------------------------------->
+<!------------------------------------------------------------------------------------------------------------>
+
+<!-- Modal Content Ruta-->
+<div class="modal fade " id="ModalRuta" tabindex="-1" role="dialog" aria-labelledby="ModalRutaLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered" role="document">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="ModalRutaLabel">Ruta </h5>
+                <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                    <span aria-hidden="true">&times;</span>
+                </button>
+                </div>
+            <div class="modal-body">
+                {% if citacion.RUT_NID %}
+                    <div class="form-group">
+                        <label class="my-1 me-2">Información inicio:</label>
+                        <p class="form-control col-12">{{citacion.RUT_NID.COM_NID_INICIO.COM_CNOMBRE}}, {{citacion.RUT_NID.PV_NID_INICIO.PV_CNOMBRE}}, {{citacion.RUT_NID.RG_NID_INICIO.RG_CNOMBRE}}</p>
+                    </div>
+                    <div class="form-group">
+                        <label class="my-1 me-2">Información termino:</label>
+                        <p class="form-control col-12">{{citacion.RUT_NID.COM_NID_TERMINO.COM_CNOMBRE}}, {{citacion.RUT_NID.PV_NID_TERMINO.PV_CNOMBRE}}, {{citacion.RUT_NID.RG_NID_TERMINO.RG_CNOMBRE}}</p>
+                    </div>
+                    <div class="form-group">
+                        <button class="btn btn-primary" type="button" data-toggle="modal" data-target="#ModalEditRuta">
+                            ¿Deseas asignar una nueva?
+                        </button>
+                    </div>
+                {% else %}
+                    <div class="form-group">
+                        <label class="my-1 me-2" style="text-align: center;">No hay ruta asignada a esta citación</label>
+                        <br>
+                        <button class="btn btn-primary" type="button" data-toggle="modal" data-target="#ModalEditRuta" style="width:100%">
+                            ¿Deseas asignar una?
+                        </button>
+                    </div>
+                {% endif %}
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-danger" data-dismiss="modal">Cerrar</button>
+            </div>
+        </div>
+    </div>
+</div>
+<div class="modal fade " id="ModalEditRuta" tabindex="-1" role="dialog" aria-labelledby="ModalEditRutaLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered" role="document">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="ModalEditRutaLabel">Ruta </h5>
+                <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                    <span aria-hidden="true">&times;</span>
+                </button>
+                </div>
+            <div class="modal-body">
+                <form method="POST" action="{% url 'cit_ruta_edit' citacion.pk %}">
+                    {% csrf_token %}
+                    <div class="form-group">
+                        <label class="my-1 me-2">Ruta: </label>
+                        <select class="form-control js-example-placeholder-multiple" name="RUT_NID" id="id_ruta" required style="width: 100%;">
+                            <option value="">Seleccione una opción</option>
+                            {% for ruta in rutas %}
+                                <option value="{{ ruta.id }}">{{ ruta.RUT_CNOMBRE }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <hr>
+                    <div class="d-flex justify-content-end">
+                        <button type="submit" class="btn btn-primary">Guardar</button>
+                        <button type="button" class="btn btn-danger" data-dismiss="modal">Cerrar</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+<!------------------------------------------------------------------------------------------------------------>
+<!------------------------------------ MODALES EXTRA VIAJE --------------------------------------------------->
+<!------------------------------------------------------------------------------------------------------------>
+
+<!-- Modal Content extra viaje-->
+<div class="modal fade " id="ModalExtraViaje" tabindex="-1" role="dialog" aria-labelledby="ModalExtraViajeLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered modal-xl" role="document">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="ModalExtraViajeLabel">Extra</h5>
+                <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                    <span aria-hidden="true">&times;</span>
+                </button>
+                </div>
+            <div class="modal-body">
+                {% if citacion_extras %}
+                    {% if citacion.CI_BHABILITADO == 1 %}
+                        <div class="d-flex justify-content-end">
+                            <button class="ml-2 mb-2 btn btn-primary" type="button" data-toggle="modal" data-target="#ModalCrearExtra">Agregar extra</button>
+                            <button class="ml-2 mb-2 btn btn-primary" type="button" data-toggle="modal" data-target="#ModalImportarExtra">Importar extras</button>
+                        </div>
+                    {% endif %}
+                    <table id="basic-btn" class="table table-striped table-bordered nowrap">
+                        <thead>
+                            <tr>
+                                <th>TIPO EXTRA</th>
+                                <th>VALOR</th>
+                                <th>FECHA REGISTRO</th>
+                                <th>¿ES INGRESO?</th>
+                                <th>COMENTARIO</th>
+                                {% if request.user.is_superuser %}
+                                    <th>USUARIO CREADOR</th>
+                                    <th>ACCIONES</th>
+                                {% endif %}
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for objeto in citacion_extras %}
+                            <tr>
+                                <td><span class="fw-normal">{{ objeto.EXT_NID.EXT_CNOMBRE }}</span></td>
+                                <td><span class="fw-normal">$ {{ objeto.CIE_NVALOR|custom_number_format }}</span></td>
+                                <td><span class="fw-normal">{{ objeto.CIE_FFECHAREGISTRO|date:"d/m/Y H:i" }}</span></td>
+                                {% if objeto.CIE_BINGRESO == 1%}
+                                    <td class="text-center"><span class="fw-bold text-success ">
+                                        <svg xmlns="http://www.w3.org/2000/svg" width="25" height="25" fill="currentColor" class="bi bi-check-lg" viewBox="0 0 16 16">
+                                        <path d="M12.736 3.97a.733.733 0 0 1 1.047 0c.286.289.29.756.01 1.05L7.88 12.01a.733.733 0 0 1-1.065.02L3.217 8.384a.757.757 0 0 1 0-1.06.733.733 0 0 1 1.047 0l3.052 3.093 5.4-6.425a.247.247 0 0 1 .02-.022Z"/>
+                                        </svg>
+                                        </span>
+                                    </td>
+                                {% else %}
+                                    <td class="text-center"><span class="fw-bold text-danger">
+                                        <svg xmlns="http://www.w3.org/2000/svg" width="25" height="25" fill="currentColor" class="bi bi-dash-lg" viewBox="0 0 16 16">
+                                        <path fill-rule="evenodd" d="M2 8a.5.5 0 0 1 .5-.5h11a.5.5 0 0 1 0 1h-11A.5.5 0 0 1 2 8Z"/>
+                                        </svg>
+                                        </span>
+                                    </td>
+                                {% endif %}
+                                <td><span class="fw-normal">{{ objeto.CIE_CCOMENTARIO }}</span></td>
+                                {% if request.user.is_superuser %}
+                                    <td><span class="fw-normal">{{ objeto.US_NID.first_name }} {{ objeto.US_NID.last_name }}</span></td>
+                                    <td class="text-center">
+                                        <button class="btn btn-sm btn-primary edit-extra" data-extra-id="{{ objeto.id }}">
+                                            <i class="fas fa-edit"></i>
+                                        </button>
+                                        <button class="btn btn-sm btn-danger delete-extra" data-extra-id="{{ objeto.id }}">
+                                            <i class="fas fa-trash"></i>
+                                        </button>
+                                    </td>
+                                {% endif %}
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                {% else %}
+                <div class="d-flex flex-column justify-content-center">
+                    <h4 class="text-center">No hay extras asociados.</h4>
+                    {% if citacion.CI_BHABILITADO == 1 %}
+                        <br>
+                        <button class="ml-2 btn btn-primary text-center " type="button" data-toggle="modal" data-target="#ModalCrearExtra">Agregar extra</button>
+                        <br>
+                        <button class="ml-2 btn btn-primary text-center" type="button" data-toggle="modal" data-target="#ModalImportarExtra">Importar extras</button>
+                    {% endif %}
+                </div>
+                {% endif %}
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="mr-2 btn btn-danger" data-dismiss="modal">Cerrar</button>
+            </div>
+        </div>
+    </div>
+</div>
+<!-- End of Modal Content -->
+
+<!-- Modal Content agregar extra -->
+<div class="modal fade " id="ModalCrearExtra" tabindex="-1" role="dialog" aria-labelledby="ModalCrearExtraLabel" aria-hidden="true" >
+    <div class="modal-dialog modal-dialog-centered" role="document">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="ModalCrearExtraLabel">Agregar Extra</h5>
+                <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                    <span aria-hidden="true">&times;</span>
+                </button>
+            </div>
+            <div class="modal-body">
+                <form class="agregar-extra" method="POST" id="form_extra_viaje" action="{% url 'ajax_addone_extra' citacion.pk %}">
+                    {% csrf_token %}
+                    <div class="fieldWrapper">
+                        <input type="text" name="EP_NID" hidden value="{{ citacion.EP_NID }}">
+                        <input type="text" name="CI_NID" hidden value="{{ citacion.pk }}">
+                    </div>
+                    <div class="fieldWrapper">
+                        <label class="my-1 me-2">Extra:</label>
+                        <select class="form-control" name="EXT_NID" id="id_extra" required>
+                            <option value="">Seleccione una opción</option>
+                            {% for extra in extras %}
+                                <option value="{{ extra.id }}">{{ extra.EXT_CNOMBRE }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <br>
+                    <div class="fieldWrapper">
+                        <label class="my-1 me-2">Valor:</label>
+                        <input type="number" class="form-control" name="CIE_NVALOR" id="id_valor" min="1" step="1" required>
+                    </div>
+                    <br>
+                    <div class="fieldWrapper">
+                        <label class="my-1 me-2">Comentario (Opcional):</label>
+                        <textarea class="form-control" name="CIE_CCOMENTARIO" id="id_comentario" rows="4"></textarea>
+                    </div>
+                    <br>
+                    <div class="d-flex justify-content-end">
+                        <button type="submit" class="m-2 btn btn-primary" id="btn_sumbit_extra">Guardar</button>
+                        <button type="button" class="m-2 btn btn-danger" data-dismiss="modal" >Cerrar</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+<!-- End of Modal Content -->
+
+<!-- Modal Content importar extra -->
+<div class="modal fade " id="ModalImportarExtra" tabindex="-1" role="dialog" aria-labelledby="ModalImportarExtraLabel" aria-hidden="true" >
+    <div class="modal-dialog modal-dialog-centered" role="document">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="ModalImportarExtraLabel">Importar Extras</h5>
+                <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                    <span aria-hidden="true">&times;</span>
+                </button>
+            </div>
+            <div class="modal-body">
+                <form class="agregar-extra" method="POST" id="form_extra_viaje" action="{% url 'ciex_import' %}" enctype="multipart/form-data">
+                    {% csrf_token %}
+                    <input type="hidden" name="tipo" value="Extra_citacion">
+                    <input type="hidden" name="citacion_id" value="{{ citacion.pk }}">
+                    <div id="excel">
+                        <a class="btn btn-outline-success d-flex justify-content-center" id="excel_plantilla" href="{% url 'download_excel_plantilla_extra_citacion' %}">Descargar plantilla</a>
+                    </div>
+                    <hr>
+                    <div class="custom-file">
+                        <input type="file" required class="fancy-file" id="exampleFormControlFile1" name="file" accept="xlsx/*" >
+                    </div>
+                    <br>
+                    <div class="form-group nav justify-content-end">
+                        <button class="btn btn-success"  type="submit">Guardar</button>
+                        <p>&nbsp&nbsp</p>
+                        <button type="button" class="btn btn-danger" data-dismiss="modal" aria-label="Close">
+                            Cerrar
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+<!-- End of Modal Content -->
+
+<!------------------------------------------------------------------------------------------------------------>
+<!------------------------------------- MODALES SECUENCIA ---------------------------------------------------->
+<!------------------------------------------------------------------------------------------------------------>
+
+<!-- Modal Content Previsualizar Secuencia -->
+<div class="modal fade bd-example-modal-lg" id="ModalPreviewSecuencia" tabindex="-1" role="dialog" aria-labelledby="ModalPreviewSecuenciaLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered modal-lg" role="document">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="ModalPreviewSecuenciaLabel">Previsualizar Secuencia</h5>
+                <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                    <span aria-hidden="true">&times;</span>
+                </button>
+            </div>
+            <div class="modal-body">
+                {% if citacion.CI_CESTADO == 'CREADO' %}
+                    <div class="d-flex justify-content-end">
+                        {% if request.user.id in responsables or request.user.is_superuser %}
+                        <br>
+                        <button type="button" class="btn btn-secondary" data-toggle="modal" data-target="#ModalEditarSecuencia">Editar</button>
+                        {% endif %}
+                    </div>
+                {% endif %}
+                <ul class="nav nav-pills mb-3" id="pills-tab" role="tablist">
+                    {% for etapa_key, etapa_value in detalles_secuencia.items %}
+                        <li class="nav-item" role="presentation">
+                            <a class="nav-link text-uppercase {% if forloop.first %}active{% endif %}" id="pills-{{ forloop.counter }}-tab-preview" data-toggle="pill" href="#pills-{{ forloop.counter }}-preview" role="tab" aria-controls="pills-{{ forloop.counter }}-preview" aria-selected="{% if forloop.first %}true{% else %}false{% endif %}">{{ etapa_key }}</a>
+                        </li>
+                    {% endfor %}
+                </ul>
+                <hr>
+                <div class="tab-content" id="pills-tabContent">
+                    {% for etapa_key, etapa_value in detalles_secuencia.items %}
+                        <div class="tab-pane fade {% if forloop.first %}show active{% endif %}" id="pills-{{ forloop.counter }}-preview" role="tabpanel" aria-labelledby="pills-{{ forloop.counter }}-tab-preview">
+                            {% for campo in etapa_value %}
+                                <div class="fieldWrapper">
+                                    <label>{{ campo.PLACEHOLDER }}:</label>
+                                    {% if campo.TYPE == 'texto' %}
+                                        <input type="text" class="form-control" value="{{ campo.DEFAULT_VALUE|default:'' }}" {% if campo.LARGO %} maxlength="{{ campo.LARGO }}" {% endif %} {% if campo.OBLIGATORIO %} required{% endif %} readonly>
+                                    {% elif campo.TYPE == 'multilinea' %}
+                                        <textarea class="form-control" value="{{ campo.DEFAULT_VALUE|default:'' }}" {% if campo.LARGO %} maxlength="{{ campo.LARGO }}" {% endif %} {% if campo.OBLIGATORIO %} required{% endif %} readonly></textarea>
+                                    {% elif campo.TYPE == 'numero' %}
+                                        <input type="number" class="form-control" value="{{ campo.DEFAULT_VALUE|default:'' }}" {% if campo.OBLIGATORIO %} required{% endif %} readonly>
+                                    {% elif campo.TYPE == 'decimal' %}
+                                        <input type="number" step="0.01" class="form-control" value="{{ campo.DEFAULT_VALUE|default:'' }}" {% if campo.OBLIGATORIO %} required{% endif %} readonly>
+                                    {% elif campo.TYPE == 'fecha' %}
+                                        <input type="date" class="form-control" value="{{ campo.DEFAULT_VALUE|default:'' }}" {% if campo.OBLIGATORIO %} required{% endif %} readonly>
+                                    {% elif campo.TYPE == 'fecha/hora' %}
+                                        <input type="datetime-local" class="form-control" value="{{ campo.DEFAULT_VALUE|default:'' }}" {% if campo.OBLIGATORIO %} required{% endif %} readonly>
+                                    {% elif campo.TYPE == 'archivo' %}
+                                        <input type="file" value="{{ campo.DEFAULT_VALUE }}" {% if campo.OBLIGATORIO %} required{% endif %} readonly>
+                                    {% elif campo.TYPE == 'lista' %}
+                                        <select class="form-control" {% if campo.OBLIGATORIO %} required{% endif %} readonly>
+                                            <option value="">Seleccione una opción</option>
+                                            {% for dato in campo.DATOS %}
+                                                <option value="{{ dato.0 }}">{{ dato.1 }}</option>
+                                            {% endfor %}
+                                        </select>
+                                    {% elif campo.TYPE == 'check' %}
+                                        <div class="form-group">
+                                            <div class="switch switch-success d-inline m-r-10">
+                                                <label>No</label>
+                                                <input type="checkbox" class='form-check-input' value="{{ campo.DEFAULT_VALUE }}" {% if campo.OBLIGATORIO %} required{% endif %} readonly>
+                                                <label class="cr"></label>
+                                                <label>Si</label>
+                                            </div>
+                                        </div>
+                                    {% endif %}
+                                </div>
+                                <br>
+                            {% endfor %}
+                        </div>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+<!-- End of Modal Content -->
+
+<!-- Modal Content Editar Secuencia -->
+<div class="modal fade bd-example-modal-lg" id="ModalEditarSecuencia" tabindex="-1" role="dialog" aria-labelledby="ModalEditarSecuenciaLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered modal-lg" role="document">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="ModalEditarSecuenciaLabel">Editar Secuencia</h5>
+                <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                    <span aria-hidden="true">&times;</span>
+                </button>
+            </div>
+            <div class="modal-body">
+                <form method="POST" id="form_editar_secuencia" action="{% url 'cit_editar_secuencia' citacion.pk %}">
+                    {% csrf_token %}
+                    <div class="fieldWrapper">
+                        <label>Secuencia:</label>
+                        <select class="form-control" name="new_secuencia" id="new_secuencia" style="width: 100%;">
+                            <option value="">Seleccione una secuencia</option>
+                            {% for secuencia in ltsSecuencias %}
+                                <option value="{{ secuencia.id }}">{{secuencia.SE_CCODIGO}} - {{ secuencia.SE_CNOMBRE }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <br>
+                    <hr>
+                    <div class="form-group nav justify-content-end">
+                        <button class="btn btn-success" id="guardar_ruta" type="button" onclick="editar_secuencia()">Guardar</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+<!-- End of Modal Content -->
+<!-- Modal editar etapa-->
+<div class="modal fade" id="editEtapaModal" tabindex="-1" role="dialog" aria-labelledby="editEtapaModalLabel" aria-hidden="true">
+    <div class="modal-dialog" role="document">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="editEtapaModalLabel">Editar Etapa</h5>
+                <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                    <span aria-hidden="true">&times;</span>
+                </button>
+            </div>
+            <div class="modal-body">
+                <form id="editEtapaForm" enctype=multipart/form-data>
+                    {% csrf_token %}
+                    <!-- Los campos se agregarán dinámicamente aquí -->
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-dismiss="modal">Cerrar</button>
+                <button type="button" class="btn btn-primary" id="saveEtapaChanges">Guardar cambios</button>
+            </div>
+        </div>
+    </div>
+</div>
+<!--fin del modal-->
+
+<!-- Modal Content editar extra -->
+<div class="modal fade" id="ModalEditarExtra" tabindex="-1" role="dialog" aria-labelledby="ModalEditarExtraLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered" role="document">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="ModalEditarExtraLabel">Editar Extra</h5>
+                <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                    <span aria-hidden="true">&times;</span>
+                </button>
+            </div>
+            <div class="modal-body">
+                <form method="POST" action="/update_extra/0/" id="editExtraForm">
+                    {% csrf_token %}
+                    <input type="hidden" id="edit_extra_id" name="extra_id">
+                    <div class="fieldWrapper">
+                        <label class="my-1 me-2">Extra:</label>
+                        <select class="form-control" name="EXT_NID" id="edit_extra_tipo" required>
+                            <option value="">Seleccione una opción</option>
+                            {% for extra in extras %}
+                                <option value="{{ extra.id }}">{{ extra.EXT_CNOMBRE }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <br>
+                    <div class="fieldWrapper">
+                        <label class="my-1 me-2">Valor:</label>
+                        <input type="number" class="form-control" name="CIE_NVALOR" id="edit_extra_valor" min="1" step="1" required>
+                    </div>
+                    <br>
+                    <div class="fieldWrapper">
+                        <label class="my-1 me-2">Comentario (Opcional):</label>
+                        <textarea class="form-control" name="CIE_CCOMENTARIO" id="edit_extra_comentario" rows="4"></textarea>
+                    </div>
+                    <br>
+                    <div class="form-group nav justify-content-end">
+                        <button type="submit" class="btn btn-success">Guardar</button>
+                        <p>&nbsp;&nbsp;</p>
+                        <button type="button" class="btn btn-danger" data-dismiss="modal">Cerrar</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal Content editar extra -->
+<div class="modal fade" id="ModalEditarFlete" tabindex="-1" role="dialog" aria-labelledby="ModalEditarFleteLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered" role="document">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="ModalEditarFleteLabel">Editar Flete</h5>
+                <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                    <span aria-hidden="true">&times;</span>
+                </button>
+            </div>
+            <div class="modal-body">
+                <form method="POST" action="{% url 'cit_edit_flete' citacion.pk %}" id="editExtraForm">
+                    {% csrf_token %}
+                    <div class="fieldWrapper">
+                        <label class="my-1 me-2">Flete:</label>
+                        <select class="form-control" name="flete" id="flete" required>
+                            {% for flete in ltsFlete %}
+                                <option value="{{ flete.PM_CDESCRIPCION }}" {% if citacion.CI_CTIPO_FLETE == flete.PM_CDESCRIPCION %} selected {% endif %}>{{ flete.PM_CDESCRIPCION }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <br>
+                    <div class="form-group nav justify-content-end">
+                        <button type="submit" class="btn btn-success">Guardar</button>
+                        <p>&nbsp;&nbsp;</p>
+                        <button type="button" class="btn btn-danger" data-dismiss="modal">Cerrar</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal Archivos Tickets -->
+<div class="modal fade" id="ModalArchivosTickets" tabindex="-1" role="dialog" aria-labelledby="ModalArchivosTicketsLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered modal-lg" role="document">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="ModalArchivosTicketsLabel">Archivos de Tickets</h5>
+                <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                    <span aria-hidden="true">&times;</span>
+                </button>
+            </div>
+            <div class="modal-body">
+                <div id="archivos-tickets-loading" class="text-center" style="display: none;">
+                    <i class="fas fa-spinner fa-spin fa-2x"></i>
+                    <p>Cargando archivos...</p>
+                </div>
+                <div id="archivos-tickets-content">
+                    <table class="table table-striped table-bordered">
+                        <thead>
+                            <tr>
+                                <th>Nombre del archivo</th>
+                                <th>Tamaño</th>
+                                <th>Acciones</th>
+                            </tr>
+                        </thead>
+                        <tbody id="archivos-tickets-tbody">
+                            <!-- Los archivos se cargarán aquí dinámicamente -->
+                        </tbody>
+                    </table>
+                </div>
+                <div id="archivos-tickets-empty" class="text-center" style="display: none;">
+                    <p class="text-muted">No se encontraron archivos para esta citación y patente.</p>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-danger" data-dismiss="modal">Cerrar</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% endblock content %}
+
+<!-- Specific Page JS goes HERE  -->
+{% block javascripts %}
+    {{ datos_etapa|json_script:"datos-etapa-json" }}
+    <script src="/static/assets/js/plugins/jquery.dataTables.min.js"></script>
+    <script src="/static/assets/js/plugins/dataTables.bootstrap4.min.js"></script>
+    <script src="/static/assets/js/plugins/buttons.colVis.min.js"></script>
+    <script src="/static/assets/js/plugins/buttons.print.min.js"></script>
+    <script src="/static/assets/js/plugins/pdfmake.min.js"></script>
+    <script src="/static/assets/js/plugins/jszip.min.js"></script>
+    <script src="/static/assets/js/plugins/dataTables.buttons.min.js"></script>
+    <script src="/static/assets/js/plugins/buttons.html5.min.js"></script>
+    <script src="/static/assets/js/plugins/buttons.bootstrap4.min.js"></script>
+    <script src="/static/assets/js/pages/data-export-custom.js"></script>
+    <script src="https://cdn.lordicon.com/bhenfmcm.js"></script>
+    <!-- bootstrap-tagsinput-latest Js -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/typeahead.js/0.11.1/typeahead.bundle.min.js"></script>
+    <script src="/static/assets/js/plugins/bootstrap-tagsinput.min.js"></script>
+    <!-- bootstrap-maxlength Js -->
+    <script src="/static/assets/js/plugins/bootstrap-maxlength.js"></script>
+    <!-- form-advance custom js -->
+    <script src="/static/assets/js/pages/form-advance-custom.js"></script>
+
+    <script>
+        const elementHours = document.getElementById('horas');
+        const elementMinutes = document.getElementById('minutos');
+        const elementSeconds = document.getElementById('segundos');
+        const camposValidate = {{ campo_validate_sap|safe }};
+        const finalizar_secuencia_btn = document.getElementById('finalizar_secuencia-btn');
+        const pk = '{{ citacion.pk }}';
+        let cloneIndex = 0;
+        
+        // Obtener datos_etapa desde el script JSON generado por Django
+        const datosEtapa = JSON.parse(document.getElementById('datos-etapa-json').textContent);
+
+        {% if citacion.CI_CESTADO == 'EN PROCESO' %}
+            $('#finalizar_secuencia-btn').on('click', function(e){
+                e.preventDefault();
+                Swal.fire({
+                    title: 'Finalizar Secuencia',
+                    text: '¿Estas seguro de finalizar la secuencia?',
+                    icon: 'question',
+                    showCancelButton: true,
+                    confirmButtonText: 'Finalizar',
+                    cancelButtonText: 'Cancelar',
+                    reverseButtons: true,
+                    showLoaderOnConfirm: true,
+                    preConfirm: () => {
+                        window.location.href = '/cit_finalizar_secuencia/'+ pk;
+                    }
+                });
+            });
+            const fechaInicio = new Date("{{ citacion.CI_FFECHAINICIO|date:'Y-m-d H:i:s' }}");
+
+            let horasD = 1;
+            let minutosD = 1;
+            let segundosD = 1;
+
+            const ejecutarReloj = setInterval(
+                () => {
+                    if(horasD == 0 && minutosD == 0 && segundosD == 0){
+                        clearInterval(ejecutarReloj);
+                    } else {
+                        let ahora = new Date();
+                        let diferencia = ahora.getTime() - fechaInicio.getTime();
+
+                        if(diferencia <= 0){
+                            horasD = 0;
+                            minutosD = 0;
+                            segundosD = 0;
+                            pintarElementos(horasD, minutosD, segundosD);
+                        } else {
+                            horasD = Math.floor((diferencia % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+                            minutosD = Math.floor((diferencia % (1000 * 60 * 60)) / (1000 * 60));
+                            segundosD = Math.floor((diferencia % (1000 * 60)) / 1000);
+                            pintarElementos(horasD, minutosD, segundosD);
+
+                            if (diferencia < 0) {
+                                clearInterval(ejecutarReloj);
+                            }
+                        }
+                    }
+                }
+            , 1000);
+        {% elif citacion.CI_CESTADO == 'TERMINADO' %}
+            const fechaInicio = new Date("{{ citacion.CI_FFECHAINICIO|date:'Y-m-d H:i:s' }}");
+            const fechaTermino = new Date("{{ citacion.CI_FFECHATERMINO|date:'Y-m-d H:i:s' }}");
+            console.log(fechaInicio)
+            console.log(fechaTermino)
+            const diferencia = fechaTermino - fechaInicio;
+            horasD = Math.floor((diferencia % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+            minutosD = Math.floor((diferencia % (1000 * 60 * 60)) / (1000 * 60));
+            segundosD = Math.floor((diferencia % (1000 * 60)) / 1000);
+            pintarElementos(horasD, minutosD, segundosD);
+        {% endif %}
+        
+        function pintarElementos(hora, minuto, segundo) {
+            segundo = (segundo < 10) ? '0' + segundo : segundo;
+            minuto = (minuto < 10) ? '0' + minuto : minuto;
+            hora = (hora < 10) ? '0' + hora : hora;
+
+            elementHours.innerHTML = hora;
+            elementMinutes.innerHTML = minuto;
+            elementSeconds.innerHTML = segundo;
+        }
+
+        $('#init-secuence').click(function() {
+            const urlPath = $(this).data('href');
+            Swal.fire({
+                title: 'Iniciar Secuencia',
+                text: '¿Estas seguro de iniciar la secuencia?',
+                icon: 'question',
+                showCancelButton: true,
+                confirmButtonText: 'Iniciar',
+                cancelButtonText: 'Cancelar',
+                reverseButtons: true,
+                showLoaderOnConfirm: true,
+                preConfirm: () => {
+                    window.location.href = urlPath;
+                }
+            });
+        });
+    
+        function editar_secuencia(){
+            $('#ModalEditarSecuencia').modal('hide');
+            $('#ModalPreviewSecuencia').modal('hide');
+            const val = $('#new_secuencia').val();
+            console.log(val);
+            $.ajax({
+                url: '{% url "cit_editar_secuencia" citacion.pk %}',
+                method: 'POST',
+                data: {
+                    'new_secuencia': val,
+                    'csrfmiddlewaretoken': '{{ csrf_token }}'
+                },
+                success: function(data){
+                    if(data.valid == true){
+                        Swal.fire({
+                            title: 'Listo',
+                            text: 'La secuencia ha sido actualizada correctamente',
+                            icon: 'success',
+                            showCancelButton: true,
+                            confirmButtonText: 'Aceptar',
+                            cancelButtonText: 'Cancelar',
+                        }).then(result => {
+                            if(result.value){
+                                window.location.href = '{% url "cit_listone" citacion.pk %}';
+                            }
+                        });
+                    } else {
+                        Swal.fire({
+                            title: 'Error',
+                            text: data.msg,
+                            icon: 'error',
+                            showCancelButton: true,
+                            confirmButtonText: 'Aceptar',
+                            cancelButtonText: 'Cancelar',
+                        });
+                    }
+                }
+            });
+        }
+
+        $('#backward').on('click', function(){
+            const url = $(this).data('href');
+            Swal.fire({
+                title: '¿Estas seguro de volver?',
+                text: 'Esta acción es irreversible',
+                icon: 'warning',
+                showCancelButton: true,
+                confirmButtonText: 'Sí',
+                cancelButtonText: 'No'
+            }).then(function(result){
+                if(result.dismiss){
+                    return;
+                }
+                window.location.href = url;
+            });
+        });
+
+        $("#validar_sap").on('click', function(){
+            const id_citacion = "{{ citacion.id }}";
+            const id_etapa = "{{ citacion.ETAPA_ACTUAL.id }}";
+            const campos = []
+            for(let i = 0; i < camposValidate.length; i++){
+                let id_campo = camposValidate[i].split('_')[1];
+                let valor_campo = document.getElementById(camposValidate[i]).value;
+                campos.push({
+                    'id_campo': id_campo,
+                    'valor_campo': valor_campo
+                });
+            }
+
+            $.ajax({
+                url: '{% url "cam_validar_sap" %}',
+                method: 'POST',
+                data: {
+                    'id_citacion': id_citacion,
+                    'id_etapa': id_etapa,
+                    'campos': JSON.stringify(campos),
+                    'csrfmiddlewaretoken': '{{ csrf_token }}'
+                },
+                success: function(data){
+                    if(data.valid == true){
+                        Swal.fire({
+                            title: 'Listo',
+                            text: 'La validación de SAP ha sido realizada correctamente',
+                            icon: 'success',
+                            showCancelButton: true,
+                            confirmButtonText: 'Aceptar',
+                            cancelButtonText: 'Cancelar',
+                        }).then(resultado => {
+                            if(resultado.dismiss){
+                                return;
+                            }
+                            document.getElementById("form-step-secuence").submit();
+                        });
+                    } else {
+                        Swal.fire({
+                            title: 'Error',
+                            text: data.msg,
+                            icon: 'error',
+                            showCancelButton: true,
+                            confirmButtonText: 'Aceptar',
+                            cancelButtonText: 'Cancelar',
+                        });
+                    }
+                }
+            });
+        });
+
+        $("#enviar_sap").on('click', function(){
+            const cabecera = {};
+            const lineas = [];
+
+            // Recoger datos de cabecera
+            $('#form-step-secuence > .fieldWrapper').each(function() {
+                var input = $(this).find('input, select, textarea');
+                if (input.length) {
+                    cabecera[input.attr('name')] = input.val();
+                }
+            });
+
+            // Recoger datos de lineas
+            $('#lineas_etapa, [id^="lineas_etapa_clon"]').each(function(index, element) {
+                var linea = {};
+                $(this).find('.fieldWrapper').each(function() {
+                    var input = $(this).find('input, select, textarea');
+                    if (input.length) {
+                        linea[input.attr('name')] = input.val();
+                    }
+                });
+                lineas.push(linea);
+            });
+            console.log(cabecera);
+            debugger;
+            Swal.fire({
+                title: 'Enviar a SAP',
+                text: '¿Estas seguro de enviar los datos a SAP?',
+                icon: 'question',
+                showCancelButton: true,
+                confirmButtonText: 'Enviar',
+                cancelButtonText: 'Cancelar',
+            }).then(function(result){
+                if(result.dismiss){
+                    return;
+                }
+                $.ajax({
+                    url: '{% url "cit_add_lineas" %}',
+                    method: 'POST',
+                    data: {
+                        'id_citacion': '{{ citacion.pk }}',
+                        'cabecera': JSON.stringify(cabecera),
+                        'lineas': JSON.stringify(lineas),
+                        'csrfmiddlewaretoken': '{{ csrf_token }}'
+                    },
+                    success: function(response) {
+                        if(response.valid == true){
+                            Swal.fire({
+                                title: 'Listo',
+                                text: 'Los datos han sido enviados correctamente a SAP',
+                                icon: 'success',
+                            }).then(function(result){
+                                if(result.value){
+                                    window.location.href = '{% url "cit_listone" citacion.pk %}';
+                                }
+                            });
+                        } else {
+                            Swal.fire({
+                                title: 'Error',
+                                text: response.msg,
+                                icon: 'error',
+                            });
+                        }
+                    }
+                });
+            });
+        });
+
+        function agregarLinea(){
+            // Seleccionamos el contenedor de los campos
+            var contenedorOriginal = document.getElementById('lineas_etapa');
+            if (!contenedorOriginal) return; // Si no existe el contenedor, salimos de la función.
+
+            // Incrementamos el contador de clones
+            cloneIndex++;
+
+            // Clonamos el contenedor
+            var contenedorClonado = contenedorOriginal.cloneNode(true);
+            contenedorClonado.id = 'lineas_etapa_clon' + cloneIndex; // Usamos el índice para generar un ID nico
+
+            // Obtenemos todos los elementos input, select y textarea dentro del clon
+            var campos = contenedorClonado.querySelectorAll('input, select, textarea, label');
+
+            // Cambiamos el id y name de cada campo para que sean nicos
+            campos.forEach(function(campo, index) {
+                if (campo.tagName !== 'LABEL') {
+                    var nuevoId = campo.id + '_clon' + cloneIndex + '_' + index; // Añadimos un sufijo para hacerlo único
+                    campo.id = nuevoId;
+                    campo.name = nuevoId;
+                }
+            });
+
+            // Actualizamos los atributos 'for' de los labels después de actualizar los IDs de los inputs
+            contenedorClonado.querySelectorAll('label').forEach(function(label) {
+                if (label.htmlFor) {
+                    label.htmlFor = label.htmlFor + '_clon' + cloneIndex + '_' + index;
+                }
+            });
+
+            // Crear y agregar elementos <hr> y <br> para separar visualmente los grupos de campos
+            var separador = document.createElement('hr');
+            var salto = document.createElement('br');
+
+            // Insertamos el contenedor clonado, el separador y el salto en el documento
+            contenedorOriginal.parentNode.insertBefore(separador, contenedorOriginal.nextSibling);
+            contenedorOriginal.parentNode.insertBefore(salto, separador.nextSibling);
+
+            contenedorOriginal.parentNode.insertBefore(contenedorClonado, salto.nextSibling);
+        }
+
+        $('#omitir_etapa').on("click", function(){
+            const id_citacion = "{{ citacion.pk }}";
+            const etapa_actual = "{{ detalle_secuencia_actual.ET_NID.pk }}";
+            Swal.fire({
+                title: 'Omitir Etapa',
+                text: '¿Estas seguro de omitir la etapa?',
+                icon: 'question',
+            }).then(function(result){
+                if(result.dismiss){
+                    return;
+                }
+                $.ajax({
+                    url: '{% url "cit_omitir_etapa" %}',
+                    method: 'POST',
+                    data: {
+                        'id_citacion': id_citacion,
+                        'etapa_actual': etapa_actual,
+                        'csrfmiddlewaretoken': '{{ csrf_token }}'
+                    },
+                    success: function(response){
+                        if(response.valid == true){
+                            window.location.href = '{% url "cit_listone" citacion.pk %}';
+                        } else {
+                            Swal.fire({
+                                title: 'Error',
+                                text: response.msg,
+                                icon: 'error',
+                            });
+                        }
+                    }
+                });
+            });
+        });
+        
+        $("#btnEditarCamion").on("click", function(){
+            $("#ModalEditarCamion").modal("show");
+            $("#ModalCamion").modal("hide");
+        });
+
+        // Usar delegación de eventos para asegurar que funcione incluso si el botón se carga dinámicamente
+        $(document).on('click', '.edit-etapa', function() {
+            const etapaKey = $(this).data('etapa-key');
+            console.log('Etapa key:', etapaKey);
+            console.log('Datos etapa disponibles:', datosEtapa);
+            
+            if (!datosEtapa || !datosEtapa[etapaKey]) {
+                console.error('No se encontraron datos para la etapa:', etapaKey);
+                Swal.fire({
+                    title: 'Error',
+                    text: 'No se encontraron datos para editar esta etapa',
+                    icon: 'error'
+                });
+                return;
+            }
+            
+            const etapaData = datosEtapa[etapaKey];
+            console.log('Datos de la etapa:', etapaData);
+            
+            // Limpiar el formulario
+            $('#editEtapaForm').empty();
+            
+            // Agregar campos al formulario
+            etapaData.forEach(campo => {
+                let inputHtml = '';
+                // Usar campo.ID que es el ID del DATO_OPERACION (necesario para actualizar)
+                const campoId = campo.ID;
+                const campoValor = campo.VALOR || '';
+                const campoEtiqueta = campo.ETIQUETA || '';
+                
+                if (!campoId) {
+                    console.warn('Campo sin ID:', campo);
+                    return; // Saltar campos sin ID
+                }
+                
+                switch(campo.TYPE) {
+                    case 'texto':
+                        inputHtml = `<input type="text" class="form-control" id="campo_${campoId}" name="campo_${campoId}" value="${campoValor.replace(/"/g, '&quot;')}">`;
+                        break;
+                    case 'numero':
+                        inputHtml = `<input type="number" class="form-control" id="campo_${campoId}" name="campo_${campoId}" value="${campoValor}">`;
+                        break;
+                    case 'decimal':
+                        inputHtml = `<input type="number" step="0.01" class="form-control" id="campo_${campoId}" name="campo_${campoId}" value="${campoValor}">`;
+                        break;
+                    case 'multilinea':
+                        inputHtml = `<textarea class="form-control" id="campo_${campoId}" name="campo_${campoId}" rows="4">${campoValor.replace(/"/g, '&quot;')}</textarea>`;
+                        break;
+                    case 'fecha':
+                        // Formatear fecha para input type="date" (YYYY-MM-DD)
+                        let fechaValor = campoValor;
+                        if (fechaValor && fechaValor.includes('/')) {
+                            const partes = fechaValor.split('/');
+                            if (partes.length === 3) {
+                                fechaValor = `${partes[2]}-${partes[1]}-${partes[0]}`;
+                            }
+                        }
+                        inputHtml = `<input type="date" class="form-control" id="campo_${campoId}" name="campo_${campoId}" value="${fechaValor}">`;
+                        break;
+                    case 'fecha/hora':
+                        inputHtml = `<input type="datetime-local" class="form-control" id="campo_${campoId}" name="campo_${campoId}" value="${campoValor}">`;
+                        break;
+                    case 'lista':
+                        let opcionesHtml = '<option value="">Seleccione una opción</option>';
+                        if (campo.DATOS && Array.isArray(campo.DATOS)) {
+                            campo.DATOS.forEach(dato => {
+                                const valor = Array.isArray(dato) ? dato[0] : dato;
+                                const texto = Array.isArray(dato) ? dato[1] : dato;
+                                const selected = valor == campoValor ? 'selected' : '';
+                                opcionesHtml += `<option value="${valor}" ${selected}>${texto}</option>`;
+                            });
+                        }
+                        inputHtml = `<select class="form-control" id="campo_${campoId}" name="campo_${campoId}">${opcionesHtml}</select>`;
+                        break;
+                    case 'check':
+                        const checked = campoValor === 'on' || campoValor === 'true' || campoValor === true || campoValor === '1' ? 'checked' : '';
+                        // Para checkboxes, necesitamos un input hidden para enviar 'off' cuando no está marcado
+                        inputHtml = `
+                            <div class="form-group">
+                                <div class="switch switch-success d-inline m-r-10">
+                                    <label>No</label>
+                                    <input type="hidden" name="campo_${campoId}" value="off">
+                                    <input type="checkbox" id="campo_${campoId}" name="campo_${campoId}" class="form-check-input" value="on" ${checked}>
+                                    <label for="campo_${campoId}" class="cr"></label>
+                                    <label>Si</label>
+                                </div>
+                            </div>
+                        `;
+                        break;
+                    case 'archivo':
+                        inputHtml = `
+                            <input type="file" class="form-control-file" id="campo_${campoId}" name="campo_${campoId}">
+                            ${campoValor ? `
+                                <div class="mt-2">
+                                    <p class="mb-1">Archivo actual: 
+                                        <a href="{% url 'cit_download_file' 0 %}".replace('0', campo.ID)" target="_blank">
+                                            Descargar archivo
+                                        </a>
+                                    </p>
+                                    <input type="hidden" name="archivo_actual_${campoId}" value="${campo.ID}">
+                                </div>
+                            ` : ''}
+                        `;
+                        break;
+                    default:
+                        inputHtml = `<input type="text" class="form-control" id="campo_${campoId}" name="campo_${campoId}" value="${campoValor.replace(/"/g, '&quot;')}">`;
+                }
+                
+                $('#editEtapaForm').append(`
+                    <div class="form-group">
+                        <label for="campo_${campoId}">${campoEtiqueta}</label>
+                        ${inputHtml}
+                    </div>
+                `);
+            });
+            
+            $('#editEtapaModal').modal('show');
+        });
+        
+        $('#saveEtapaChanges').on('click', function() {
+            const formData = new FormData($('#editEtapaForm')[0]); // Create FormData from the form
+            const etapaKey = $('.edit-etapa').data('etapa-key');
+            console.log(etapaKey);
+            const csrfToken = $('input[name="csrfmiddlewaretoken"]').val();
+            formData.append('csrfmiddlewaretoken', csrfToken); // Append CSRF token
+            const url = '{% url "cit_editar_etapa_terminada" %}'; // Define the URL
+            console.log(url); // Log the URL for debugging
+            $.ajax({
+                url: url, // Use the defined URL
+                method: 'POST',
+                data: formData,
+                processData: false,  // Important for FormData
+                contentType: false,  // Important for FormData
+                success: function(response) {
+                    if (response.status === 'success') {
+                        $('#editEtapaModal').modal('hide');
+                        Swal.fire({
+                            title: 'Éxito',
+                            text: 'La etapa ha sido actualizada correctamente',
+                            icon: 'success'
+                        }).then(() => {
+                            location.reload();
+                        });
+                    } else {
+                        $('#editEtapaModal').modal('hide');
+                        Swal.fire({
+                            title: 'Error',
+                            text: 'Hubo un problema al actualizar la etapa',
+                            icon: 'error'
+                        });
+                    }
+                },
+                error: function() {
+                    Swal.fire({
+                        title: 'Error',
+                        text: 'Hubo un problema al comunicarse con el servidor',
+                        icon: 'error'
+                    });
+                }
+            });
+        });
+
+        // Manejar click en botón editar
+        $('.edit-extra').on('click', function() {
+            const extraId = $(this).data('extra-id');
+            // Hacer una petición AJAX para obtener los datos del extra
+            $.ajax({
+                url: `/get_extra_data/${extraId}/`,
+                method: 'GET',
+                success: function(response) {
+                    // Llenar el formulario con los datos
+                    $('#edit_extra_id').val(extraId);
+                    $('#edit_extra_tipo').val(response.EXT_NID);
+                    $('#edit_extra_valor').val(parseInt(response.CIE_NVALOR));
+                    $('#edit_extra_comentario').val(response.CIE_CCOMENTARIO);
+                    
+                    // Actualizar la URL del formulario con el ID correcto
+                    const form = $('#editExtraForm');
+                    form.attr('action', form.attr('action').replace('/0/', `/${extraId}/`));
+                    
+                    // Mostrar el modal
+                    $('#ModalEditarExtra').modal('show');
+                }
+            });
+        });
+
+        // Manejar guardado de cambios
+        $('#saveExtraChanges').on('click', function() {
+            const formData = new FormData($('#editExtraForm')[0]);
+            const extraId = $('#edit_extra_id').val();
+            
+            $.ajax({
+                url: `/update_extra/${extraId}/`,
+                method: 'POST',
+                data: formData,
+                processData: false,
+                contentType: false,
+                success: function(response) {
+                    if (response.status === 'success') {
+                        Swal.fire({
+                            title: 'Éxito',
+                            text: 'El extra ha sido actualizado correctamente',
+                            icon: 'success'
+                        }).then(() => {
+                            location.reload();
+                        });
+                    } else {
+                        Swal.fire({
+                            title: 'Error',
+                            text: 'Hubo un problema al actualizar el extra',
+                            icon: 'error'
+                        });
+                    }
+                }
+            });
+        });
+
+        // Manejar eliminación
+        $('.delete-extra').on('click', function() {
+            const extraId = $(this).data('extra-id');
+            
+            Swal.fire({
+                title: '¿Estás seguro?',
+                text: "Esta acción no se puede deshacer",
+                icon: 'warning',
+                showCancelButton: true,
+                confirmButtonText: 'Sí, eliminar',
+                cancelButtonText: 'Cancelar',
+                customClass: {
+                    container: 'swal-over-modal'
+                }
+            }).then((result) => {
+                if (result.isConfirmed) {
+                    $.ajax({
+                        url: `/delete_extra/${extraId}/`,
+                        method: 'POST',
+                        data: {
+                            'csrfmiddlewaretoken': $('input[name=csrfmiddlewaretoken]').val()
+                        },
+                        success: function(response) {
+                            if (response.status === 'success') {
+                                // Guardar el estado de eliminación en localStorage
+                                localStorage.setItem('extraEliminado', 'true');
+                                // Recargar la página
+                                location.reload();
+                            } else {
+                                Swal.fire({
+                                    title: 'Error',
+                                    text: 'Hubo un problema al eliminar el extra',
+                                    icon: 'error',
+                                    customClass: {
+                                        container: 'swal-over-modal'
+                                    }
+                                });
+                            }
+                        }
+                    });
+                }
+            });
+        });
+
+        // Reemplazar o agregar este código en la sección de JavaScript
+        $('#editExtraForm').on('submit', function(e) {
+            e.preventDefault(); // Prevenir el envío tradicional del formulario
+            
+            const formData = new FormData(this);
+            const url = $(this).attr('action');
+            
+            $.ajax({
+                url: url,
+                method: 'POST',
+                data: formData,
+                processData: false,
+                contentType: false,
+                success: function(response) {
+                    if (response.status === 'success') {
+                        // Guardar el estado de éxito en localStorage
+                        localStorage.setItem('extraEditado', 'true');
+                        // Recargar la página
+                        location.reload();
+                    } else {
+                        Swal.fire({
+                            title: 'Error',
+                            text: 'Hubo un problema al actualizar el extra',
+                            icon: 'error'
+                        });
+                    }
+                    $('#ModalEditarExtra').modal('hide');
+                },
+                error: function() {
+                    Swal.fire({
+                        title: 'Error',
+                        text: 'Hubo un problema al comunicarse con el servidor',
+                        icon: 'error'
+                    });
+                    $('#ModalEditarExtra').modal('hide');
+                }
+            });
+        });
+
+        // Cargar pesos desde DO_NPESO al cargar la página
+        $(document).ready(function() {
+            $('.campo-peso-input').each(function() {
+                const peso = $(this).data('peso');
+                if (peso && peso !== '' && peso != 0) {
+                    $(this).val(peso);
+                }
+            });
+        });
+        
+        // Agregar este código para verificar si hay un mensaje pendiente después de la recarga
+        $(document).ready(function() {
+            // Verificar mensaje de edición
+            if (localStorage.getItem('extraEditado')) {
+                Swal.fire({
+                    title: 'Éxito',
+                    text: 'El extra ha sido actualizado correctamente',
+                    icon: 'success'
+                });
+                localStorage.removeItem('extraEditado');
+            }
+            
+            // Verificar mensaje de eliminación
+            if (localStorage.getItem('extraEliminado')) {
+                Swal.fire({
+                    title: 'Eliminado',
+                    text: 'El extra ha sido eliminado correctamente',
+                    icon: 'success',
+                    customClass: {
+                        container: 'swal-over-modal'
+                    }
+                });
+                localStorage.removeItem('extraEliminado');
+            }
+        });
+
+        $(".entrega-conforme").on("click", function() {
+            const url = $(this).data("href");
+            Swal.fire({
+                icon: "info",
+                title: "¡Atención!",
+                text: "¿Esta seguro de marcalo como entrega conforme?",
+            }).then((result) => {
+                if(result.isConfirmed){
+                    window.location.href = url;
+                }
+            });
+        })
+
+        // Usa esto para el select específico del modal:
+$('#ModalEditRuta').on('shown.bs.modal', function () {
+    // Destruir Select2 existente si existe
+    if ($("#id_ruta").hasClass("select2-hidden-accessible")) {
+        $("#id_ruta").select2('destroy');
+    }
+    
+    // Inicializar Select2 con dropdownParent
+    $("#id_ruta").select2({
+        dropdownParent: $('#ModalEditRuta'),
+        placeholder: "Seleccione una opción",
+        allowClear: true,
+        width: '100%'
+    });
+});
+
+// Limpiar cuando se cierre el modal
+$('#ModalEditRuta').on('hidden.bs.modal', function () {
+    if ($("#id_ruta").hasClass("select2-hidden-accessible")) {
+        $("#id_ruta").select2('destroy');
+    }
+});
+
+// Inicializar Select2 para el select de proveedor en el modal
+$('#ModalEditarProveedor').on('shown.bs.modal', function () {
+    // Destruir Select2 existente si existe
+    if ($("#id_proveedor_select").hasClass("select2-hidden-accessible")) {
+        $("#id_proveedor_select").select2('destroy');
+    }
+    
+    // Inicializar Select2 con dropdownParent y búsqueda
+    $("#id_proveedor_select").select2({
+        dropdownParent: $('#ModalEditarProveedor'),
+        placeholder: "Buscar proveedor...",
+        allowClear: true,
+        width: '100%',
+        language: {
+            noResults: function() {
+                return "No se encontraron resultados";
+            },
+            searching: function() {
+                return "Buscando...";
+            }
+        }
+    });
+});
+
+// Limpiar cuando se cierre el modal de editar proveedor
+$('#ModalEditarProveedor').on('hidden.bs.modal', function () {
+    if ($("#id_proveedor_select").hasClass("select2-hidden-accessible")) {
+        $("#id_proveedor_select").select2('destroy');
+    }
+});
+
+// Manejar click del botón de balanza para obtener el pesaje
+$(document).on('click', '.btn-obtener-pesaje', function() {
+    const btn = $(this);
+    const patente = btn.data('patente');
+    const campoId = btn.data('campo-id');
+    const inputPeso = $('#peso_entrada_' + campoId);
+    const citacionId = '{{ citacion.pk }}';
+    
+    // Deshabilitar el botón mientras se procesa la solicitud
+    btn.prop('disabled', true);
+    btn.html('<i class="fas fa-spinner fa-spin"></i>');
+    
+    $.ajax({
+        url: '{% url "ajax_obtener_pesaje" %}',
+        method: 'GET',
+        data: {
+            'patente': patente
+        },
+        success: function(response) {
+            if (response.valid && response.peso_entrada !== null && response.peso_entrada !== undefined && response.peso_entrada !== '' && response.peso_entrada != 0) {
+                const peso = response.peso_entrada;
+                inputPeso.val(peso);
+                
+                // Debug: mostrar valores que se van a enviar
+                console.log('DEBUG - Actualizando DO_NPESO con:', {
+                    campo_id: campoId,
+                    citacion_id: citacionId,
+                    peso: peso
+                });
+                
+                // Actualizar el campo DO_NPESO en DATO_OPERACION
+                $.ajax({
+                    url: '{% url "ajax_actualizar_peso_dato_operacion" %}',
+                    method: 'POST',
+                    data: {
+                        'campo_id': campoId,
+                        'citacion_id': citacionId,
+                        'peso': peso,
+                        'csrfmiddlewaretoken': '{{ csrf_token }}'
+                    },
+                    success: function(updateResponse) {
+                        console.log('DEBUG - Respuesta de actualización:', updateResponse);
+                        if (updateResponse.valid) {
+                            Swal.fire({
+                                title: 'Pesaje obtenido y actualizado',
+                                text: 'El peso ha sido cargado y guardado correctamente: ' + peso,
+                                icon: 'success',
+                                timer: 2000,
+                                showConfirmButton: false
+                            });
+                        } else {
+                            Swal.fire({
+                                title: 'Pesaje obtenido',
+                                text: 'El peso ha sido cargado: ' + peso + '. Pero hubo un error al guardarlo: ' + (updateResponse.msg || 'Error desconocido'),
+                                icon: 'warning',
+                                timer: 3000,
+                                showConfirmButton: false
+                            });
+                        }
+                    },
+                    error: function(xhr, status, error) {
+                        console.error('DEBUG - Error en actualización:', xhr, status, error);
+                        Swal.fire({
+                            title: 'Pesaje obtenido',
+                            text: 'El peso ha sido cargado: ' + peso + '. Pero hubo un error al guardarlo.',
+                            icon: 'warning',
+                            timer: 3000,
+                            showConfirmButton: false
+                        });
+                    }
+                });
+            } else {
+                Swal.fire({
+                    title: 'Sin datos',
+                    text: response.msg || 'No se encontraron datos de pesaje válidos para esta patente',
+                    icon: 'warning',
+                    confirmButtonText: 'Aceptar'
+                });
+            }
+        },
+        error: function(xhr, status, error) {
+            Swal.fire({
+                title: 'Error',
+                text: 'Ocurrió un error al obtener el pesaje. Por favor, intente nuevamente.',
+                icon: 'error',
+                confirmButtonText: 'Aceptar'
+            });
+        },
+        complete: function() {
+            // Restaurar el botón
+            btn.prop('disabled', false);
+            btn.html('<i class="fas fa-balance-scale"></i>');
+        }
+    });
+});
+
+    // Manejar click del botón de carpeta para mostrar archivos de tickets (independiente del botón de balanza)
+    $(document).on('click', '.btn-carpeta-pesaje', function() {
+        const citacionId = $(this).data('citacion-id');
+        const patente = $(this).data('patente');
+        
+        console.log('Botón carpeta clickeado - Citación ID:', citacionId, 'Patente:', patente);
+        
+        // Mostrar modal y loading
+        $('#ModalArchivosTickets').modal('show');
+        $('#archivos-tickets-loading').show();
+        $('#archivos-tickets-content').hide();
+        $('#archivos-tickets-empty').hide();
+        $('#archivos-tickets-tbody').empty();
+        
+        // Hacer petición AJAX para obtener los archivos
+        $.ajax({
+            url: '{% url "ajax_listar_archivos_tickets" %}',
+            method: 'GET',
+            data: {
+                'citacion_id': String(citacionId),  // Asegurar que sea string
+                'patente': patente
+            },
+            success: function(response) {
+                $('#archivos-tickets-loading').hide();
+                
+                if (response.success && response.archivos && response.archivos.length > 0) {
+                    // Mostrar archivos en la tabla
+                    response.archivos.forEach(function(archivo) {
+                        // Usar window.location para forzar la descarga del archivo
+                        const downloadUrl = '{% url "ajax_descargar_archivo_ticket" %}?file_path=' + encodeURIComponent(archivo.ruta);
+                        const row = `
+                            <tr>
+                                <td>${archivo.nombre}</td>
+                                <td>${archivo.tamaño_formateado}</td>
+                                <td>
+                                    <a href="${downloadUrl}" class="btn btn-sm btn-primary" target="_blank">
+                                        <i class="fas fa-download"></i> Descargar
+                                    </a>
+                                </td>
+                            </tr>
+                        `;
+                        $('#archivos-tickets-tbody').append(row);
+                    });
+                    $('#archivos-tickets-content').show();
+                } else {
+                    // Mostrar mensaje de vacío
+                    $('#archivos-tickets-empty').show();
+                }
+            },
+            error: function(xhr, status, error) {
+                $('#archivos-tickets-loading').hide();
+                Swal.fire({
+                    title: 'Error',
+                    text: 'Ocurrió un error al cargar los archivos. Por favor, intente nuevamente.',
+                    icon: 'error',
+                    confirmButtonText: 'Aceptar'
+                });
+            }
+        });
+    });
+    </script>
+{% endblock javascripts %}
+

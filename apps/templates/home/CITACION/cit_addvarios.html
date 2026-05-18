@@ -1,0 +1,726 @@
+{% extends "layouts/base.html" %}
+
+{% block title %} Crear varias citaciones {% endblock %} 
+
+<!-- Specific CSS goes HERE -->
+{% block stylesheets %}
+
+    <!-- data tables css -->
+    <link rel="stylesheet" href="/static/assets/css/plugins/dataTables.bootstrap4.min.css">
+    {% load humanize %}
+    {% load i18n %}
+    {% load l10n %}
+{% endblock stylesheets %}
+
+{% block content %}
+	
+	<!-- [ chat user list ] start -->
+	<!-- chatbot -->
+	<!-- [ chat user list ] end -->
+
+	<!---->
+    <!-- [ Main Content ] start -->
+    <section class="pcoded-main-container">
+        <div class="pcoded-content">
+            <!-- [ breadcrumb ] start -->
+            <div class="page-header">
+                <div class="page-block">
+                    <div class="row align-items-center">
+                        <div class="col-sm-12">
+                            <div class="page-header-title d-flex justify-content-between">
+                                <h5 class="m-b-10">Planificación #{{planificacion.id}} </h5>
+                                <h5 class="m-b-10">Fecha: {{ planificacion.PL_FFECHAINICIO|date:"d/m/Y" }} | Horario: {{planificacion.PL_FFECHAINICIO|time:"H:i"}} - {{planificacion.PL_FFECHAFIN|time:"H:i"}}</h5>
+                            </div>
+                            <ul class="breadcrumb">
+                                <li class="breadcrumb-item"><a href="/"><i class="feather icon-home"></i></a></li>
+                                <li class="breadcrumb-item"><a href="{% if venta %}{% url 'cit_listall_despachos' %}{% else %}{% url 'cit_listall_recepciones' %}{% endif %}">Citaciones</a></li>
+                                <li class="breadcrumb-item"><a href="#!">Crear varias citaciones</a></li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <!-- [ breadcrumb ] end -->
+            <!-- [ Main Content ] start -->
+            <div class="row">
+                <!-- Form Inputs table start -->
+                <div class="col-sm-12">
+                    <div class="card">
+                        <div class="card-header">
+                            <div class="d-flex justify-content-between mt-3 mr-3" >  
+                                <h5>Completar la información de las citaciones</h5>
+                                <button type="button" 
+                                        id="btnCrearCitaciones" 
+                                        class="btn btn-primary" 
+                                        onclick="intentarCrearCitaciones()">
+                                    Crear citaciones
+                                </button>
+                            </div> 
+                        </div>
+                        <div class="card-body">
+                            <div class="dt-responsive table-responsive">
+                                 <table id="tabla_citaciones" class="table table-striped table-bordered nowrap" data-page-length='15'>
+                                    <thead>
+                                        <tr>
+                                            <th></th>
+                                            <th>EMPRESA</th>
+                                            <th>TIPO FLETE</th>
+                                            <th>TIPO DOCUMENTO</th>
+                                            <th>NÚMERO DOCUMENTO</th>
+                                            <th>PROVEEDOR</th>
+                                            <th>CAMION</th>
+                                            <th>CONDUCTOR</th>
+                                            <th>SECUENCIA</th>
+                                            <th>HORA CITACIÓN</th>
+                                            {% if venta %}
+                                            <th>CLIENTE</th>
+                                            {% endif %}
+                                            <th>PRODUCTO</th>
+                                            <th>TARIFA</th>
+                                            <th>OBSERVACIÓN</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {% for row_citacion in row_citaciones %}
+                                            <tr id="id_tr_{{row_citacion}}">
+                                                <td>
+                                                    <a class="btn btn-danger" id="btnquitar{{row_citacion}}" name="btnquitar{{row_citacion}}" onclick="deleteRow(this)">
+                                                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 72 72" xml:space="preserve" fill="currentColor">
+                                                            <path d="M53.678 61.824a8.447 8.447 0 0 1-6.01-2.49L36 47.667 24.332 59.334c-1.604 1.605-3.739 2.49-6.01 2.49s-4.404-.885-6.01-2.49a8.442 8.442 0 0 1-2.49-6.01c0-2.271.885-4.405 2.491-6.011l11.666-11.667-10.96-10.961c-1.605-1.604-2.49-3.739-2.49-6.01s.885-4.405 2.49-6.01a8.444 8.444 0 0 1 6.011-2.49c2.271 0 4.405.885 6.01 2.49L36 23.626l10.96-10.96c1.605-1.605 3.738-2.49 6.01-2.49s4.406.885 6.01 2.49c1.605 1.604 2.49 3.739 2.49 6.01s-.885 4.405-2.49 6.01l-10.959 10.96 11.666 11.668a8.44 8.44 0 0 1 2.49 6.01 8.444 8.444 0 0 1-2.49 6.01 8.438 8.438 0 0 1-6.009 2.49zM36 42.839c.511 0 1.023.195 1.414.586l13.082 13.081a4.47 4.47 0 0 0 3.182 1.318 4.469 4.469 0 0 0 3.182-1.318 4.464 4.464 0 0 0 1.318-3.182 4.462 4.462 0 0 0-1.318-3.181L43.78 37.06a2 2 0 0 1 0-2.828l12.373-12.375c.852-.851 1.318-1.979 1.318-3.182s-.467-2.331-1.318-3.182c-.85-.851-1.98-1.318-3.182-1.318s-2.332.468-3.18 1.318L37.414 27.868a2 2 0 0 1-2.828 0L22.21 15.494a4.464 4.464 0 0 0-3.181-1.318 4.47 4.47 0 0 0-3.182 1.318c-.851.851-1.319 1.979-1.319 3.182s.469 2.331 1.318 3.182L28.22 34.233a2 2 0 0 1 0 2.828L15.14 50.143a4.469 4.469 0 0 0-1.318 3.182c0 1.201.469 2.331 1.318 3.182a4.468 4.468 0 0 0 3.182 1.318 4.47 4.47 0 0 0 3.182-1.318l13.083-13.081c.39-.392.902-.587 1.413-.587z"/>
+                                                        </svg>
+                                                    </a> 
+                                                </td>
+                                                <td style="min-width: 200px;">
+                                                    <select class="form-control js-example-placeholder-multiple" name="empresa_{{row_citacion}}" id="empresa_{{row_citacion}}" onchange="getFleteEmpresa({{row_citacion}})">
+                                                        {% for empresa in ltsEmpresas %}
+                                                            <option value="{{ empresa.pk }}">{{ empresa.EP_CRAZONSOCIAL }}</option>
+                                                        {% endfor %}
+                                                    </select>
+                                                </td>
+                                                <td style="min-width: 200px;">
+                                                    <select class="form-control js-example-placeholder-multiple" name="tipo_flete{{row_citacion}}" id="tipo_flete{{row_citacion}}">
+                                                        {% for flete in ltsFlete %}
+                                                            <option value="{{ flete.PM_CDESCRIPCION }}">{{ flete.PM_CDESCRIPCION }}</option>
+                                                        {% endfor %}
+                                                    </select>
+                                                </td>
+                                                <td style="min-width: 200px;">
+                                                    <select class="form-control js-example-placeholder-multiple" name="tipo_documento{{row_citacion}}" id="tipo_documento{{row_citacion}}">
+                                                        {% for documento in ltsDocumento %}
+                                                            <option value="{{ documento.LIS_CNOMBREDOCUMENTO }}">{{ documento.LIS_CNOMBREDOCUMENTO }}</option>
+                                                        {% endfor %}
+                                                    </select>
+                                                </td>
+                                                <td style="min-width: 200px;">
+                                                    <input type="text" class="form-control" name="numero_documento{{row_citacion}}" id="numero_documento{{row_citacion}}">
+                                                </td>
+                                                <td style="min-width: 200px;">
+                                                    <select class="form-control js-example-placeholder-multiple" name="proveedor{{row_citacion}}" id="proveedor{{row_citacion}}" onchange="updateComboProveedor('proveedor{{row_citacion}}', 'conductor{{row_citacion}}', 'camion{{row_citacion}}', 'tarifa{{row_citacion}}')">
+                                                        <option value="">Seleccione un proveedor: </option>
+                                                        {% for proveedor in ltsProveedores %}
+                                                            <option value="{{ proveedor.id }}">{{ proveedor.SN_CRAZONSOCIAL }}</option>
+                                                        {% endfor %}
+                                                    </select>
+                                                </td>
+                                                <td style="min-width: 200px;">
+                                                    <select class="form-control js-example-placeholder-multiple" name="camion{{row_citacion}}" id="camion{{row_citacion}}" onchange="selectLastConductor_xCamion('camion{{row_citacion}}', 'conductor{{row_citacion}}')">
+                                                        <option value="">Seleccione un camión: </option>
+                                                        {% for camion in ltsCamiones %}
+                                                            <option value="{{ camion.id }}" >{{ camion.CAM_CMARCA }} - {{ camion.CAM_CPATENTE }}</option>
+                                                        {% endfor %}
+                                                    </select>
+                                                </td>
+                                                <td style="min-width: 200px;">
+                                                    <select class="form-control js-example-placeholder-multiple" name="conductor{{row_citacion}}" id="conductor{{row_citacion}}">
+                                                        <option value="">Seleccione un conductor: </option>
+                                                        {% for conductor in ltsConductores %}
+                                                            <option value="{{ conductor.id }}" >{{ conductor.CON_CRUT }} - {{ conductor.CON_CNOMBRE }} {{ conductor.CON_CAPELLIDO }}</option>
+                                                        {% endfor %}
+                                                    </select>
+                                                </td>
+                                                <td style="min-width: 200px;">
+                                                    <select class="form-control js-example-placeholder-multiple" name="secuencia{{row_citacion}}" id="secuencia{{row_citacion}}">
+                                                        <option value="">Seleccione una secuencia: </option>
+                                                        {% for secuencia in ltsSecuencias %}
+                                                            <option value="{{ secuencia.id }}">{{ secuencia.SE_CCODIGO }} - {{ secuencia.SE_CNOMBRE }}</option>
+                                                        {% endfor %}
+                                                    </select>
+                                                </td>
+                                                <td>
+                                                    <input class="form-control" type="time" id="hora_citacion{{row_citacion}}">
+                                                </td>
+                                                {% if venta %}
+                                                <td style="min-width: 200px;">
+                                                    <select class="form-control js-example-placeholder-multiple" name="cliente{{row_citacion}}" id="cliente{{row_citacion}}">
+                                                        <option value="">Seleccione un cliente: </option>
+                                                        {% for cliente in ltsClientes %}
+                                                     <option value="{{ cliente.id }}" >{{ cliente.SN_CRAZONSOCIAL }}</option>
+                                                        {% endfor %}
+                                                    </select>
+                                                </td>
+                                                {% endif %}
+                                                <td style="min-width: 200px;">
+                                                    <select class="form-control js-example-placeholder-multiple" name="producto{{row_citacion}}" id="producto{{row_citacion}}">
+                                                        <option value="">Seleccione un producto: </option>
+                                                        {% for producto in ltsItems %}
+                                                            <option value="{{ producto.id }}" >{{ producto.IT_CCODIGO }} - {{ producto.IT_CNOMBRE }}</option>
+                                                        {% endfor %}
+                                                    </select>
+                                                </td>
+                                                <td style="min-width: 200px;">
+                                                    <select class="form-control js-example-placeholder-multiple" name="tarifa{{row_citacion}}" id="tarifa{{row_citacion}}">
+                                                        <option value="">Seleccione una tarifa: </option>
+                                                        {% for tarifa in ltsTarifas %}
+                                                            <option value="{{ tarifa.id }}" >{{ tarifa.TAR_CNOMBRETARIFA }}</option>
+                                                        {% endfor %}
+                                                    </select>
+                                                </td>
+                                                <td style="min-width: 250px;">
+                                                    <input type="text" class="form-control" name="observacion{{row_citacion}}" id="observacion{{row_citacion}}">
+                                                </td>
+                                            </tr>
+                                        {% endfor %}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <!-- Form Inputs table end -->
+            </div>
+            <!-- [ Main Content ] end -->
+        </div>
+    </section>
+    <!-- [ Main Content ] end -->
+{% endblock content %}
+
+<!-- Specific Page JS goes HERE  -->
+{% block javascripts %}
+    <!-- datatable Js -->
+    <script src="/static/assets/js/plugins/jquery.dataTables.min.js"></script>
+    <script src="/static/assets/js/plugins/dataTables.bootstrap4.min.js"></script>
+    <script src="/static/assets/js/pages/data-api-custom.js"></script>
+    <script>
+        {% if venta %}
+            const venta = true;
+        {% else %}
+            const venta = false;
+        {% endif %}
+        
+        let id_proveedor = '';
+        let tableData = [];
+        const id_planificacion = "{{planificacion.pk}}";
+        
+        function toggleButton(anchor) {
+            const button = anchor.querySelector('button');
+            button.disabled = true; // Deshabilitar el botón
+        
+            // Llamar a la función de validación
+            {% if venta %}
+                validar_seleccion_de_envio_venta();
+                button.disabled = false;
+            {% else %}
+                validar_seleccion_de_envio_compra();
+                button.disabled = false;
+            {% endif %}
+        
+            // Habilitar el botón después de un tiempo o al finalizar la operación
+            // Aquí puedes usar una promesa o un callback para habilitarlo después de que la operación haya terminado
+            setTimeout(() => {
+                button.disabled = false; // Habilitar el botón nuevamente
+            }, 3000); // Cambia 3000 por el tiempo que consideres necesario
+        }
+        //Borrar una fila de la lista
+        function deleteRow(btn) {
+            // Obtener la fila enviada
+            var row = btn.parentNode.parentNode;
+            // Quitar la fila de la tabla
+            row.parentNode.removeChild(row);
+        }
+
+        function updateComboProveedor(p_proveedor, p_conductor, p_camion, p_tarifa){
+            id_proveedor = document.getElementById(p_proveedor).value;
+            // const tarifaSelect = document.getElementById(p_tarifa);
+            const conductor = document.getElementById(p_conductor);
+            const camion = document.getElementById(p_camion);
+            const tarifaSelect = document.getElementById(p_tarifa); // Asegúrate de que tarifaSelect esté definido aquí
+            
+
+            // if(tarifaSelect){
+            //    tarifaSelect.innerHTML = '';
+            // }
+            $.ajax({
+                type: 'GET',
+                url: `/ajax_data_proveedor/${id_proveedor}`,
+                success: function(data){
+                    if(data.valid == true){
+                        if(data.generico == true){
+                            // Replace select elements with text input fields
+                            if(conductor.tagName.toLowerCase() === 'select'){
+                                replaceSelectWithTextField(p_conductor);
+                            }
+                            if(camion.tagName.toLowerCase() === 'select'){
+                                replaceSelectWithTextField(p_camion);
+                            }
+                            if(tarifaSelect){
+                                tarifaSelect.value = null;
+                                tarifaSelect.value = ''; // Asignar valor nulo a tarifa
+                                
+                                // Seleccionar el encabezado de la columna de tarifa
+                                const headers = document.querySelectorAll('th');
+                                
+                            }
+                        } else {
+                            if(conductor.tagName.toLowerCase() === 'input' && conductor.type === 'text'){
+                                replaceTextFieldWithSelect(p_conductor, 'Seleccione un conductor');
+                            }
+                            if(camion.tagName.toLowerCase() === 'input' && camion.type === 'text'){
+                                replaceTextFieldWithSelect(p_camion, 'Seleccione un camión');
+                            }
+                            let conductorSelect = document.getElementById(p_conductor);
+                            let camionSelect = document.getElementById(p_camion);
+                            conductorSelect.innerHTML = '';
+                            camionSelect.innerHTML = '';
+                            let conductores = data.conductores;
+                            conductorSelect.append(new Option('Seleccione un conductor', ''));
+                            conductores.forEach(conductor => {
+                                conductorSelect.append(new Option(conductor[1], conductor[0]));
+                            });
+                            let camiones = data.camiones;
+                            camionSelect.append(new Option('Seleccione un camión', ''));
+                            camiones.forEach(camion => {
+                                camionSelect.append(new Option(camion[1], camion[0]));
+                            });
+                            if(tarifaSelect){
+                                let tarifas = data.tarifas;
+                                tarifaSelect.append(new Option('Seleccione una tarifa', ''));
+                                tarifas.forEach(tarifa => {
+                                    tarifaSelect.append(new Option(tarifa[1], tarifa[0]));
+                                });
+                            }
+                        }
+                    } else {
+                        Swal.fire({
+                            icon: 'error',
+                            title: 'Error',
+                            text: data.msg
+                        });
+                    }
+                }
+            });
+        }
+
+        function replaceSelectWithTextField(elementId) {
+            const selectElement = document.getElementById(elementId);
+            const parentElement = selectElement.parentElement;
+            const textField = document.createElement('input');
+            
+            textField.type = 'text';
+            textField.className = 'form-control';
+            textField.name = selectElement.name;
+            textField.id = selectElement.id;
+            textField.maxLength = 32;
+
+            // Destruir la instancia de Select2 si existe
+            if ($(selectElement).data('select2')) {
+                $(selectElement).select2('destroy');
+            }
+    
+            parentElement.removeChild(selectElement);
+            parentElement.appendChild(textField);
+        }
+
+        function replaceTextFieldWithSelect(elementId, placeholder) {
+            const textField = document.getElementById(elementId);
+            if (textField.tagName.toLowerCase() === 'input' && textField.type === 'text') {
+                const parentElement = textField.parentElement;
+                const selectField = document.createElement('select');
+                
+                selectField.className = 'form-control js-example-placeholder-multiple';
+                selectField.name = textField.name;
+                selectField.id = textField.id;
+
+                const placeholderOption = document.createElement('option');
+                placeholderOption.value = '';
+                placeholderOption.text = placeholder;
+                selectField.appendChild(placeholderOption);
+
+                parentElement.removeChild(textField);
+                parentElement.appendChild(selectField);
+
+                // Inicializar Select2 en el nuevo campo select
+                $(selectField).select2();
+            } else {
+                // Clear existing options if element is already a select
+                textField.innerHTML = '';
+                const placeholderOption = document.createElement('option');
+                placeholderOption.value = '';
+                placeholderOption.text = placeholder;
+                textField.appendChild(placeholderOption);
+            }
+        }
+
+        function updateTarifaRuta(p_ruta, p_tarifa){
+            const rutaSelected = document.getElementById(p_ruta).value;
+            const tarifaSelect = document.getElementById(p_tarifa);
+            tarifaSelect.innerHTML = '';
+            $.ajax({
+                type: 'POST',
+                url: "{% url 'ajax_get_data_tarifa_ruta' %}",
+                data:{
+                    csrfmiddlewaretoken: "{{ csrf_token }}",
+                    id_ruta: rutaSelected,
+                    id_proveedor: id_proveedor
+                },
+                success: function(data){
+                    if(data.valid == true){
+                        let tarifas = data.tarifas;
+                        tarifaSelect.append(new Option('Seleccione una tarifa', ''));
+                        tarifas.forEach(tarifa => {
+                            tarifaSelect.append(new Option(tarifa[1], tarifa[0]));
+                        });
+                    } else {
+                        Swal.fire({
+                            icon: 'error',
+                            title: 'Error',
+                            text: data.msg
+                        });
+                    }
+                }
+            });
+        }
+
+        function updateTarifa(p_tarifa, p_tarifa_original, p_tarifa_valor){
+            const tarifaSelected = document.getElementById(p_tarifa).value;
+            const tarifaOriginal = document.getElementById(p_tarifa_original);
+            const tarifaValor = document.getElementById(p_tarifa_valor);
+
+            console.log(tarifaOriginal);
+            console.log(tarifaValor);
+
+            tarifaOriginal.value = 0;
+            tarifaValor.value = 0;
+            $.ajax({
+                type: 'GET',
+                url: `/ajax_get_data_tarifa/${tarifaSelected}`,
+                success: function(data){
+                    if(data.valid == true){
+                        tarifaOriginal.value = data.tarifa_original;
+                        tarifaValor.value = data.tarifa_valor;
+                    } else {
+                        Swal.fire({
+                            icon: 'error',
+                            title: 'Error',
+                            text: data.msg
+                        });
+                    }
+                }
+            });
+        }
+        
+        function selectLastConductor_xCamion(p_camion, p_conductor){
+            const camionSelected = document.getElementById(p_camion).value;
+            const conductorSelect = document.getElementById(p_conductor);
+            if(camionSelected != 1 || camionSelected != '1'){
+                $.ajax({
+                    type: 'GET',
+                    url: `/ajax_get_data_conductor_xcamion/${camionSelected}`,
+                    success: function(data){
+                        if(data.valid == true){
+                            if(data.conductor){
+                                conductorSelect.selectedIndex = data.conductor;
+                                conductorSelect.dispatchEvent(new Event('change'))
+                            }
+                        } else {
+                            Swal.fire({
+                                icon: 'error',
+                                title: 'Error',
+                                text: data.msg
+                            });
+                        }
+                    }
+                });
+            }
+        }
+
+        function validar_seleccion_de_envio_venta() {
+            if(tableData.length > 0){
+                tableData = []
+            }
+            $('#tabla_citaciones tbody tr').each(function(row, tr){
+                let empresa = $(tr).find('td:eq(1)').find('select').val();
+                let tipo_flete = $(tr).find('td:eq(2)').find('select').val();
+                let tipo_documento = $(tr).find('td:eq(3)').find('select').val();
+                let numero_documento = $(tr).find('td:eq(4)').find('input[type="text"]').val();
+                let id_proveedor = $(tr).find('td:eq(5)').find('select').val();
+                let id_camion_select = $(tr).find('td:eq(6)').find('select');
+                let id_camion = id_camion_select.length ? id_camion_select.val() : $(tr).find('td:eq(6)').find('input[type="text"]').val();
+                let id_conductor_select = $(tr).find('td:eq(7)').find('select');
+                let id_conductor = id_conductor_select.length ? id_conductor_select.val() : $(tr).find('td:eq(7)').find('input[type="text"]').val();
+                let id_secuencia = $(tr).find('td:eq(8)').find('select').val();
+                let hora_citacion = $(tr).find('td:eq(9)').find('input[type="time"]').val();
+                let id_cliente = $(tr).find('td:eq(10)').find('select').val();
+                let id_producto = $(tr).find('td:eq(11)').find('select').val();
+                let id_tarifa = $(tr).find('td:eq(12)').find('select').val();
+                let observacion = $(tr).find('td:eq(13)').find('input[type="text"]').val();
+                                
+                tableData.push({
+                    empresa: empresa,
+                    tipo_documento: tipo_documento,
+                    numero_documento: numero_documento,
+                    id_proveedor: id_proveedor,
+                    id_secuencia: id_secuencia,
+                    id_conductor: id_conductor,
+                    id_camion: id_camion,
+                    id_producto: id_producto,
+                    hora_citacion: hora_citacion,
+                    id_tarifa: id_tarifa,
+                    observacion: observacion,
+                    tipo_flete: tipo_flete,
+                    id_cliente: id_cliente
+                });
+            });
+            if(tableData.length > 0){
+                $.ajax({
+                    type: 'POST',
+                    url: "{% url 'ajax_validar_citaciones' %}",
+                    data: {
+                        csrfmiddlewaretoken: "{{ csrf_token }}",
+                        data: JSON.stringify(tableData),
+                        id_planificacion: id_planificacion,
+                        venta: venta
+                    },
+                    success: function(data){
+                        if(data.valid == true){
+                            if(data.continue == true){
+                                enviar_seleccion_de_envio();
+                            } else {
+                                Swal.fire({
+                                    icon: 'warning',
+                                    title: 'Advertencia',
+                                    text: data.msg
+                                }).then(function(result){
+                                    if(result.value){
+                                        enviar_seleccion_de_envio();
+                                    }
+                                });
+                            }
+                        } else {
+                            Swal.fire({
+                                icon: 'error',
+                                title: 'Error',
+                                text: data.msg
+                            });
+                        }
+                    }
+                });  
+            } else {
+                Swal.fire({
+                    icon: 'error',
+                    title: 'Error',
+                    text: 'No hay citaciones seleccionadas'
+                });
+            }
+            return true;
+        }
+        
+        function validar_seleccion_de_envio_compra() {
+            if(tableData.length > 0){
+                tableData = []
+            }
+            $('#tabla_citaciones tbody tr').each(function(row, tr){
+                let empresa = $(tr).find('td:eq(1)').find('select').val();
+                let tipo_flete = $(tr).find('td:eq(2)').find('select').val();
+                let tipo_documento = $(tr).find('td:eq(3)').find('select').val();
+                let numero_documento = $(tr).find('td:eq(4)').find('input[type="text"]').val();
+                let id_proveedor = $(tr).find('td:eq(5)').find('select').val();
+                let id_camion_select = $(tr).find('td:eq(6)').find('select');
+                let id_camion = id_camion_select.length ? id_camion_select.val() : $(tr).find('td:eq(6)').find('input[type="text"]').val();
+                let id_conductor_select = $(tr).find('td:eq(7)').find('select');
+                let id_conductor = id_conductor_select.length ? id_conductor_select.val() : $(tr).find('td:eq(7)').find('input[type="text"]').val();
+                let id_secuencia = $(tr).find('td:eq(8)').find('select').val();
+                let hora_citacion = $(tr).find('td:eq(9)').find('input[type="time"]').val();
+                let id_producto = $(tr).find('td:eq(10)').find('select').val();
+                let id_tarifa = $(tr).find('td:eq(11)').find('select').val();
+                let observacion = $(tr).find('td:eq(12)').find('input[type="text"]').val();
+
+                tableData.push({
+                    empresa: empresa,
+                    tipo_documento: tipo_documento,
+                    numero_documento: numero_documento,
+                    id_proveedor: id_proveedor,
+                    id_camion: id_camion,
+                    id_conductor: id_conductor,
+                    id_secuencia: id_secuencia,
+                    id_producto: id_producto,
+                    hora_citacion: hora_citacion,
+                    id_tarifa:id_tarifa,
+                    observacion: observacion,
+                    tipo_flete: tipo_flete
+                });
+            });
+            if(tableData.length > 0){
+                $.ajax({
+                    type: 'POST',
+                    url: "{% url 'ajax_validar_citaciones' %}",
+                    data: {
+                        csrfmiddlewaretoken: "{{ csrf_token }}",
+                        data: JSON.stringify(tableData),
+                        id_planificacion: id_planificacion,
+                        venta: venta
+                    },
+                    success: function(data){
+                        if(data.valid == true){
+                            if(data.continue == true){
+                                enviar_seleccion_de_envio();
+                            } else {
+                                Swal.fire({
+                                    icon: 'warning',
+                                    title: 'Advertencia',
+                                    text: data.msg
+                                }).then(function(result){
+                                    if(result.value){
+                                        enviar_seleccion_de_envio();
+                                    }
+                                });
+                            }
+                        } else {
+                            Swal.fire({
+                                icon: 'error',
+                                title: 'Error',
+                                text: data.msg
+                            });
+                        }
+                    }
+                });
+            } else {
+                Swal.fire({
+                    icon: 'error',
+                    title: 'Error',
+                    text: 'No hay citaciones seleccionadas'
+                });
+            }
+            return true;
+        }
+
+        function enviar_seleccion_de_envio(){
+            if(tableData.length > 0){
+                $.ajax({
+                    type: 'POST',
+                    url: "{% url 'cit_addvarios' %}",
+                    data: {
+                        csrfmiddlewaretoken: "{{ csrf_token }}",
+                        id_planificacion: id_planificacion,
+                        data: JSON.stringify(tableData),
+                        venta: venta
+                    },
+                    success: function(data){
+                        if(data.valid == true){
+
+                            window.location.href = `/pla_listone/${id_planificacion}`;
+                        } else {
+                            Swal.fire({
+                                icon: 'error',
+                                title: 'Error',
+                                text: data.msg
+                            });
+                        }
+                    }
+                });
+            }
+        }
+
+        function intentarCrearCitaciones() {
+            const btn = document.getElementById('btnCrearCitaciones');
+            const originalText = btn.innerHTML;
+            
+            // Deshabilitar el botón y cambiar texto
+            btn.disabled = true;
+            btn.classList.add('disabled');
+            btn.innerHTML = 'Procesando...';
+
+            try {
+                {% if venta %}
+                    validar_seleccion_de_envio_venta();
+                {% else %}
+                    validar_seleccion_de_envio_compra();
+                {% endif %}
+            } catch (error) {
+                console.error('Error:', error);
+            }
+
+            // Habilitar el botón después de 3 segundos
+            setTimeout(() => {
+                btn.disabled = false;
+                btn.classList.remove('disabled');
+                btn.innerHTML = originalText;
+            }, 3000);
+        }
+
+        function habilitarBoton() {
+            const btn = document.getElementById('btnCrearCitaciones');
+            btn.disabled = false;
+            btn.classList.remove('disabled');
+        }
+
+        function getFleteEmpresa(numero_fila){
+            const empresaId = document.getElementById(`empresa_${numero_fila}`).value;
+            const fleteSelect = document.getElementById(`tipo_flete${numero_fila}`);
+            
+            if(!empresaId){
+                return;
+            }
+            
+            // Limpiar el selector de fletes
+            fleteSelect.innerHTML = '<option value="">Cargando...</option>';
+            
+            $.ajax({
+                type: 'GET',
+                url: '{% url "get_flete_empresa" %}',  // Ajusta esta URL según tu urls.py
+                data: {
+                    id_empresa: empresaId
+                },
+                success: function(data){
+                    if(data.success === true){
+                        fleteSelect.innerHTML = '';
+                        
+                        if(data.fletes.length > 0){
+                            // Agregar opción por defecto
+                            fleteSelect.append(new Option('Seleccione un tipo de flete', ''));
+                            
+                            // Agregar los fletes obtenidos
+                            data.fletes.forEach(flete => {
+                                fleteSelect.append(new Option(flete, flete));
+                            });
+                        } else {
+                            fleteSelect.innerHTML = '<option value="">No hay fletes disponibles</option>';
+                        }
+                    } else {
+                        Swal.fire({
+                            icon: 'error',
+                            title: 'Error',
+                            text: data.error || 'Error al cargar los fletes'
+                        });
+                        fleteSelect.innerHTML = '<option value="">Error al cargar</option>';
+                    }
+                },
+                error: function(xhr, status, error){
+                    Swal.fire({
+                        icon: 'error',
+                        title: 'Error',
+                        text: 'Error en la comunicación con el servidor'
+                    });
+                    fleteSelect.innerHTML = '<option value="">Error al cargar</option>';
+                }
+            });
+        }
+
+        $(document).ready(function () {
+        $('#tabla_citaciones tbody tr').each(function () {
+            const rowId = $(this).attr('id'); // ej: id_tr_1
+            const numeroFila = rowId.split('_').pop();
+            getFleteEmpresa(numeroFila);
+        });
+    });
+    </script>
+{% endblock javascripts %}

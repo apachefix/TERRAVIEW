@@ -1,0 +1,56 @@
+# byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*.pyc
+
+# tests and coverage
+*.pytest_cache
+.coverage
+
+# database & logs
+*.db
+*.sqlite3
+*.log
+
+# virtual environments
+.env
+env/
+ENV/
+venv/
+.venv/
+
+# GTK
+gtk/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# javascript / frontend
+package-lock.json
+apps/static/assets/node_modules/
+apps/static/assets/yarn.lock
+apps/static/assets/.temp/
+
+# static files
+staticfiles/*
+!staticfiles/.gitkeep
+
+# vscode / IDE
+.vscode/
+.vscode/symbols.json
+.idea/
+
+# media uploads
+media/*
+
+# secrets / credentials
+encription_key.json
+hana_credentials.json
+loginHDB.json
+loginMSS.json
+loginSL.json
+
+# django settings sensibles
+core/settings.py
+apps/core/settings.py

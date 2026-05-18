@@ -1,0 +1,54 @@
+{% extends "layouts/base-fullscreen.html" %}
+
+{% block title %} Profile Settings {% endblock %}
+
+{% block content %} 
+
+	<div class="blur-bg-images"></div>
+	<!-- [ profile-settings ] start -->
+	<div class="auth-content">
+		<div class="auth-bg">
+			<span class="r"></span>
+			<span class="r s"></span>
+			<span class="r s"></span>
+			<span class="r"></span>
+		</div>
+		<div class="card">
+			<div class="card-body text-center">
+				<h5 class="mb-4">{{ current_user.username }} - Settings</h5>
+				<img src="/static/assets/images/user/avatar-3.jpg" class="img-radius mb-4" alt="User-Profile-Image">
+				<div class="input-group mb-3">
+					<input type="text" class="form-control" placeholder="Name" value="{{ current_user.username }}">
+				</div>
+				<div class="input-group mb-3">
+					<input type="text" class="form-control" placeholder="Email" value="{{ current_user.email }}">
+				</div>
+				<div class="mb-4 text-left">
+					<div class="form-group d-inline">
+						<div class="radio d-inline">
+							<input type="radio" name="radio-in-1" id="radio-in-1" checked>
+							<label for="radio-in-1" class="cr">Private Profile</label>
+						</div>
+					</div>
+					<div class="form-group d-inline">
+						<div class="radio d-inline">
+							<input type="radio" name="radio-in-1" id="radio-in-2">
+							<label for="radio-in-2" class="cr">Public Profile</label>
+						</div>
+					</div>
+				</div>
+				<button class="btn  btn-primary mb-4">Register</button>
+				<p class="mb-0 text-muted">Don’t have an account? <a href="/auth-signup.html">Signup</a></p>
+			</div>
+		</div>
+	</div>
+	<!-- [ profile-settings ] end -->
+
+{% endblock content %}
+
+<!-- Specific Page JS goes HERE  -->
+{% block javascripts %}
+
+	<script src="/static/assets/js/waves.min.js"></script>
+
+{% endblock javascripts %} 

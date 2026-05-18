@@ -1,0 +1,478 @@
+{% extends "layouts/base.html" %}
+
+{% block title %} BC Tabs {% endblock %} 
+
+<!-- Specific CSS goes HERE -->
+{% block stylesheets %}{% endblock stylesheets %}
+
+{% block content %}	
+	
+	<!-- [ chat user list ] start -->
+	<section class="header-user-list">
+		<a href="#!" class="h-close-text"><i class="feather icon-x"></i></a>
+		<ul class="nav nav-tabs" id="chatTab" role="tablist">
+			<li class="nav-item">
+				<a class="nav-link active text-uppercase border-0" id="chat-tab" data-toggle="tab" href="#chat" role="tab" aria-controls="chat" aria-selected="true"><i class="feather icon-message-circle mr-2"></i>Chat</a>
+			</li>
+			<li class="nav-item">
+				<a class="nav-link text-uppercase border-0" id="user-tab" data-toggle="tab" href="#user" role="tab" aria-controls="user" aria-selected="false"><i class="feather icon-users mr-2"></i>User</a>
+			</li>
+			<li class="nav-item">
+				<a class="nav-link text-uppercase border-0" id="setting-tab" data-toggle="tab" href="#setting" role="tab" aria-controls="setting" aria-selected="false"><i class="feather icon-settings mr-2"></i>Setting</a>
+			</li>
+		</ul>
+		<div class="tab-content" id="chatTabContent">
+			<div class="tab-pane fade show active" id="chat" role="tabpanel" aria-labelledby="chat-tab">
+				<div class="h-list-header">
+					<div class="input-group">
+						<input type="text" id="search-friends" class="form-control" placeholder="Search Friend . . .">
+					</div>
+				</div>
+				<div class="h-list-body">
+					<div class="main-friend-cont scroll-div">
+						<div class="main-friend-list">
+							<div class="media userlist-box" data-id="1" data-status="online" data-username="Josephin Doe">
+								<a class="media-left" href="#!"><img class="media-object img-radius" src="/static/assets/images/user/avatar-1.jpg" alt="Generic placeholder image ">
+									<div class="live-status">3</div>
+								</a>
+								<div class="media-body">
+									<h6 class="chat-header">Josephin Doe<small class="d-block text-c-green">Typing . . </small></h6>
+								</div>
+							</div>
+							<div class="media userlist-box" data-id="2" data-status="online" data-username="Lary Doe">
+								<a class="media-left" href="#!"><img class="media-object img-radius" src="/static/assets/images/user/avatar-2.jpg" alt="Generic placeholder image">
+									<div class="live-status">1</div>
+								</a>
+								<div class="media-body">
+									<h6 class="chat-header">Lary Doe<small class="d-block text-c-green">online</small></h6>
+								</div>
+							</div>
+							<div class="media userlist-box" data-id="3" data-status="online" data-username="Alice">
+								<a class="media-left" href="#!"><img class="media-object img-radius" src="/static/assets/images/user/avatar-3.jpg" alt="Generic placeholder image"></a>
+								<div class="media-body">
+									<h6 class="chat-header">Alice<small class="d-block text-c-green">online</small></h6>
+								</div>
+							</div>
+							<div class="media userlist-box" data-id="4" data-status="offline" data-username="Alia">
+								<a class="media-left" href="#!"><img class="media-object img-radius" src="/static/assets/images/user/avatar-1.jpg" alt="Generic placeholder image">
+									<div class="live-status">1</div>
+								</a>
+								<div class="media-body">
+									<h6 class="chat-header">Alia<small class="d-block text-muted">10 min ago</small></h6>
+								</div>
+							</div>
+							<div class="media userlist-box" data-id="5" data-status="offline" data-username="Suzen">
+								<a class="media-left" href="#!"><img class="media-object img-radius" src="/static/assets/images/user/avatar-4.jpg" alt="Generic placeholder image"></a>
+								<div class="media-body">
+									<h6 class="chat-header">Suzen<small class="d-block text-muted">15 min ago</small></h6>
+								</div>
+							</div>
+							<div class="media userlist-box" data-id="1" data-status="online" data-username="Josephin Doe">
+								<a class="media-left" href="#!"><img class="media-object img-radius" src="/static/assets/images/user/avatar-1.jpg" alt="Generic placeholder image ">
+									<div class="live-status">3</div>
+								</a>
+								<div class="media-body">
+									<h6 class="chat-header">Josephin Doe<small class="d-block text-c-green">Typing . . </small></h6>
+								</div>
+							</div>
+							<div class="media userlist-box" data-id="2" data-status="online" data-username="Lary Doe">
+								<a class="media-left" href="#!"><img class="media-object img-radius" src="/static/assets/images/user/avatar-2.jpg" alt="Generic placeholder image">
+									<div class="live-status">1</div>
+								</a>
+								<div class="media-body">
+									<h6 class="chat-header">Lary Doe<small class="d-block text-c-green">online</small></h6>
+								</div>
+							</div>
+							<div class="media userlist-box" data-id="3" data-status="online" data-username="Alice">
+								<a class="media-left" href="#!"><img class="media-object img-radius" src="/static/assets/images/user/avatar-3.jpg" alt="Generic placeholder image"></a>
+								<div class="media-body">
+									<h6 class="chat-header">Alice<small class="d-block text-c-green">online</small></h6>
+								</div>
+							</div>
+							<div class="media userlist-box" data-id="4" data-status="offline" data-username="Alia">
+								<a class="media-left" href="#!"><img class="media-object img-radius" src="/static/assets/images/user/avatar-1.jpg" alt="Generic placeholder image">
+									<div class="live-status">1</div>
+								</a>
+								<div class="media-body">
+									<h6 class="chat-header">Alia<small class="d-block text-muted">10 min ago</small></h6>
+								</div>
+							</div>
+							<div class="media userlist-box" data-id="5" data-status="offline" data-username="Suzen">
+								<a class="media-left" href="#!"><img class="media-object img-radius" src="/static/assets/images/user/avatar-4.jpg" alt="Generic placeholder image"></a>
+								<div class="media-body">
+									<h6 class="chat-header">Suzen<small class="d-block text-muted">15 min ago</small></h6>
+								</div>
+							</div>
+							<div class="media userlist-box" data-id="1" data-status="online" data-username="Josephin Doe">
+								<a class="media-left" href="#!"><img class="media-object img-radius" src="/static/assets/images/user/avatar-1.jpg" alt="Generic placeholder image ">
+									<div class="live-status">3</div>
+								</a>
+								<div class="media-body">
+									<h6 class="chat-header">Josephin Doe<small class="d-block text-c-green">Typing . . </small></h6>
+								</div>
+							</div>
+							<div class="media userlist-box" data-id="2" data-status="online" data-username="Lary Doe">
+								<a class="media-left" href="#!"><img class="media-object img-radius" src="/static/assets/images/user/avatar-2.jpg" alt="Generic placeholder image">
+									<div class="live-status">1</div>
+								</a>
+								<div class="media-body">
+									<h6 class="chat-header">Lary Doe<small class="d-block text-c-green">online</small></h6>
+								</div>
+							</div>
+							<div class="media userlist-box" data-id="3" data-status="online" data-username="Alice">
+								<a class="media-left" href="#!"><img class="media-object img-radius" src="/static/assets/images/user/avatar-3.jpg" alt="Generic placeholder image"></a>
+								<div class="media-body">
+									<h6 class="chat-header">Alice<small class="d-block text-c-green">online</small></h6>
+								</div>
+							</div>
+						</div>
+					</div>
+				</div>
+			</div>
+			<div class="tab-pane fade" id="user" role="tabpanel" aria-labelledby="user-tab">
+				<div class="h-list-body">
+					<div class="main-friend-cont scroll-div">
+						<div class="main-friend-list">
+							<div class="media px-3 d-flex align-items-center mt-3">
+								<a class="media-left m-r-15" href="#!">
+									<div class="hei-50 wid-50 bg-primary img-radius d-flex text-white f-22 align-items-center justify-content-center"><i class="icon feather icon-users"></i></div>
+								</a>
+								<div class="media-body">
+									<p class="chat-header f-w-600 mb-0">New Group</p>
+								</div>
+							</div>
+							<div class="media p-3 d-flex align-items-center">
+								<a class="media-left m-r-15" href="#!">
+									<div class="hei-50 wid-50 bg-primary img-radius d-flex text-white f-22 align-items-center justify-content-center"><i class="icon feather icon-user-plus"></i></div>
+								</a>
+								<div class="media-body">
+									<p class="chat-header f-w-600 mb-0">New Contact</p>
+								</div>
+							</div>
+							<div class="media userlist-box" data-id="1" data-status="online" data-username="Josephin Doe">
+								<a class="media-left" href="#!"><img class="media-object img-radius" src="/static/assets/images/user/avatar-1.jpg" alt="Generic placeholder image "></a>
+								<div class="media-body">
+									<p class="chat-header">Josephin Doe<small class="d-block">i am not what happened . .</small></p>
+								</div>
+							</div>
+							<div class="media userlist-box" data-id="2" data-status="online" data-username="Lary Doe">
+								<a class="media-left" href="#!"><img class="media-object img-radius" src="/static/assets/images/user/avatar-2.jpg" alt="Generic placeholder image"></a>
+								<div class="media-body">
+									<h6 class="chat-header">Lary Doe<small class="d-block">Avalable</small></h6>
+								</div>
+							</div>
+							<div class="media userlist-box" data-id="3" data-status="online" data-username="Alice">
+								<a class="media-left" href="#!"><img class="media-object img-radius" src="/static/assets/images/user/avatar-3.jpg" alt="Generic placeholder image"></a>
+								<div class="media-body">
+									<h6 class="chat-header">Alice<small class="d-block">hear using Elite able</small></h6>
+								</div>
+							</div>
+							<div class="media userlist-box" data-id="4" data-status="offline" data-username="Alia">
+								<a class="media-left" href="#!">
+									<div class="hei-50 wid-50 img-radius bg-success d-flex text-white f-22 align-items-center justify-content-center">A</div>
+								</a>
+								<div class="media-body">
+									<h6 class="chat-header">Alia<small class="d-block text-muted">Avalable</small></h6>
+								</div>
+							</div>
+							<div class="media userlist-box" data-id="5" data-status="offline" data-username="Suzen">
+								<a class="media-left" href="#!"><img class="media-object img-radius" src="/static/assets/images/user/avatar-4.jpg" alt="Generic placeholder image"></a>
+								<div class="media-body">
+									<h6 class="chat-header">Suzen<small class="d-block text-muted">Avalable</small></h6>
+								</div>
+							</div>
+							<div class="media userlist-box" data-id="1" data-status="online" data-username="Josephin Doe">
+								<a class="media-left" href="#!">
+									<div class="hei-50 wid-50 bg-danger img-radius d-flex text-white f-22 align-items-center justify-content-center">JD</div>
+								</a>
+								<div class="media-body">
+									<h6 class="chat-header">Josephin Doe<small class="d-block text-muted">Don't send me image</small></h6>
+								</div>
+							</div>
+							<div class="media userlist-box" data-id="2" data-status="online" data-username="Lary Doe">
+								<a class="media-left" href="#!"><img class="media-object img-radius" src="/static/assets/images/user/avatar-2.jpg" alt="Generic placeholder image"></a>
+								<div class="media-body">
+									<h6 class="chat-header">Lary Doe<small class="d-block text-muted">not send free msg</small></h6>
+								</div>
+							</div>
+						</div>
+					</div>
+				</div>
+			</div>
+			<div class="tab-pane fade" id="setting" role="tabpanel" aria-labelledby="setting-tab">
+				<div class="p-4 main-friend-cont scroll-div">
+					<h6 class="mt-2"><i class="feather icon-monitor mr-2"></i>Desktop settings</h6>
+					<hr>
+					<div class="form-group mb-0">
+						<div class="switch switch-primary d-inline m-r-10">
+							<input type="checkbox" id="cn-p-1" checked>
+							<label for="cn-p-1" class="cr"></label>
+						</div>
+						<label class="f-w-600">Allow desktop notification</label>
+					</div>
+					<p class="text-muted ml-5">you get lettest content at a time when data will updated</p>
+					<div class="form-group mb-0">
+						<div class="switch switch-primary d-inline m-r-10">
+							<input type="checkbox" id="cn-p-5">
+							<label for="cn-p-5" class="cr"></label>
+						</div>
+						<label class="f-w-600">Store Cookie</label>
+					</div>
+					<h6 class="mb-0 mt-5"><i class="feather icon-layout mr-2"></i>Application settings</h6>
+					<hr>
+					<div class="form-group mb-0">
+						<div class="switch switch-primary d-inline m-r-10">
+							<input type="checkbox" id="cn-p-3" checked>
+							<label for="cn-p-3" class="cr"></label>
+						</div>
+						<label class="f-w-600">Backup Storage</label>
+					</div>
+					<p class="text-muted mb-0 ml-5">Automaticaly take backup as par schedule</p>
+					<div class="form-group mb-4">
+						<div class="switch switch-primary d-inline m-r-10">
+							<input type="checkbox" id="cn-p-4" checked>
+							<label for="cn-p-4" class="cr"></label>
+						</div>
+						<label class="f-w-600">Allow guest to print file</label>
+					</div>
+					<h6 class="mb-0 mt-5"><i class="feather icon-globe mr-2"></i>System settings</h6>
+					<hr>
+					<div class="form-group mb-0">
+						<div class="switch switch-primary d-inline m-r-10">
+							<input type="checkbox" id="cn-p-2">
+							<label for="cn-p-2" class="cr"></label>
+						</div>
+						<label class="f-w-600">View other user chat</label>
+					</div>
+					<p class="text-muted ml-5">Allow to show public user message</p>
+				</div>
+			</div>
+		</div>
+	</section>
+	<!-- [ chat user list ] end -->
+
+	<!-- [ chat message ] start -->
+	<section class="header-chat">
+		<div class="h-list-header">
+			<h6>Josephin Doe</h6>
+			<a href="#!" class="h-back-user-list"><i class="feather icon-chevron-left"></i></a>
+		</div>
+		<div class="h-list-body">
+			<div class="main-chat-cont scroll-div">
+				<div class="main-friend-chat">
+					<div class="media chat-messages">
+						<a class="media-left photo-table" href="#!"><img class="media-object img-radius img-radius m-t-5" src="/static/assets/images/user/avatar-2.jpg" alt="Generic placeholder image"></a>
+						<div class="media-body chat-menu-content">
+							<div class="">
+								<p class="chat-cont">hello tell me something</p>
+								<p class="chat-cont">about yourself?</p>
+							</div>
+							<p class="chat-time">8:20 a.m.</p>
+						</div>
+					</div>
+					<div class="media chat-messages">
+						<div class="media-body chat-menu-reply">
+							<div class="">
+								<p class="chat-cont">Ohh! very nice</p>
+							</div>
+							<p class="chat-time">8:22 a.m.</p>
+						</div>
+						<a class="media-right photo-table" href="#!"><img class="media-object img-radius img-radius m-t-5" src="/static/assets/images/user/avatar-1.jpg" alt="Generic placeholder image"></a>
+					</div>
+					<div class="media chat-messages">
+						<a class="media-left photo-table" href="#!"><img class="media-object img-radius img-radius m-t-5" src="/static/assets/images/user/avatar-2.jpg" alt="Generic placeholder image"></a>
+						<div class="media-body chat-menu-content">
+							<div class="">
+								<p class="chat-cont">can you help me?</p>
+							</div>
+							<p class="chat-time">8:20 a.m.</p>
+						</div>
+					</div>
+				</div>
+			</div>
+		</div>
+		<div class="h-list-footer">
+			<div class="input-group">
+				<input type="file" class="chat-attach" style="display:none">
+				<a href="#!" class="input-group-prepend btn btn-success btn-attach">
+					<i class="feather icon-paperclip"></i>
+				</a>
+				<input type="text" name="h-chat-text" class="form-control h-auto h-send-chat" placeholder="Write hear . . ">
+				<button type="submit" class="input-group-append btn-send btn btn-primary">
+					<i class="feather icon-message-circle"></i>
+				</button>
+			</div>
+		</div>
+	</section>
+	<!-- [ chat message ] end -->
+
+	<!-- [ Main Content ] start -->
+	<div class="pcoded-main-container">
+		<div class="pcoded-content">
+			<!-- [ breadcrumb ] start -->
+			<div class="page-header">
+				<div class="page-block">
+					<div class="row align-items-center">
+						<div class="col-md-12">
+							<div class="page-header-title">
+								<h5 class="m-b-10">Navs &amp; tabs</h5>
+							</div>
+							<ul class="breadcrumb">
+								<li class="breadcrumb-item"><a href="index.html"><i class="feather icon-home"></i></a></li>
+								<li class="breadcrumb-item"><a href="#!">Basic Components</a></li>
+								<li class="breadcrumb-item"><a href="#!">Navs &amp; tabs</a></li>
+							</ul>
+						</div>
+					</div>
+				</div>
+			</div>
+			<!-- [ breadcrumb ] end -->
+			<!-- [ Main Content ] start -->
+			<div class="row">
+				<!-- [ tabs ] start -->
+				<div class="col-sm-12">
+					<div class="card">
+						<div class="card-body">
+							<h5 class="mb-3">Basic Tabs</h5>
+							<ul class="nav nav-tabs mb-3" id="myTab" role="tablist">
+								<li class="nav-item">
+									<a class="nav-link active text-uppercase" id="home-tab" data-toggle="tab" href="#home" role="tab" aria-controls="home" aria-selected="true">Home</a>
+								</li>
+								<li class="nav-item">
+									<a class="nav-link text-uppercase" id="profile-tab" data-toggle="tab" href="#profile" role="tab" aria-controls="profile" aria-selected="false">Profile</a>
+								</li>
+								<li class="nav-item">
+									<a class="nav-link text-uppercase" id="contact-tab" data-toggle="tab" href="#contact" role="tab" aria-controls="contact" aria-selected="false">Contact</a>
+								</li>
+							</ul>
+							<div class="tab-content" id="myTabContent">
+								<div class="tab-pane fade show active" id="home" role="tabpanel" aria-labelledby="home-tab">
+									<p class="mb-0">Raw denim you probably haven't heard of them jean shorts Austin. Nesciunt tofu stumptown aliqua, retro synth master cleanse. Mustache cliche tempor, williamsburg carles vegan helvetica.
+										Reprehenderit
+										butcher retro keffiyeh dreamcatcher synth. Cosby sweater eu banh mi, qui irure terry richardson ex squid. Aliquip placeat salvia cillum iphone. Seitan aliquip quis cardigan american apparel, butcher
+										voluptate nisi qui.
+									</p>
+								</div>
+								<div class="tab-pane fade" id="profile" role="tabpanel" aria-labelledby="profile-tab">
+									<p class="mb-0">Food truck fixie locavore, accusamus mcsweeney's marfa nulla single-origin coffee squid. Exercitation +1 labore velit, blog sartorial PBR leggings next level wes anderson artisan four
+										loko
+										farm-to-table
+										craft beer twee. Qui photo booth letterpress, commodo enim craft beer mlkshk aliquip jean shorts ullamco ad vinyl cillum PBR. Homo nostrud organic, assumenda labore aesthetic magna delectus mollit.
+										Keytar helvetica VHS salvia yr, vero magna velit sapiente labore stumptown. Vegan fanny pack odio cillum wes anderson 8-bit, sustainable jean shorts beard ut DIY ethical culpa terry richardson
+										biodiesel. Art party scenester stumptown, tumblr butcher vero sint qui sapiente accusamus tattooed echo park.</p>
+								</div>
+								<div class="tab-pane fade" id="contact" role="tabpanel" aria-labelledby="contact-tab">
+									<p class="mb-0">Etsy mixtape wayfarers, ethical wes anderson tofu before they sold out mcsweeney's organic lomo retro fanny pack lo-fi farm-to-table readymade. Messenger bag gentrify pitchfork tattooed
+										craft beer,
+										iphone skateboard locavore carles etsy salvia banksy hoodie helvetica. DIY synth PBR banksy irony. Leggings gentrify squid 8-bit cred pitchfork. Williamsburg banh mi whatever gluten-free, carles
+										pitchfork biodiesel fixie etsy retro mlkshk vice blog. Scenester cred you probably haven't heard of them, vinyl craft beer blog stumptown. Pitchfork sustainable tofu synth chambray yr.</p>
+								</div>
+							</div>
+						</div>
+					</div>
+				</div>
+				<div class="col-sm-12">
+					<div class="card">
+						<div class="card-body">
+							<h5 class="mb-3">Basic Pills</h5>
+							<ul class="nav nav-pills mb-3" id="pills-tab" role="tablist">
+								<li class="nav-item">
+									<a class="nav-link active" id="pills-home-tab" data-toggle="pill" href="#pills-home" role="tab" aria-controls="pills-home" aria-selected="true">Home</a>
+								</li>
+								<li class="nav-item">
+									<a class="nav-link" id="pills-profile-tab" data-toggle="pill" href="#pills-profile" role="tab" aria-controls="pills-profile" aria-selected="false">Profile</a>
+								</li>
+								<li class="nav-item">
+									<a class="nav-link" id="pills-contact-tab" data-toggle="pill" href="#pills-contact" role="tab" aria-controls="pills-contact" aria-selected="false">Contact</a>
+								</li>
+							</ul>
+							<div class="tab-content" id="pills-tabContent">
+								---
+								<div class="tab-pane fade show active" id="pills-home" role="tabpanel" aria-labelledby="pills-home-tab">
+									<p class="mb-0">Consequat occaecat ullamco amet non eiusmod nostrud dolore irure incididunt est duis anim sunt officia. Fugiat velit proident aliquip nisi incididunt nostrud exercitation proident est
+										nisi.
+										Irure magna
+										elit commodo anim ex veniam culpa eiusmod id nostrud sit cupidatat in veniam ad. Eiusmod consequat eu adipisicing minim anim aliquip cupidatat culpa excepteur quis. Occaecat sit eu exercitation
+										irure
+										Lorem incididunt nostrud.
+									</p>
+								</div>
+								<div class="tab-pane fade" id="pills-profile" role="tabpanel" aria-labelledby="pills-profile-tab">
+									<p class="mb-0">Ad pariatur nostrud pariatur exercitation ipsum ipsum culpa mollit commodo mollit ex. Aute sunt incididunt amet commodo est sint nisi deserunt pariatur do. Aliquip ex eiusmod voluptate
+										exercitation
+										cillum id incididunt elit sunt. Qui minim sit magna Lorem id et dolore velit Lorem amet exercitation duis deserunt. Anim id labore elit adipisicing ut in id occaecat pariatur ut ullamco ea tempor
+										duis.
+									</p>
+								</div>
+								<div class="tab-pane fade" id="pills-contact" role="tabpanel" aria-labelledby="pills-contact-tab">
+									<p class="mb-0">Est quis nulla laborum officia ad nisi ex nostrud culpa Lorem excepteur aliquip dolor aliqua irure ex. Nulla ut duis ipsum nisi elit fugiat commodo sunt reprehenderit laborum veniam eu
+										veniam. Eiusmod
+										minim exercitation fugiat irure ex labore incididunt do fugiat commodo aliquip sit id deserunt reprehenderit aliquip nostrud. Amet ex cupidatat excepteur aute veniam incididunt mollit cupidatat esse
+										irure officia elit do ipsum ullamco Lorem. Ullamco ut ad minim do mollit labore ipsum laboris ipsum commodo sunt tempor enim incididunt. Commodo quis sunt dolore aliquip aute tempor irure magna enim
+										minim reprehenderit. Ullamco consectetur culpa veniam sint cillum aliqua incididunt velit ullamco sunt ullamco quis quis commodo voluptate. Mollit nulla nostrud adipisicing aliqua cupidatat aliqua
+										pariatur mollit voluptate voluptate consequat non.</p>
+								</div>
+								----
+							</div>
+						</div>
+					</div>
+				</div>
+				<div class="col-sm-12">
+					<div class="card">
+						<div class="card-body">
+							<h5 class="mb-3">Vertical Pills</h5>
+							<div class="row">
+								<div class="col-md-3 col-sm-12">
+									<ul class="nav flex-column nav-pills" id="v-pills-tab" role="tablist" aria-orientation="vertical">
+										<li><a class="nav-link text-left active" id="v-pills-home-tab" data-toggle="pill" href="#v-pills-home" role="tab" aria-controls="v-pills-home" aria-selected="true">Home</a></li>
+										<li><a class="nav-link text-left" id="v-pills-profile-tab" data-toggle="pill" href="#v-pills-profile" role="tab" aria-controls="v-pills-profile" aria-selected="false">Profile</a></li>
+										<li><a class="nav-link text-left" id="v-pills-messages-tab" data-toggle="pill" href="#v-pills-messages" role="tab" aria-controls="v-pills-messages" aria-selected="false">Messages</a></li>
+										<li><a class="nav-link text-left" id="v-pills-settings-tab" data-toggle="pill" href="#v-pills-settings" role="tab" aria-controls="v-pills-settings" aria-selected="false">Settings</a></li>
+									</ul>
+								</div>
+								<div class="col-md-9 col-sm-12">
+									<div class="tab-content" id="v-pills-tabContent">
+										<div class="tab-pane fade show active" id="v-pills-home" role="tabpanel" aria-labelledby="v-pills-home-tab">
+											<p class="mb-0">Cillum ad ut irure tempor velit nostrud occaecat ullamco aliqua anim Lorem sint. Veniam sint duis incididunt do esse magna mollit excepteur laborum qui. Id id reprehenderit sit
+												est
+												eu aliqua
+												occaecat quis et velit excepteur laborum mollit dolore eiusmod. Ipsum dolor in occaecat commodo et voluptate minim reprehenderit mollit pariatur. Deserunt non laborum enim et cillum eu
+												deserunt
+												excepteur ea incididunt minim occaecat.</p>
+										</div>
+										<div class="tab-pane fade" id="v-pills-profile" role="tabpanel" aria-labelledby="v-pills-profile-tab">
+											<p class="mb-0">Culpa dolor voluptate do laboris laboris irure reprehenderit id incididunt duis pariatur mollit aute magna pariatur consectetur. Eu veniam duis non ut dolor deserunt commodo et
+												minim in quis
+												laboris ipsum velit id veniam. Quis ut consectetur adipisicing officia excepteur non sit. Ut et elit aliquip labore Lorem enim eu. Ullamco mollit occaecat dolore ipsum id officia mollit qui
+												esse anim eiusmod do sint minim consectetur qui.</p>
+										</div>
+										<div class="tab-pane fade" id="v-pills-messages" role="tabpanel" aria-labelledby="v-pills-messages-tab">
+											<p class="mb-0">Fugiat id quis dolor culpa eiusmod anim velit excepteur proident dolor aute qui magna. Ad proident laboris ullamco esse anim Lorem Lorem veniam quis Lorem irure occaecat velit
+												nostrud magna
+												nulla. Velit et et proident Lorem do ea tempor officia dolor. Reprehenderit Lorem aliquip labore est magna commodo est ea veniam consectetur.</p>
+										</div>
+										<div class="tab-pane fade" id="v-pills-settings" role="tabpanel" aria-labelledby="v-pills-settings-tab">
+											<p class="mb-0">Eu dolore ea ullamco dolore Lorem id cupidatat excepteur reprehenderit consectetur elit id dolor proident in cupidatat officia. Voluptate excepteur commodo labore nisi cillum
+												duis
+												aliqua do.
+												Aliqua amet qui mollit consectetur nulla mollit velit aliqua veniam nisi id do Lorem deserunt amet. Culpa ullamco sit adipisicing labore officia magna elit nisi in aute tempor commodo
+												eiusmod.
+											</p>
+										</div>
+									</div>
+								</div>
+							</div>
+						</div>
+					</div>
+				</div>
+				<!-- [ tabs ] end -->
+			</div>
+			<!-- [ Main Content ] end -->
+		</div>
+	</div>
+	<!-- [ Main Content ] end -->
+
+{% endblock content %}
+
+<!-- Specific Page JS goes HERE  -->
+{% block javascripts %}{% endblock javascripts %}

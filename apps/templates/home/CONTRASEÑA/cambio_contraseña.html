@@ -1,0 +1,70 @@
+{% extends "layouts/base-fullscreen.html" %}
+
+
+{% block title %} Login {% endblock %}
+
+{% block content %} 
+
+	<div class="auth-content">
+		<div class="card">
+			<div class="row align-items-center text-center">
+				<div class="col-md-12">
+					<div class="card-body">
+						<img src="/static/assets/images/logolabbe3.png" alt="" class="img-fluid mb-4">
+						<h4 class="mb-3 f-w-400">
+							<a target="_blank" 
+							   href="#"></a>  Cambiar contraseña
+						</h4>
+						<!-- dummy spacer -->
+						<p> <br /> </p>						
+						<form role="form" method="post" action="">
+							{% csrf_token %}
+							<div class="input-group mb-3">
+								<span class="input-group-text"><i class="feather icon-lock"></i></span>
+								<input class="form-control" type="password" placeholder="Ingrese Contraseña Actual" name="old_password">
+								<br>
+							</div>
+							{% if form.errors.old_password %}
+							<div class="mt-1 p-2" class="error"> {{ form.errors.old_password}}</div>
+							{% endif %} 
+							<div class="input-group mb-3">
+								<span class="input-group-text"><i class="feather icon-lock"></i></span>
+								<input class="form-control" type="password" placeholder="Ingrese Contraseña" name="new_password1">
+								<br>
+							</div>
+							{% if form.errors.new_password1 %}
+							<div  class="error" >{{ form.errors.new_password1}}</div>
+							{% endif %} 
+							<div class="input-group mb-3">
+								<span class="input-group-text"><i class="feather icon-lock"></i></span>
+								<input class="form-control" type="password" placeholder="Repita Contraseña" name="new_password2">
+								<br>
+							</div>
+							{% if form.errors.new_password2 %}
+								<div class="error" >{{ form.errors.new_password2}}</div>
+								{% endif %} 
+							<button type="submit" name="login" class="btn btn-block btn-primary mb-4">Confirmar</button>
+
+						</form>
+
+						<p class="mb-2 text-muted">
+							<br />
+							&copy; <a target="_blank" rel="noopener" href="https://www.transporteslabbe.cl" class="f-w-400">Transportes Labbe</a>
+							- Made with ♥ by  <a target="_blank" rel="noopener" href="https://www.neuronia.cl" class="f-w-400">Neuronia</a>
+						</p>
+					</div>
+
+
+				</div>
+			</div>
+		</div>
+	</div>
+
+{% endblock content %}
+
+<!-- Specific Page JS goes HERE  -->
+{% block javascripts %}
+
+	<script src="/static/assets/js/waves.min.js"></script>
+
+{% endblock javascripts %} 

@@ -1,0 +1,1681 @@
+{% extends "layouts/base.html" %}
+
+{% block title %} Planificación {% endblock %}
+
+{% block stylesheets %}
+
+<style>
+    .etapa-wrapper {
+        max-width: 1180px;
+        margin: 0 auto;
+    }
+
+    .etapa-card {
+        border: 0;
+        border-radius: 10px;
+        box-shadow: 0 6px 18px rgba(0, 0, 0, 0.06);
+        overflow: hidden;
+    }
+
+    .etapa-card-header {
+        background: #ffffff;
+        border-bottom: 1px solid #eef0f3;
+        padding: 22px 26px;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+        flex-wrap: wrap;
+    }
+
+    .etapa-title {
+        margin: 0;
+        font-size: 20px;
+        font-weight: 700;
+        color: #212529;
+    }
+
+    .badge-etapa {
+        background: #20c997;
+        color: #ffffff;
+        padding: 6px 12px;
+        border-radius: 20px;
+        font-size: 12px;
+        font-weight: 500;
+        display: inline-block;
+    }
+
+    .etapa-card-body {
+        padding: 26px;
+        background: #ffffff;
+    }
+
+    .etapa-header {
+        border-left: 5px solid #20c997;
+        background: #f8f9fa;
+        padding: 18px 22px;
+        border-radius: 8px;
+        margin-bottom: 24px;
+    }
+
+    .etapa-header h5 {
+        margin-bottom: 6px;
+        font-weight: 700;
+        color: #212529;
+        font-size: 18px;
+    }
+
+    .etapa-header p {
+        margin-bottom: 0;
+        color: #6c757d;
+        line-height: 1.55;
+        font-size: 14px;
+    }
+
+    .resumen-grid {
+        margin-bottom: 24px;
+    }
+
+    .resumen-card {
+        border: 1px solid #e9ecef;
+        border-radius: 8px;
+        padding: 18px 16px;
+        background: #ffffff;
+        height: 100%;
+        min-height: 104px;
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+    }
+
+    .resumen-card .label {
+        font-size: 11px;
+        color: #6c757d;
+        text-transform: uppercase;
+        letter-spacing: 0.3px;
+        margin-bottom: 8px;
+        font-weight: 600;
+    }
+
+    .resumen-card .value {
+        font-size: 19px;
+        font-weight: 700;
+        color: #343a40;
+        word-break: break-word;
+        line-height: 1.25;
+    }
+
+    .alert-etapa {
+        border-left: 5px solid #17a2b8;
+        background: #e8f7fa;
+        color: #0c5460;
+        padding: 15px 18px;
+        border-radius: 8px;
+        margin-bottom: 24px;
+        line-height: 1.5;
+    }
+
+    .acciones-planificacion {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 12px;
+        flex-wrap: wrap;
+        border-top: 1px solid #eef0f3;
+        padding-top: 22px;
+    }
+
+    .acciones-planificacion-texto h5 {
+        margin-bottom: 4px;
+        font-size: 17px;
+        font-weight: 700;
+        color: #212529;
+    }
+
+    .acciones-planificacion-texto small {
+        color: #6c757d;
+    }
+
+    .acciones-planificacion-botones {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        flex-wrap: wrap;
+    }
+
+    .acciones-planificacion-botones .btn {
+        min-width: 135px;
+        font-weight: 500;
+    }
+
+    /* MODAL CREAR CITACIÓN */
+    #ModalCrearCitacion .modal-dialog {
+        width: calc(100vw - 50px);
+        max-width: 1150px;
+        margin: 20px auto;
+    }
+
+    #ModalCrearCitacion .modal-content {
+        max-height: calc(100vh - 40px);
+        border-radius: 8px;
+        overflow: hidden;
+    }
+
+    #ModalCrearCitacion .modal-header {
+        padding: 22px 32px;
+        flex-shrink: 0;
+        border-bottom: 1px solid #e9ecef;
+    }
+
+    #ModalCrearCitacion .modal-body {
+        max-height: calc(100vh - 230px);
+        overflow-y: auto;
+        padding: 24px 32px;
+    }
+
+    #ModalCrearCitacion .modal-footer {
+        flex-shrink: 0;
+        background: #ffffff;
+        border-top: 1px solid #dee2e6;
+        padding: 16px 32px;
+    }
+
+    .modal-subtitle {
+        display: block;
+        color: #6c757d;
+        margin-top: 5px;
+        line-height: 1.5;
+    }
+
+    .form-section-title {
+        font-size: 16px;
+        font-weight: 700;
+        color: #343a40;
+        border-bottom: 1px solid #e9ecef;
+        padding-bottom: 8px;
+        margin: 8px 0 18px 0;
+    }
+
+    .required-label::after {
+        content: " *";
+        color: #dc3545;
+    }
+
+    #ModalCrearCitacion .form-group {
+        margin-bottom: 18px;
+    }
+
+    #ModalCrearCitacion .form-group label {
+        font-weight: 500;
+        color: #212529;
+        margin-bottom: 6px;
+        display: block;
+    }
+
+    #ModalCrearCitacion .form-control {
+        width: 100%;
+        min-height: 44px;
+        font-size: 14px;
+        border-radius: 5px;
+    }
+
+    #ModalCrearCitacion select.form-control {
+        padding-left: 12px;
+        padding-right: 28px;
+    }
+
+    #ModalCrearCitacion input[readonly] {
+        background-color: #e9ecef;
+        opacity: 1;
+    }
+
+    .form-help-text {
+        display: block;
+        margin-top: 5px;
+        font-size: 12px;
+        color: #6c757d;
+        line-height: 1.4;
+    }
+
+    .modal-footer-custom {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 15px;
+        flex-wrap: wrap;
+    }
+
+    .repeat-box {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+    }
+
+    .repeat-box input {
+        width: 110px;
+    }
+
+    .modal-actions {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+    }
+
+    /* Select2 dentro del modal */
+    #ModalCrearCitacion .select2-container {
+        width: 100% !important;
+    }
+
+    #ModalCrearCitacion .select2-selection--single {
+        min-height: 44px;
+        border: 1px solid #ced4da;
+        border-radius: 5px;
+        display: flex;
+        align-items: center;
+    }
+
+    #ModalCrearCitacion .select2-selection__rendered {
+        line-height: 42px !important;
+        padding-left: 12px !important;
+    }
+
+    #ModalCrearCitacion .select2-selection__arrow {
+        height: 42px !important;
+    }
+
+    /* SweetAlert sobre modal */
+    .swal2-container {
+        z-index: 999999 !important;
+    }
+
+    .swal2-popup {
+        z-index: 1000000 !important;
+    }
+
+    .swal-front {
+        z-index: 1000001 !important;
+    }
+    /* TABLA TEMPORAL DE CITACIONES EN PLA_ADDONE */
+.planificacion-temporal-box {
+    margin-top: 26px;
+    border-top: 1px solid #eef0f3;
+    padding-top: 24px;
+}
+
+.planificacion-temporal-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 14px;
+    flex-wrap: wrap;
+    margin-bottom: 16px;
+}
+
+.planificacion-temporal-header h5 {
+    margin: 0 0 4px 0;
+    font-size: 18px;
+    font-weight: 700;
+    color: #212529;
+}
+
+.planificacion-temporal-header small {
+    color: #6c757d;
+    line-height: 1.4;
+}
+
+.contador-temporal {
+    background: #f8f9fa;
+    border: 1px solid #e9ecef;
+    border-radius: 8px;
+    padding: 10px 14px;
+    min-width: 160px;
+    text-align: center;
+}
+
+.contador-temporal .label {
+    display: block;
+    font-size: 11px;
+    text-transform: uppercase;
+    color: #6c757d;
+    font-weight: 600;
+    margin-bottom: 4px;
+}
+
+.contador-temporal .value {
+    font-size: 22px;
+    font-weight: 700;
+    color: #20c997;
+}
+
+.table-citaciones-temporales {
+    margin-bottom: 0;
+    font-size: 13px;
+}
+
+.table-citaciones-temporales thead th {
+    background: #f8f9fa;
+    color: #212529;
+    font-weight: 700;
+    white-space: nowrap;
+    vertical-align: middle;
+    border-bottom: 1px solid #dee2e6;
+}
+
+.table-citaciones-temporales tbody td {
+    vertical-align: middle;
+    white-space: nowrap;
+}
+
+.table-citaciones-temporales .td-insumo {
+    min-width: 180px;
+    white-space: normal;
+}
+
+.table-citaciones-temporales .td-proveedor,
+.table-citaciones-temporales .td-cliente {
+    min-width: 180px;
+    white-space: normal;
+}
+
+.planificacion-final-box {
+    margin-top: 22px;
+    border: 1px solid #e9ecef;
+    border-radius: 10px;
+    background: #ffffff;
+    padding: 18px;
+}
+
+.planificacion-final-grid {
+    display: grid;
+    grid-template-columns: 1fr 180px 180px auto;
+    gap: 14px;
+    align-items: end;
+}
+
+.planificacion-final-text h5 {
+    margin-bottom: 4px;
+    font-size: 17px;
+    font-weight: 700;
+    color: #212529;
+}
+
+.planificacion-final-text small {
+    color: #6c757d;
+}
+
+.planificacion-final-box label {
+    font-weight: 600;
+    color: #212529;
+    margin-bottom: 6px;
+}
+
+.planificacion-final-box .form-control {
+    min-height: 42px;
+}
+
+.btn-guardar-planificacion {
+    min-width: 165px;
+    font-weight: 600;
+}
+
+@media (max-width: 992px) {
+    .planificacion-final-grid {
+        grid-template-columns: 1fr 1fr;
+    }
+
+    .btn-guardar-planificacion {
+        width: 100%;
+    }
+}
+
+@media (max-width: 768px) {
+    .planificacion-temporal-header {
+        flex-direction: column;
+    }
+
+    .contador-temporal {
+        width: 100%;
+    }
+
+    .planificacion-final-grid {
+        grid-template-columns: 1fr;
+    }
+}
+    @media (max-width: 768px) {
+        .etapa-card-header,
+        .etapa-card-body {
+            padding: 18px;
+        }
+
+        .acciones-planificacion {
+            align-items: stretch;
+            flex-direction: column;
+        }
+
+        .acciones-planificacion-botones {
+            width: 100%;
+            flex-direction: column;
+        }
+
+        .acciones-planificacion-botones .btn {
+            width: 100%;
+        }
+
+        #ModalCrearCitacion .modal-dialog {
+            width: calc(100vw - 20px);
+            margin: 10px auto;
+        }
+
+        #ModalCrearCitacion .modal-header,
+        #ModalCrearCitacion .modal-body,
+        #ModalCrearCitacion .modal-footer {
+            padding-left: 18px;
+            padding-right: 18px;
+        }
+
+        .modal-footer-custom {
+            align-items: stretch;
+        }
+
+        .modal-footer-custom > div {
+            width: 100%;
+        }
+
+        .modal-actions {
+            flex-direction: column;
+            width: 100%;
+        }
+
+        .modal-actions .btn {
+            width: 100%;
+        }
+
+        .repeat-box {
+            justify-content: space-between;
+        }
+    }
+</style>
+{% endblock stylesheets %}
+
+{% block content %}
+<section class="pcoded-main-container">
+    <div class="pcoded-content">
+
+        <div class="page-header">
+            <div class="page-block">
+                <div class="row align-items-center">
+                    <div class="col-md-12">
+                        <div class="page-header-title">
+                            <h5 class="m-b-10">Planificación</h5>
+                        </div>
+                        <ul class="breadcrumb">
+                            <li class="breadcrumb-item">
+                                <a href="/"><i class="feather icon-home"></i></a>
+                            </li>
+                            <li class="breadcrumb-item">
+                                <a href="{% url 'pla_listall' %}">Planificación</a>
+                            </li>
+                            <li class="breadcrumb-item">
+                                <a href="#!">Etapa 0 - Programa</a>
+                            </li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="etapa-wrapper">
+            <div class="card etapa-card">
+
+                <div class="etapa-card-header">
+                    <div>
+                        <h5 class="etapa-title">Etapa 0: Programa / Planificación principal</h5>
+                    </div>
+
+                    <span class="badge-etapa">Responsable: Planificador</span>
+                </div>
+
+                <div class="etapa-card-body">
+
+                    <div class="etapa-header">
+                        <h5>Crear citaciones desde planificación</h5>
+                        <p>
+                            Desde esta pantalla el planificador agrega una o más citaciones base.
+                            Las citaciones se muestran primero en pantalla para revisión y solo se guardan
+                            cuando se confirma la planificación completa.
+                        </p>
+                    </div>
+
+                    <div class="row resumen-grid">
+                        <div class="col-md-3 mb-3">
+                            <div class="resumen-card">
+                                <div class="label">Empresa asignada</div>
+                                <div class="value" id="resumen_empresa">
+                                    {% if empresa_activa %}
+                                        {{ empresa_activa.EP_CRAZONSOCIAL|upper }}
+                                    {% elif planificacion.EP_NID %}
+                                        {{ planificacion.EP_NID.EP_CRAZONSOCIAL|upper }}
+                                    {% else %}
+                                        SIN EMPRESA
+                                    {% endif %}
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="col-md-3 mb-3">
+                            <div class="resumen-card">
+                                <div class="label">Planificación</div>
+                                <div class="value">
+                                    {% if planificacion.id %}
+                                        #{{ planificacion.id }}
+                                    {% else %}
+                                        Nueva
+                                    {% endif %}
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="col-md-3 mb-3">
+                            <div class="resumen-card">
+                                <div class="label">Citaciones agregadas</div>
+                                <div class="value" id="resumen_citaciones_agregadas">0</div>
+                            </div>
+                        </div>
+
+                        <div class="col-md-3 mb-3">
+                            <div class="resumen-card">
+                                <div class="label">Estado</div>
+                                <div class="value">En preparación</div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="alert-etapa">
+                        Las citaciones agregadas en esta pantalla aún no están guardadas en base de datos.
+                        Revise el listado y, al finalizar, presione <strong>Crear citaciones</strong>.
+                    </div>
+
+                    <div class="acciones-planificacion">
+                        <div class="acciones-planificacion-texto">
+                            <h5>Acciones de planificación</h5>
+                            <small>Agregue citaciones base para formar la planificación del día.</small>
+                        </div>
+
+                        <div class="acciones-planificacion-botones">
+                            <button type="button"
+                                    class="btn btn-primary"
+                                    data-toggle="modal"
+                                    data-target="#ModalCrearCitacion">
+                                Crear citación
+                            </button>
+
+                            <a class="btn btn-danger text-white"
+                               onclick="window.history.go(-1); return false;">
+                                Volver
+                            </a>
+                        </div>
+                    </div>
+
+                    <div class="planificacion-temporal-box">
+                        <div class="planificacion-temporal-header">
+                            <div>
+                                <h5>Citaciones agregadas a la planificación</h5>
+                                <small>
+                                    Estas citaciones están en revisión local. Todavía no existen en base de datos.
+                                </small>
+                            </div>
+
+                            <div class="contador-temporal">
+                                <span class="label">Total agregadas</span>
+                                <span class="value" id="contador_citaciones_temporales">0</span>
+                            </div>
+                        </div>
+
+                        <div class="table-responsive">
+                            <table class="table table-bordered table-hover table-citaciones-temporales" id="tabla_citaciones_temporales">
+                                <thead>
+                                    <tr>
+                                        <th>Acciones</th>
+                                        <th>Cliente</th>
+                                        <th>Inf 24 hrs</th>
+                                        <th>Fecha llegada</th>
+                                        <th>Operación</th>
+                                        <th>Tipo</th>
+                                        <th>Código SAP</th>
+                                        <th>Insumo</th>
+                                        <th>Pedido SAP</th>
+                                        <th>Proveedor</th>
+                                        <th>BL</th>
+                                        <th>Cantidad disponible</th>
+                                        <th>Estanque destino</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="tbody_citaciones_temporales">
+                                    <tr id="fila_sin_citaciones">
+                                        <td colspan="13" class="text-center text-muted">
+                                            Aún no existen citaciones agregadas.
+                                        </td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+
+                    <div class="planificacion-final-box">
+                        <div class="planificacion-final-grid">
+                            <div class="planificacion-final-text">
+                                <h5>Confirmar planificación</h5>
+                                <small>
+                                    Al confirmar, se creará la planificación y se guardará una citación por cada registro agregado.
+                                </small>
+                            </div>
+
+                            <div class="form-group mb-0">
+                                <label>¿Asigna sobrecupos?</label>
+                                <select class="form-control"
+                                        id="es_sobrecupo_planificacion"
+                                        name="es_sobrecupo_planificacion"
+                                        onchange="controlarSobrecupoPlanificacion()">
+                                    <option value="No">No</option>
+                                    <option value="Si">Sí</option>
+                                </select>
+                            </div>
+
+                            <div class="form-group mb-0">
+                                <label>N° sobrecupos</label>
+                                <input type="number"
+                                    class="form-control"
+                                    id="cantidad_sobrecupo_planificacion"
+                                    name="cantidad_sobrecupo_planificacion"
+                                    min="0"
+                                    value="0"
+                                    disabled>
+                            </div>
+
+                            <button type="button"
+                                    class="btn btn-success btn-guardar-planificacion"
+                                    onclick="guardarPlanificacionConCitaciones()">
+                                Crear citaciones
+                            </button>
+                        </div>
+                    </div>
+
+                </div>
+
+            </div>
+        </div>
+
+    </div>
+</section>
+
+<div class="modal fade" id="ModalCrearCitacion" tabindex="-1" role="dialog" aria-labelledby="ModalCrearCitacionLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-scrollable modal-xl" role="document">
+        <div class="modal-content">
+
+            <div class="modal-header">
+                <div>
+                    <h5 class="modal-title" id="ModalCrearCitacionLabel">Crear citación - Etapa 0</h5>
+                    <small class="modal-subtitle">
+                        Complete los datos base de planificación. No corresponde ingresar guía ni patente en esta etapa.
+                    </small>
+                </div>
+
+                <button type="button" class="close" data-dismiss="modal" aria-label="Cerrar">
+                    <span aria-hidden="true">&times;</span>
+                </button>
+            </div>
+
+            <form id="form_crear_citacion" method="POST" enctype="multipart/form-data">
+                {% csrf_token %}
+
+                <input type="hidden" id="sap_opor_id" name="sap_opor_id">
+
+                <input type="hidden"
+                       id="empresa_id"
+                       name="empresa_id"
+                       value="{% if empresa_id %}{{ empresa_id }}{% elif empresa_activa %}{{ empresa_activa.id }}{% elif planificacion.EP_NID %}{{ planificacion.EP_NID.id }}{% endif %}">
+
+                <input type="hidden" id="modo_creacion" name="modo_creacion" value="simple">
+                <input type="hidden"
+                        id="planificacion_id_modal"
+                        name="planificacion_id"
+                        value="{% if planificacion_id %}{{ planificacion_id }}{% elif planificacion %}{{ planificacion.id }}{% endif %}">
+
+                <div class="modal-body">
+
+                    <div class="form-section-title">Datos generales</div>
+
+                    <div class="row">
+                        <div class="col-lg-4 col-md-6">
+                            <div class="form-group">
+                                <label>Empresa</label>
+                                <input type="text"
+                                    class="form-control"
+                                    id="empresa_nombre"
+                                    name="empresa_nombre"
+                                    value="{% if empresa_activa %}{{ empresa_activa.EP_CRAZONSOCIAL|upper }}{% elif planificacion.EP_NID %}{{ planificacion.EP_NID.EP_CRAZONSOCIAL|upper }}{% else %}SIN EMPRESA{% endif %}"
+                                    readonly>
+                            </div>
+                        </div>
+
+                        <div class="col-lg-4 col-md-6">
+                            <div class="form-group">
+                                <label class="required-label">Cliente</label>
+                                <select class="form-control" id="cliente" name="cliente" required>
+                                    <option value="">Seleccione cliente</option>
+                                    {% for cliente in clientes_sap %}
+                                        <option value="{{ cliente.SOP_CARDCODE }}">
+                                            {{ cliente.SOP_CARDNAME }}
+                                        </option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                        </div>
+
+                        <div class="col-lg-4 col-md-6">
+                            <div class="form-group">
+                                <label class="required-label">Inf 24 hrs</label>
+                                <select class="form-control" id="inf_24hrs" name="inf_24hrs" required>
+                                    <option value="">Seleccione</option>
+                                    <option value="Si">Sí</option>
+                                    <option value="No">No</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <div class="col-lg-4 col-md-6">
+                            <div class="form-group">
+                                <label class="required-label">Fecha llegada</label>
+                                <input type="date"
+                                    class="form-control"
+                                    id="fecha_llegada"
+                                    name="fecha_llegada"
+                                    required>
+                            </div>
+                        </div>
+
+                        <div class="col-lg-4 col-md-6">
+                            <div class="form-group">
+                                <label class="required-label">Tipo de operación</label>
+                                <select class="form-control" id="tipo" name="tipo" required>
+                                    <option value="">Seleccione tipo</option>
+                                    <option value="RECEPCION">Recepción</option>
+                                    <option value="DESPACHO">Despacho</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <div class="col-lg-4 col-md-6">
+                            <div class="form-group">
+                                <label class="required-label">Tipo</label>
+                                <select class="form-control" id="tipo_carga" name="tipo_carga" required>
+                                    <option value="">Seleccione tipo</option>
+                                    <option value="Contenedor">Contenedor</option>
+                                    <option value="Cisterna">Cisterna</option>
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-lg-4 col-md-6">
+                        <div class="form-group">
+                            <label class="required-label">¿Es sobrecupo?</label>
+                            <select class="form-control"
+                                    id="es_sobrecupo"
+                                    name="es_sobrecupo"
+                                    required
+                                    onchange="controlarSobrecupo()">
+                                <option value="No">No</option>
+                                <option value="Si">Sí</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div class="form-section-title">Datos desde SAP / programación sincronizada</div>
+
+                    <div class="row">
+                        <div class="col-lg-4 col-md-6">
+                            <div class="form-group">
+                                <label class="required-label">Código SAP</label>
+                                <div class="input-group">
+                                    <input type="text"
+                                           class="form-control"
+                                           id="codigo"
+                                           name="codigo"
+                                           autocomplete="off"
+                                           placeholder="Ingrese código SAP"
+                                           required>
+                                    <div class="input-group-append">
+                                        <button type="button" class="btn btn-primary" onclick="buscarOporPorCodigo()">
+                                            Buscar
+                                        </button>
+                                    </div>
+                                </div>
+                                <small class="form-help-text">Busca solo el nombre del producto / insumo</small>
+                            </div>
+                        </div>
+
+                        <div class="col-lg-4 col-md-6">
+                            <div class="form-group">
+                                <label class="required-label">Insumo / Producto</label>
+                                <input type="text"
+                                       class="form-control"
+                                       id="insumo"
+                                       name="insumo"
+                                       readonly
+                                       required>
+                            </div>
+                        </div>
+
+                        <div class="col-lg-4 col-md-6">
+                            <div class="form-group">
+                                <label class="required-label">Pedido SAP</label>
+                                <div class="input-group">
+                                    <input type="text"
+                                           class="form-control"
+                                           id="pedido"
+                                           name="pedido"
+                                           autocomplete="off"
+                                           placeholder="Ingrese Pedido SAP"
+                                           required>
+                                    <div class="input-group-append">
+                                        <button type="button" class="btn btn-primary" onclick="buscarOporPorPedido()">
+                                            Buscar
+                                        </button>
+                                    </div>
+                                </div>
+                                <small class="form-help-text">Buscar cantidad disponible por Pedido SAP</small>
+                            </div>
+                        </div>
+
+                        <div class="col-lg-4 col-md-6">
+                            <div class="form-group">
+                                <label class="required-label">Status</label>
+                                <input type="text"
+                                       class="form-control"
+                                       id="status_display"
+                                       value="Insumo Programado"
+                                       readonly>
+                                <input type="hidden"
+                                       id="status"
+                                       name="status"
+                                       value="Insumo Programado">
+                            </div>
+                        </div>
+
+                        <div class="col-lg-4 col-md-6">
+                            <div class="form-group">
+                                <label class="required-label">Proveedor</label>
+                                <select class="form-control" id="proveedor" name="proveedor" required>
+                                    <option value="">Seleccione proveedor</option>
+                                    {% for proveedor in proveedores_sap %}
+                                        <option value="{{ proveedor.SOP_CARDCODE }}">
+                                            {{ proveedor.SOP_CARDNAME }}
+                                        </option>
+                                    {% endfor %}
+                                </select>
+                                <input type="hidden" id="proveedor_codigo" name="proveedor_codigo">
+                            </div>
+                        </div>
+
+                        <div class="col-lg-4 col-md-6">
+                            <div class="form-group">
+                                <label>BL / Contenedor</label>
+                                <input type="text"
+                                       class="form-control"
+                                       id="bl"
+                                       name="bl"
+                                       autocomplete="off"
+                                       placeholder="Ingrese BL / Contenedor manual">
+                                <small class="form-help-text">Campo manual, no calcula cantidad disponible</small>
+                            </div>
+                        </div>
+
+                        <div class="col-lg-4 col-md-6">
+                            <div class="form-group">
+                                <label>Cantidad disponible</label>
+                                <input type="text"
+                                       class="form-control"
+                                       id="cantidad_disponible"
+                                       name="cantidad_disponible"
+                                       readonly>
+                            </div>
+                        </div>
+
+                        <div class="col-lg-4 col-md-6">
+                            <div class="form-group">
+                                <label>DocEntry SAP</label>
+                                <input type="text"
+                                       class="form-control"
+                                       id="docentry"
+                                       name="docentry"
+                                       readonly>
+                            </div>
+                        </div>
+
+                        <div class="col-lg-4 col-md-6">
+                            <div class="form-group">
+                                <label>Productor</label>
+                                <input type="text"
+                                       class="form-control"
+                                       id="productor"
+                                       name="productor"
+                                       readonly>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="form-section-title">Datos de destino</div>
+
+                    <div class="row">
+                        <div class="col-lg-4 col-md-6">
+                            <div class="form-group">
+                                <label class="required-label">Estanque destino</label>
+                                <select class="form-control" id="estanque_destino" name="estanque_destino" required>
+                                    <option value="">Seleccione estanque</option>
+                                    <option value="PROSESA_T3">PROSESA_T3</option>
+                                    <option value="PROSESA_T5">PROSESA_T5</option>
+                                    <option value="TK10">TK10</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <div class="col-lg-8 col-md-6">
+                            <div class="form-group">
+                                <label>Observación planificación</label>
+                                <input type="text"
+                                       class="form-control"
+                                       id="observacion"
+                                       name="observacion"
+                                       placeholder="Observación opcional">
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="alert alert-info mt-3 mb-0">
+                        La cantidad define cuántas citaciones se crearán con los mismos datos base.
+                        Cada registro deberá tener su número interno de citación único.
+                    </div>
+
+                </div>
+
+                <div class="modal-footer modal-footer-custom">
+                    <div class="repeat-box">
+                        <label class="mb-0">Cantidad a crear:</label>
+                        <input type="number"
+                               class="form-control"
+                               id="cantidad_repetir"
+                               name="cantidad_repetir"
+                               min="1"
+                               max="50"
+                               value="1">
+                    </div>
+
+                    <div class="modal-actions">
+                        <button type="button" class="btn btn-secondary" data-dismiss="modal">Cancelar</button>
+                        <button type="button" class="btn btn-success" onclick="agregarCitacionTemporal()">Crear</button>
+                </div>
+
+            </form>
+
+        </div>
+    </div>
+</div>
+{% endblock content %}
+
+{% block javascripts %}
+<script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
+
+<script>
+    let citacionesTemporales = [];
+
+    document.addEventListener('DOMContentLoaded', function () {
+        const codigo = document.getElementById('codigo');
+        const pedido = document.getElementById('pedido');
+
+        if ($('#cliente').length) {
+            $('#cliente').select2({
+                placeholder: 'Buscar cliente...',
+                allowClear: true,
+                width: '100%',
+                dropdownParent: $('#ModalCrearCitacion')
+            });
+        }
+
+        if ($('#proveedor').length) {
+            $('#proveedor').select2({
+                placeholder: 'Buscar proveedor...',
+                allowClear: true,
+                width: '100%',
+                dropdownParent: $('#ModalCrearCitacion')
+            });
+
+            $('#proveedor').on('change', function () {
+                setValue('proveedor_codigo', $(this).val() || '');
+            });
+        }
+
+        if (codigo) {
+            codigo.addEventListener('keypress', function (e) {
+                if (e.key === 'Enter') {
+                    e.preventDefault();
+                    buscarOporPorCodigo();
+                }
+            });
+        }
+
+        if (pedido) {
+            pedido.addEventListener('keypress', function (e) {
+                if (e.key === 'Enter') {
+                    e.preventDefault();
+                    buscarOporPorPedido();
+                }
+            });
+        }
+
+        $('#ModalCrearCitacion').on('shown.bs.modal', function () {
+            const cantidadRepetir = document.getElementById('cantidad_repetir');
+
+            if (cantidadRepetir) {
+                cantidadRepetir.value = 1;
+            }
+        });
+
+        renderizarCitacionesTemporales();
+        controlarSobrecupoPlanificacion();
+    });
+
+    function swalFront(options) {
+        return Swal.fire({
+            ...options,
+            customClass: {
+                popup: 'swal-front'
+            },
+            didOpen: function () {
+                $('.swal2-container').css('z-index', '999999');
+                $('.swal2-popup').css('z-index', '1000000');
+            }
+        });
+    }
+
+    function getValue(id) {
+        const element = document.getElementById(id);
+        return element ? element.value : '';
+    }
+
+    function setValue(id, value) {
+        const element = document.getElementById(id);
+
+        if (element) {
+            element.value = value || '';
+        }
+    }
+
+    function getSelectedText(id) {
+        const element = document.getElementById(id);
+
+        if (!element) return '';
+
+        if (element.tagName === 'SELECT') {
+            if (element.selectedIndex < 0) return '';
+
+            const text = element.options[element.selectedIndex].text.trim();
+
+            if (text.toLowerCase().includes('seleccione')) return '';
+
+            return text;
+        }
+
+        return element.value;
+    }
+
+    function escapeHtml(value) {
+        if (value === null || value === undefined) return '';
+
+        return String(value)
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;')
+            .replace(/'/g, '&#039;');
+    }
+
+    function formatearFechaTabla(fechaValor) {
+        if (!fechaValor) return '';
+
+        const fecha = new Date(fechaValor + 'T00:00:00');
+
+        if (isNaN(fecha.getTime())) {
+            return fechaValor;
+        }
+
+        const dia = String(fecha.getDate()).padStart(2, '0');
+        const mes = String(fecha.getMonth() + 1).padStart(2, '0');
+        const ano = fecha.getFullYear();
+
+        return `${dia}/${mes}/${ano}`;
+    }
+
+    function buscarOporPorCodigo() {
+        const codigo = getValue('codigo').trim();
+
+        if (!codigo) {
+            swalFront({
+                title: 'Atención',
+                text: 'Debe ingresar un código SAP.',
+                icon: 'warning'
+            });
+            return;
+        }
+
+        $.ajax({
+            url: '/buscar-opor-codigo/',
+            type: 'GET',
+            data: { codigo: codigo },
+            success: function (response) {
+                console.log('Respuesta buscar-opor-codigo:', response);
+
+                if (!response.success || response.total === 0) {
+                    limpiarDatosProducto(false);
+
+                    swalFront({
+                        title: 'Sin registros',
+                        text: response.message || 'No se encontró producto para el código SAP ingresado.',
+                        icon: 'info'
+                    });
+                    return;
+                }
+
+                cargarProductoSap(response.data[0]);
+
+                swalFront({
+                    title: 'Producto encontrado',
+                    text: 'Producto SAP cargado correctamente. Ahora ingrese el Pedido SAP para obtener la cantidad disponible.',
+                    icon: 'success'
+                });
+            },
+            error: function (xhr) {
+                console.error('Error buscar-opor-codigo:', xhr.responseText);
+
+                limpiarDatosProducto(false);
+
+                swalFront({
+                    title: 'Error',
+                    text: 'Ocurrió un error al consultar el código SAP.',
+                    icon: 'error'
+                });
+            }
+        });
+    }
+
+    function buscarOporPorPedido() {
+        const codigo = getValue('codigo').trim();
+        const pedido = getValue('pedido').trim();
+
+        if (!codigo) {
+            swalFront({
+                title: 'Atención',
+                text: 'Debe ingresar primero el código SAP.',
+                icon: 'warning'
+            });
+            return;
+        }
+
+        if (!pedido) {
+            swalFront({
+                title: 'Atención',
+                text: 'Debe ingresar el Pedido SAP.',
+                icon: 'warning'
+            });
+            return;
+        }
+
+        setValue('cantidad_disponible', 'Buscando...');
+
+        $.ajax({
+            url: '/buscar-opor-pedido/',
+            type: 'GET',
+            data: {
+                codigo: codigo,
+                pedido: pedido
+            },
+            success: function (response) {
+                console.log('Respuesta buscar-opor-pedido:', response);
+
+                if (!response.success || response.total === 0) {
+                    limpiarDatosPedido(false);
+
+                    swalFront({
+                        title: 'Sin registros',
+                        text: response.message || 'No se encontró programación para el Código SAP y Pedido SAP ingresado.',
+                        icon: 'info'
+                    });
+                    return;
+                }
+
+                cargarDatosPedidoSap(response.data[0]);
+
+                swalFront({
+                    title: 'Pedido encontrado',
+                    text: 'Cantidad disponible actualizada correctamente.',
+                    icon: 'success'
+                });
+            },
+            error: function (xhr) {
+                console.error('Error buscar-opor-pedido:', xhr.responseText);
+
+                limpiarDatosPedido(false);
+
+                swalFront({
+                    title: 'Error',
+                    text: 'Ocurrió un error al consultar el Pedido SAP.',
+                    icon: 'error'
+                });
+            }
+        });
+    }
+
+    function cargarProductoSap(item) {
+        setValue('codigo', item.codigo || getValue('codigo'));
+        setValue('insumo', item.insumo || '');
+
+        limpiarDatosPedido(true);
+    }
+
+    function cargarDatosPedidoSap(item) {
+        setValue('sap_opor_id', item.sap_opor_id || '');
+        setValue('pedido', item.pedido || getValue('pedido'));
+        setValue(
+            'cantidad_disponible',
+            item.cantidad_disponible !== null && item.cantidad_disponible !== undefined
+                ? item.cantidad_disponible
+                : ''
+        );
+        setValue('docentry', item.docentry || '');
+        setValue('productor', item.productor || '');
+        setValue('proveedor_codigo', item.proveedor_codigo || '');
+
+        if ($('#proveedor').length) {
+            $('#proveedor').val(item.proveedor_codigo || '').trigger('change');
+        }
+    }
+
+    function agregarCitacionTemporal() {
+        if (!validarFormularioCitacion()) return;
+
+        let cantidad = parseInt(getValue('cantidad_repetir'));
+
+        if (isNaN(cantidad) || cantidad < 1) {
+            cantidad = 1;
+        }
+
+        if (cantidad > 50) {
+            swalFront({
+                title: 'Cantidad no permitida',
+                text: 'La cantidad máxima permitida para crear es 50.',
+                icon: 'warning'
+            });
+            return;
+        }
+
+        const clienteSelect = $('#cliente');
+        const proveedorSelect = $('#proveedor');
+
+        for (let i = 0; i < cantidad; i++) {
+            const citacion = {
+                cliente: clienteSelect.val() || '',
+                cliente_nombre: clienteSelect.find('option:selected').text().trim(),
+
+                inf_24hrs: getValue('inf_24hrs'),
+                fecha_llegada: getValue('fecha_llegada'),
+                tipo_operacion: getValue('tipo'),
+                tipo_operacion_texto: getSelectedText('tipo'),
+
+                tipo_carga: getValue('tipo_carga'),
+                tipo_carga_texto: getSelectedText('tipo_carga'),
+
+                codigo: getValue('codigo'),
+                insumo: getValue('insumo'),
+                pedido: getValue('pedido'),
+                sap_opor_id: getValue('sap_opor_id'),
+
+                proveedor: proveedorSelect.val() || '',
+                proveedor_nombre: proveedorSelect.find('option:selected').text().trim(),
+                proveedor_codigo: getValue('proveedor_codigo'),
+
+                bl: getValue('bl'),
+                cantidad_disponible: getValue('cantidad_disponible'),
+                docentry: getValue('docentry'),
+                productor: getValue('productor'),
+
+                estanque_destino: getValue('estanque_destino'),
+                estanque_destino_texto: getSelectedText('estanque_destino'),
+
+                observacion: getValue('observacion')
+            };
+
+            citacionesTemporales.push(citacion);
+        }
+
+        renderizarCitacionesTemporales();
+
+        $('#ModalCrearCitacion').modal('hide');
+
+        swalFront({
+            title: 'Citación agregada',
+            text: 'Se agregaron ' + cantidad + ' citación(es) temporalmente a la planificación.',
+            icon: 'success'
+        });
+
+        limpiarFormularioCitacion();
+    }
+
+    function renderizarCitacionesTemporales() {
+        const tbody = document.getElementById('tbody_citaciones_temporales');
+        const contador = document.getElementById('contador_citaciones_temporales');
+        const resumen = document.getElementById('resumen_citaciones_agregadas');
+
+        if (!tbody) return;
+
+        tbody.innerHTML = '';
+
+        if (contador) {
+            contador.innerText = citacionesTemporales.length;
+        }
+
+        if (resumen) {
+            resumen.innerText = citacionesTemporales.length;
+        }
+
+        if (citacionesTemporales.length === 0) {
+            tbody.innerHTML = `
+                <tr id="fila_sin_citaciones">
+                    <td colspan="13" class="text-center text-muted">
+                        Aún no existen citaciones agregadas.
+                    </td>
+                </tr>
+            `;
+            return;
+        }
+
+        citacionesTemporales.forEach(function (item, index) {
+            const tr = document.createElement('tr');
+
+            tr.innerHTML = `
+                <td>
+                    <button type="button"
+                            class="btn btn-sm btn-danger"
+                            onclick="eliminarCitacionTemporal(${index})">
+                        Eliminar
+                    </button>
+                </td>
+                <td>${escapeHtml(item.cliente_nombre)}</td>
+                <td>${escapeHtml(item.inf_24hrs)}</td>
+                <td>${formatearFechaTabla(item.fecha_llegada)}</td>
+                <td>${escapeHtml(item.tipo_operacion_texto)}</td>
+                <td>${escapeHtml(item.tipo_carga_texto)}</td>
+                <td>${escapeHtml(item.codigo)}</td>
+                <td>${escapeHtml(item.insumo)}</td>
+                <td>${escapeHtml(item.pedido)}</td>
+                <td>${escapeHtml(item.proveedor_nombre)}</td>
+                <td>${escapeHtml(item.bl || '')}</td>
+                <td>${escapeHtml(item.cantidad_disponible)}</td>
+                <td>${escapeHtml(item.estanque_destino_texto)}</td>
+            `;
+
+            tbody.appendChild(tr);
+        });
+    }
+
+    function eliminarCitacionTemporal(index) {
+        citacionesTemporales.splice(index, 1);
+        renderizarCitacionesTemporales();
+    }
+
+    function controlarSobrecupoPlanificacion() {
+        const selectSobrecupo = document.getElementById('es_sobrecupo_planificacion');
+        const inputCantidad = document.getElementById('cantidad_sobrecupo_planificacion');
+
+        if (!selectSobrecupo || !inputCantidad) {
+            return;
+        }
+
+        if (selectSobrecupo.value === 'Si') {
+            inputCantidad.disabled = false;
+            inputCantidad.readOnly = false;
+            inputCantidad.removeAttribute('readonly');
+            inputCantidad.removeAttribute('disabled');
+
+            if (inputCantidad.value === '' || parseInt(inputCantidad.value) <= 0) {
+                inputCantidad.value = 1;
+            }
+
+            inputCantidad.classList.remove('bg-light');
+        } else {
+            inputCantidad.value = 0;
+            inputCantidad.disabled = true;
+            inputCantidad.readOnly = true;
+            inputCantidad.setAttribute('readonly', true);
+            inputCantidad.setAttribute('disabled', true);
+            inputCantidad.classList.add('bg-light');
+        }
+    }
+
+    function guardarPlanificacionConCitaciones() {
+        if (citacionesTemporales.length === 0) {
+            swalFront({
+                title: 'Atención',
+                text: 'Debe agregar al menos una citación antes de guardar la planificación.',
+                icon: 'warning'
+            });
+            return;
+        }
+
+        const esSobrecupo = getValue('es_sobrecupo_planificacion') || 'No';
+        const cantidadSobrecupo = getValue('cantidad_sobrecupo_planificacion') || '0';
+
+        const formData = new FormData();
+
+        formData.append('citaciones_json', JSON.stringify(citacionesTemporales));
+        formData.append('cantidad_repetir', citacionesTemporales.length);
+        formData.append('es_sobrecupo', esSobrecupo);
+        formData.append('cantidad_sobrecupo', cantidadSobrecupo);
+
+        $.ajax({
+            url: '/crear-planificacion-citacion/',
+            type: 'POST',
+            data: formData,
+            processData: false,
+            contentType: false,
+            headers: {
+                'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
+            },
+            success: function (response) {
+                console.log('Respuesta guardar planificación:', response);
+
+                if (!response.success) {
+                    swalFront({
+                        title: 'Error',
+                        text: response.message || 'No fue posible crear la planificación.',
+                        icon: 'error'
+                    });
+                    return;
+                }
+
+                swalFront({
+                    title: 'Planificación creada',
+                    text: response.message || 'La planificación y sus citaciones fueron creadas correctamente.',
+                    icon: 'success',
+                    confirmButtonText: 'Aceptar'
+                }).then(function () {
+                    window.location.href = '/pla_listall/';
+                });
+            },
+            error: function (xhr) {
+                console.error('Error guardar planificación:', xhr.responseText);
+
+                swalFront({
+                    title: 'Error',
+                    text: 'Ocurrió un error al guardar la planificación.',
+                    icon: 'error'
+                });
+            }
+        });
+    }
+
+    function validarFormularioCitacion() {
+        const form = document.getElementById('form_crear_citacion');
+
+        if (!form) {
+            swalFront({
+                title: 'Error',
+                text: 'No se encontró el formulario de creación.',
+                icon: 'error'
+            });
+            return false;
+        }
+
+        if (!form.checkValidity()) {
+            form.reportValidity();
+            return false;
+        }
+
+        if (!getValue('codigo').trim()) {
+            swalFront({
+                title: 'Atención',
+                text: 'Debe ingresar y buscar un código SAP.',
+                icon: 'warning'
+            });
+            return false;
+        }
+
+        if (!getValue('insumo').trim()) {
+            swalFront({
+                title: 'Atención',
+                text: 'Debe buscar un código SAP válido para cargar el insumo.',
+                icon: 'warning'
+            });
+            return false;
+        }
+
+        if (!getValue('pedido').trim()) {
+            swalFront({
+                title: 'Atención',
+                text: 'Debe ingresar y buscar el Pedido SAP.',
+                icon: 'warning'
+            });
+            return false;
+        }
+
+        if (!getValue('sap_opor_id').trim()) {
+            swalFront({
+                title: 'Atención',
+                text: 'Debe buscar un Pedido SAP válido antes de crear la citación.',
+                icon: 'warning'
+            });
+            return false;
+        }
+
+        if (!getValue('cantidad_disponible').trim()) {
+            swalFront({
+                title: 'Atención',
+                text: 'El Pedido SAP debe tener cantidad disponible asociada.',
+                icon: 'warning'
+            });
+            return false;
+        }
+
+        if (!$('#cliente').val()) {
+            swalFront({
+                title: 'Atención',
+                text: 'Debe seleccionar un cliente.',
+                icon: 'warning'
+            });
+            return false;
+        }
+
+        if (!$('#proveedor').val()) {
+            swalFront({
+                title: 'Atención',
+                text: 'Debe seleccionar un proveedor.',
+                icon: 'warning'
+            });
+            return false;
+        }
+
+        return true;
+    }
+
+    function limpiarFormularioCitacion() {
+        const form = document.getElementById('form_crear_citacion');
+
+        if (form) {
+            form.reset();
+        }
+
+        limpiarDatosProducto(true);
+
+        if ($('#cliente').length) {
+            $('#cliente').val('').trigger('change');
+        }
+
+        if ($('#proveedor').length) {
+            $('#proveedor').val('').trigger('change');
+        }
+
+        setValue('status', 'Insumo Programado');
+        setValue('status_display', 'Insumo Programado');
+
+        const cantidadRepetir = document.getElementById('cantidad_repetir');
+
+        if (cantidadRepetir) {
+            cantidadRepetir.value = 1;
+        }
+    }
+
+    function limpiarDatosPedido(limpiarPedido = false) {
+        const campos = [
+            'sap_opor_id',
+            'proveedor_codigo',
+            'cantidad_disponible',
+            'docentry',
+            'productor'
+        ];
+
+        if (limpiarPedido) {
+            campos.push('pedido');
+        }
+
+        campos.forEach(function (id) {
+            setValue(id, '');
+        });
+
+        if ($('#proveedor').length) {
+            $('#proveedor').val('').trigger('change');
+        }
+    }
+
+    function limpiarDatosProducto(limpiarCodigo = true) {
+        const campos = [
+            'sap_opor_id',
+            'insumo',
+            'proveedor_codigo',
+            'pedido',
+            'cantidad_disponible',
+            'docentry',
+            'productor'
+        ];
+
+        if (limpiarCodigo) {
+            campos.push('codigo');
+        }
+
+        campos.forEach(function (id) {
+            setValue(id, '');
+        });
+
+        if ($('#proveedor').length) {
+            $('#proveedor').val('').trigger('change');
+        }
+    }
+</script>
+{% endblock javascripts %}

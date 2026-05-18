@@ -1,0 +1,817 @@
+{% extends "layouts/base.html" %}
+
+{% block title %} Proforma Manual #{{ proforma.pk }} {% endblock %} 
+
+<!-- Specific CSS goes HERE -->
+{% block stylesheets %}
+    {% load humanize %}
+    {% load i18n %}
+    {% load l10n %}
+    {% load formats %}
+    <style>
+        #basic-btn td {
+            text-align: center;
+        }
+        /* Opcional: mejora la separación entre etapas */
+        .card .d-flex > div:not(:last-child) {
+            margin-right: 2px;
+        }
+    </style>
+{% endblock stylesheets %}
+
+{% block content %}	
+    <!-- [ Main Content ] start -->
+	<section class="pcoded-main-container">
+		<div class="pcoded-content">
+			<!-- [ breadcrumb ] start -->
+			<div class="page-header">
+				<div class="page-block">
+					<div class="row align-items-center">
+						<div class="col-md-12">
+							<div class="page-header-title">
+								<h5 class="m-b-10">Proforma Manual</h5>
+							</div>
+							<ul class="breadcrumb">
+								<li class="breadcrumb-item"><a href="/"><i class="feather icon-home"></i></a></li>
+								<li class="breadcrumb-item"><a href="#!">Proforma Manual</a></li>
+							</ul>
+						</div>
+					</div>
+				</div>
+			</div>
+			<!-- [ breadcrumb ] end -->
+			<!-- [ Main Content ] start -->
+			<div class="row">
+				<!-- [ Invoice ] start -->
+				<div class="container" id="printTable">
+					<div>
+						<div class="card mb-4">
+							<div class="card-body">
+								<div class="d-flex justify-content-between align-items-center mt-3" style="gap: 0.5em;">
+									{% if proforma.PRO_BBORRADOR %}
+										<div style="flex:1;">
+											<div
+												style="
+													border-radius: 8px;
+													padding: 0.8em 0;
+													text-align: center;
+													font-weight: bold;
+													color: #ffffff;
+													background: #6c757d;
+													transition: background 0.3s;
+												">
+												BORRADOR
+											</div>
+										</div>
+									{% else %}
+										<div style="flex:1;">
+											<div
+												style="
+													border-radius: 8px;
+													padding: 0.8em 0;
+													text-align: center;
+													font-weight: bold;
+													color: #222;
+													background:rgb(44, 190, 105);
+													transition: background 0.3s;
+												">
+												{{ proforma.PRO_CESTADO|capfirst }}
+											</div>
+										</div>
+									{% endif %}
+								</div>
+							</div>
+							<div class="col-md-12 text-right mr-4 mb-4">
+								{% if proforma.PRO_BBORRADOR and request.user.is_superuser %}
+									<a class="btn btn-success aprobar_proforma mr-2" data-href="{% url 'proforma_autorizar_ajax' proforma.pk %}">Aprobar Proforma</a>
+								{% endif %}
+								{% if request.user.is_superuser and logs_proforma %}
+									<button class="btn btn-warning mr-2" type="button" data-toggle="modal" data-target="#ModalHistorialModificaciones">Historial Modificaciones</button>
+								{% endif %}
+								<button class="btn btn-info mr-2" onclick="descargarPDFAvanzado()">
+									<i class="fas fa-download"></i> Descargar PDF
+								</button>
+								{% if not proforma.PRO_BBORRADOR %}
+									<button class="btn btn-info mr-2" type="button" data-toggle="modal" data-target="#ModalSubirDocumento">
+										<i class="fas fa-upload"></i> Subir Documento
+									</button>
+								{% endif %}
+								{% if documentos %}
+									<button class="btn btn-info mr-2" data-toggle="modal" data-target="#ModalListadoDocumentos">
+										<i class="fas fa-file"></i> Ver Documentos
+									</button>
+								{% endif %}
+							</div>
+							<br>
+						</div>
+						<div class="card">
+							<div class="row invoice-contact">
+								<div class="col-md-8">
+									<div class="invoice-box row">
+										<div class="col-sm-12">
+											<table class="table table-responsive invoice-table table-borderless p-l-20">
+												<tbody>
+													<tr>
+														<td><a href="/" class="b-brand">
+																<img class="img-fluid" src="/static/assets/images/logo-terramar.png" style="width: 150px;" alt="Logo Terramar">
+															</a>
+														</td>
+													</tr>
+													<tr>
+														<td>{{ empresa.EP_CRAZONSOCIAL|default_if_none:"-" }}</td>
+													</tr>
+													<tr>
+														<td>{{ empresa.EP_CDIRECCION|default_if_none:"-" }}</td>
+													</tr>
+													<tr>
+														<td><a class="text-secondary" href="mailto:{{ empresa.EP_CEMAIL }}" target="_top">{{ empresa.EP_CEMAIL|default_if_none:"-" }}</a></td>
+													</tr>
+													<tr>
+														<td>{{ empresa.EP_CTELEFONO|default_if_none:"-" }}</td>
+													</tr>
+												</tbody>
+											</table>
+										</div>
+									</div>
+								</div>
+								<div class="col-md-4"></div>
+							</div>
+							
+							<div class="card-body">
+								<div class="row invoive-info">
+									<div class="col-md-4 col-xs-12 invoice-client-info">
+										<h6>Proveedor:</h6>
+										<h6 class="m-0">{{ proveedor.SN_CRAZONSOCIAL|default_if_none:"" }}</h6>
+										<p class="m-0 m-t-10">RUT: {{ proveedor.SN_CRUT|default_if_none:"" }}</p>
+										<p class="m-0">{{ proveedor.SN_CDIRECCION|default_if_none:"" }}</p>
+										<p class="m-0">{{ proveedor.SN_CTELEFONO|default_if_none:"" }}</p>
+										<p><a class="text-secondary" href="mailto:{{ proveedor.SN_CEMAIL }}" target="_top">{{ proveedor.SN_CEMAIL|default_if_none:"" }}</a></p>
+									</div>
+									<div class="col-md-4 col-sm-6">
+										<h6>Información proforma:</h6>
+										<table class="table table-responsive invoice-table invoice-order table-borderless">
+											<tbody>
+												<tr>
+													<th>Número Proforma:</th>
+													<td><span># {{proforma.pk}}</span></td>
+												</tr>
+												<tr>
+													<th>Fecha emisión:</th>
+													<td>{{proforma.PRO_FFECHAEMISION|date:"d/m/Y"}}</td>
+												</tr>
+												{% if not proforma.PRO_BBORRADOR %}
+													<tr>
+														<th>N° SAP:</th>
+														<td>{{proforma.PRO_DOC_NUM|default:"-"}}</td>
+													</tr>
+												{% endif %}
+											</tbody>
+										</table>
+									</div>
+									{% if proforma.PRO_CCOMENTARIO %}
+										<div class="col-md-4 col-sm-6">
+											<h6>Comentario:</h6>
+											<p>{{proforma.PRO_CCOMENTARIO}}</p> 
+										</div>
+									{% endif %}
+								</div>
+								
+								<div class="row">
+									<div class="col-sm-12">
+										<div class="table-responsive">
+											<table class="table invoice-detail-table" id="tabla_lineas">
+												<thead>
+													<tr class="thead-default">
+														{% if proforma.PRO_BBORRADOR %}
+															<th>ACCIONES</th>
+														{% endif %}
+														<th>ÍTEM</th>
+														<th>TIPO ITEM</th>
+														<th>DESCRIPCIÓN</th>
+														<th>PRECIO UNITARIO</th>
+														<th>CANTIDAD</th>
+														<th>TOTAL</th>
+													</tr>
+												</thead>
+												<tbody>
+													{% for linea in lineas_proforma %}
+														<tr id="linea_{{ linea.id }}">
+															{% if proforma.PRO_BBORRADOR %}
+																<td>
+																	<button type="button" class="btn btn-danger btn-sm delete_linea" data-linea-id="{{ linea.id }}">
+																		<i class="fas fa-trash"></i>
+																	</button>
+																	<button type="button" class="btn btn-warning btn-sm edit_linea" data-linea-id="{{ linea.id }}">
+																		<i class="fas fa-edit"></i>
+																	</button>
+																</td>
+															{% endif %}
+															<th>{{ forloop.counter }}</th>
+															<td>{{ linea.LP_CTIPO_ITEM }}</td>
+															<td>{{ linea.LP_CDESCRIPCION }}</td>
+															<td>$ {{ linea.LP_NPRECIO_UNITARIO|custom_number_format }}</td>
+															<td>{{ linea.LP_NCANTIDAD }}</td>
+															<td>$ {{ linea.LP_NPRECIO_UNITARIO|multiply:linea.LP_NCANTIDAD|custom_number_format }}</td>
+														</tr>
+													{% empty %}
+														<tr>
+															<td colspan="7" class="text-center">No hay líneas en esta proforma</td>
+														</tr>
+													{% endfor %}
+												</tbody>
+											</table>
+											{% if proforma.PRO_BBORRADOR %}
+												<div class="btn-group-lg mb-2 mr-2 text-center">
+													<button type="button" class="btn btn-secondary" onclick="abrirModalAgregarLinea()">
+														<i class="fas fa-plus"></i> Agregar Línea
+													</button>
+												</div>
+											{% endif %}
+										</div>
+									</div>
+								</div>
+								
+								<div class="row">
+									<div class="col-sm-12">
+										<table class="table table-responsive invoice-table invoice-total">
+											<tbody>
+												<tr>
+													<th>Neto:</th>
+													<td>$ {{proforma.PRO_NSUBTOTAL|custom_number_format}}</td>
+												</tr>
+												<tr>
+													<th>IVA:</th>
+													<td>$ {{proforma.PRO_NIVA|custom_number_format}}</td>
+												</tr>
+												<tr class="text-info">
+													<td>
+														<hr />
+														<h5 class="text-primary m-r-10">Total:</h5>
+													</td>
+													<td>
+														<hr />
+														<h5 class="text-primary">$ {{proforma.PRO_NTOTAL|custom_number_format}}</h5>
+													</td>
+												</tr>
+											</tbody>
+										</table>
+									</div>
+								</div>
+							</div>
+						</div>
+					</div>
+				</div>
+				<!-- [ Invoice ] end -->
+			</div>
+			<!-- [ Main Content ] end -->
+		</div>
+	</section>
+	<!-- [ Main Content ] end -->
+
+	{% if proforma.PRO_BBORRADOR %}
+		<!-- Modal Agregar Línea -->
+		<div class="modal fade" id="ModalAgregarLinea" tabindex="-1" role="dialog" aria-labelledby="ModalAgregarLineaLabel" aria-hidden="true">
+			<div class="modal-dialog modal-dialog-centered modal-lg" role="document">
+				<div class="modal-content">
+					<div class="modal-header">
+						<h5 class="modal-title" id="ModalAgregarLineaLabel">Agregar Línea</h5>
+						<button type="button" class="close" data-dismiss="modal" aria-label="Close">
+							<span aria-hidden="true">&times;</span>
+						</button>
+					</div>
+					<div class="modal-body">
+						<form id="formAgregarLinea">
+							{% csrf_token %}
+							<div class="form-group">
+								<label>Tipo de Item:</label>
+								<select class="form-control" name="tipo_item" id="tipo_item_agregar" required>
+									<option value="">Seleccione tipo de item</option>
+								</select>
+							</div>
+							<div class="form-group">
+								<label>Descripción:</label>
+								<input type="text" class="form-control" name="descripcion" id="descripcion_agregar" required>
+							</div>
+							<div class="form-group">
+								<label>Precio Unitario:</label>
+								<input type="number" class="form-control" name="precio_unitario" id="precio_unitario_agregar" min="1" required>
+							</div>
+							<div class="form-group">
+								<label>Cantidad:</label>
+								<input type="number" class="form-control" name="cantidad" id="cantidad_agregar" min="1" value="1" required>
+							</div>
+							<div class="d-flex justify-content-end">
+								<button type="button" class="btn btn-primary mr-2" onclick="agregarLinea()">Guardar</button>
+								<button type="button" class="btn btn-danger" data-dismiss="modal">Cerrar</button>
+							</div>
+						</form>
+					</div>
+				</div>
+			</div>
+		</div>
+
+		<!-- Modal Editar Línea -->
+		<div class="modal fade" id="ModalEditarLinea" tabindex="-1" role="dialog" aria-labelledby="ModalEditarLineaLabel" aria-hidden="true">
+			<div class="modal-dialog modal-dialog-centered modal-lg" role="document">
+				<div class="modal-content">
+					<div class="modal-header">
+						<h5 class="modal-title" id="ModalEditarLineaLabel">Editar Línea</h5>
+						<button type="button" class="close" data-dismiss="modal" aria-label="Close">
+							<span aria-hidden="true">&times;</span>
+						</button>
+					</div>
+					<div class="modal-body">
+						<form id="formEditarLinea">
+							{% csrf_token %}
+							<input type="hidden" id="linea_id_editar" name="linea_id">
+							<div class="form-group">
+								<label>Tipo de Item:</label>
+								<select class="form-control" name="tipo_item" id="tipo_item_editar" required>
+									<option value="">Seleccione tipo de item</option>
+								</select>
+							</div>
+							<div class="form-group">
+								<label>Descripción:</label>
+								<input type="text" class="form-control" name="descripcion" id="descripcion_editar" required>
+							</div>
+							<div class="form-group">
+								<label>Precio Unitario:</label>
+								<input type="number" class="form-control" name="precio_unitario" id="precio_unitario_editar" min="1" required>
+							</div>
+							<div class="form-group">
+								<label>Cantidad:</label>
+								<input type="number" class="form-control" name="cantidad" id="cantidad_editar" min="1" required>
+							</div>
+							<div class="d-flex justify-content-end">
+								<button type="button" class="btn btn-primary mr-2" onclick="editarLinea()">Actualizar</button>
+								<button type="button" class="btn btn-danger" data-dismiss="modal">Cerrar</button>
+							</div>
+						</form>
+					</div>
+				</div>
+			</div>
+		</div>
+
+		<!-- Modal de spinner para autorización -->
+		<div id="spinnerModal" class="modal fade bd-example-modal-sm" tabindex="-1" role="dialog" aria-hidden="true">
+			<div class="modal-dialog modal-dialog-centered modal-sm" role="document">                
+				<div class="spinner-border text-light" role="status" style="height: 80px;width: 80px;margin: auto;color:white"></div>
+			</div>
+		</div>
+	{% endif %}
+
+	{% if request.user.is_superuser %}
+		<!-- Modal Historial Modificaciones -->
+		<div class="modal fade" id="ModalHistorialModificaciones" tabindex="-1" role="dialog" aria-labelledby="ModalHistorialModificacionesLabel" aria-hidden="true">
+			<div class="modal-dialog modal-dialog-centered modal-xl" role="document">
+				<div class="modal-content">
+					<div class="modal-header">
+						<h5 class="modal-title" id="ModalHistorialModificacionesLabel">Historial Modificaciones</h5>
+						<button type="button" class="close" data-dismiss="modal" aria-label="Close">
+							<span aria-hidden="true">&times;</span>
+						</button>
+					</div>
+					<div class="modal-body">
+						<div class="dt-responsive table-responsive">
+							<table class="table table-striped table-bordered nowrap">
+								<thead>
+									<tr>
+										<th>Usuario</th>
+										<th>Fecha</th>
+										<th>Descripción</th>
+									</tr>
+								</thead>
+								<tbody>
+									{% for log in logs_proforma %}
+										<tr>
+											<td>{{ log.US_NID.username }}</td>
+											<td>{{ log.LOG_FFECHAREGISTRO|date:"d/m/Y H:i" }}</td>
+											<td>{{ log.LOG_CDESCRIPCION }}</td>
+										</tr>
+									{% endfor %}
+								</tbody>
+							</table>
+						</div>
+					</div>
+				</div>
+			</div>
+		</div>
+	{% endif %}
+
+	<!-- Modal Subir Documento -->
+	<div class="modal fade" id="ModalSubirDocumento" tabindex="-1" role="dialog" aria-labelledby="ModalSubirDocumentoLabel" aria-hidden="true">
+		<div class="modal-dialog modal-dialog-centered" role="document">
+			<div class="modal-content">
+				<div class="modal-header">
+					<h5 class="modal-title" id="ModalSubirDocumentoLabel">Subir Documento</h5>
+					<button type="button" class="close" data-dismiss="modal" aria-label="Close">
+						<span aria-hidden="true">&times;</span>
+					</button>
+				</div>
+				<div class="modal-body">
+					<form method="POST" action="{% url 'cargar_documento_proforma' proforma.pk %}" enctype="multipart/form-data">
+						{% csrf_token %}
+						<div class="form-group">
+							<label>Seleccione documento:</label>
+							<input type="file" class="form-control-file" name="file_proforma" required>
+						</div>
+						<div class="d-flex justify-content-end">
+							<button type="submit" class="btn btn-success mr-2">Guardar</button>
+							<button type="button" class="btn btn-danger" data-dismiss="modal">Cerrar</button>
+						</div>
+					</form>
+				</div>
+			</div>
+		</div>
+	</div>
+
+	<!-- Modal Listado Documentos -->
+<div class="modal fade" id="ModalListadoDocumentos" tabindex="-1" role="dialog" aria-labelledby="ModalListadoDocumentosLabel" aria-hidden="true">
+	<div class="modal-dialog modal-dialog-centered modal-lg" role="document">
+		<div class="modal-content">
+			<div class="modal-header">
+				<h5 class="modal-title" id="ModalListadoDocumentosLabel">Listado Documentos</h5>
+				<button type="button" class="close" data-dismiss="modal" aria-label="Close">
+					<span aria-hidden="true">&times;</span>
+				</button>
+			</div>
+			<div class="modal-body">
+				<div class="table-responsive">
+					<table class="table table-striped table-bordered">
+						<thead>
+							<tr>
+								<th>Nombre Documento</th>
+								<th>Fecha Registro</th>
+								<th>Usuario</th>
+								<th>Acciones</th>
+							</tr>
+						</thead>
+						<tbody>
+							{% for doc in documentos %}
+								<tr>
+									<td>{{ doc.DP_CNOMBREDOCUMENTO }}</td>
+									<td>{{ doc.DP_FFECHAREGISTRO|date:"d/m/Y H:i" }}</td>
+									<td>{{ doc.US_NID.first_name }} {{ doc.US_NID.last_name }}</td>
+									<td>
+										<span class="fw-normal">
+											{% if doc.pk %}
+												<a class="btn btn-primary mr-2" href="{% url 'download_documento_proforma' doc.pk %}">
+													<i class="fas fa-download"></i>
+												</a>
+												<a class="btn btn-danger mr-2" href="{% url 'documento_proforma_delete' doc.pk %}">
+													<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-trash" viewBox="0 0 16 16">
+														<path d="M5.5 5.5A.5.5 0 0 1 6 6v6a.5.5 0 0 1-1 0V6a.5.5 0 0 1 .5-.5zm2.5 0a.5.5 0 0 1 .5.5v6a.5.5 0 0 1-1 0V6a.5.5 0 0 1 .5-.5zm3 .5a.5.5 0 0 0-1 0v6a.5.5 0 0 0 1 0V6z" />
+														<path fill-rule="evenodd" d="M14.5 3a1 1 0 0 1-1 1H13v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V4h-.5a1 1 0 0 1-1-1V2a1 1 0 0 1 1-1H6a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1h3.5a1 1 0 0 1 1 1v1zM4.118 4 4 4.059V13a1 1 0 0 0 1 1h6a1 1 0 0 0 1-1V4.059L11.882 4H4.118zM2.5 3V2h11v1h-11z" />
+													</svg>
+												</a>
+											{% else %}
+												<span class="text-danger">Documento inválido</span>
+											{% endif %}
+										</span>
+									</td>
+								</tr>
+							{% empty %}
+								<tr>
+									<td colspan="4" class="text-center">No hay documentos cargados</td>
+								</tr>
+							{% endfor %}
+						</tbody>
+					</table>
+				</div>
+			</div>
+		</div>
+	</div>
+</div>
+
+{% endblock content %}
+
+{% block javascripts %}
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.4.0/jspdf.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.3.2/html2canvas.min.js"></script>
+
+<script>
+	const proforma_id = {{ proforma.pk }};
+	const empresa_id = {{ empresa.pk }};
+	const is_borrador = {{ proforma.PRO_BBORRADOR|yesno:"true,false" }};
+
+	{% if proforma.PRO_BBORRADOR %}
+		// Cargar tipos de items al abrir modal de agregar
+		function abrirModalAgregarLinea() {
+			cargarTiposItems('agregar');
+			$('#ModalAgregarLinea').modal('show');
+		}
+
+		// Cargar tipos de items
+		function cargarTiposItems(modo) {
+			const selectId = modo === 'agregar' ? 'tipo_item_agregar' : 'tipo_item_editar';
+			
+			$.ajax({
+				url: '{% url "get_tipos_items" %}',
+				data: { 'empresa': empresa_id },
+				success: function(data) {
+					$(`#${selectId}`).html('<option value="">Seleccione tipo de item</option>');
+					if(data.tipos_items && data.tipos_items.length > 0) {
+						data.tipos_items.forEach(function(tipo) {
+							$(`#${selectId}`).append(`<option value="${tipo.id}">${tipo.nombre}</option>`);
+						});
+					}
+				},
+				error: function() {
+					Swal.fire('Error', 'No se pudieron cargar los tipos de items', 'error');
+				}
+			});
+		}
+
+		// Agregar línea
+		function agregarLinea() {
+			$("#ModalAgregarLinea").modal("hide");
+			const formData = {
+				'proforma_id': proforma_id,
+				'tipo_item': $('#tipo_item_agregar').val(),
+				'descripcion': $('#descripcion_agregar').val(),
+				'precio_unitario': $('#precio_unitario_agregar').val(),
+				'cantidad': $('#cantidad_agregar').val(),
+				'csrfmiddlewaretoken': '{{ csrf_token }}'
+			};
+
+			if(!formData.tipo_item || !formData.descripcion || !formData.precio_unitario || !formData.cantidad) {
+				Swal.fire('Error', 'Todos los campos son obligatorios', 'error');
+				return;
+			}
+
+			$.ajax({
+				url: '{% url "proforma_manual_add_linea" %}',
+				method: 'POST',
+				data: formData,
+				success: function(response) {
+					if(response.valid) {
+						Swal.fire('Éxito', response.msg, 'success').then(() => {
+							location.reload();
+						});
+					} else {
+						Swal.fire('Error', response.msg, 'error');
+					}
+				},
+				error: function() {
+					Swal.fire('Error', 'Ocurrió un error al agregar la línea', 'error');
+				}
+			});
+		}
+
+		// Eliminar línea
+		$(document).on('click', '.delete_linea', function() {
+			const lineaId = $(this).data('linea-id');
+			
+			Swal.fire({
+				title: '¿Estás seguro?',
+				text: 'Esta acción eliminará la línea de forma permanente',
+				icon: 'warning',
+				showCancelButton: true,
+				confirmButtonText: 'Sí, eliminar',
+				cancelButtonText: 'Cancelar'
+			}).then((result) => {
+				if(result.isConfirmed) {
+					$.ajax({
+						url: '{% url "proforma_manual_delete_linea" %}',
+						method: 'POST',
+						data: {
+							'linea_id': lineaId,
+							'csrfmiddlewaretoken': '{{ csrf_token }}'
+						},
+						success: function(response) {
+							if(response.valid) {
+								Swal.fire('Eliminado', response.msg, 'success').then(() => {
+									location.reload();
+								});
+							} else {
+								Swal.fire('Error', response.msg, 'error');
+							}
+						},
+						error: function() {
+							Swal.fire('Error', 'Ocurrió un error al eliminar la línea', 'error');
+						}
+					});
+				}
+			});
+		});
+
+		// Editar línea - cargar datos
+		$(document).on('click', '.edit_linea', function() {
+			const lineaId = $(this).data('linea-id');
+			
+			$.ajax({
+				url: '{% url "proforma_manual_get_linea" %}',
+				data: { 'linea_id': lineaId },
+				success: function(response) {
+					if(response.valid) {
+						$('#linea_id_editar').val(lineaId);
+						$('#descripcion_editar').val(response.linea.descripcion);
+						$('#precio_unitario_editar').val(response.linea.precio_unitario);
+						$('#cantidad_editar').val(response.linea.cantidad);
+						
+						cargarTiposItems('editar');
+						setTimeout(() => {
+							$('#tipo_item_editar').val(response.linea.tipo_item);
+						}, 500);
+						
+						$('#ModalEditarLinea').modal('show');
+					} else {
+						Swal.fire('Error', response.msg, 'error');
+					}
+				},
+				error: function() {
+					Swal.fire('Error', 'No se pudo cargar la línea', 'error');
+				}
+			});
+		});
+
+		// Actualizar línea
+		function editarLinea() {
+			const formData = {
+				'linea_id': $('#linea_id_editar').val(),
+				'tipo_item': $('#tipo_item_editar').val(),
+				'descripcion': $('#descripcion_editar').val(),
+				'precio_unitario': $('#precio_unitario_editar').val(),
+				'cantidad': $('#cantidad_editar').val(),
+				'csrfmiddlewaretoken': '{{ csrf_token }}'
+			};
+
+			if(!formData.tipo_item || !formData.descripcion || !formData.precio_unitario || !formData.cantidad) {
+				Swal.fire('Error', 'Todos los campos son obligatorios', 'error');
+				return;
+			}
+
+			$.ajax({
+				url: '{% url "proforma_manual_edit_linea" %}',
+				method: 'POST',
+				data: formData,
+				success: function(response) {
+					if(response.valid) {
+						Swal.fire('Éxito', response.msg, 'success').then(() => {
+							location.reload();
+						});
+					} else {
+						Swal.fire('Error', response.msg, 'error');
+					}
+				},
+				error: function() {
+					Swal.fire('Error', 'Ocurrió un error al actualizar la línea', 'error');
+				}
+			});
+		}
+
+		// Aprobar proforma
+		$('.aprobar_proforma').on('click', function(e) {
+			e.preventDefault();
+			const url = $(this).data('href');
+			
+			Swal.fire({
+				title: '¿Estás seguro de autorizar esta proforma?',
+				text: 'Esta acción es irreversible',
+				icon: 'warning',
+				showCancelButton: true,
+				confirmButtonText: 'Sí, autorizar',
+				cancelButtonText: 'Cancelar'
+			}).then((result) => {
+				if(result.isConfirmed) {
+					$('#spinnerModal').modal('show');
+					
+					$.ajax({
+						url: url,
+						method: 'POST',
+						data: { 'csrfmiddlewaretoken': '{{ csrf_token }}' },
+						success: function(response) {
+							$('#spinnerModal').modal('hide');
+							if(response.success) {
+								Swal.fire('Éxito', response.message, 'success').then(() => {
+									location.reload();
+								});
+							} else {
+								Swal.fire('Error', response.error, 'error');
+							}
+						},
+						error: function() {
+							$('#spinnerModal').modal('hide');
+							Swal.fire('Error', 'Error de conexión', 'error');
+						}
+					});
+				}
+			});
+		});
+	{% endif %}
+
+	// Descargar PDF
+	function descargarPDFAvanzado() {
+		const element = document.getElementById('printTable');
+		const clonedElement = element.cloneNode(true);
+		
+		// Eliminar botones y columnas de acciones
+		clonedElement.querySelectorAll('.text-right button, .text-right a.btn').forEach(btn => btn.remove());
+		clonedElement.querySelectorAll('th:first-child, td:first-child').forEach(cell => {
+			if(cell.textContent.trim() === 'ACCIONES') {
+				cell.style.display = 'none';
+			}
+		});
+		
+		clonedElement.style.position = 'absolute';
+		clonedElement.style.left = '-9999px';
+		clonedElement.style.width = '1400px';
+		document.body.appendChild(clonedElement);
+		
+		Swal.fire({
+			title: 'Generando PDF...',
+			text: 'Por favor espere',
+			allowOutsideClick: false,
+			didOpen: () => {
+				Swal.showLoading();
+			}
+		});
+
+		setTimeout(() => {
+			html2canvas(clonedElement, {
+				scale: 1.5,
+				useCORS: true,
+				logging: false,
+				backgroundColor: '#ffffff',
+				width: 1400,
+				windowWidth: 1400,
+				allowTaint: true,
+				imageTimeout: 0
+			}).then(canvas => {
+				document.body.removeChild(clonedElement);
+				
+				const { jsPDF } = window.jspdf;
+				const pdf = new jsPDF('l', 'mm', 'a4');
+				
+				const pdfWidth = 277;
+				const pdfHeight = 190;
+				const margin = 10;
+				const imgWidth = pdfWidth - (margin * 2);
+				const imgHeight = (canvas.height * imgWidth) / canvas.width;
+				
+				const pageHeightInImg = (pdfHeight - (margin * 2)) * (canvas.height / imgHeight);
+				const totalPages = Math.ceil(canvas.height / pageHeightInImg);
+				
+				for (let page = 0; page < totalPages; page++) {
+					if (page > 0) {
+						pdf.addPage();
+					}
+					
+					const startY = page * pageHeightInImg;
+					const remainingHeight = canvas.height - startY;
+					const currentPageHeight = Math.min(pageHeightInImg, remainingHeight);
+					
+					const pageCanvas = document.createElement('canvas');
+					pageCanvas.width = canvas.width;
+					pageCanvas.height = currentPageHeight;
+					const ctx = pageCanvas.getContext('2d');
+					
+					ctx.drawImage(
+						canvas,
+						0, startY,
+						canvas.width, currentPageHeight,
+						0, 0,
+						canvas.width, currentPageHeight
+					);
+					
+					const pageImgData = pageCanvas.toDataURL('image/jpeg', 0.8);
+					const pageImgHeight = (currentPageHeight * imgWidth) / canvas.width;
+					
+					pdf.addImage(
+						pageImgData, 
+						'JPEG', 
+						margin, 
+						margin, 
+						imgWidth, 
+						pageImgHeight, 
+						undefined, 
+						'MEDIUM'
+					);
+				}
+
+				pdf.save(`Proforma_Manual_${proforma_id}_${new Date().toISOString().split('T')[0]}.pdf`);
+				
+				Swal.close();
+				Swal.fire({
+					icon: 'success',
+					title: 'PDF generado correctamente',
+					timer: 2000,
+					showConfirmButton: false
+				});
+			}).catch(error => {
+				if (document.body.contains(clonedElement)) {
+					document.body.removeChild(clonedElement);
+				}
+				
+				Swal.close();
+				Swal.fire({
+					icon: 'error',
+					title: 'Error',
+					text: 'No se pudo generar el PDF'
+				});
+				console.error('Error:', error);
+			});
+		}, 200);
+	}
+</script>
+{% endblock javascripts %}

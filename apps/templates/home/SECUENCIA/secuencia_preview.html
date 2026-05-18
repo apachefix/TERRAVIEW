@@ -1,0 +1,189 @@
+{% extends "layouts/base.html" %}
+
+{% block title %} Previsualización Secuencia {% endblock %} 
+
+<!-- Specific CSS goes HERE -->
+{% block stylesheets %}
+
+    <!-- data tables css -->
+    <link rel="stylesheet" href="/static/assets/css/plugins/dataTables.bootstrap4.min.css">
+    {% load humanize %}
+    {% load i18n %}
+    {% load l10n %}
+{% endblock stylesheets %}
+
+{% block content %}	
+
+	<!-- [ chat user list ] start -->
+	<!-- chatbot -->
+	<!-- [ chat user list ] end -->
+
+	<!---->
+
+    <!-- [ Main Content ] start -->
+    
+    <section class="pcoded-main-container">
+        <div class="pcoded-content">
+            <!-- [ breadcrumb ] start -->
+            <div class="page-header">
+                <div class="page-block">
+                    <div class="row align-items-center">
+                        <div class="col-md-12">
+                            <div class="page-header-title">
+                                <h5 class="m-b-10">Previsualizacion de secuencia</h5>
+                            </div>
+                            <ul class="breadcrumb">
+                                <li class="breadcrumb-item"><a href="/"><i class="feather icon-home"></i></a></li>
+                                <li class="breadcrumb-item"><a href="{% url 'sec_listall' %}">Secuencias</a></li>
+                                <li class="breadcrumb-item"><a href="#!">Previsualizacion de secuencia</a></li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <!-- [ breadcrumb ] end -->
+            <!-- [ Main Content ] start -->
+            <div class="row">
+                <!-- [ form-element ] start -->
+                <div class="col-sm-12">
+                    <div class="card">
+                        <div class="card-header">
+                            <h5>Previsualizacion</h5>
+                        </div>
+                        <div class="card-body d-flex justify-content-center">
+                            <div class="card-body">
+                                <h5>Previsualizacion de formulario {{ data_Secuencia.SE_CNOMBRE }}</h5>
+                                <hr>
+                                <div class="col-sm-12">
+                                    <ul class="nav nav-pills mb-3" id="pills-tab" role="tablist">
+                                        {% for etapa_key, etapa_value in grouped_data.items %}
+                                            <li class="nav-item">
+                                                <a class="nav-link text-uppercase {% if forloop.first %}active{% endif %}" id="pills-{{ forloop.counter }}-tab" data-toggle="pill" href="#pills-{{ forloop.counter }}" role="tab" aria-controls="pills-{{ forloop.counter }}" aria-selected="{% if forloop.first %}true{% else %}false{% endif %}">{{ etapa_key }}</a>
+                                            </li>
+                                        {% endfor %}
+                                    </ul>
+                                    <div class="tab-content" id="pills-tabContent">
+                                        {% for etapa_key, etapa_value in grouped_data.items %}
+                                            <div class="tab-pane fade {% if forloop.first %}show active{% endif %}" id="pills-{{ forloop.counter }}" role="tabpanel" aria-labelledby="pills-{{ forloop.counter }}-tab">
+                                                {% for campo in etapa_value %}
+                                                    <div class="fieldWrapper">
+                                                        <label>{{ campo.PLACEHOLDER }}:</label>
+                                                        {% if campo.TYPE == 'texto' %}
+                                                            <input type="text" class="form-control" value="{{ campo.DEFAULT_VALUE }}" maxlength="{{ campo.LARGO }}" {% if campo.OBLIGATORIO %} required{% endif %}>
+                                                        {% elif campo.TYPE == 'multilinea' %}
+                                                            <textarea class="form-control" value="{{ campo.DEFAULT_VALUE }}" maxlength="{{ campo.LARGO }}" {% if campo.OBLIGATORIO %} required{% endif %}></textarea>
+                                                        {% elif campo.TYPE == 'numero' %}
+                                                            <input type="number" class="form-control" value="{{ campo.DEFAULT_VALUE }}" {% if campo.OBLIGATORIO %} required{% endif %}>
+                                                        {% elif campo.TYPE == 'decimal' %}
+                                                            <input type="number" step="0.01" class="form-control" value="{{ campo.DEFAULT_VALUE }}" {% if campo.OBLIGATORIO %} required{% endif %}>
+                                                        {% elif campo.TYPE == 'fecha' %}
+                                                            <input type="date" class="form-control" value="{{ campo.DEFAULT_VALUE|default:'' }}" {% if campo.OBLIGATORIO %} required{% endif %}>
+                                                        {% elif campo.TYPE == 'fecha/hora' %}
+                                                            <input type="datetime-local" class="form-control" value="{{ campo.DEFAULT_VALUE|default:'' }}" {% if campo.OBLIGATORIO %} required{% endif %}>
+                                                        {% elif campo.TYPE == 'archivo' %}
+                                                            <input type="file" value="{{ campo.DEFAULT_VALUE }}" {% if campo.OBLIGATORIO %} required{% endif %}>
+                                                        {% elif campo.TYPE == 'lista' %}
+                                                            <select class="form-control" {% if campo.OBLIGATORIO %} required{% endif %}>
+                                                                <option value="">Seleccione una opción</option>
+                                                                {% for dato in campo.DATOS %}
+                                                                    <option value="{{ dato.0 }}">{{ dato.1 }}</option>
+                                                                {% endfor %}
+                                                            </select>
+                                                        {% elif campo.TYPE == 'check' %}
+                                                            <div class="form-group">
+                                                                <div class="switch switch-success d-inline m-r-10">
+                                                                    <input type="checkbox" id='switch-s-1' class='form-check-input' value="{{ campo.DEFAULT_VALUE }}" {% if campo.OBLIGATORIO %} required{% endif %}>
+                                                                    <label for="switch-s-1" class="cr"></label>
+                                                                    <label>No</label>
+                                                                    <label>Si</label>
+                                                                </div>
+                                                            </div>
+                                                        {% endif %}
+                                                    </div>
+                                                {% endfor %}
+                                            </div>
+                                        {% endfor %}
+                                    </div>
+                                    <script>
+                                            document.addEventListener('DOMContentLoaded', function() {
+                                                var tabs = document.querySelectorAll('.nav-link');
+                                                tabs.forEach(tab => {
+                                                    tab.addEventListener('click', function(event) {
+                                                        event.preventDefault();
+                                                        // Remover la clase 'active' de todos los tabs
+                                                        tabs.forEach(t => {
+                                                            t.classList.remove('active');
+                                                        });
+                                                        // Añadir la clase 'active' al tab actual
+                                                        this.classList.add('active');
+                                                        
+                                                        // Ocultar todos los paneles de contenido
+                                                        var allTabsContent = document.querySelectorAll('.tab-pane');
+                                                        allTabsContent.forEach(t => {
+                                                            t.classList.remove('show', 'active');
+                                                        });
+                                                        // Mostrar el panel de contenido asociado al tab seleccionado
+                                                        var selectedTabContent = document.querySelector(this.getAttribute('href'));
+                                                        if (selectedTabContent) {
+                                                            selectedTabContent.classList.add('show', 'active');
+                                                            // Asegurarse de que el contenido del tab no se pierda al cambiar de tab
+                                                            var inputs = selectedTabContent.querySelectorAll('input, select, textarea');
+                                                            inputs.forEach(input => {
+                                                                var value = input.value;
+                                                                input.value = value;
+                                                            });
+                                                        }
+                                                    });
+                                                });
+                                            });
+                                        </script>
+
+                                    </script>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <!-- [ form-element ] end -->
+            </div>
+            <!-- [ Main Content ] end -->
+        </div>
+    </section>
+
+{% endblock content %}
+
+<!-- Specific Page JS goes HERE  -->
+{% block javascripts %}
+
+    <!-- datatable Js -->
+    <script src="/static/assets/js/plugins/jquery.dataTables.min.js"></script>
+    <script src="/static/assets/js/plugins/dataTables.bootstrap4.min.js"></script>
+    <script src="/static/assets/js/plugins/buttons.colVis.min.js"></script>
+    <script src="/static/assets/js/plugins/buttons.print.min.js"></script>
+    <script src="/static/assets/js/plugins/pdfmake.min.js"></script>
+    <script src="/static/assets/js/plugins/jszip.min.js"></script>
+    <script src="/static/assets/js/plugins/dataTables.buttons.min.js"></script>
+    <script src="/static/assets/js/plugins/buttons.html5.min.js"></script>
+    <script src="/static/assets/js/plugins/buttons.bootstrap4.min.js"></script>
+    <script src="/static/assets/js/pages/data-export-custom.js"></script>
+    <script>
+        $('#delete_documento').on("click", function(){
+            const urlToNavigate = $(this).data('href');
+            Swal.fire({
+                title: '¡Atención!',
+                icon: 'warning',
+                text: '¿Estás seguro de eliminar a este tipo de documento?',
+                showCancelButton: true,
+                confirmButtonColor: '#299B0B',
+                cancelButtonColor: '#d33',
+                confirmButtonText: 'Confirmar',
+                cancelButtonText: 'Cancelar'
+            }).then((resultado) => {
+                if(resultado.isConfirmed){
+                    window.location.href = urlToNavigate;
+                }
+            });
+        });
+    </script>
+
+{% endblock javascripts %}

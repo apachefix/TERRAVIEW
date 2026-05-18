@@ -1,0 +1,106 @@
+{% extends "layouts/base.html" %}
+
+{% block title %} Actualizar extra citación {% endblock %} 
+
+<!-- Specific CSS goes HERE -->
+{% block stylesheets %}
+
+    <!-- data tables css -->
+    <link rel="stylesheet" href="/static/assets/css/plugins/dataTables.bootstrap4.min.css">
+    {% load humanize %}
+    {% load i18n %}
+    {% load l10n %}
+{% endblock stylesheets %}
+
+{% block content %}	
+
+    <!-- [ Main Content ] start -->
+    <section class="pcoded-main-container">
+        <div class="pcoded-content">
+            <!-- [ breadcrumb ] start -->
+            <div class="page-header">
+                <div class="page-block">
+                    <div class="row align-items-center">
+                        <div class="col-md-12">
+                            <div class="page-header-title">
+                                <h5 class="m-b-10">Citación extra</h5>
+                            </div>
+                            <ul class="breadcrumb">
+                                
+                                <li class="breadcrumb-item"><a href="/"><i class="feather icon-home"></i></a></li>
+                                <li class="breadcrumb-item"><a href="/">Sistema Camiones</a></li>
+                                <li class="breadcrumb-item"><a href="{% if citacion.CI_CTIPO == 'DESPACHO' %}{% url 'cit_listall_despachos' %}{% else %}{% url 'cit_listall_recepciones' %}{% endif %}">Citación extra</a></li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <!-- [ breadcrumb ] end -->
+            <!-- [ Main Content ] start -->
+            <div class="container-fluid row">
+                <!-- HTML5 Export Buttons table start -->
+                <div class="col-sm-7">
+                    <div class="card">
+                        <div class="card-header">
+                            <h5> Citación extra</h5>
+                        </div>
+                        <div class="card-body">
+                            <div class="row">
+                                <div class="col-md-6">
+                                    <form method="POST">
+                                        {% csrf_token %}
+                                        {{ form.non_field_errors }}
+                                        <div class="fieldWrapper">
+                                            <input type="text" name="EP_NID" hidden value="{{ citacion.EP_NID }}">
+                                            <input type="text" name="CI_NID" hidden value="{{ citacion }}">
+                                        </div>
+                                        <div class="fieldWrapper">
+                                            {{ form.subject.errors }}
+                                            <label class="my-1 me-2" for="{{ form.subject.3 }}">Extra:</label>
+                                            {{ form.subject.3 }}
+                                        </div>
+                                        <div class="fieldWrapper">
+                                            {{ form_citacion_extra.subject.errors }}
+                                            <label class="my-1 me-2" for="{{ form_citacion_extra.visible_fields.4 }}">Valor:</label>
+                                            {{form_citacion_extra.visible_fields.4}}
+                                        </div>
+                                        <div class="fieldWrapper">
+                                            {{ form_citacion_extra.subject.errors }}
+                                            <label class="my-1 me-2" for="{{ form_citacion_extra.visible_fields.7 }}">Comentario:</label>
+                                            {{form_citacion_extra.visible_fields.7}}
+                                        </div>
+                                        <div class="d-flex justify-content-end">
+                                            <button type="submit" class="m-2 btn btn-primary" id="btn_sumbit_extra">Guardar</button>
+                                            <button type="button" class="m-2 btn btn-danger" data-dismiss="modal" >Cerrar</button>
+                                        </div>
+                                    </form>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <!-- [ Main Content ] end -->
+        </div>
+    </section>
+    <!-- [ Main Content ] end -->
+
+
+{% endblock content %}
+
+<!-- Specific Page JS goes HERE  -->
+{% block javascripts %}
+
+    <!-- datatable Js -->
+    <script src="/static/assets/js/plugins/jquery.dataTables.min.js"></script>
+    <script src="/static/assets/js/plugins/dataTables.bootstrap4.min.js"></script>
+    <script src="/static/assets/js/plugins/buttons.colVis.min.js"></script>
+    <script src="/static/assets/js/plugins/buttons.print.min.js"></script>
+    <script src="/static/assets/js/plugins/pdfmake.min.js"></script>
+    <script src="/static/assets/js/plugins/jszip.min.js"></script>
+    <script src="/static/assets/js/plugins/dataTables.buttons.min.js"></script>
+    <script src="/static/assets/js/plugins/buttons.html5.min.js"></script>
+    <script src="/static/assets/js/plugins/buttons.bootstrap4.min.js"></script>
+    <script src="/static/assets/js/pages/data-export-custom.js"></script>
+    
+{% endblock javascripts %}

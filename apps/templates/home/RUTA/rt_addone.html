@@ -1,0 +1,338 @@
+{% extends "layouts/base.html" %}
+
+{% block title %} Rutas {% endblock %} 
+
+<!-- Specific CSS goes HERE -->
+{% block stylesheets %}{% endblock stylesheets %}
+
+{% block content %}		
+    <!-- [ Main Content ] start -->
+    {% comment %} {% if request.user.is_superuser == 1 or request.user.userb.UX_IS_COORDINADOR == 1  or request.user.userb.UX_IS_JEFE_COMERCIAL == 1 or request.user.userb.UX_IS_COMERCIAL == 1%}     {% endcomment %}
+    <section class="pcoded-main-container">
+        <div class="pcoded-content">
+            <!-- [ breadcrumb ] start -->
+            <div class="page-header">
+                <div class="page-block">
+                    <div class="row align-items-center">
+                        <div class="col-md-12">
+                            <div class="page-header-title">
+                                <h5 class="m-b-10"> Ruta</h5>
+                            </div>
+                            <ul class="breadcrumb">
+                                <li class="breadcrumb-item"><a href="/"><i class="feather icon-home"></i></a></li>
+                                <li class="breadcrumb-item"><a href="/">Rutas</a></li>
+                                <li class="breadcrumb-item"><a href="{% url 'rut_listall' %}">Agregar ruta</a></li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <!-- [ breadcrumb ] end -->
+            <!-- [ Main Content ] start -->
+            
+            <div class="row">
+                <!-- [ form-element ] start -->
+                <div class="col-sm-12">
+                    <div class="card">
+                        <div class="card-header">
+                            <h5> Ruta</h5>
+                        </div>
+                        <div class="card-body">
+                            {% if form.instance.pk %}
+                                <h5>Actualizar Ruta</h5>
+                            {% else %}
+                                <h5>Ingrese datos</h5>
+                            {% endif %}
+                            <hr>                        
+                            <div class="row">
+                                <div class="col-md-6">
+                                    <form method="POST">
+                                        {% csrf_token %}
+                                        {{ form.non_field_errors }}
+                                        {{ form.EP_NID }}
+                                        <div class="fieldWrapper" id="id_region_inicio">
+                                            {{ form.RG_NID_INICIO.errors }}
+                                            <label class="my-1 me-2" for="{{ form.RG_NID_INICIO.id_for_label }}">Región Inicio:</label>
+                                            {{ form.RG_NID_INICIO}}
+                                        </div>   
+                                        <div class="fieldWrapper" {% if not form.instance.pk %}style="display: none;"{% endif %} id="id_provincia_inicio">
+                                            {{ form.PV_NID_INICIO.errors }}
+                                            <label class="my-1 me-2" for="{{ form.PV_NID_INICIO.id_for_label }}">Provincia Inicio:</label>
+                                            {{ form.PV_NID_INICIO}}
+                                        </div>
+                                        <div class="fieldWrapper" {% if not form.instance.pk %}style="display: none;"{% endif %} id="id_comuna_inicio">
+                                            {{ form.subject.errors }}
+                                            <label class="my-1 me-2" for="{{ form.subject.id_for_label }}">Comuna Inicio:</label>
+                                            {{ form.COM_NID_INICIO }}
+                                        </div>
+                                        <div class="fieldWrapper" id="id_region_termino">
+                                            {{ form.subject.errors }}
+                                            <label class="my-1 me-2" for="{{ form.subject.id_for_label }}">Región Termino:</label>
+                                            {{ form.RG_NID_TERMINO }}
+                                        </div>
+                                        <div class="fieldWrapper" {% if not form.instance.pk %}style="display: none;"{% endif %} id="id_provincia_termino">
+                                            {{ form.subject.errors }}
+                                            <label class="my-1 me-2" for="{{ form.subject.id_for_label }}">Provincia Termino:</label>
+                                            {{ form.PV_NID_TERMINO }}
+                                        </div>
+                                        <div class="fieldWrapper" {% if not form.instance.pk %}style="display: none;"{% endif %} id="id_comuna_termino">
+                                            {{ form.subject.errors }}
+                                            <label class="my-1 me-2" for="{{ form.subject.id_for_label }}">Comuna Termino:</label>
+                                            {{ form.COM_NID_TERMINO }}
+                                        </div>
+                                        <div class="fieldWrapper" {% if not form.instance.pk %}style="display: none;"{% endif %} id="id_tiempo_entrega">
+                                            {{ form.subject.errors }}
+                                            <label class="my-1 me-2" placeholder:"Cantidad de horas" for="{{ form.subject.id_for_label }}">Tiempo máximo entrega:</label>
+                                            {{ form.RUT_NTIEMPOMAXIMOENTREGA }}
+                                        </div>
+                                        <div class="fieldWrapper" {% if not form.instance.pk %}style="display: none;"{% endif %} id="id_tiempo_estadia">
+                                            {{ form.subject.errors }}
+                                            <label class="my-1 me-2" placeholder:"Cantidad de horas" for="{{ form.subject.id_for_label }}">Tiempo estadía planta:</label>
+                                            {{ form.RUT_NTIEMPOESTADIAPLANTA }}
+                                        </div>
+                                        <div class="fieldWrapper"  >
+                                            {{ form.subject.errors }}                                                                    
+                                            <label class="my-1 me-2" for="{{ form.subject.id_for_label }}">Nombre ruta:</label>
+                                            {{ form.RUT_CNOMBRE }}
+                                        </div>                            
+                                        <div class="fieldWrapper" {% if not form.instance.pk %}style="display: none;"{% endif %} id="codigo_ruta">
+                                            {{ form.subject.errors }}
+                                            <label class="my-1 me-2" placeholder:"Ingrese un código" for="{{ form.subject.id_for_label }}">Código:</label>
+                                            {{ form.RUT_CCODIGO }}
+                                        </div>
+                                        <div class="fieldWrapper" {% if not form.instance.pk %}style="display: none;"{% endif %} id="comentario_ruta">
+                                            {{ form.subject.errors }}
+                                            <label class="my-1 me-2" placeholder:"Ingrese un comentario" for="{{ form.subject.id_for_label }}">Comentario:</label>
+                                            {{ form.RUT_CCOMENTARIO }}
+                                        </div>                                                                                                                                                                                             
+                                        <br>
+                                        {{ form.errors }}
+                                        <div class="form-group nav justify-content-end">
+                                            {% if form.instance.pk %}
+                                                <button class="btn btn-success" type="submit">Actualizar</button>
+                                            {% else %}
+                                                <button class="btn btn-success" id="guardar_ruta" type="submit">Guardar</button>
+                                            {% endif %}
+                                            <p>&nbsp&nbsp</p>
+                                            <a class="btn btn-danger mr-1"
+                                                onclick="window.history.go(-1); return false;">Volver</a>
+                                        </div>
+                                    </form>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <!-- [ form-element ] end -->
+            </div>           
+            <!-- [ Main Content ] end -->
+
+        </div>
+    </section>
+    {% comment %} {% endif %} {% endcomment %}
+    <!-- [ Main Content ] end -->
+    <link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet" />
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@10"></script>
+{% endblock content %}
+
+<!-- Specific Page JS goes HERE  -->
+{% block javascripts %}
+
+<script>
+    $(document).ready(function() {                
+        // Manejar cambio en el campo de 'Empresa'
+        $('#id_empresa select').change(function() {
+            var empresa_pk = $(this).val();  // Obtener el valor seleccionado (la PK de la empresa)
+            console.log("Enviando PK de la empresa: ", empresa_pk); // Mostrar la PK de la empresa en la consola
+            $.ajax({
+                url: '{% url "get_socios_negocio" %}',
+                type: 'GET',
+                data: {
+                    'empresa_pk': empresa_pk
+                },
+                dataType: 'json',
+                success: function(data) {
+                    console.log("Datos recibidos: ", data); // Mostrar los datos recibidos en la consola
+                    if (data.success) {
+                        // Limpiar y actualizar el campo de selección de socios de negocios
+                        var select_socio_negocio = $('#id_socio_negocio select');
+                        select_socio_negocio.empty();
+                        // Agregar opción predeterminada
+                        select_socio_negocio.append($('<option></option>').attr('value', '').text('Seleccione un socio de negocio'));
+                        data.socios_negocio.forEach(function(socio) {
+                            select_socio_negocio.append($('<option></option>').attr('value', socio[0]).text(socio[1]));
+                        });
+                        $('#id_socio_negocio').show();  // Mostrar el campo de selección de socios de negocios
+                    } else {
+                        console.error("No se recibieron datos de socios de negocio.");
+                    }
+                },
+                error: function(xhr, status, error) {
+                    console.error("Error en la solicitud: ", status, error); // Mostrar error en la consola
+                }
+            });
+        });
+        
+        $('#id_region_inicio select').change(function() {
+            var region_inicio_pk = $(this).val();  // Obtener el valor seleccionado (la PK de la región)
+            console.log("Enviando PK de la región: ", region_inicio_pk); // Mostrar la PK de la región en la consola                       
+            $.ajax({
+                url: '{% url "get_provincias" %}',
+                type: 'GET',
+                data: {
+                    'region_pk': region_inicio_pk
+                },
+                dataType: 'json',
+                success: function(data) {
+                    console.log("Datos recibidos: ", data); // Mostrar los datos recibidos en la consola
+                    if (data.success) {
+                        // Limpiar y actualizar el campo de selección de provincias
+                        var select_provincia_inicio = $('#id_provincia_inicio select');
+                        select_provincia_inicio.empty();
+                        // Agregar opción predeterminada
+                        select_provincia_inicio.append($('<option></option>').attr('value', '').text('Seleccione una provincia'));
+                        data.provincias.forEach(function(provincia) {
+                            select_provincia_inicio.append($('<option></option>').attr('value', provincia[0]).text(provincia[1]));
+                        });
+                        $('#id_provincia_inicio').show();  // Mostrar el campo de selección de provincias
+                    } else {
+                        console.error("No se recibieron datos de provincias.");
+                    }
+                },
+                error: function(xhr, status, error) {
+                    console.error("Error en la solicitud: ", status, error); // Mostrar error en la consola
+                }
+            });
+            generarNombreRuta();
+        });
+        
+        $('#id_provincia_inicio select').change(function() {
+            var provincia_inicio_pk = $(this).val();  // Obtener el valor seleccionado (la PK de la región)
+            console.log("Enviando PK de la provincia: ", provincia_inicio_pk); // Mostrar la PK de la región en la consola                       
+            $.ajax({
+                url: '{% url "get_comunas" %}',
+                type: 'GET',
+                data: {
+                    'provincia_pk': provincia_inicio_pk
+                },
+                dataType: 'json',
+                success: function(data) {
+                    console.log("Datos recibidos: ", data); // Mostrar los datos recibidos en la consola
+                    if (data.success) {
+                        // Limpiar y actualizar el campo de selección de comunas
+                        var select_comuna_inicio = $('#id_comuna_inicio select');
+                        select_comuna_inicio.empty();
+                        // Agregar opción predeterminada
+                        select_comuna_inicio.append($('<option></option>').attr('value', '').text('Seleccione una comuna'));
+                        data.comunas.forEach(function(comuna) {
+                            select_comuna_inicio.append($('<option></option>').attr('value', comuna[0]).text(comuna[1]));
+                        });
+                        $('#id_comuna_inicio').show();  // Mostrar el campo de selección de comunas
+                    } else {
+                        console.error("No se recibieron datos de comunas.");
+                    }
+                },
+                error: function(xhr, status, error) {
+                    console.error("Error en la solicitud: ", status, error); // Mostrar error en la consola
+                }
+            });
+        });
+
+        $('#id_comuna_inicio select').change(function() {
+            var comuna_inicio_pk = $(this).val();  // Obtener el valor seleccionado (la PK de la región)
+            console.log("Enviando PK de la comuna: ", comuna_inicio_pk); // Mostrar la PK de la región en la consola                       
+            $('#id_region_termino').show(); 
+            generarNombreRuta();
+        });
+
+        $('#id_region_termino select').change(function() {
+            var region_termino_pk = $(this).val();  // Obtener el valor seleccionado (la PK de la región)
+            console.log("Enviando PK de la región: ", region_termino_pk); // Mostrar la PK de la región en la consola                       
+            $.ajax({
+                url: '{% url "get_provincias" %}',
+                type: 'GET',
+                data: {
+                    'region_pk': region_termino_pk
+                },
+                dataType: 'json',
+                success: function(data) {
+                    console.log("Datos recibidos: ", data); // Mostrar los datos recibidos en la consola
+                    if (data.success) {
+                        // Limpiar y actualizar el campo de selección de provincias
+                        var select_provincia_inicio = $('#id_provincia_termino select');
+                        select_provincia_inicio.empty();
+                        // Agregar opción predeterminada
+                        select_provincia_inicio.append($('<option></option>').attr('value', '').text('Seleccione una provincia'));
+                        data.provincias.forEach(function(provincia) {
+                            select_provincia_inicio.append($('<option></option>').attr('value', provincia[0]).text(provincia[1]));
+                        });
+                        $('#id_provincia_termino').show();  // Mostrar el campo de selección de provincias
+                    } else {
+                        console.error("No se recibieron datos de provincias.");
+                    }
+                },
+                error: function(xhr, status, error) {
+                    console.error("Error en la solicitud: ", status, error); // Mostrar error en la consola
+                }
+            });
+            generarNombreRuta();
+        });
+
+        $('#id_provincia_termino select').change(function() {
+            var provincia_termino_pk = $(this).val();  // Obtener el valor seleccionado (la PK de la región)
+            console.log("Enviando PK de la provincia: ", provincia_termino_pk); // Mostrar la PK de la región en la consola                       
+            $.ajax({
+                url: '{% url "get_comunas" %}',
+                type: 'GET',
+                data: {
+                    'provincia_pk': provincia_termino_pk
+                },
+                dataType: 'json',
+                success: function(data) {
+                    console.log("Datos recibidos: ", data); // Mostrar los datos recibidos en la consola
+                    if (data.success) {
+                        // Limpiar y actualizar el campo de selección de comunas
+                        var select_comuna_inicio = $('#id_comuna_termino select');
+                        select_comuna_inicio.empty();
+                        // Agregar opción predeterminada
+                        select_comuna_inicio.append($('<option></option>').attr('value', '').text('Seleccione una comuna'));
+                        data.comunas.forEach(function(comuna) {
+                            select_comuna_inicio.append($('<option></option>').attr('value', comuna[0]).text(comuna[1]));
+                        });
+                        $('#id_comuna_termino').show();  // Mostrar el campo de selección de comunas
+                    } else {
+                        console.error("No se recibieron datos de comunas.");
+                    }
+                },
+                error: function(xhr, status, error) {
+                    console.error("Error en la solicitud: ", status, error); // Mostrar error en la consola
+                }
+            });
+        });
+
+        $('#id_comuna_termino select').change(function() {
+            var comuna_termino_pk = $(this).val();  // Obtener el valor seleccionado (la PK de la región)
+            console.log("Enviando PK de la comuna: ", comuna_termino_pk); // Mostrar la PK de la región en la consola                       
+            $('#id_tiempo_entrega').show(); 
+            $('#id_tiempo_estadia').show(); 
+            $('#nombre_ruta').show(); 
+            $('#codigo_ruta').show(); 
+            $('#comentario_ruta').show(); 
+            generarNombreRuta();
+        });
+        
+        function generarNombreRuta() {
+            var comunaInicio = $('#id_comuna_inicio select option:selected').text();
+            var regionInicio = $('#id_region_inicio select option:selected').text();
+            var comunaFin = $('#id_comuna_termino select option:selected').text();
+            var regionFin = $('#id_region_termino select option:selected').text();        
+            var nombreRuta = comunaInicio + ' -> ' + comunaFin;            
+            $('#nombre_ruta').attr('placeholder', nombreRuta); 
+            $('#nombre_ruta').val(nombreRuta);           
+        }       
+    });
+</script>
+
+
+
+{% endblock javascripts %}

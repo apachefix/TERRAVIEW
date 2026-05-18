@@ -1,0 +1,69 @@
+{% extends "layouts/base-fullscreen.html" %}
+
+{% block title %} Login {% endblock %}
+
+{% block content %} 
+
+	<div class="auth-content">
+		<div class="card">
+			<div class="row align-items-center text-center">
+				<div class="col-md-12">
+
+					<div class="card-body">
+
+						<img src="/static/assets/images/logo-dark.png" alt="" class="img-fluid mb-4">
+						<h4 class="mb-3 f-w-400">
+							Jinja Gradient - Sign IN
+						</h4>
+						<span class="mb-0 text-muted">
+								Add your credentials
+						</span>
+						<!-- dummy spacer -->
+						<p> <br /> </p>						
+						<form role="form" action="/">
+							
+							<div class="input-group mb-3">
+								<div class="input-group-prepend">
+									<span class="input-group-text"><i class="feather icon-user"></i></span>
+								</div>
+								<input class="form-control" placeholder="Username" type="text" name="username" value="test">
+							</div>
+							<div class="input-group mb-4">
+								<div class="input-group-prepend">
+									<span class="input-group-text"><i class="feather icon-lock"></i></span>
+								</div>
+								<input class="form-control" placeholder="Password" type="password" name="password" value="pass">
+							</div>
+							<div class="form-group text-left mt-2">
+								<div class="checkbox checkbox-primary d-inline">
+									<input type="checkbox" name="checkbox-fill-1" id="checkbox-fill-a1" checked="">
+									<label for="checkbox-fill-a1" class="cr"> Save credentials</label>
+								</div>
+							</div>
+							<button type="submit" name="login" class="btn btn-block btn-primary mb-4">Signin</button>
+						
+						</form>
+
+						<p class="mb-0 text-muted">Don’t have an account? 
+							<a href="/page-register.html" class="f-w-400">Signup</a></p>
+						<p class="mb-2 text-muted">
+							<br />
+							&copy; <a target="_blank" rel="noopener" href="https://codedthemes.com/?ref=appseed" class="f-w-400">CodedThemes</a>
+							- coded by <a target="_blank" rel="noopener" href="https://appseed.us" class="f-w-400">AppSeed</a>
+						</p>
+					</div>
+
+
+				</div>
+			</div>
+		</div>
+	</div>
+
+{% endblock content %}
+
+<!-- Specific Page JS goes HERE  -->
+{% block javascripts %}
+
+	<script src="/static/assets/js/waves.min.js"></script>
+
+{% endblock javascripts %} 

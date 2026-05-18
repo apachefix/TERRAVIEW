@@ -1,0 +1,860 @@
+{% extends "layouts/base.html" %}
+
+{% block title %} Panel de inicio {% endblock %} 
+
+<!-- Specific CSS goes HERE -->
+{% block stylesheets %}
+
+    <!-- data tables css -->
+    <link rel="stylesheet" href="/static/assets/css/plugins/dataTables.bootstrap4.min.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css">
+    {% load humanize %} 
+    {% load i18n %}
+    {% load l10n %}
+{% endblock stylesheets %}
+
+{% block content %}	
+
+	<!---->
+
+    <!-- [ Main Content ] start -->
+    <section class="pcoded-main-container">
+        <div class="pcoded-content">
+            <!-- [ breadcrumb ] start -->
+            <div class="page-header">
+                <div class="page-block">
+                    <div class="row align-items-center">
+                        <div class="col-md-12">
+                            <div class="page-header-title">
+                                <h5 class="m-b-10">Estado de operaciones - {{request.user.first_name}}</h5>
+                            </div>
+                            <ul class="breadcrumb">
+                                <li class="breadcrumb-item"><a href="/"><i class="feather icon-home"></i></a></li>
+                                <li class="breadcrumb-item"><a href="/">Sistema Camiones</a></li>                                
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+            </div>        
+            <div class="page-header">
+                <div class="page-block" style="height: 30px;">
+                    <div class="row align-items-center">
+                        <div class="col-md-12">
+                            <div class="text-right">
+                                <button type="button" class="btn btn-primary mb-3" id="btnActualizarIntervalo" title="Intervalo actual: {% if updateInterval %}{{ updateInterval }}{% else %}10{% endif %} segundos">
+                                    <i class="fa fa-clock"></i> Temporizador
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>     
+            <!-- [ breadcrumb ] end -->
+            <!-- [ Main Content ] start -->            
+            <div class="row">
+                
+                <div class="container">                    
+                    <div class="row">
+                        <div class="col-md-3">
+                            <div class="card border-primary mb-3">
+                                <div class="card-header" style="background-color: #17a2b8; color: white;">
+                                    <h5 class="card-title mb-0 text-white">Camiones en Planta</h5>
+                                    <br>
+                                    <small class="card-title mb-0 text-white">En operación dentro de la planta</small>
+                                </div>
+                                <div class="card-body text-primary">
+                                    <p class="card-text display-4 text-center">
+                                        <i class="fa-solid fa-truck-moving d-block mb-2" style="padding-top: 10px; color: #0a4c8b;"></i>
+                                        <span style="color: #0a4c8b;">{{ camiones_en_operacion }}</span>
+                                    </p>
+                                    <small class="d-block text-center"><span style="color: #0a4c8b;">Vehiculos</span></small>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="card border-success mb-3">
+                                <div class="card-header" style="background-color: #117a8b; color: white;">
+                                    <h5 class="card-title mb-0 text-white">Camiones por Día</h5>
+                                    <br>
+                                    <small class="card-title mb-0 text-white">Planificados para el día</small>
+                                </div>
+                                
+                                <div class="card-body text-success">
+                                    <p class="card-text display-4 text-center">
+                                        <i class="fa-solid fa-truck-moving d-block mb-2" style="padding-top: 10px; color: #0a4c8b;"></i>
+                                        <span style="color: #0a4c8b;">{{ camiones_dia }}</span>
+                                    </p>
+                                    <small class="d-block text-center"><span style="color: #0a4c8b;">Vehiculos</span></small>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="card border-warning mb-3">
+                                <div class="card-header" style="background-color: #0e5c6c; color: white;">
+                                    <h5 class="card-title mb-0 text-white">Camiones por semana</h5>
+                                    <br>
+                                    <small class="card-title mb-0 text-white">Planificados para la semana actual</small>
+                                </div>
+                                <div class="card-body text-warning">
+                                    <p class="card-text display-4 text-center">
+                                        <i class="fa-solid fa-truck-moving d-block mb-2" style="padding-top: 10px; color: #0a4c8b;"></i>
+                                        <span style="color: #0a4c8b;">{{ camiones_semana }}</span>
+                                    </p>
+                                    <small class="d-block text-center"><span style="color: #0a4c8b;">Vehiculos</span></small>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="card border-danger mb-3">
+                                <div class="card-header" style="background-color: #0a4c59; color: white;">
+                                    <h5 class="card-title mb-0 text-white">Camiones por mes</h5>
+                                    <br>
+                                    <small class="card-title mb-0 text-white">Planificados para el mes actual</small>
+                                </div>
+                                <div class="card-body text-danger">
+                                    <p class="card-text display-4 text-center">
+                                        <i class="fa-solid fa-truck-moving d-block mb-2" style="padding-top: 10px; color: #0a4c8b;"></i>
+                                        <span style="color: #0a4c8b;">{{ camiones_mes }}</span>
+                                    </p>
+                                    <small class="d-block text-center"><span style="color: #0a4c8b;">Vehiculos</span></small>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="row">
+                        <div class="col-md-4">
+                            <div class="card mb-3">
+                                <div class="card-header">
+                                    <h5 class="card-title mb-0">Camiones por tipo citación</h5>
+                                    <small class="d-block"><span >Distribución de tipo citación</span></small>
+                                </div>
+                                <div class="card-body">
+                                    <ul class="list-group list-group-flush">
+                                        <li class="list-group-item d-flex justify-content-between align-items-center">
+                                            Despachos
+                                            <span class="badge badge-primary badge-pill">{{ citacion_tipos.0.1|default:"0" }}</span>
+                                        </li>
+                                        <li class="list-group-item d-flex justify-content-between align-items-center">
+                                            Recepciones
+                                            <span class="badge badge-primary badge-pill">{{ citacion_tipos.1.1|default:"0" }}</span>
+                                        </li>
+                                    </ul>
+                                </div>
+                            </div>
+                            <div class="card mb-3">
+                                <div class="card-header">
+                                    <h5 class="card-title mb-0">Camiones por Producto</h5>
+                                    <small class="d-block"><span >Distribución de carga de productos</span></small>
+                                </div>
+                                <div class="card-body">
+                                    <ul class="list-group list-group-flush">
+                                        {% for item in camiones_item %}
+                                            <li class="list-group-item d-flex justify-content-between align-items-center">
+                                                {{ item.0|default:"No definido" }}
+                                                <span class="badge badge-primary badge-pill">{{ item.1 }}</span>
+                                            </li>
+                                        {% endfor %}
+                                    </ul>
+                                </div>
+                            </div>
+
+                                <div class="card mb-3">
+                                    <div class="card-header">
+                                        <h5 class="card-title mb-0">Citaciones por etapa</h5>
+                                    </div>
+                                    <div class="card-body">
+                                        <ul class="list-group list-group-flush">  
+                                            {% for etapa in citacion_por_etapa %}
+                                            <li class="list-group-item d-flex justify-content-between align-items-center">
+                                                {{ etapa.0|default:"No definido" }}
+                                                <span class="badge badge-primary badge-pill">{{ etapa.1 }}</span>
+                                            </li>
+                                            {% endfor %}
+                                        </ul>
+                                    </div>
+                                </div>
+                            
+                        </div>
+                        <div class="col-md-4">
+                            <div class="card mb-3">
+                                <div class="card-header">
+                                    <h5 class="card-title mb-0">Estado de Citaciones</h5>
+                                    <small class="d-block"><span >Distribución de estado de citaciones</span></small>
+                                </div>
+                                <div class="card-body">
+                                    <p class="card-text">
+                                        <i class="fa-solid fa-clipboard-list mr-2" style="color: #0a4c8b; font-size: 30px;"></i>
+                                        <span style="color: #0a4c8b;">En Proceso: {{ citacion_en_proceso }}</span>
+                                        &nbsp;
+                                        <i class="fa-solid fa-clipboard-check mr-2" style="color: #34a853; font-size: 30px;"></i>
+                                        <span style="color: #34a853;">Terminadas: {{ citacion_terminado }}</span>
+                                    </p>
+                                    <hr>
+                                    <p class="card-text">
+                                        <div class="chart-container" >
+                                            <canvas id="citacionPieChart"></canvas>
+                                        </div>
+                                    </p>
+                                    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+                                    <script>
+                                        var ctx = document.getElementById('citacionPieChart').getContext('2d');
+                                        var citacionPieChart = new Chart(ctx, {
+                                            type: 'pie',
+                                            data: {
+                                                labels: ['En Proceso', 'Terminadas'],
+                                                datasets: [{
+                                                    data: [{{ citacion_en_proceso }}, {{ citacion_terminado }}],
+                                                    backgroundColor: [
+                                                        'rgba(10, 76, 139, 0.7)',
+                                                        'rgba(52, 168, 83, 0.7)'
+                                                    ],
+                                                    borderColor: [
+                                                        'rgba(10, 76, 139, 0.7)',
+                                                        'rgba(52, 168, 83, 0.7)'
+                                                    ],
+                                                    borderWidth: 1
+                                                }]
+                                            },
+                                            options: {
+                                                responsive: true,
+                                                maintainAspectRatio: false
+                                            }
+                                        });
+                                    </script>
+                                </div>
+
+                            </div>
+                            <div class="card mb-3">
+                                <div class="card-header">
+                                    <h5 class="card-title mb-0">Proformas por proveedor</h5>
+                                    <small class="d-block"><span>Distribución de proformas por proveedor</span></small>
+                                </div>
+                                <div class="card-body">
+                                    <!-- Filtros de fecha -->
+                                    <div class="form-row mb-3">
+                                        <div class="col-md-6">
+                                            <label for="fecha_desde">Fecha Desde:</label>
+                                            <input type="date" class="form-control" id="fecha_desde" name="fecha_desde" value="{{one_week_before}}">
+                                        </div>
+                                        <div class="col-md-6">
+                                            <label for="fecha_hasta">Fecha Hasta:</label>
+                                            <input type="date" class="form-control" id="fecha_hasta" name="fecha_hasta" value="{{today}}">
+                                        </div>
+                                    </div>
+                                    <div class="form-row mb-3">
+                                        <div class="col-md-12 text-center">
+                                            <button type="button" class="btn btn-primary" id="btnFiltrarProformas">
+                                                <i class="fas fa-filter"></i> Filtrar
+                                            </button>
+                                            <button type="button" class="btn btn-secondary" id="btnLimpiarFiltro">
+                                                <i class="fas fa-times"></i> Limpiar
+                                            </button>
+                                        </div>
+                                    </div>
+                                    <hr>
+                                    <!-- Spinner de carga -->
+                                    <div id="loading-proformas" style="display: none; text-align: center; padding: 20px;">
+                                        <div class="spinner-border text-primary" role="status">
+                                            <span class="sr-only">Cargando...</span>
+                                        </div>
+                                        <p>Cargando proformas...</p>
+                                    </div>
+                                    <!-- Lista de proformas -->
+                                    <ul class="list-group list-group-flush" id="lista-proformas">
+                                        {% for proforma in proformas_por_socionegocio %}
+                                            <li class="list-group-item d-flex justify-content-between align-items-center">
+                                                {{ proforma.SN_NID__SN_CRAZONSOCIAL|default:"No definido" }}
+                                                <span class="badge badge-primary badge-pill">{{ proforma.cantidad_proformas }}</span>
+                                            </li>
+                                        {% endfor %}
+                                    </ul>
+                                </div>
+                            </div>
+                            
+                        </div>
+                        <div class="col-md-4">
+                            <div class="card mb-3">
+                                <div class="card-header bg-warning text-white">
+                                    <h5 class="card-title mb-0">Citaciones sin Proforma</h5>
+                                    <small class="d-block"><span style="color: black;">Citaciones terminadas sin proforma realizada</span></small>
+                                </div>
+                                <div class="card-body text-warning">
+                                    <p class="card-text display-4 text-center">
+                                        <i class="fa-solid fa-exclamation-triangle d-block mb-2" style="padding-top: 10px;">&nbsp;{{ citacion_terminada_noproforma }}</i>
+                                    </p>
+                                </div>
+                            </div>
+                            <div class="card mb-3">
+                                <div class="card-header">
+                                    <h5 class="card-title mb-0">Cupos por Proveedor</h5>
+                                </div>
+                                <div class="card-body">
+                                    <ul class="list-group list-group-flush">  
+                                        {% for proveedor in cupos_por_proveedor %}
+                                        <li class="list-group-item d-flex justify-content-between align-items-center">
+                                            {{ proveedor.0|default:"No definido" }}
+                                            <span class="badge badge-primary badge-pill">{{ proveedor.1 }}</span>
+                                        </li>
+                                        {% endfor %}
+                                    </ul>
+                                </div>
+                            </div>                        
+
+                                <div class="card mb-3">
+                                    <div class="card-header">
+                                        <h5 class="card-title mb-0">Citaciones por secuencia</h5>
+                                    </div>
+                                    <div class="card-body">
+                                        <ul class="list-group list-group-flush">  
+                                            {% for proveedor in citacion_por_secuencia %}
+                                            <li class="list-group-item d-flex justify-content-between align-items-center">
+                                                {{ proveedor.0|default:"No definido" }}
+                                                <span class="badge badge-primary badge-pill">{{ proveedor.1 }}</span>
+                                            </li>
+                                            {% endfor %}
+                                        </ul>
+                                    </div>
+                                </div>
+                        </div>
+                    </div>
+                </div>              
+            <div class="row" style="width: 100%;">
+                <!-- HTML5 Export Buttons table start -->
+                
+                <div class="col-sm-12">
+                    
+                    <div class="card" style="width: 100%;">
+                        <div class="card-header">
+                            <h4>Lista de citaciones en proceso</h4>
+                        </div>                    
+                        <div class="card-body">
+                            <ul class="nav nav-pills mb-3" id="pills-tab" role="tablist">
+								<li class="nav-item">
+									<a class="nav-link active" id="pills-despachos-tab" data-toggle="pill" href="#pills-despachos" role="tab" aria-controls="pills-despachos" aria-selected="true">Despachos</a>
+								</li>
+								<li class="nav-item">
+									<a class="nav-link" id="pills-recepciones-tab" data-toggle="pill" href="#pills-recepciones" role="tab" aria-controls="pills-recepciones" aria-selected="false">Recepciones</a>
+								</li>
+							</ul>
+                            <hr>
+                            <div class="tab-content" id="pills-tabContent">
+                                <div class="tab-pane fade show active" id="pills-despachos" role="tabpanel" aria-labelledby="pills-despachos-tab">
+                                    <div class="dt-responsive table-responsive" style="overflow-x: auto;">
+                                        <table id="basic-btn3" class="table table-striped table-bordered nowrap" data-page-length='50' style="width: 100%;">
+                                            <thead>
+                                                <tr>
+                                                    {% if request.user.is_superuser == 1  %}
+                                                        <th>Acciones</th>
+                                                    {% endif %}
+                                                    <th>Fecha citación</th>
+                                                    <th>Patente</th>
+                                                    <th>Transportista</th>
+                                                    <th>Chofer</th>
+                                                    <th>Celular chofer</th>
+                                                    <th>Secuencia</th>
+                                                    <th>Etapa</th>
+                                                    <th>Etapa siguiente</th>
+                                                    <th>Ingreso a etapa</th>
+                                                    <th>Tiempo en etapa</th>
+                                                    <th>Tiempo total</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+                                                {% for objeto in object_list %}
+                                                <tr>
+                                                    {% if objeto.citacion%}
+                                                        {% if request.user.is_superuser == 1 %}
+                                                        <td class="text-center">                                                    
+                                                            <a class="btn btn-primary ver_detalle_citacion" data-toggle="modal" data-target="#modalDetalleCamion" data-citacion-id="{{ objeto.citacion.id }}">
+                                                                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-eye" viewBox="0 0 16 16">
+                                                                    <path d="M16 8s-3-5.5-8-5.5S0 8 0 8s3 5.5 8 5.5S16 8 16 8zM1.173 8a13.133 13.133 0 0 1 1.66-2.043C4.12 4.668 5.88 3.5 8 3.5c2.12 0 3.879 1.168 5.168 2.457A13.133 13.133 0 0 1 14.828 8c-.058.087-.122.183-.195.288-.335.48-.83 1.12-1.465 1.755C11.879 11.332 10.12 12.5 8 12.5c-2.12 0-3.879-1.168-5.168-2.457A13.134 13.134 0 0 1 1.172 8z"/>
+                                                                    <path d="M8 5.5a2.5 2.5 0 1 0 0 5 2.5 2.5 0 0 0 0-5zM4.5 8a3.5 3.5 0 1 1 7 0 3.5 3.5 0 0 1-7 0z"/>
+                                                                </svg>
+                                                            </a>
+                                                        </td>
+                                                        {% endif %}
+                                                        <td><span class="fw-normal">{{ objeto.citacion.CI_FFECHACITACION|date:"d/m/Y H:i"|default:"-" }}</span></td>
+                                                        <td><span class="fw-normal">{{ objeto.citacion.CA_NID.CAM_CPATENTE|default:"-" }}</span></td>
+                                                        <td><span class="fw-normal">{{ objeto.citacion.PRO_NID|default:"-" }}</span></td>
+                                                        <td><span class="fw-normal">{{ objeto.citacion.CON_NID.CON_CNOMBRE|default:"" }} {{objeto.citacion.CON_NID.CON_CAPELLIDO|default:""}}</span></td>
+                                                        <td><span class="fw-normal">{{ objeto.citacion.CON_NID.CON_CTELEFONO|default:"-" }}</span></td>
+                                                        <td><span class="fw-normal">{{ objeto.citacion.SC_NID.SE_CNOMBRE|default:"-" }}</span></td>
+                                                        <td><span class="fw-normal">{{ objeto.citacion.ETAPA_ACTUAL.ET_CNOMBRE|default:"-" }}</span></td>
+                                                        <td><span class="fw-normal">{{ objeto.citacion.ETAPA_SIGUIENTE.ET_NID.ET_CNOMBRE|default:"-" }}</span></td>
+                                                        <td><span class="fw-normal">{{ objeto.citacion.hora_ingreso_etapa|date:"d/m/Y H:i"|default:"-" }}</span></td>
+                                                        
+                                                        <td>
+                                                            <span class="fw-normal tiempo-etapa-actual" data-citacion-id="{{ objeto.citacion.id }}" data-tiempo-etapa-actual="{{ objeto.citacion.tiempo_en_etapa_actual|default:'-' }}">
+                                                                {{ objeto.citacion.tiempo_en_etapa_actual|default:"-" }}
+                                                            </span>
+                                                        </td>
+                                                        <td>
+                                                            <span class="fw-normal tiempo-total-secuencia" data-citacion-id="{{ objeto.citacion.id }}" data-tiempo-total-secuencia="{{ objeto.citacion.tiempo_total_secuencia|default:'-' }}">
+                                                                {{ objeto.citacion.tiempo_total_secuencia|default:"-" }}
+                                                            </span>
+                                                        </td>
+
+                                                        
+                                                    {% endif %}                                                                                                                              
+                                                </tr>
+                                                {% endfor %}
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                </div>
+                                <div class="tab-pane fade" id="pills-recepciones" role="tabpanel" aria-labelledby="pills-recepciones-tab">
+                                    <div class="dt-responsive table-responsive" style="overflow-x: auto;">
+                                        <table id="basic-btn4" class="table table-striped table-bordered nowrap" data-page-length='50' style="width: 100%;">
+                                            <thead>
+                                                <tr>
+                                                    {% if request.user.is_superuser == 1  %}
+                                                    <th>Acciones</th>
+                                                    {% endif %}
+                                                    <th>Fecha citación</th>
+                                                    <th>Patente</th>
+                                                    <th>Transportista</th>
+                                                    <th>Chofer</th>
+                                                    <th>Celular chofer</th>
+                                                    <th>Secuencia</th>
+                                                    <th>Etapa</th>
+                                                    <th>Ingreso a etapa</th>
+                                                    <th>Tiempo en etapa</th>
+                                                    <th>Tiempo total</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+                                                {% for objeto in object_list_recepciones %}
+                                                <tr>
+                                                    {% if objeto.citacion%}
+                                                        {% if request.user.is_superuser == 1 %}
+                                                        <td class="text-center">                                                    
+                                                            <a class="btn btn-primary ver_detalle_citacion" data-citacion-id="{{ objeto.citacion.id }}">
+                                                                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-eye" viewBox="0 0 16 16">
+                                                                    <path d="M16 8s-3-5.5-8-5.5S0 8 0 8s3 5.5 8 5.5S16 8 16 8zM1.173 8a13.133 13.133 0 0 1 1.66-2.043C4.12 4.668 5.88 3.5 8 3.5c2.12 0 3.879 1.168 5.168 2.457A13.133 13.133 0 0 1 14.828 8c-.058.087-.122.183-.195.288-.335.48-.83 1.12-1.465 1.755C11.879 11.332 10.12 12.5 8 12.5c-2.12 0-3.879-1.168-5.168-2.457A13.134 13.134 0 0 1 1.172 8z"/>
+                                                                    <path d="M8 5.5a2.5 2.5 0 1 0 0 5 2.5 2.5 0 0 0 0-5zM4.5 8a3.5 3.5 0 1 1 7 0 3.5 3.5 0 0 1-7 0z"/>
+                                                                </svg>
+                                                            </a>
+                                                        </td>
+                                                        {% endif %}
+                                                        <td><span class="fw-normal">{{ objeto.citacion.CI_FFECHACITACION|date:"d/m/Y H:i"|default:"-" }}</span></td>
+                                                        <td><span class="fw-normal">{{ objeto.citacion.CA_NID.CAM_CPATENTE|default:"-" }}</span></td>
+                                                        <td><span class="fw-normal">{{ objeto.citacion.PRO_NID.SN_CRAZONSOCIAL|default:"-" }}</span></td>
+                                                        <td><span class="fw-normal">{{ objeto.citacion.CON_NID.CON_CNOMBRE|default:"" }} {{objeto.citacion.CON_NID.CON_CAPELLIDO|default:""}}</span></td>
+                                                        <td><span class="fw-normal">{{ objeto.citacion.CON_NID.CON_CTELEFONO|default:"-" }}</span></td>
+                                                        <td><span class="fw-normal">{{ objeto.citacion.SC_NID.SE_CNOMBRE|default:"-" }}</span></td>
+                                                        <td><span class="fw-normal">{{ objeto.citacion.ETAPA_ACTUAL.ET_CNOMBRE|default:"-" }}</span></td>
+                                                        <td><span class="fw-normal">{{ objeto.citacion.hora_ingreso_etapa|date:"d/m/Y H:i"|default:"-" }}</span></td>
+
+                                                        <td>
+                                                            <span class="fw-normal tiempo-etapa-actual" data-citacion-id="{{ objeto.citacion.id }}" data-tiempo-etapa-actual="{{ objeto.citacion.tiempo_en_etapa_actual|default:'-' }}">
+                                                                {{ objeto.citacion.tiempo_en_etapa_actual|default:"-" }}
+                                                            </span>
+                                                        </td>
+                                                        <td>
+                                                            <span class="fw-normal tiempo-total-secuencia" data-citacion-id="{{ objeto.citacion.id }}" data-tiempo-total-secuencia="{{ objeto.citacion.tiempo_total_secuencia|default:'-' }}">
+                                                                {{ objeto.citacion.tiempo_total_secuencia|default:"-" }}
+                                                            </span>
+                                                        </td>
+
+                                                        
+                                                    {% endif %}                                                                                                                              
+                                                </tr>
+                                                {% endfor %}
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div> 
+            <!-- [ Main Content ] end -->
+        </div>
+    </section>
+    <!-- [ Main Content ] end -->   
+    <!-- Modal Detalle Camión -->
+    <div class="modal fade" id="modalDetalleCamion" tabindex="-1" role="dialog" aria-labelledby="modalDetalleCamionLabel" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered modal-lg" role="document" style="max-width: 75%;">
+            <div class="modal-content">
+                <div class="modal-header bg-primary text-white">
+                    <h5 class="modal-title text-white" id="modalDetalleCamionLabel">Detalle de la citación</h5>
+                    <button type="button" class="close text-white" data-dismiss="modal" aria-label="Close">
+                        <span aria-hidden="true">&times;</span>
+                    </button>
+                </div>
+                <div class="modal-body">
+                    <div class="row" style="display: none;" id="data-despacho">
+                        <div class="col-md-3">
+                            <div class="card mb-4">
+                                <div class="card-body">
+                                    <h6 class="card-title">Camión</h6>
+                                    <p class="card-text">
+                                        
+                                            <strong>Patente:</strong> <span id="patenteCamion"></span><br>
+                                            <strong>Marca:</strong> <span id="marcaCamion"></span><br>
+                                            <strong>Modelo:</strong> <span id="modeloCamion"></span><br>
+                                            <strong>Año:</strong> <span id="anoCamion"></span>
+                                        
+                                    </p>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-5">
+                            <div class="card mb-4">
+                                <div class="card-body">
+                                    <h6 class="card-title">Conductor</h6>
+                                    <p class="card-text">
+                                        <strong>Nombre:</strong> <span id="nombreConductor"></span>&nbsp;<span id="apellidoConductor"></span><br>
+                                        <strong>RUT:</strong> <span id="rutConductor"></span><br>
+                                        <strong>Email:</strong> <a href="mailto:<span id='emailConductor'></span>"><span id="emailConductor"></span></a>
+                                    </p>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="card mb-4">
+                                <div class="card-body">
+                                    <h6 class="card-title">Proveedor</h6>
+                                    <p class="card-text">
+                                        <strong><span id="razonSocialProveedor"></span></strong><br>
+                                        <strong>RUT:</strong> <span id="rutProveedor"></span><br>
+                                        <strong>Email:</strong> <a href="mailto:<span id='emailProveedor'></span>"><span id="emailProveedor"></span></a>
+                                    </p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="row">
+                        <div class="col-md-12">
+                            <div class="card mb-4">
+                                <div class="card-body">
+                                    <h6 class="card-title">Etapas Completadas</h6>
+                                    <table class="table table-striped">
+                                        <thead>
+                                            <tr>
+                                                <th>Etapa</th>
+                                                <th>Ingreso</th>
+                                                <th>Salida</th>
+                                                <th>Tiempo transcurrido</th>
+                                                <th>Tiempo máximo etapa</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody id="etapasCompletadas"></tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="row">
+                        <div class="col-md-12">
+                            <h5><i class="fas fa-clock"></i> Tiempo Total Secuencia:&nbsp;<span id="tiempoEtapaActual"></span></h5>
+                            <h5><i class="fas fa-clock"></i> Tiempo Total Máximo Secuencia:&nbsp;<span id="tiempoTotalSecuencia"></span></h5>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-primary citacion" data-url="{% url 'cit_listone' 0 %}">Ver Citación</button>
+                    <button type="button" class="btn btn-secondary" data-dismiss="modal">Cerrar</button>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+
+{% endblock content %}
+
+<!-- Specific Page JS goes HERE  -->
+{% block javascripts %}
+    <script src="/static/assets/js/plugins/jquery.dataTables.min.js"></script>
+    <script src="/static/assets/js/plugins/dataTables.bootstrap4.min.js"></script>
+    <script src="/static/assets/js/plugins/buttons.colVis.min.js"></script>
+    <script src="/static/assets/js/plugins/buttons.print.min.js"></script>
+    <script src="/static/assets/js/plugins/pdfmake.min.js"></script>
+    <script src="/static/assets/js/plugins/jszip.min.js"></script>
+    <script src="/static/assets/js/plugins/dataTables.buttons.min.js"></script>
+    <script src="/static/assets/js/plugins/buttons.html5.min.js"></script>
+    <script src="/static/assets/js/plugins/buttons.bootstrap4.min.js"></script>
+    <script src="/static/assets/js/pages/data-export-custom.js"></script>
+
+    <script>
+        var intervalId;
+        var updateInterval = 10000; // Intervalo de actualización inicial en milisegundos
+
+        function formatearTiempo(tiempoEnSegundos) {
+            var dias = Math.floor(tiempoEnSegundos / 86400);
+            var horas = Math.floor((tiempoEnSegundos % 86400) / 3600);
+            var minutos = Math.floor((tiempoEnSegundos % 3600) / 60);
+            var segundos = tiempoEnSegundos % 60;
+
+            return  (dias > 0 ? dias + "d " : "") + 
+                    ("0" + horas).slice(-2) + "h:" + 
+                    ("0" + minutos).slice(-2) + "m:" + 
+                    ("0" + segundos).slice(-2) + "s";
+        }
+
+        function actualizarTiempos() {
+            var tiemposEtapaActual = document.querySelectorAll(".tiempo-etapa-actual");
+            var tiemposTotalSecuencia = document.querySelectorAll(".tiempo-total-secuencia");
+        
+            tiemposEtapaActual.forEach(function(elemento) {
+                var tiempoEtapaActual = elemento.getAttribute("data-tiempo-etapa-actual");
+                
+                if (tiempoEtapaActual !== "-") {
+                    var tiempoParts = tiempoEtapaActual.split(":");
+                    var horas = parseInt(tiempoParts[0]);
+                    var minutos = parseInt(tiempoParts[1]);
+                    var segundos = Math.floor(parseFloat(tiempoParts[2]));
+                    
+                    var tiempoActual = horas * 3600 + minutos * 60 + segundos;
+                    tiempoActual += Math.floor(updateInterval / 1000);
+                    
+                    var tiempoActualFormateado = formatearTiempo(tiempoActual);
+                    elemento.textContent = tiempoActualFormateado;
+                    elemento.setAttribute("data-tiempo-etapa-actual", tiempoActualFormateado);
+                }
+            });
+        
+            tiemposTotalSecuencia.forEach(function(elemento) {
+                var tiempoTotalSecuencia = elemento.getAttribute("data-tiempo-total-secuencia");
+                if (tiempoTotalSecuencia !== "-") {
+                    var tiempoParts = tiempoTotalSecuencia.split(":");
+                    var horas = parseInt(tiempoParts[0]);
+                    var minutos = parseInt(tiempoParts[1]);
+                    var segundos = Math.floor(parseFloat(tiempoParts[2]));
+                    
+                    var tiempoActual = horas * 3600 + minutos * 60 + segundos;
+                    tiempoActual += Math.floor(updateInterval / 1000);
+                    
+                    var tiempoActualFormateado = formatearTiempo(tiempoActual);
+                    elemento.textContent = tiempoActualFormateado;
+                    elemento.setAttribute("data-tiempo-total-secuencia", tiempoActualFormateado);
+                }
+            });
+        }
+
+        function detenerActualizacion() {
+            clearInterval(intervalId);
+        }
+        
+        function iniciarActualizacion() {
+            intervalId = setInterval(actualizarTiempos, updateInterval);
+        }
+
+        // Iniciar la actualización al cargar la página
+        window.onload = function() {
+            actualizarTiempos(); // Formatea y muestra los tiempos iniciales
+            iniciarActualizacion();
+        };
+
+        document.getElementById("btnActualizarIntervalo").addEventListener("click", function() {
+            Swal.fire({
+                title: 'Modificar intervalo de actualización',
+                html: `
+                    <div class="form-group">
+                        <label for="nuevoIntervalo">Nuevo intervalo (segundos):</label>
+                        <input type="number" class="form-control" id="nuevoIntervalo" placeholder="Ingrese el nuevo intervalo">
+                    </div>
+                `,
+                showCancelButton: true,
+                confirmButtonText: 'Actualizar',
+                cancelButtonText: 'Cancelar',
+                preConfirm: () => {
+                    return new Promise((resolve, reject) => {
+                        var nuevoIntervalo = parseInt(document.getElementById('nuevoIntervalo').value);
+                        if (isNaN(nuevoIntervalo) || nuevoIntervalo <= 0) {
+                            Swal.showValidationMessage('Ingrese un valor numérico válido mayor que cero');
+                            reject(new Error('Ingrese un valor numérico válido mayor que cero'));
+                        } else {
+                            resolve(nuevoIntervalo);
+                        }
+                    });
+                }
+            }).then((result) => {
+                if (result.isConfirmed) {
+                    var nuevoIntervalo = result.value;
+                    updateInterval = nuevoIntervalo * 1000;
+                    detenerActualizacion();
+                    iniciarActualizacion();
+
+                    // Actualizar el título del botón con el nuevo intervalo
+                    document.getElementById("btnActualizarIntervalo").title = "Intervalo actual: " + nuevoIntervalo + " segundos";
+                    
+                    Swal.fire({
+                        position: 'center',
+                        icon: 'success',
+                        title: 'Intervalo de actualización modificado.\n' + 'Los datos se actualizaran cada: ' + nuevoIntervalo + ' segundos',                        
+                        showConfirmButton: false,
+                        timer: 3000
+                    });
+                }
+            });
+        });
+    </script>
+    <script>
+        $(document).ready(function() {
+            $('.ver_detalle_citacion').click(function() {
+                var citacionId = $(this).data('citacion-id');
+                
+                // Realiza una petición AJAX para obtener los detalles de la citación
+                $.ajax({
+                    url: '/obtener_detalles_citacion/' + citacionId + '/',
+                    type: 'GET',
+                    dataType: 'json',
+                    success: function(data) {
+                        if (data.valid) {
+                            // Actualiza los campos del modal con los datos recibidos
+                            console.log(data.tipo_citacion);
+                            if (data.tipo_citacion == 'DESPACHO') {
+                                $('#patenteCamion').text(data.camion.patente);
+                                $('#marcaCamion').text(data.camion.marca);
+                                $('#modeloCamion').text(data.camion.modelo);
+                                $('#anoCamion').text(data.camion.anio);
+
+                                $('#nombreConductor').text(data.conductor.nombre);
+                                $('#apellidoConductor').text(data.conductor.apellido);
+                                $('#rutConductor').text(data.conductor.rut);
+                                $('#emailConductor').text(data.conductor.email);
+
+                                $('#razonSocialProveedor').text(data.proveedor.razonsocial);
+                                $('#rutProveedor').text(data.proveedor.rut);
+                                $('#emailProveedor').text(data.proveedor.email);
+                                $('#data-despacho').show();
+                            }
+                            // Genera las filas de la tabla de etapas completadas
+                            var etapasCompletadasHTML = '';
+                            data.etapas_completadas.forEach(function(etapa) {
+                                etapasCompletadasHTML += '<tr>';
+                                etapasCompletadasHTML += '<td>' + etapa.etapa + '</td>';
+                                console.log(etapa.fechainicio);
+                                console.log(new Date(etapa.fechainicio));
+                                etapasCompletadasHTML += '<td>' + etapa.fechainicio + '</td>';
+                                etapasCompletadasHTML += '<td>' + etapa.fechafin + '</td>';
+                                etapasCompletadasHTML += '<td style="text-align:center;">' + etapa.diferencia + '</td>';
+                                etapasCompletadasHTML += '<td style="text-align:center;">' + etapa.maximo + '</td>';
+                                etapasCompletadasHTML += '</tr>';
+                            });
+                            $('#etapasCompletadas').html(etapasCompletadasHTML);
+                            
+                            $('#tiempoEtapaActual').text(data.tiempo_total_secuencia);
+                            $('#tiempoTotalSecuencia').text(data.tiempo_en_etapa_actual);
+                            $('.btn.citacion').attr('data-url', "{% url 'cit_listone' 0 %}".replace('0', citacionId));
+                            $('#modalDetalleCamion').modal('show');
+                        } else {
+                            Swal.fire({
+                                icon: 'error',
+                                title: 'Error',
+                                text: data.error
+                            });
+                        }
+                    },
+                    error: function(xhr, status, error) {
+                        console.log(error);
+                    }
+                });
+            });
+            $('.btn.citacion').click(function() {
+                var url = $(this).data('url');
+                window.location.href = url;
+            });
+        });
+        // Filtrar proformas
+        $('#btnFiltrarProformas').click(function() {
+            var fechaDesde = $('#fecha_desde').val();
+            var fechaHasta = $('#fecha_hasta').val();
+            
+            // Validar que al menos una fecha esté seleccionada
+            if (!fechaDesde && !fechaHasta) {
+                Swal.fire({
+                    icon: 'warning',
+                    title: 'Atención',
+                    text: 'Debe seleccionar al menos una fecha para filtrar'
+                });
+                return;
+            }
+            
+            // Mostrar loading y ocultar lista
+            $('#loading-proformas').show();
+            $('#lista-proformas').hide();
+            
+            // Realizar petición AJAX
+            $.ajax({
+                url: '{% url "filter_proforma_inicio" %}',  // Asegúrate de que esta URL esté correcta
+                type: 'GET',
+                data: {
+                    fecha_desde: fechaDesde,
+                    fecha_hasta: fechaHasta
+                },
+                dataType: 'json',
+                success: function(response) {
+                    // Ocultar loading
+                    $('#loading-proformas').hide();
+                    $('#lista-proformas').show();
+                    
+                    if (response.success) {
+                        // Limpiar lista actual
+                        $('#lista-proformas').empty();
+                        
+                        // Verificar si hay resultados
+                        if (response.proformas_por_socionegocio.length > 0) {
+                            // Agregar nuevos elementos
+                            response.proformas_por_socionegocio.forEach(function(proforma) {
+                                var razonSocial = proforma.SN_NID__SN_CRAZONSOCIAL || 'No definido';
+                                var cantidad = proforma.cantidad_proformas;
+                                
+                                var html = `
+                                    <li class="list-group-item d-flex justify-content-between align-items-center">
+                                        ${razonSocial}
+                                        <span class="badge badge-primary badge-pill">${cantidad}</span>
+                                    </li>
+                                `;
+                                $('#lista-proformas').append(html);
+                            });
+                        } else {
+                            // Mostrar mensaje cuando no hay resultados
+                            $('#lista-proformas').html(`
+                                <li class="list-group-item text-center text-muted">
+                                    No se encontraron proformas en el rango de fechas seleccionado
+                                </li>
+                            `);
+                        }
+                        
+                        Swal.fire({
+                            position: 'top-end',
+                            icon: 'success',
+                            title: 'Filtro aplicado correctamente',
+                            showConfirmButton: false,
+                            timer: 1500,
+                            toast: true
+                        });
+                    } else {
+                        Swal.fire({
+                            icon: 'error',
+                            title: 'Error',
+                            text: response.error || 'Error al filtrar proformas'
+                        });
+                    }
+                },
+                error: function(xhr, status, error) {
+                    // Ocultar loading en caso de error
+                    $('#loading-proformas').hide();
+                    $('#lista-proformas').show();
+                    
+                    console.error('Error AJAX:', error);
+                    Swal.fire({
+                        icon: 'error',
+                        title: 'Error',
+                        text: 'Error al realizar la consulta. Intente nuevamente.'
+                    });
+                }
+            });
+        });
+        
+        // Limpiar filtro y recargar página
+        $('#btnLimpiarFiltro').click(function() {
+            $('#fecha_desde').val('');
+            $('#fecha_hasta').val('');
+            location.reload();
+        });
+    </script>
+{% endblock javascripts %}

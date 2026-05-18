@@ -1,0 +1,334 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <title>
+        {% block title %}{% endblock %}
+    </title> 
+    <!-- HTML5 Shim and Respond.js IE11 support of HTML5 elements and media queries -->
+    <!-- WARNING: Respond.js doesn't work if you view the page via file:// -->
+    <!--[if lt IE 11]>
+    	<script src="https://oss.maxcdn.com/libs/html5shiv/3.7.0/html5shiv.js"></script>
+    	<script src="https://oss.maxcdn.com/libs/respond.js/1.4.2/respond.min.js"></script>
+    	<![endif]-->
+    <!-- Meta -->
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=0, minimal-ui">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+    <meta name="description" content="" />
+    <meta name="keywords" content="">
+    <meta name="author" content="Codedthemes" />
+    <!-- Favicon icon -->
+    <link rel="icon" href="/static/assets/images/favicon.ico" type="image/x-icon">
+    <link type="text/css" href="/static/assets/sweetalert2/dist/sweetalert2.min.css" rel="stylesheet">
+
+    <!-- Specific CSS goes HERE -->
+    {% block stylesheets %}{% endblock stylesheets %}    
+
+    <!-- vendor css -->
+    <link rel="stylesheet" href="/static/assets/css/style.css">
+    <link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet" />
+    <style>
+        #notification-dropdown {
+            position: relative;
+        }
+
+        #notification-dropdown .fa-truck {
+            font-size: 24px;
+            transition: color 0.3s ease;
+        }
+
+        #notification-dropdown:hover .fa-truck {
+            color: #007bff;
+        }
+
+        #notification-dropdown .notification-icon.pulse {
+            animation: pulse 2s infinite;
+        }
+
+        #notification-badge {
+            position: absolute;
+            top: 5px;
+            right: -5px;
+            padding: 0.25em 0.4em;
+            font-size: 75%;
+            font-weight: 600;
+            line-height: 1;
+            text-align: center;
+            white-space: nowrap;
+            vertical-align: baseline;
+            border-radius: 50%;
+            background-color: #FF5370;
+            color: white;
+            min-width: 18px;
+            height: 18px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            animation: pulse 2s infinite; /* Añadimos la animación de pulso */
+        }
+        @keyframes pulse {
+            0% {
+                box-shadow: 0 0 0 0 rgba(242, 237, 238, 0.7);
+            }
+            70% {
+                box-shadow: 0 0 0 10px rgba(255, 83, 112, 0);
+            }
+            100% {
+                box-shadow: 0 0 0 0 rgba(255, 83, 112, 0);
+            }
+        }
+    </style>
+</head>
+<body class="">
+
+	<!-- [ Pre-loader ] start -->
+	<div class="loader-bg">
+		<div class="loader-track">
+			<div class="loader-fill"></div>
+		</div>
+	</div>
+    <!-- [ Pre-loader ] End -->
+    
+    {% include 'includes/sidebar.html' %}
+    
+    {% include 'includes/navigation.html' %}
+
+    {% block content %}{% endblock content %}
+
+    {% include 'includes/scripts.html' %}
+
+    <!-- Specific Page JS goes HERE  -->
+    {% block javascripts %}{% endblock javascripts %}
+    <script src="//cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+    <script src="/static/assets/js/plugins/bootstrap-notify.min.js"></script>
+    {% if script %}
+        {{ script|safe }}
+    {% endif %}
+    {% if messages%}
+        {% for m in messages %}
+            {% if m.tags == "error" %}
+                <script>
+                    Swal.fire({
+                        title: '¡Error!',
+                        text: "{{m}}",
+                        icon: 'error'
+                    })
+                </script>
+            {% elif m.tags == "success" %}
+                <script>
+                    Swal.fire({
+                        title: '¡Listo!',
+                        text: "{{m}}",
+                        icon: 'success'
+                    })
+                </script>
+            {% elif m.tags == "warning" %}
+                <script>
+                    console.log("{{m.tags}}");
+                    Swal.fire({
+                        title: '¡Atención!',
+                        text: "{{m}}",
+                        icon: 'warning'
+                    })
+                </script>
+            {% elif m.tags == "info" %}
+                <script>
+                    Swal.fire({
+                        title: '¡Información!',
+                        html: "{{ m | safe }}",
+                        icon: 'info'
+                    })
+                </script>
+            {% else %}
+                <script>
+                    console.log("{{m.tags}}");
+                    Swal.fire({
+                        title: '¡Atención!',
+                        text: "{{m}}",
+                        icon: 'warning'
+                    })
+                </script>
+            {% endif %}
+        {% endfor %}
+    {% endif %}
+    <script>
+        let previousNotifications = JSON.parse(localStorage.getItem('previousNotifications')) || [];
+        let currentUserId = localStorage.getItem('currentUserId');
+
+        function checkNotifications() {
+            let currentDate = new Date();
+            $.ajax({
+                url: "{% url 'check_notifications' %}",
+                type: "GET",
+                success: function(response) {
+                    const notificationsContainer = document.getElementById('noti-body');
+                    notificationsContainer.innerHTML = '';
+                    const dropdown = document.getElementById("notification-dropdown");
+                    const icon = dropdown.querySelector('.notification-icon');
+
+                    if (response.user_id !== currentUserId) {
+                        currentUserId = response.user_id;
+                        localStorage.setItem('currentUserId', currentUserId);
+                        previousNotifications = [];
+                    }
+
+                    const currentNotifications = response.notificaciones;
+                    const newNotifications = currentNotifications.filter(notification => 
+                        !previousNotifications.some(prevNotification => prevNotification[0] === notification[0])
+                    );
+
+                    if (newNotifications.length > 0) {
+                        showSweetAlert(newNotifications);
+                        icon.classList.add('pulse');
+                    } else if (currentNotifications.length === 0) {
+                        icon.classList.remove('pulse');
+                    }
+
+                    // Se valida si hay notificaciones
+                    if(response.notificaciones.length > 0){
+                        // Añadir efecto de pulso al icono
+                        icon.classList.add('pulse');
+                        // Se valida si el span de notificaciones no existe
+                        let badge = document.getElementById("notification-badge");
+                        if (!badge) {
+                            badge = document.createElement('span');
+                            badge.id = 'notification-badge';
+                            dropdown.appendChild(badge);
+                        }
+                        badge.textContent = response.notificaciones.length; 
+                        response.notificaciones.forEach(notification => {
+                            let notificationDate = new Date(notification[4]);
+                            let timeDifference = (currentDate - notificationDate) / 1000; // Diferencia en segundos
+
+                            let displayTime;
+                            if (timeDifference < 3600) { // Menos de 60 minutos
+                                let minutes = Math.floor(timeDifference / 60);
+                                displayTime = `${minutes} min`;
+                            } else if (timeDifference < 86400) { // Menos de 24 horas
+                                let hours = Math.floor(timeDifference / 3600);
+                                displayTime = `${hours} horas`;
+                            } else { // Más de 24 horas
+                                displayTime = notificationDate.toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit', year: 'numeric' });
+                            }
+                            
+                            const a_element = document.createElement('a');
+                            a_element.href = notification[2];
+                            // a_element.target = '_blank';
+                            a_element.style.padding = '0';
+
+                            const li = document.createElement('li');
+                            li.className = 'notification';
+            
+                            const mediaDiv = document.createElement('div');
+                            mediaDiv.className = 'media';
+            
+                            const mediaBodyDiv = document.createElement('div');
+                            mediaBodyDiv.className = 'media-body';
+            
+                            const p1 = document.createElement('p');
+                            p1.innerHTML = `<strong>${notification[3]}</strong><span class="n-time text-muted" style="font-size: small;"><i class="icon feather icon-clock m-r-10"></i>${displayTime}</span></p>`;
+            
+                            const p2 = document.createElement('p');
+                            p2.textContent = notification[1];
+            
+                            mediaBodyDiv.appendChild(p1);
+                            mediaBodyDiv.appendChild(p2);
+                            mediaDiv.appendChild(mediaBodyDiv);
+
+                            a_element.appendChild(mediaDiv);
+                            li.appendChild(a_element);
+
+                            const hr = document.createElement('hr');
+
+                            notificationsContainer.appendChild(li);
+                            notificationsContainer.appendChild(hr);
+                        });
+                    } else {
+                        // Remover el badge si no hay notificaciones
+                        const badge = document.getElementById("notification-badge");
+                        if (badge) {
+                            dropdown.removeChild(badge);
+                        }
+                    }
+                    // Save chat history including the bot response to localStorage
+                    localStorage.setItem("chatHistory", chat.innerHTML);
+                    localStorage.setItem('previousNotifications', JSON.stringify(currentNotifications));
+                    previousNotifications = currentNotifications;
+
+                    // Ejecutar el siguiente bloque de código después de 1 segundo
+                    setTimeout(function() {
+                        checkNotifications();
+                    }, 10000);
+                }
+            })
+        }
+        function getUsersMessage(){
+            $.ajax({
+                url: "{% url 'axongetusers' %}",
+                type: "GET",
+                success: function(response, textStatus, jqXHR) {
+                    const status = jqXHR.status;
+                    if(status == 200){
+                        const users = response.users;
+                        const main = response.main;
+                        const usersContainer = document.getElementById('chatTitle');
+                        if(users){
+                            usersContainer.innerHTML = `Chat - ${main} ( ${users.length} )`;
+                            const element = document.getElementById('chatTitleBar');
+                            element.style.backgroundColor = '#eb1818';
+                        } else {
+                            const element = document.getElementById('chatTitleBar');
+                            element.style.backgroundColor = '#007bff';
+                        }
+                        // Save chat history including the bot response to localStorage
+                        localStorage.setItem("chatHistory", chat.innerHTML);
+
+                        // Ejecutar el siguiente bloque de código después de 1 segundo
+                        setTimeout(function() {
+                            getUsersMessage();
+                        }, 5000);
+                    } else{
+                        Swal.fire({
+                            title: '¡Error!',
+                            text: response.message,
+                            icon: 'error'
+                        })
+                    }
+                }
+            });
+        }
+        function showSweetAlert(newNotifications) {
+            $.notify({
+                    message: '¡Tienes nuevas notificaciones! Debes revisarla'
+                }, {
+                    type: 'inverse',
+                    allow_dismiss: false,
+                    label: 'Cancel',
+                    className: 'btn-xs btn-inverse',
+                    placement: {
+                        from: 'bottom',
+                        align: 'right'
+                    },
+                    delay: 2500,
+                    animate: {
+                        enter: 'animated fadeInRight',
+                        exit: 'animated fadeOutRight'
+                    },
+                    offset: {
+                        x: 30,
+                        y: 30
+                    }
+                }
+            );
+        }
+        function logout() {
+            localStorage.removeItem('currentUserId');
+            localStorage.removeItem('previousNotifications');
+            document.getElementById('form-logout').submit();
+        }
+        getUsersMessage();
+        checkNotifications();
+    </script>
+</body>
+</html>

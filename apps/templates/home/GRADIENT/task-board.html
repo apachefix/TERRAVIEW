@@ -1,0 +1,893 @@
+{% extends "layouts/base.html" %}
+
+{% block title %} Task Board {% endblock %} 
+
+<!-- Specific CSS goes HERE -->
+{% block stylesheets %}{% endblock stylesheets %}
+
+{% block content %}	
+	
+	<!-- [ chat user list ] start -->
+	<section class="header-user-list">
+		<a href="#!" class="h-close-text"><i class="feather icon-x"></i></a>
+		<ul class="nav nav-tabs" id="chatTab" role="tablist">
+			<li class="nav-item">
+				<a class="nav-link active text-uppercase border-0" id="chat-tab" data-toggle="tab" href="#chat" role="tab" aria-controls="chat" aria-selected="true"><i class="feather icon-message-circle mr-2"></i>Chat</a>
+			</li>
+			<li class="nav-item">
+				<a class="nav-link text-uppercase border-0" id="user-tab" data-toggle="tab" href="#user" role="tab" aria-controls="user" aria-selected="false"><i class="feather icon-users mr-2"></i>User</a>
+			</li>
+			<li class="nav-item">
+				<a class="nav-link text-uppercase border-0" id="setting-tab" data-toggle="tab" href="#setting" role="tab" aria-controls="setting" aria-selected="false"><i class="feather icon-settings mr-2"></i>Setting</a>
+			</li>
+		</ul>
+		<div class="tab-content" id="chatTabContent">
+			<div class="tab-pane fade show active" id="chat" role="tabpanel" aria-labelledby="chat-tab">
+				<div class="h-list-header">
+					<div class="input-group">
+						<input type="text" id="search-friends" class="form-control" placeholder="Search Friend . . .">
+					</div>
+				</div>
+				<div class="h-list-body">
+					<div class="main-friend-cont scroll-div">
+						<div class="main-friend-list">
+							<div class="media userlist-box" data-id="1" data-status="online" data-username="Josephin Doe">
+								<a class="media-left" href="#!"><img class="media-object img-radius" src="/static/assets/images/user/avatar-1.jpg" alt="Generic placeholder image ">
+									<div class="live-status">3</div>
+								</a>
+								<div class="media-body">
+									<h6 class="chat-header">Josephin Doe<small class="d-block text-c-green">Typing . . </small></h6>
+								</div>
+							</div>
+							<div class="media userlist-box" data-id="2" data-status="online" data-username="Lary Doe">
+								<a class="media-left" href="#!"><img class="media-object img-radius" src="/static/assets/images/user/avatar-2.jpg" alt="Generic placeholder image">
+									<div class="live-status">1</div>
+								</a>
+								<div class="media-body">
+									<h6 class="chat-header">Lary Doe<small class="d-block text-c-green">online</small></h6>
+								</div>
+							</div>
+							<div class="media userlist-box" data-id="3" data-status="online" data-username="Alice">
+								<a class="media-left" href="#!"><img class="media-object img-radius" src="/static/assets/images/user/avatar-3.jpg" alt="Generic placeholder image"></a>
+								<div class="media-body">
+									<h6 class="chat-header">Alice<small class="d-block text-c-green">online</small></h6>
+								</div>
+							</div>
+							<div class="media userlist-box" data-id="4" data-status="offline" data-username="Alia">
+								<a class="media-left" href="#!"><img class="media-object img-radius" src="/static/assets/images/user/avatar-1.jpg" alt="Generic placeholder image">
+									<div class="live-status">1</div>
+								</a>
+								<div class="media-body">
+									<h6 class="chat-header">Alia<small class="d-block text-muted">10 min ago</small></h6>
+								</div>
+							</div>
+							<div class="media userlist-box" data-id="5" data-status="offline" data-username="Suzen">
+								<a class="media-left" href="#!"><img class="media-object img-radius" src="/static/assets/images/user/avatar-4.jpg" alt="Generic placeholder image"></a>
+								<div class="media-body">
+									<h6 class="chat-header">Suzen<small class="d-block text-muted">15 min ago</small></h6>
+								</div>
+							</div>
+							<div class="media userlist-box" data-id="1" data-status="online" data-username="Josephin Doe">
+								<a class="media-left" href="#!"><img class="media-object img-radius" src="/static/assets/images/user/avatar-1.jpg" alt="Generic placeholder image ">
+									<div class="live-status">3</div>
+								</a>
+								<div class="media-body">
+									<h6 class="chat-header">Josephin Doe<small class="d-block text-c-green">Typing . . </small></h6>
+								</div>
+							</div>
+							<div class="media userlist-box" data-id="2" data-status="online" data-username="Lary Doe">
+								<a class="media-left" href="#!"><img class="media-object img-radius" src="/static/assets/images/user/avatar-2.jpg" alt="Generic placeholder image">
+									<div class="live-status">1</div>
+								</a>
+								<div class="media-body">
+									<h6 class="chat-header">Lary Doe<small class="d-block text-c-green">online</small></h6>
+								</div>
+							</div>
+							<div class="media userlist-box" data-id="3" data-status="online" data-username="Alice">
+								<a class="media-left" href="#!"><img class="media-object img-radius" src="/static/assets/images/user/avatar-3.jpg" alt="Generic placeholder image"></a>
+								<div class="media-body">
+									<h6 class="chat-header">Alice<small class="d-block text-c-green">online</small></h6>
+								</div>
+							</div>
+							<div class="media userlist-box" data-id="4" data-status="offline" data-username="Alia">
+								<a class="media-left" href="#!"><img class="media-object img-radius" src="/static/assets/images/user/avatar-1.jpg" alt="Generic placeholder image">
+									<div class="live-status">1</div>
+								</a>
+								<div class="media-body">
+									<h6 class="chat-header">Alia<small class="d-block text-muted">10 min ago</small></h6>
+								</div>
+							</div>
+							<div class="media userlist-box" data-id="5" data-status="offline" data-username="Suzen">
+								<a class="media-left" href="#!"><img class="media-object img-radius" src="/static/assets/images/user/avatar-4.jpg" alt="Generic placeholder image"></a>
+								<div class="media-body">
+									<h6 class="chat-header">Suzen<small class="d-block text-muted">15 min ago</small></h6>
+								</div>
+							</div>
+							<div class="media userlist-box" data-id="1" data-status="online" data-username="Josephin Doe">
+								<a class="media-left" href="#!"><img class="media-object img-radius" src="/static/assets/images/user/avatar-1.jpg" alt="Generic placeholder image ">
+									<div class="live-status">3</div>
+								</a>
+								<div class="media-body">
+									<h6 class="chat-header">Josephin Doe<small class="d-block text-c-green">Typing . . </small></h6>
+								</div>
+							</div>
+							<div class="media userlist-box" data-id="2" data-status="online" data-username="Lary Doe">
+								<a class="media-left" href="#!"><img class="media-object img-radius" src="/static/assets/images/user/avatar-2.jpg" alt="Generic placeholder image">
+									<div class="live-status">1</div>
+								</a>
+								<div class="media-body">
+									<h6 class="chat-header">Lary Doe<small class="d-block text-c-green">online</small></h6>
+								</div>
+							</div>
+							<div class="media userlist-box" data-id="3" data-status="online" data-username="Alice">
+								<a class="media-left" href="#!"><img class="media-object img-radius" src="/static/assets/images/user/avatar-3.jpg" alt="Generic placeholder image"></a>
+								<div class="media-body">
+									<h6 class="chat-header">Alice<small class="d-block text-c-green">online</small></h6>
+								</div>
+							</div>
+						</div>
+					</div>
+				</div>
+			</div>
+			<div class="tab-pane fade" id="user" role="tabpanel" aria-labelledby="user-tab">
+				<div class="h-list-body">
+					<div class="main-friend-cont scroll-div">
+						<div class="main-friend-list">
+							<div class="media px-3 d-flex align-items-center mt-3">
+								<a class="media-left m-r-15" href="#!">
+									<div class="hei-50 wid-50 bg-primary img-radius d-flex text-white f-22 align-items-center justify-content-center"><i class="icon feather icon-users"></i></div>
+								</a>
+								<div class="media-body">
+									<p class="chat-header f-w-600 mb-0">New Group</p>
+								</div>
+							</div>
+							<div class="media p-3 d-flex align-items-center">
+								<a class="media-left m-r-15" href="#!">
+									<div class="hei-50 wid-50 bg-primary img-radius d-flex text-white f-22 align-items-center justify-content-center"><i class="icon feather icon-user-plus"></i></div>
+								</a>
+								<div class="media-body">
+									<p class="chat-header f-w-600 mb-0">New Contact</p>
+								</div>
+							</div>
+							<div class="media userlist-box" data-id="1" data-status="online" data-username="Josephin Doe">
+								<a class="media-left" href="#!"><img class="media-object img-radius" src="/static/assets/images/user/avatar-1.jpg" alt="Generic placeholder image "></a>
+								<div class="media-body">
+									<p class="chat-header">Josephin Doe<small class="d-block">i am not what happened . .</small></p>
+								</div>
+							</div>
+							<div class="media userlist-box" data-id="2" data-status="online" data-username="Lary Doe">
+								<a class="media-left" href="#!"><img class="media-object img-radius" src="/static/assets/images/user/avatar-2.jpg" alt="Generic placeholder image"></a>
+								<div class="media-body">
+									<h6 class="chat-header">Lary Doe<small class="d-block">Avalable</small></h6>
+								</div>
+							</div>
+							<div class="media userlist-box" data-id="3" data-status="online" data-username="Alice">
+								<a class="media-left" href="#!"><img class="media-object img-radius" src="/static/assets/images/user/avatar-3.jpg" alt="Generic placeholder image"></a>
+								<div class="media-body">
+									<h6 class="chat-header">Alice<small class="d-block">hear using Elite able</small></h6>
+								</div>
+							</div>
+							<div class="media userlist-box" data-id="4" data-status="offline" data-username="Alia">
+								<a class="media-left" href="#!">
+									<div class="hei-50 wid-50 img-radius bg-success d-flex text-white f-22 align-items-center justify-content-center">A</div>
+								</a>
+								<div class="media-body">
+									<h6 class="chat-header">Alia<small class="d-block text-muted">Avalable</small></h6>
+								</div>
+							</div>
+							<div class="media userlist-box" data-id="5" data-status="offline" data-username="Suzen">
+								<a class="media-left" href="#!"><img class="media-object img-radius" src="/static/assets/images/user/avatar-4.jpg" alt="Generic placeholder image"></a>
+								<div class="media-body">
+									<h6 class="chat-header">Suzen<small class="d-block text-muted">Avalable</small></h6>
+								</div>
+							</div>
+							<div class="media userlist-box" data-id="1" data-status="online" data-username="Josephin Doe">
+								<a class="media-left" href="#!">
+									<div class="hei-50 wid-50 bg-danger img-radius d-flex text-white f-22 align-items-center justify-content-center">JD</div>
+								</a>
+								<div class="media-body">
+									<h6 class="chat-header">Josephin Doe<small class="d-block text-muted">Don't send me image</small></h6>
+								</div>
+							</div>
+							<div class="media userlist-box" data-id="2" data-status="online" data-username="Lary Doe">
+								<a class="media-left" href="#!"><img class="media-object img-radius" src="/static/assets/images/user/avatar-2.jpg" alt="Generic placeholder image"></a>
+								<div class="media-body">
+									<h6 class="chat-header">Lary Doe<small class="d-block text-muted">not send free msg</small></h6>
+								</div>
+							</div>
+						</div>
+					</div>
+				</div>
+			</div>
+			<div class="tab-pane fade" id="setting" role="tabpanel" aria-labelledby="setting-tab">
+				<div class="p-4 main-friend-cont scroll-div">
+					<h6 class="mt-2"><i class="feather icon-monitor mr-2"></i>Desktop settings</h6>
+					<hr>
+					<div class="form-group mb-0">
+						<div class="switch switch-primary d-inline m-r-10">
+							<input type="checkbox" id="cn-p-1" checked>
+							<label for="cn-p-1" class="cr"></label>
+						</div>
+						<label class="f-w-600">Allow desktop notification</label>
+					</div>
+					<p class="text-muted ml-5">you get lettest content at a time when data will updated</p>
+					<div class="form-group mb-0">
+						<div class="switch switch-primary d-inline m-r-10">
+							<input type="checkbox" id="cn-p-5">
+							<label for="cn-p-5" class="cr"></label>
+						</div>
+						<label class="f-w-600">Store Cookie</label>
+					</div>
+					<h6 class="mb-0 mt-5"><i class="feather icon-layout mr-2"></i>Application settings</h6>
+					<hr>
+					<div class="form-group mb-0">
+						<div class="switch switch-primary d-inline m-r-10">
+							<input type="checkbox" id="cn-p-3" checked>
+							<label for="cn-p-3" class="cr"></label>
+						</div>
+						<label class="f-w-600">Backup Storage</label>
+					</div>
+					<p class="text-muted mb-0 ml-5">Automaticaly take backup as par schedule</p>
+					<div class="form-group mb-4">
+						<div class="switch switch-primary d-inline m-r-10">
+							<input type="checkbox" id="cn-p-4" checked>
+							<label for="cn-p-4" class="cr"></label>
+						</div>
+						<label class="f-w-600">Allow guest to print file</label>
+					</div>
+					<h6 class="mb-0 mt-5"><i class="feather icon-globe mr-2"></i>System settings</h6>
+					<hr>
+					<div class="form-group mb-0">
+						<div class="switch switch-primary d-inline m-r-10">
+							<input type="checkbox" id="cn-p-2">
+							<label for="cn-p-2" class="cr"></label>
+						</div>
+						<label class="f-w-600">View other user chat</label>
+					</div>
+					<p class="text-muted ml-5">Allow to show public user message</p>
+				</div>
+			</div>
+		</div>
+	</section>
+	<!-- [ chat user list ] end -->
+
+	<!-- [ chat message ] start -->
+	<section class="header-chat">
+		<div class="h-list-header">
+			<h6>Josephin Doe</h6>
+			<a href="#!" class="h-back-user-list"><i class="feather icon-chevron-left"></i></a>
+		</div>
+		<div class="h-list-body">
+			<div class="main-chat-cont scroll-div">
+				<div class="main-friend-chat">
+					<div class="media chat-messages">
+						<a class="media-left photo-table" href="#!"><img class="media-object img-radius img-radius m-t-5" src="/static/assets/images/user/avatar-2.jpg" alt="Generic placeholder image"></a>
+						<div class="media-body chat-menu-content">
+							<div class="">
+								<p class="chat-cont">hello tell me something</p>
+								<p class="chat-cont">about yourself?</p>
+							</div>
+							<p class="chat-time">8:20 a.m.</p>
+						</div>
+					</div>
+					<div class="media chat-messages">
+						<div class="media-body chat-menu-reply">
+							<div class="">
+								<p class="chat-cont">Ohh! very nice</p>
+							</div>
+							<p class="chat-time">8:22 a.m.</p>
+						</div>
+						<a class="media-right photo-table" href="#!"><img class="media-object img-radius img-radius m-t-5" src="/static/assets/images/user/avatar-1.jpg" alt="Generic placeholder image"></a>
+					</div>
+					<div class="media chat-messages">
+						<a class="media-left photo-table" href="#!"><img class="media-object img-radius img-radius m-t-5" src="/static/assets/images/user/avatar-2.jpg" alt="Generic placeholder image"></a>
+						<div class="media-body chat-menu-content">
+							<div class="">
+								<p class="chat-cont">can you help me?</p>
+							</div>
+							<p class="chat-time">8:20 a.m.</p>
+						</div>
+					</div>
+				</div>
+			</div>
+		</div>
+		<div class="h-list-footer">
+			<div class="input-group">
+				<input type="file" class="chat-attach" style="display:none">
+				<a href="#!" class="input-group-prepend btn btn-success btn-attach">
+					<i class="feather icon-paperclip"></i>
+				</a>
+				<input type="text" name="h-chat-text" class="form-control h-auto h-send-chat" placeholder="Write hear . . ">
+				<button type="submit" class="input-group-append btn-send btn btn-primary">
+					<i class="feather icon-message-circle"></i>
+				</button>
+			</div>
+		</div>
+	</section>
+	<!-- [ chat message ] end -->
+
+	<!-- [ Main Content ] start -->
+	<section class="pcoded-main-container">
+		<div class="pcoded-content">
+			<!-- [ breadcrumb ] start -->
+			<div class="page-header">
+				<div class="page-block">
+					<div class="row align-items-center">
+						<div class="col-md-12">
+							<div class="page-header-title">
+								<h5 class="m-b-10">Task Board</h5>
+							</div>
+							<ul class="breadcrumb">
+								<li class="breadcrumb-item"><a href="index.html"><i class="feather icon-home"></i></a></li>
+								<li class="breadcrumb-item"><a href="#!">Task</a></li>
+								<li class="breadcrumb-item"><a href="#!">Task Board</a></li>
+							</ul>
+						</div>
+					</div>
+				</div>
+			</div>
+			<!-- [ breadcrumb ] end -->
+			<!-- [ Main Content ] start -->
+			<div class="row">
+				<!-- [ task-board-left ] start -->
+				<div class="col-xl-3 col-lg-12">
+					<div class="card task-board-left">
+						<div class="card-header">
+							<h5>Search Box</h5>
+						</div>
+						<div class="card-body">
+							<div class="input-group mb-3">
+								<input type="text" class="form-control add_task_todo" placeholder="Search here..." required="">
+								<div class="input-group-append">
+									<button class="btn waves-effect waves-light btn-primary btn-icon btn-msg-send" type="button"><i class="fas fa-search"></i></button>
+								</div>
+							</div>
+							<div class="task-right">
+								<div class="task-right-header-status">
+									<span class="f-w-400" data-toggle="collapse">Completed Status</span>
+									<i class="fas fa-caret-down float-right m-t-5"></i>
+								</div>
+								<div class="taskboard-right-progress">
+									<h6 class="m-t-10">Highest priority</h6>
+									<div class="progress">
+										<div class="progress-bar bg-success" role="progressbar" style="width: 80%" aria-valuenow="80" aria-valuemin="0" aria-valuemax="100"></div>
+									</div>
+									<h6 class="m-t-15">High priority</h6>
+									<div class="progress">
+										<div class="progress-bar bg-info" role="progressbar" style="width: 70%" aria-valuenow="70" aria-valuemin="0" aria-valuemax="100"></div>
+									</div>
+									<h6 class="m-t-15">Normal priority</h6>
+									<div class="progress">
+										<div class="progress-bar bg-warning" role="progressbar" style="width: 50%" aria-valuenow="50" aria-valuemin="0" aria-valuemax="100"></div>
+									</div>
+									<h6 class="m-t-15">Low priority</h6>
+									<div class="progress">
+										<div class="progress-bar bg-danger" role="progressbar" style="width: 60%" aria-valuenow="60" aria-valuemin="0" aria-valuemax="100"></div>
+									</div>
+								</div>
+								<div class="task-right-header-users">
+									<span class="f-w-400" data-toggle="collapse">Assign Users</span>
+									<i class="fas fa-caret-down float-right m-t-5"></i>
+								</div>
+								<div class="user-box assign-user taskboard-right-users">
+									<div class="media mb-2">
+										<div class="media-left media-middle mr-3">
+											<a href="#!">
+												<img class="img-fluid media-object img-radius" src="/static/assets/images/user/avatar-1.jpg" alt="Generic placeholder image">
+												<div class="live-status bg-danger"></div>
+											</a>
+										</div>
+										<div class="media-body">
+											<h6>Josephin Doe</h6>
+											<p>Santa Ana,CA</p>
+										</div>
+									</div>
+									<div class="media mb-2">
+										<div class="media-left media-middle mr-3">
+											<a href="#!">
+												<img class="img-fluid media-object img-radius" src="/static/assets/images/user/avatar-2.jpg" alt="Generic placeholder image">
+												<div class="live-status bg-success"></div>
+											</a>
+										</div>
+										<div class="media-body">
+											<h6>Josephin Doe</h6>
+											<p>Huntingston, NJ</p>
+										</div>
+									</div>
+									<div class="media mb-2">
+										<div class="media-left media-middle mr-3">
+											<a href="#!">
+												<img class="img-fluid media-object img-radius" src="/static/assets/images/user/avatar-3.jpg" alt="Generic placeholder image">
+												<div class="live-status bg-danger"></div>
+											</a>
+										</div>
+										<div class="media-body">
+											<h6>Josephin Doe</h6>
+											<p>Willingstion, WA</p>
+										</div>
+									</div>
+									<div class="media mb-2">
+										<div class="media-left media-middle mr-3">
+											<a href="#!">
+												<img class="img-fluid media-object img-radius" src="/static/assets/images/user/avatar-2.jpg" alt="Generic placeholder image">
+												<div class="live-status bg-success"></div>
+											</a>
+										</div>
+										<div class="media-body">
+											<h6>Josephin Doe</h6>
+											<p>Illions, IL</p>
+										</div>
+									</div>
+								</div>
+								<div class="task-right-header-revision">
+									<span class="f-w-400" data-toggle="collapse">Revision</span>
+									<i class="fas fa-caret-down float-right m-t-5"></i>
+								</div>
+								<div class="taskboard-right-revision user-box">
+									<div class="media">
+										<div class="media-left mr-3">
+											<a class="btn waves-effect waves-light btn-outline-primary btn-icon" href="#!" role="button"><i class="fas fa-cogs"></i>
+											</a>
+										</div>
+										<div class="media-body">
+											<div class="chat-header f-w-400 mb-1">Drop the IE specific hacks for temporal inputs</div>
+											<p class="chat-header text-muted">4 minutes ago</p>
+										</div>
+									</div>
+									<div class="media">
+										<div class="media-left mr-3">
+											<a class="btn waves-effect waves-light btn-outline-danger btn-icon" href="#!" role="button"><i class="fas fa-share-alt"></i>
+											</a>
+										</div>
+										<div class="media-body">
+											<div class="chat-header f-w-400 mb-1">Have Carousel ignore keyboard events</div>
+											<p class="chat-header text-muted">12 Dec,2015</p>
+										</div>
+									</div>
+									<div class="media">
+										<div class="media-left mr-3">
+											<a class="btn waves-effect waves-light btn-outline-warning btn-icon" href="#!" role="button"><i class="fas fa-font"></i>
+											</a>
+										</div>
+										<div class="media-body">
+											<div class="chat-header f-w-400 mb-1">Add full font overrides for popovers and tooltips</div>
+											<p class="chat-header text-muted">2 month ago</p>
+										</div>
+									</div>
+									<div class="media">
+										<div class="media-left mr-3">
+											<a class="btn waves-effect waves-light btn-outline-success btn-icon" href="#!" role="button"><i class="fas fa-mobile-alt"></i>
+											</a>
+										</div>
+										<div class="media-body">
+											<div class="chat-header">Responsive Asssignment</div>
+											<p class="chat-header text-muted">6 month ago</p>
+										</div>
+									</div>
+								</div>
+							</div>
+						</div>
+					</div>
+				</div>
+				<!-- [ task-board-left ] end -->
+				<!-- [ task-board-right ] start -->
+				<div class="col-xl-9 col-lg-12 filter-bar">
+					<nav class="navbar m-b-30 p-10">
+						<ul class="nav">
+							<li class="nav-item f-text active">
+								<a class="nav-link text-secondary" href="#!">Filter: <span class="sr-only">(current)</span></a>
+							</li>
+							<li class="nav-item dropdown">
+								<a class="nav-link dropdown-toggle text-secondary" href="#" id="bydate" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false"><i class="far fa-clock"></i> By Date</a>
+								<div class="dropdown-menu" aria-labelledby="bydate">
+									<a class="dropdown-item" href="#!">Show all</a>
+									<div class="dropdown-divider"></div>
+									<a class="dropdown-item" href="#!">Today</a>
+									<a class="dropdown-item" href="#!">Yesterday</a>
+									<a class="dropdown-item" href="#!">This week</a>
+									<a class="dropdown-item" href="#!">This month</a>
+									<a class="dropdown-item" href="#!">This year</a>
+								</div>
+							</li>
+							<li class="nav-item dropdown">
+								<a class="nav-link dropdown-toggle text-secondary" href="#" id="bystatus" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false"><i class="fas fa-chart-line"></i> By Status</a>
+								<div class="dropdown-menu" aria-labelledby="bystatus">
+									<a class="dropdown-item" href="#!">Show all</a>
+									<div class="dropdown-divider"></div>
+									<a class="dropdown-item" href="#!">Open</a>
+									<a class="dropdown-item" href="#!">On hold</a>
+									<a class="dropdown-item" href="#!">Resolved</a>
+									<a class="dropdown-item" href="#!">Closed</a>
+									<a class="dropdown-item" href="#!">Dublicate</a>
+									<a class="dropdown-item" href="#!">Wontfix</a>
+								</div>
+							</li>
+							<li class="nav-item dropdown">
+								<a class="nav-link dropdown-toggle text-secondary" href="#" id="bypriority" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false"><i class="fas fa-list-ol"></i> By Priority</a>
+								<div class="dropdown-menu" aria-labelledby="bypriority">
+									<a class="dropdown-item" href="#!">Show all</a>
+									<div class="dropdown-divider"></div>
+									<a class="dropdown-item" href="#!">Highest</a>
+									<a class="dropdown-item" href="#!">High</a>
+									<a class="dropdown-item" href="#!">Normal</a>
+									<a class="dropdown-item" href="#!">Low</a>
+								</div>
+							</li>
+						</ul>
+						<div class="nav-item nav-grid f-view">
+							<span class="m-r-15">View Mode:</span>
+							<button type="button" class="btn waves-effect waves-light btn-primary btn-icon m-0" data-toggle="tooltip" data-placement="top" title="list view">
+								<i class="fas fa-list-ul"></i>
+							</button>
+							<button type="button" class="btn waves-effect waves-light btn-primary btn-icon m-0" data-toggle="tooltip" data-placement="top" title="grid view">
+								<i class="fas fa-th-large"></i>
+							</button>
+						</div>
+					</nav>
+					<div class="row">
+						<div class="col-md-6 col-sm-12">
+							<div class="card card-border-c-blue">
+								<div class="card-header">
+									<a href="#!" class="text-secondary">#24. Create UI design model </a>
+									<span class="label label-primary float-right"> 28 January, 2015 </span>
+								</div>
+								<div class="card-body card-task">
+									<div class="row">
+										<div class="col-sm-12">
+											<p class="task-detail">A collection of textile samples lay spread out on the table One morning, when Gregor Samsa woke from troubled.</p>
+											<p class="task-due"><strong> Due : </strong><strong class="label label-primary">23 hours</strong></p>
+										</div>
+									</div>
+									<hr>
+									<div class="task-list-table">
+										<a href="#!"><img class="img-fluid img-radius m-r-5" src="/static/assets/images/user/avatar-2.jpg" alt="1" /></a>
+										<a href="#!"><img class="img-fluid img-radius m-r-5" src="/static/assets/images/user/avatar-1.jpg" alt="1" /></a>
+										<a href="#!"><i class="fas fa-plus"></i></a>
+									</div>
+									<div class="task-board">
+										<div class="dropdown-secondary dropdown">
+											<button class="btn waves-effect waves-light btn-primary btn-sm dropdown-toggle" type="button" id="dropdown1" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">Normal</button>
+											<div class="dropdown-menu" aria-labelledby="dropdown1" data-dropdown-in="fadeIn" data-dropdown-out="fadeOut">
+												<a class="dropdown-item" href="#!"><span class="point-marker bg-danger"></span>Highest priority</a>
+												<a class="dropdown-item" href="#!"><span class="point-marker bg-warning"></span>High priority</a>
+												<a class="dropdown-item  active" href="#!"><span class="point-marker bg-success"></span>Normal priority</a>
+												<a class="dropdown-item" href="#!"><span class="point-marker bg-info"></span>Low priority</a>
+											</div>
+										</div>
+										<div class="dropdown-secondary dropdown">
+											<button class="btn waves-effect waves-light btn-primary btn-sm dropdown-toggle b-none txt-muted" type="button" id="dropdown2" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">Open</button>
+											<div class="dropdown-menu" aria-labelledby="dropdown2" data-dropdown-in="fadeIn" data-dropdown-out="fadeOut">
+												<a class="dropdown-item" href="#!">Open</a>
+												<a class="dropdown-item active" href="#!">On hold</a>
+												<a class="dropdown-item" href="#!">Resolved</a>
+												<a class="dropdown-item" href="#!">Closed</a>
+												<div class="dropdown-divider"></div>
+												<a class="dropdown-item" href="#!">Dublicate</a>
+												<a class="dropdown-item" href="#!">Invalid</a>
+												<a class="dropdown-item" href="#!">Wontfix</a>
+											</div>
+										</div>
+										<div class="dropdown-secondary dropdown">
+											<button class="btn waves-effect waves-light btn-primary btn-sm dropdown-toggle b-none txt-muted" type="button" id="dropdown3" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false"><i
+													class="fas fa-bars"></i></button>
+											<div class="dropdown-menu" aria-labelledby="dropdown3" data-dropdown-in="fadeIn" data-dropdown-out="fadeOut">
+												<a class="dropdown-item" href="#!">Check in</a>
+												<a class="dropdown-item" href="#!">Attach screenshot</a>
+												<a class="dropdown-item" href="#!">Reassign</a>
+												<div class="dropdown-divider"></div>
+												<a class="dropdown-item" href="#!">Edit task</a>
+												<a class="dropdown-item" href="#!">Remove</a>
+											</div>
+										</div>
+									</div>
+								</div>
+							</div>
+						</div>
+						<div class="col-md-6 col-sm-12">
+							<div class="card card-border-c-green">
+								<div class="card-header">
+									<a href="#!" class="text-secondary">#24. Create UI design model </a>
+									<span class="label label-success float-right"> 28 January, 2015 </span>
+								</div>
+								<div class="card-body card-task">
+									<div class="row">
+										<div class="col-sm-12">
+											<p class="task-detail">A collection of textile samples lay spread out on the table One morning, when Gregor Samsa woke from troubled.</p>
+											<p class="task-due"><strong> Due : </strong><strong class="label label-success">23 hours</strong></p>
+										</div>
+									</div>
+									<hr>
+									<div class="task-list-table">
+										<a href="#!"><img class="img-fluid img-radius m-r-5" src="/static/assets/images/user/avatar-2.jpg" alt="1" /></a>
+										<a href="#!"><img class="img-fluid img-radius m-r-5" src="/static/assets/images/user/avatar-1.jpg" alt="1" /></a>
+										<a href="#!"><i class="fas fa-plus"></i></a>
+									</div>
+									<div class="task-board">
+										<div class="dropdown-secondary dropdown">
+											<button class="btn waves-effect waves-light btn-success btn-sm dropdown-toggle" type="button" id="dropdown4" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">Normal</button>
+											<div class="dropdown-menu" aria-labelledby="dropdown1" data-dropdown-in="fadeIn" data-dropdown-out="fadeOut">
+												<a class="dropdown-item" href="#!"><span class="point-marker bg-danger"></span>Highest priority</a>
+												<a class="dropdown-item" href="#!"><span class="point-marker bg-warning"></span>High priority</a>
+												<a class="dropdown-item active" href="#!"><span class="point-marker bg-success"></span>Normal priority</a>
+												<a class="dropdown-item" href="#!"><span class="point-marker bg-info"></span>Low priority</a>
+											</div>
+										</div>
+										<div class="dropdown-secondary dropdown">
+											<button class="btn waves-effect waves-light btn-success btn-sm dropdown-toggle b-none txt-muted" type="button" id="dropdown5" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">Open</button>
+											<div class="dropdown-menu" aria-labelledby="dropdown2" data-dropdown-in="fadeIn" data-dropdown-out="fadeOut">
+												<a class="dropdown-item" href="#!">Open</a>
+												<a class="dropdown-item active" href="#!">On hold</a>
+												<a class="dropdown-item" href="#!">Resolved</a>
+												<a class="dropdown-item" href="#!">Closed</a>
+												<div class="dropdown-divider"></div>
+												<a class="dropdown-item" href="#!">Dublicate</a>
+												<a class="dropdown-item" href="#!">Invalid</a>
+												<a class="dropdown-item" href="#!">Wontfix</a>
+											</div>
+										</div>
+										<div class="dropdown-secondary dropdown">
+											<button class="btn waves-effect waves-light btn-success btn-sm dropdown-toggle b-none txt-muted" type="button" id="dropdown6" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false"><i
+													class="fas fa-bars"></i></button>
+											<div class="dropdown-menu" aria-labelledby="dropdown3" data-dropdown-in="fadeIn" data-dropdown-out="fadeOut">
+												<a class="dropdown-item" href="#!">Check in</a>
+												<a class="dropdown-item" href="#!">Attach screenshot</a>
+												<a class="dropdown-item" href="#!">Reassign</a>
+												<div class="dropdown-divider"></div>
+												<a class="dropdown-item" href="#!">Edit task</a>
+												<a class="dropdown-item" href="#!">Remove</a>
+											</div>
+										</div>
+									</div>
+								</div>
+							</div>
+						</div>
+						<div class="col-md-6 col-sm-12">
+							<div class="card card-border-c-red">
+								<div class="card-header">
+									<a href="#!" class="text-secondary">#24. Create UI design model </a>
+									<span class="label label-danger float-right"> 28 January, 2015 </span>
+								</div>
+								<div class="card-body card-task">
+									<div class="row">
+										<div class="col-sm-12">
+											<p class="task-detail">A collection of textile samples lay spread out on the table One morning, when Gregor Samsa woke from troubled.</p>
+											<p class="task-due"><strong> Due : </strong><strong class="label label-danger">23 hours</strong></p>
+										</div>
+									</div>
+									<hr>
+									<div class="task-list-table">
+										<a href="#!"><img class="img-fluid img-radius m-r-5" src="/static/assets/images/user/avatar-2.jpg" alt="1" /></a>
+										<a href="#!"><img class="img-fluid img-radius m-r-5" src="/static/assets/images/user/avatar-1.jpg" alt="1" /></a>
+										<a href="#!"><i class="fas fa-plus"></i></a>
+									</div>
+									<div class="task-board">
+										<div class="dropdown-secondary dropdown">
+											<button class="btn waves-effect waves-light btn-danger btn-sm dropdown-toggle" type="button" id="dropdown7" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">Normal</button>
+											<div class="dropdown-menu" aria-labelledby="dropdown1" data-dropdown-in="fadeIn" data-dropdown-out="fadeOut">
+												<a class="dropdown-item" href="#!"><span class="point-marker bg-danger"></span>Highest priority</a>
+												<a class="dropdown-item" href="#!"><span class="point-marker bg-warning"></span>High priority</a>
+												<a class="dropdown-item active" href="#!"><span class="point-marker bg-success"></span>Normal priority</a>
+												<a class="dropdown-item" href="#!"><span class="point-marker bg-info"></span>Low priority</a>
+											</div>
+										</div>
+										<div class="dropdown-secondary dropdown">
+											<button class="btn waves-effect waves-light btn-danger btn-sm dropdown-toggle b-none txt-muted" type="button" id="dropdown8" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">Open</button>
+											<div class="dropdown-menu" aria-labelledby="dropdown2" data-dropdown-in="fadeIn" data-dropdown-out="fadeOut">
+												<a class="dropdown-item" href="#!">Open</a>
+												<a class="dropdown-item active" href="#!">On hold</a>
+												<a class="dropdown-item" href="#!">Resolved</a>
+												<a class="dropdown-item" href="#!">Closed</a>
+												<div class="dropdown-divider"></div>
+												<a class="dropdown-item" href="#!">Dublicate</a>
+												<a class="dropdown-item" href="#!">Invalid</a>
+												<a class="dropdown-item" href="#!">Wontfix</a>
+											</div>
+										</div>
+										<div class="dropdown-secondary dropdown">
+											<button class="btn waves-effect waves-light btn-danger btn-sm dropdown-toggle b-none txt-muted" type="button" id="dropdown9" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false"><i
+													class="fas fa-bars"></i></button>
+											<div class="dropdown-menu" aria-labelledby="dropdown3" data-dropdown-in="fadeIn" data-dropdown-out="fadeOut">
+												<a class="dropdown-item" href="#!">Check in</a>
+												<a class="dropdown-item" href="#!">Attach screenshot</a>
+												<a class="dropdown-item" href="#!">Reassign</a>
+												<div class="dropdown-divider"></div>
+												<a class="dropdown-item" href="#!">Edit task</a>
+												<a class="dropdown-item" href="#!">Remove</a>
+											</div>
+										</div>
+									</div>
+								</div>
+							</div>
+						</div>
+						<div class="col-md-6 col-sm-12">
+							<div class="card card-border-c-yellow">
+								<div class="card-header">
+									<a href="#!" class="text-secondary">#24. Create UI design model </a>
+									<span class="label label-warning float-right"> 28 January, 2015 </span>
+								</div>
+								<div class="card-body card-task">
+									<div class="row">
+										<div class="col-sm-12">
+											<p class="task-detail">A collection of textile samples lay spread out on the table One morning, when Gregor Samsa woke from troubled.</p>
+											<p class="task-due"><strong> Due : </strong><strong class="label label-warning">23 hours</strong></p>
+										</div>
+									</div>
+									<hr>
+									<div class="task-list-table">
+										<a href="#!"><img class="img-fluid img-radius m-r-5" src="/static/assets/images/user/avatar-2.jpg" alt="1" /></a>
+										<a href="#!"><img class="img-fluid img-radius m-r-5" src="/static/assets/images/user/avatar-1.jpg" alt="1" /></a>
+										<a href="#!"><i class="fas fa-plus"></i></a>
+									</div>
+									<div class="task-board">
+										<div class="dropdown-secondary dropdown">
+											<button class="btn waves-effect waves-light btn-warning btn-sm dropdown-toggle" type="button" id="dropdown10" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">Normal</button>
+											<div class="dropdown-menu" aria-labelledby="dropdown1" data-dropdown-in="fadeIn" data-dropdown-out="fadeOut">
+												<a class="dropdown-item" href="#!"><span class="point-marker bg-danger"></span>Highest priority</a>
+												<a class="dropdown-item" href="#!"><span class="point-marker bg-warning"></span>High priority</a>
+												<a class="dropdown-item active" href="#!"><span class="point-marker bg-success"></span>Normal priority</a>
+												<a class="dropdown-item" href="#!"><span class="point-marker bg-info"></span>Low priority</a>
+											</div>
+										</div>
+										<div class="dropdown-secondary dropdown">
+											<button class="btn waves-effect waves-light btn-warning btn-sm dropdown-toggle b-none txt-muted" type="button" id="dropdown11" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">Open</button>
+											<div class="dropdown-menu" aria-labelledby="dropdown2" data-dropdown-in="fadeIn" data-dropdown-out="fadeOut">
+												<a class="dropdown-item" href="#!">Open</a>
+												<a class="dropdown-item active" href="#!">On hold</a>
+												<a class="dropdown-item" href="#!">Resolved</a>
+												<a class="dropdown-item" href="#!">Closed</a>
+												<div class="dropdown-divider"></div>
+												<a class="dropdown-item" href="#!">Dublicate</a>
+												<a class="dropdown-item" href="#!">Invalid</a>
+												<a class="dropdown-item" href="#!">Wontfix</a>
+											</div>
+										</div>
+										<div class="dropdown-secondary dropdown">
+											<button class="btn waves-effect waves-light btn-warning btn-sm dropdown-toggle b-none txt-muted" type="button" id="dropdown12" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false"><i
+													class="fas fa-bars"></i></button>
+											<div class="dropdown-menu" aria-labelledby="dropdown3" data-dropdown-in="fadeIn" data-dropdown-out="fadeOut">
+												<a class="dropdown-item" href="#!">Check in</a>
+												<a class="dropdown-item" href="#!">Attach screenshot</a>
+												<a class="dropdown-item" href="#!">Reassign</a>
+												<div class="dropdown-divider"></div>
+												<a class="dropdown-item" href="#!">Edit task</a>
+												<a class="dropdown-item" href="#!">Remove</a>
+											</div>
+										</div>
+									</div>
+								</div>
+							</div>
+						</div>
+						<div class="col-md-6 col-sm-12">
+							<div class="card card-border-c-green">
+								<div class="card-header">
+									<a href="#!" class="text-secondary">#24. Create UI design model </a>
+									<span class="label label-success float-right"> 28 January, 2015 </span>
+								</div>
+								<div class="card-body card-task">
+									<div class="row">
+										<div class="col-sm-12">
+											<p class="task-detail">A collection of textile samples lay spread out on the table One morning, when Gregor Samsa woke from troubled.</p>
+											<p class="task-due"><strong> Due : </strong><strong class="label label-success">23 hours</strong></p>
+										</div>
+									</div>
+									<hr>
+									<div class="task-list-table">
+										<a href="#!"><img class="img-fluid img-radius m-r-5" src="/static/assets/images/user/avatar-2.jpg" alt="1" /></a>
+										<a href="#!"><img class="img-fluid img-radius m-r-5" src="/static/assets/images/user/avatar-1.jpg" alt="1" /></a>
+										<a href="#!"><i class="fas fa-plus"></i></a>
+									</div>
+									<div class="task-board">
+										<div class="dropdown-secondary dropdown">
+											<button class="btn waves-effect waves-light btn-success btn-sm dropdown-toggle" type="button" id="dropdown13" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">Normal</button>
+											<div class="dropdown-menu" aria-labelledby="dropdown1" data-dropdown-in="fadeIn" data-dropdown-out="fadeOut">
+												<a class="dropdown-item" href="#!"><span class="point-marker bg-danger"></span>Highest priority</a>
+												<a class="dropdown-item" href="#!"><span class="point-marker bg-warning"></span>High priority</a>
+												<a class="dropdown-item active" href="#!"><span class="point-marker bg-success"></span>Normal priority</a>
+												<a class="dropdown-item" href="#!"><span class="point-marker bg-info"></span>Low priority</a>
+											</div>
+										</div>
+										<div class="dropdown-secondary dropdown">
+											<button class="btn waves-effect waves-light btn-success btn-sm dropdown-toggle b-none txt-muted" type="button" id="dropdown14" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">Open</button>
+											<div class="dropdown-menu" aria-labelledby="dropdown2" data-dropdown-in="fadeIn" data-dropdown-out="fadeOut">
+												<a class="dropdown-item" href="#!">Open</a>
+												<a class="dropdown-item active" href="#!">On hold</a>
+												<a class="dropdown-item" href="#!">Resolved</a>
+												<a class="dropdown-item" href="#!">Closed</a>
+												<div class="dropdown-divider"></div>
+												<a class="dropdown-item" href="#!">Dublicate</a>
+												<a class="dropdown-item" href="#!">Invalid</a>
+												<a class="dropdown-item" href="#!">Wontfix</a>
+											</div>
+										</div>
+										<div class="dropdown-secondary dropdown">
+											<button class="btn waves-effect waves-light btn-success btn-sm dropdown-toggle b-none txt-muted" type="button" id="dropdown15" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false"><i
+													class="fas fa-bars"></i></button>
+											<div class="dropdown-menu" aria-labelledby="dropdown3" data-dropdown-in="fadeIn" data-dropdown-out="fadeOut">
+												<a class="dropdown-item" href="#!">Check in</a>
+												<a class="dropdown-item" href="#!">Attach screenshot</a>
+												<a class="dropdown-item" href="#!">Reassign</a>
+												<div class="dropdown-divider"></div>
+												<a class="dropdown-item" href="#!">Edit task</a>
+												<a class="dropdown-item" href="#!">Remove</a>
+											</div>
+										</div>
+									</div>
+								</div>
+							</div>
+						</div>
+						<div class="col-md-6 col-sm-12">
+							<div class="card card-border-c-blue">
+								<div class="card-header">
+									<a href="#!" class="text-secondary">#24. Create UI design model </a>
+									<span class="label label-primary float-right"> 28 January, 2015 </span>
+								</div>
+								<div class="card-body card-task">
+									<div class="row">
+										<div class="col-sm-12">
+											<p class="task-detail">A collection of textile samples lay spread out on the table One morning, when Gregor Samsa woke from troubled.</p>
+											<p class="task-due"><strong> Due : </strong><strong class="label label-primary">23 hours</strong></p>
+										</div>
+									</div>
+									<hr>
+									<div class="task-list-table">
+										<a href="#!"><img class="img-fluid img-radius m-r-5" src="/static/assets/images/user/avatar-2.jpg" alt="1" /></a>
+										<a href="#!"><img class="img-fluid img-radius m-r-5" src="/static/assets/images/user/avatar-1.jpg" alt="1" /></a>
+										<a href="#!"><i class="fas fa-plus"></i></a>
+									</div>
+									<div class="task-board">
+										<div class="dropdown-secondary dropdown">
+											<button class="btn waves-effect waves-light btn-primary btn-sm dropdown-toggle" type="button" id="dropdown16" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">Normal</button>
+											<div class="dropdown-menu" aria-labelledby="dropdown1" data-dropdown-in="fadeIn" data-dropdown-out="fadeOut">
+												<a class="dropdown-item" href="#!"><span class="point-marker bg-danger"></span>Highest priority</a>
+												<a class="dropdown-item" href="#!"><span class="point-marker bg-warning"></span>High priority</a>
+												<a class="dropdown-item active" href="#!"><span class="point-marker bg-success"></span>Normal priority</a>
+												<a class="dropdown-item" href="#!"><span class="point-marker bg-info"></span>Low priority</a>
+											</div>
+										</div>
+										<div class="dropdown-secondary dropdown">
+											<button class="btn waves-effect waves-light btn-primary btn-sm dropdown-toggle b-none txt-muted" type="button" id="dropdown17" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">Open</button>
+											<div class="dropdown-menu" aria-labelledby="dropdown2" data-dropdown-in="fadeIn" data-dropdown-out="fadeOut">
+												<a class="dropdown-item" href="#!">Open</a>
+												<a class="dropdown-item active" href="#!">On hold</a>
+												<a class="dropdown-item" href="#!">Resolved</a>
+												<a class="dropdown-item" href="#!">Closed</a>
+												<div class="dropdown-divider"></div>
+												<a class="dropdown-item" href="#!">Dublicate</a>
+												<a class="dropdown-item" href="#!">Invalid</a>
+												<a class="dropdown-item" href="#!">Wontfix</a>
+											</div>
+										</div>
+										<div class="dropdown-secondary dropdown">
+											<button class="btn waves-effect waves-light btn-primary btn-sm dropdown-toggle b-none txt-muted" type="button" id="dropdown18" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false"><i
+													class="fas fa-bars"></i></button>
+											<div class="dropdown-menu" aria-labelledby="dropdown3" data-dropdown-in="fadeIn" data-dropdown-out="fadeOut">
+												<a class="dropdown-item" href="#!">Check in</a>
+												<a class="dropdown-item" href="#!">Attach screenshot</a>
+												<a class="dropdown-item" href="#!">Reassign</a>
+												<div class="dropdown-divider"></div>
+												<a class="dropdown-item" href="#!">Edit task</a>
+												<a class="dropdown-item" href="#!">Remove</a>
+											</div>
+										</div>
+									</div>
+								</div>
+							</div>
+						</div>
+					</div>
+				</div>
+				<!-- [ task-board-right ] end -->
+			</div>
+			<!-- [ Main Content ] end -->
+		</div>
+	</section>
+	<!-- [ Main Content ] end -->
+
+{% endblock content %}
+
+<!-- Specific Page JS goes HERE  -->
+{% block javascripts %}
+
+	<!-- task-board js -->
+	<script src="/static/assets/js/pages/task-board.js"></script>
+
+{% endblock javascripts %}	

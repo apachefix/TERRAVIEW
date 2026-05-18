@@ -1,0 +1,278 @@
+{% extends "layouts/base.html" %}
+
+{% block title %} Conductores {% endblock %} 
+
+<!-- Specific CSS goes HERE -->
+{% block stylesheets %}
+
+    <!-- data tables css -->
+    <link rel="stylesheet" href="/static/assets/css/plugins/dataTables.bootstrap4.min.css">
+    {% load humanize %}
+    {% load i18n %}
+    {% load l10n %}
+{% endblock stylesheets %}
+
+{% block content %}	
+
+	<!-- [ chat user list ] start -->
+	<!-- chatbot -->
+	<!-- [ chat user list ] end -->
+
+	<!---->
+
+    <!-- [ Main Content ] start -->
+    
+    <section class="pcoded-main-container">
+        <div class="pcoded-content">
+            <!-- [ breadcrumb ] start -->
+            <div class="page-header">
+                <div class="page-block">
+                    <div class="row align-items-center">
+                        <div class="col-md-12">
+                            <div class="page-header-title">
+                                <h5 class="m-b-10">Lista de conductores</h5>
+                            </div>
+                            <ul class="breadcrumb">
+                                <li class="breadcrumb-item"><a href="/"><i class="feather icon-home"></i></a></li>
+                                <li class="breadcrumb-item"><a href="/">Sistema Camiones</a></li>
+                                <li class="breadcrumb-item"><a href="/con_listall">Conductores</a></li>
+                                
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+            <!-- [ breadcrumb ] end -->
+            <!-- [ Main Content ] start -->
+            <div class="row">
+                <!-- HTML5 Export Buttons table start -->
+                <div class="col-sm-12">
+                    <div class="card">
+                        <div class="d-flex justify-content-between">
+                            <div class="card-header table-card-header">
+                                <h5>Opciones de exportación</h5>
+                            </div>
+                            {% if request.user.is_superuser == 1 or request.user.userv.UX_IS_PLANIFICADOR == 1 %}
+                            <div class=" mb-2 mb-md-0" style="margin-right: 50px;margin-top: 20px;">
+                                <a href="{% url 'con_addone' %}" class="btn  btn-primary d-inline-flex align-items-center"><i class="fas fa-user-plus"></i>
+                                    &nbsp&nbsp Nuevo
+                                </a>
+                                <button id="deleteSelected" class="btn btn-danger" style="display: none;">
+                                    <i class="fas fa-trash"></i> Eliminar Seleccionados
+                                </button>  
+                            </div>
+                            {% endif %}
+                        </div>
+                        <div class="card-body">
+                            <div class="dt-responsive table-responsive">
+                                <table id="basic-btn" class="table table-striped table-bordered nowrap">
+                                    <thead>
+                                        <tr>
+                                            <th class="text-center" style="width: 60px; vertical-align: middle; padding: 15px 10px;">
+                                                <div class="d-flex justify-content-center align-items-center" style="height: 100%; margin-left: 10px;">
+                                                    <input type="checkbox" id="selectAll" class="form-check-input">
+                                                </div>
+                                            </th>
+                                            <th>ACCIONES</th>
+                                            <th>ESTADO DOCUMENTOS</th>
+                                            <th>PROVEEDOR</th>
+                                            <th>NOMBRE</th>
+                                            <th>RUT</th>
+                                            <th>EMAIL</th>
+                                            <th>TELEFONO</th>
+                                            <th>FECHA REGISTRO</th>
+                                            <th>USUARIO CREADOR</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {% for object in object_list %}
+                                            <tr>
+                                                <td class="text-center" style="width: 60px; vertical-align: middle; padding: 15px 10px;">
+                                                    <div class="d-flex justify-content-center align-items-center" style="height: 100%; margin-left: 10px;">
+                                                        <input type="checkbox" class="form-check-input conductor-checkbox" value="{{ object.pk }}">
+                                                    </div>
+                                                </td>
+                                                <td>
+                                                    
+                                                    <a class="btn btn-primary" href="{% url 'con_listone' object.pk %}">
+                                                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-eye" viewBox="0 0 16 16">
+                                                            <path d="M16 8s-3-5.5-8-5.5S0 8 0 8s3 5.5 8 5.5S16 8 16 8zM1.173 8a13.133 13.133 0 0 1 1.66-2.043C4.12 4.668 5.88 3.5 8 3.5c2.12 0 3.879 1.168 5.168 2.457A13.133 13.133 0 0 1 14.828 8c-.058.087-.122.183-.195.288-.335.48-.83 1.12-1.465 1.755C11.879 11.332 10.119 12.5 8 12.5c-2.12 0-3.879-1.168-5.168-2.457A13.134 13.134 0 0 1 1.172 8z"/>
+                                                            <path d="M8 5.5a2.5 2.5 0 1 0 0 5 2.5 2.5 0 0 0 0-5zM4.5 8a3.5 3.5 0 1 1 7 0 3.5 3.5 0 0 1-7 0z"/>
+                                                        </svg>
+                                                    </a>
+                                                    {% if request.user.is_superuser == 1 or request.user.userv.UX_IS_PLANIFICADOR == 1 %}
+                                                        <a class="btn btn-primary" href="{% url 'con_update' object.pk %}">
+                                                            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-pencil-square" viewBox="0 0 16 16">
+                                                                <path d="M15.502 1.94a.5.5 0 0 1 0 .706L14.459 3.69l-2-2L13.502.646a.5.5 0 0 1 .707 0l1.293 1.293zm-1.75 2.456-2-2L4.939 9.21a.5.5 0 0 0-.121.196l-.805 2.414a.25.25 0 0 0 .316.316l2.414-.805a.5.5 0 0 0 .196-.12l6.813-6.814z"/>
+                                                                <path fill-rule="evenodd" d="M1 13.5A1.5 1.5 0 0 0 2.5 15h11a1.5 1.5 0 0 0 1.5-1.5v-6a.5.5 0 0 0-1 0v6a.5.5 0 0 1-.5.5h-11a.5.5 0 0 1-.5-.5v-11a.5.5 0 0 1 .5-.5H9a.5.5 0 0 0 0-1H2.5A1.5 1.5 0 0 0 1 2.5v11z"/>
+                                                            </svg>
+                                                        </a>
+                                                        {% endif %}
+                                                        {% if request.user.is_superuser == 1 or request.user.userv.UX_IS_ADMINISTRADOR_CONDUCTOR == 1 %}
+                                                        <a class="btn btn-danger delete_conductor" data-href="{% url 'con_delete' object.pk %}" id="delete_conductor">
+                                                            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-trash" viewBox="0 0 16 16">
+                                                                <path d="M5.5 5.5A.5.5 0 0 1 6 6v6a.5.5 0 0 1-1 0V6a.5.5 0 0 1 .5-.5zm2.5 0a.5.5 0 0 1 .5.5v6a.5.5 0 0 1-1 0V6a.5.5 0 0 1 .5-.5zm3 .5a.5.5 0 0 0-1 0v6a.5.5 0 0 0 1 0V6z" />
+                                                                <path fill-rule="evenodd"d="M14.5 3a1 1 0 0 1-1 1H13v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V4h-.5a1 1 0 0 1-1-1V2a1 1 0 0 1 1-1H6a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1h3.5a1 1 0 0 1 1 1v1zM4.118 4 4 4.059V13a1 1 0 0 0 1 1h6a1 1 0 0 0 1-1V4.059L11.882 4H4.118zM2.5 3V2h11v1h-11z" />
+                                                            </svg>
+                                                        </a>
+                                                        {% endif %}
+                                                </td>
+                                                <td class="text-center">
+                                                    {% with ''|center:0 as range %}
+                                                    {% if object.ESTADO_DOCUMENTOS %}
+                                                        {% for doc in object.ESTADO_DOCUMENTOS %}
+                                                            {% if forloop.first %}
+                                                                {% if doc.1 == -999 %}
+                                                                    <span class="fw-bold text-danger">
+                                                                        Faltan documentos
+                                                                        <i class="fas fa-times"></i>
+                                                                    </span>
+                                                                {% elif doc.1 <= 0 %}
+                                                                    <span class="fw-bold text-danger">
+                                                                        Documentos vencidos
+                                                                        <i class="fas fa-times"></i>
+                                                                    </span>
+                                                                {% else %}
+                                                                    <span class="fw-bold text-warning">
+                                                                        Documentos próximos a vencer
+                                                                        <i class="fas fa-exclamation-triangle"></i>
+                                                                    </span>
+                                                                {% endif %}
+                                                            {% endif %}
+                                                        {% endfor %}
+                                                    {% elif object.LISTA_DOCUMENTOS %}
+                                                        <span class="fw-bold text-danger">
+                                                            Faltan documentos 
+                                                            <i class="fas fa-times"></i>
+                                                        </span>
+                                                    {% else %}
+                                                        <span class="fw-bold text-success">
+                                                            CORRECTO
+                                                            <i class="fas fa-check"></i>
+                                                        </span>
+                                                    {% endif %}
+                                                    {% endwith %}
+                                                    </td>
+                                                <td>{{ object.SN_NID.SN_CRAZONSOCIAL }}</td>
+                                                <td>{{ object.CON_CNOMBRE }} {{ object.CON_CAPELLIDO }}</td>
+                                                <td>{{ object.CON_CRUT }}</td>
+                                                <td>{{ object.CON_CEMAIL|default:'-' }}</td>
+                                                <td>{{ object.CON_CTELEFONO|default:'-' }}</td>
+                                                <td>{{ object.CON_FFECHAREGISTRO|date:'d/m/Y H:i' }}</td>
+                                                <td>{{ object.US_NID.first_name }} {{ object.US_NID.last_name }}</td>
+                                            </tr>
+                                        {% endfor %}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <!-- [ Main Content ] end -->
+        </div>
+    </section>
+    <!-- [ Main Content ] end -->
+
+{% endblock content %}
+
+<!-- Specific Page JS goes HERE  -->
+{% block javascripts %}
+
+    <!-- datatable Js -->
+    <script src="/static/assets/js/plugins/jquery.dataTables.min.js"></script>
+    <script src="/static/assets/js/plugins/dataTables.bootstrap4.min.js"></script>
+    <script src="/static/assets/js/plugins/buttons.colVis.min.js"></script>
+    <script src="/static/assets/js/plugins/buttons.print.min.js"></script>
+    <script src="/static/assets/js/plugins/pdfmake.min.js"></script>
+    <script src="/static/assets/js/plugins/jszip.min.js"></script>
+    <script src="/static/assets/js/plugins/dataTables.buttons.min.js"></script>
+    <script src="/static/assets/js/plugins/buttons.html5.min.js"></script>
+    <script src="/static/assets/js/plugins/buttons.bootstrap4.min.js"></script>
+    <script src="/static/assets/js/pages/data-export-custom.js"></script>
+    <script>
+        $('.delete_conductor').on("click", function(){
+            const urlToNavigate = $(this).data('href');
+            Swal.fire({
+                title: '¡Atención!',
+                icon: 'warning',
+                text: '¿Estás seguro de eliminar a este conductor?',
+                showCancelButton: true,
+                confirmButtonColor: '#299B0B',
+                cancelButtonColor: '#d33',
+                confirmButtonText: 'Confirmar',
+                cancelButtonText: 'Cancelar'
+            }).then((resultado) => {
+                if(resultado.isConfirmed){
+                    window.location.href = urlToNavigate;
+                }
+            });
+        });
+        
+
+        // Seleccionar/deseleccionar todos
+        $('#selectAll').change(function() {
+            $('.conductor-checkbox').prop('checked', $(this).prop('checked'));
+            updateDeleteButton();
+        });
+
+        // Actualizar estado del botón cuando se seleccionen checkboxes individuales
+        $('.conductor-checkbox').change(function() {
+            updateDeleteButton();
+        });
+
+        // Mostrar/ocultar botón de eliminar
+        function updateDeleteButton() {
+            const selectedCount = $('.conductor-checkbox:checked').length;
+            $('#deleteSelected').toggle(selectedCount > 0);
+        }
+
+        // Manejar eliminación múltiple
+        $('#deleteSelected').click(function() {
+            const selectedIds = $('.conductor-checkbox:checked').map(function() {
+                return $(this).val();
+            }).get();
+
+            if (selectedIds.length > 0) {
+                Swal.fire({
+                    title: '¡Atención!',
+                    icon: 'warning',
+                    text: `¿Estás seguro de eliminar ${selectedIds.length} conductores seleccionados?`,
+                    showCancelButton: true,
+                    confirmButtonColor: '#299B0B',
+                    cancelButtonColor: '#d33',
+                    confirmButtonText: 'Confirmar',
+                    cancelButtonText: 'Cancelar'
+                }).then((resultado) => {
+                    if(resultado.isConfirmed){
+                        // Crear un formulario oculto para enviar los IDs
+                        const form = document.createElement('form');
+                        form.method = 'POST';
+                        form.action = '{% url "con_delete_selected" %}';  // Asegúrate de tener esta URL configurada
+                        
+                        // Agregar CSRF token
+                        const csrfToken = document.createElement('input');
+                        csrfToken.type = 'hidden';
+                        csrfToken.name = 'csrfmiddlewaretoken';
+                        csrfToken.value = '{{ csrf_token }}';
+                        form.appendChild(csrfToken);
+
+                        // Agregar los IDs seleccionados
+                        selectedIds.forEach(id => {
+                            const input = document.createElement('input');
+                            input.type = 'hidden';
+                            input.name = 'selectedIds';
+                            input.value = id;
+                            form.appendChild(input);
+                        });
+
+                        // Agregar el formulario al documento y enviarlo
+                        document.body.appendChild(form);
+                        form.submit();
+                    }
+                });
+            }
+        });
+    </script>
+{% endblock javascripts %}

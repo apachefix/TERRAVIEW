@@ -1,0 +1,52 @@
+{% extends "layouts/base.html" %}
+
+{% block content %}
+
+<div class="pcoded-main-container">
+    <div class="pcoded-content">
+        <div class="container-fluid">
+
+            <div class="card mt-4">
+                <div class="card-header">
+                    <h4>Seleccionar empresa</h4>
+                    <p>Seleccione con cuál empresa desea trabajar.</p>
+                </div>
+
+                <div class="card-body">
+                    <div class="row">
+                        {% for item in empresas_usuario %}
+                        <div class="col-md-6">
+                            <div class="card border">
+                                <div class="card-body">
+                                    <h5>
+                                        {% if item.EP_NID.id == 1 %}
+                                            Terramar Harinas
+                                        {% elif item.EP_NID.id == 2 %}
+                                            Aceites SBH
+                                        {% else %}
+                                            {{ item.EP_NID.EP_CRAZONSOCIAL }}
+                                        {% endif %}
+                                    </h5>
+
+                                    <p>Empresa interna: {{ item.EP_NID.EP_CRAZONSOCIAL }}</p>
+
+                                    <a href="{% url 'cambiar_empresa' item.EP_NID.id %}" class="btn btn-primary">
+                                        Entrar
+                                    </a>
+                                </div>
+                            </div>
+                        </div>
+                        {% empty %}
+                        <div class="col-12">
+                            <p>No tiene empresas asignadas.</p>
+                        </div>
+                        {% endfor %}
+                    </div>
+                </div>
+            </div>
+
+        </div>
+    </div>
+</div>
+
+{% endblock content %}

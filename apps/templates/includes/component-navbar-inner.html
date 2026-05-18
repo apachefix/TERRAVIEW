@@ -1,0 +1,236 @@
+{% load permission_filters %}
+<ul class="nav pcoded-inner-navbar ">
+    <li class="nav-item pcoded-menu-caption">
+        <label>Sistema</label>
+    </li>
+    
+    <li class="nav-item pcoded-hasmenu">
+        <a href="#!" class="nav-link "><span class="pcoded-micon"><i class="feather icon-home"></i></span><span class="pcoded-mtext">Inicio</span></a>
+        <ul class="pcoded-submenu">
+            <li><a href="{% url 'home' %}">Panel principal</a></li>
+            <li><a href="{% url 'dashboard_grafico' %}">Ver planta</a></li>
+        </ul>
+    </li>
+
+    {% if request.user|has_vista:'PLANIFICACIONES' or request.user.is_superuser == 1 %}
+    <li class="nav-item pcoded-hasmenu">
+        <a href="#" class="nav-link "><span class="pcoded-micon"><i class="fas fa-tasks"></i></span><span class="pcoded-mtext">Planificaciones</span></a>
+        <ul class="pcoded-submenu">
+            <li><a href="{% url 'pla_listall' %}">Planificaciones</a></li>
+            <li><a href="{% url 'pla_filedlistall' %}">Planificaciones archivadas</a></li>
+        </ul>
+    </li>
+    {% endif %}
+
+    {% if request.user|has_vista:'PROVEEDOR' or request.user.is_superuser == 1 %}
+    <li class="nav-item pcoded-hasmenu">
+        <a href="#" class="nav-link "><span class="pcoded-micon"><i class="fas fa-user-lock"></i></span><span class="pcoded-mtext">Proveedor</span></a>
+        <ul class="pcoded-submenu">
+            <li><a href="{% url 'pro_listall' %}">Proveedor</a></li> <!--Si-->
+            <li><a href="{% url 'pro_listall_inhabilitado' %}">Proveedores eliminados</a></li> <!--No-->
+        </ul>
+    </li>
+    {% endif %}
+    
+    {% if request.user|has_vista:'CLIENTE' or request.user.is_superuser == 1 %}
+    <li class="nav-item pcoded-hasmenu">
+        <a href="#" class="nav-link "><span class="pcoded-micon"><i class="fas fa-user-tie"></i></span><span class="pcoded-mtext">Cliente</span></a>
+        <ul class="pcoded-submenu">
+            <li><a href="{% url 'cli_listall' %}">Cliente</a></li>
+            <li><a href="{% url 'cli_listall_inhabilitado' %}">Clientes eliminados</a></li>
+        </ul>
+    </li>
+    {% endif %}
+    
+    {% if request.user|has_vista:'CONDUCTOR' or request.user.is_superuser == 1 %}
+    <li class="nav-item pcoded-hasmenu">
+        <a href="#" class="nav-link "><span class="pcoded-micon"><i class="fas fa-truck"></i></span><span class="pcoded-mtext">Tripulación y Camión</span></a>
+        <ul class="pcoded-submenu">
+            <li><a href="{% url 'con_listall' %}">Conductor</a></li>
+            <li><a href="{% url 'con_listall_inhabilitado' %}">Conductores eliminados</a></li>
+            <li><a href="{% url 'cam_listall' %}">Camión</a></li>
+            <li><a href="{% url 'cam_listall_inhabilitado' %}">Camiones eliminados</a></li>
+        </ul>
+    </li>
+    {% endif %}
+    
+    {% if request.user|has_vista:'TARIFAS' or request.user.is_superuser == 1 %}
+    <li class="nav-item pcoded-hasmenu">
+        <a href="#" class="nav-link "><span class="pcoded-micon"><i class="fas fa-dollar-sign"></i></span><span class="pcoded-mtext">Tarifas Globales</span></a>
+        <ul class="pcoded-submenu">
+            <li><a href="{% url 'tg_listall' %}">Tarifa</a></li>
+            <li><a href="{% url 'tg_listall_inhabilitado' %}">Tarifas eliminadas</a></li>
+        </ul>
+    </li>
+    {% endif %}
+    
+    {% if request.user|has_vista:'RUTAS' or request.user.is_superuser == 1 %}
+    <li class="nav-item pcoded-hasmenu">
+        <a href="#" class="nav-link "><span class="pcoded-micon"><i class="fas fa-route"></i></span><span class="pcoded-mtext">Rutas</span></a>
+        <ul class="pcoded-submenu">
+            <li><a href="{% url 'rut_listall' %}">Rutas</a></li>
+            <li><a href="{% url 'rut_listall_inhabilitado' %}">Rutas eliminadas</a></li>
+        </ul>
+    </li>
+    {% endif %}
+    
+    {% if request.user|has_vista:'CALENDARIO' or request.user.is_superuser == 1 %}
+    <li class="nav-item pcoded-hasmenu">
+        <a href="#" class="nav-link "><span class="pcoded-micon"><i class="fas fa-calendar-alt"></i></span><span class="pcoded-mtext">Calendario</span></a>
+        <ul class="pcoded-submenu">
+            <li><a href="{% url 'cal_listall' %}">Calendario</a></li>
+        </ul>
+    </li>
+    {% endif %}
+    
+    
+    {% if request.user|has_vista:'CITACION' or request.user.is_superuser == 1 %}
+    <li class="nav-item pcoded-hasmenu">
+        <a href="#" class="nav-link "><span class="pcoded-micon"><i class="fas fa-map-marked-alt"></i></span><span class="pcoded-mtext">Citaciones</span></a>
+        <ul class="pcoded-submenu">
+            <li class="nav-item pcoded-hasmenu">
+                <a href="#" class="nav-link">Despachos</a>
+                <ul class="pcoded-submenu">
+                    <li><a href="{% url 'cit_listall_despachos' %}">Citaciones</a></li> <!--Si-->
+                    <li><a href="{% url 'ext_listall' %}?tipo_citacion=DESPACHO">Extras</a></li> <!--Si-->
+                    <li><a href="{% url 'ext_listall_del' %}?tipo_citacion=DESPACHO">Extras eliminados</a></li> <!--No-->
+                </ul>
+            </li>
+            
+            {% if request.user|has_vista:'RECEPCIONISTA' or request.user.is_superuser == 1 %}
+            <li class="nav-item pcoded-hasmenu">
+                <a href="#" class="nav-link">Recepciones</a>
+                <ul class="pcoded-submenu">
+                    <li><a href="{% url 'cit_listall_recepciones' %}">Citaciones</a></li>
+                    <li><a href="{% url 'ext_listall' %}?tipo_citacion=RECEPCION">Extras</a></li>
+                    <li><a href="{% url 'ext_listall_del' %}?tipo_citacion=RECEPCION">Extras eliminados</a></li>
+                </ul>
+            </li>
+            {% endif %}
+        </ul>
+    </li>
+    {% endif %}
+    
+    {% if request.user|has_vista:'PROFORMAS' or request.user.is_superuser == 1 %}
+    <li class="nav-item pcoded-hasmenu">
+        <a href="#" class="nav-link "><span class="pcoded-micon"><i class="fas fa-file-invoice-dollar"></i></span><span class="pcoded-mtext">Proformas</span></a>
+        <ul class="pcoded-submenu">
+            <li><a href="{% url 'prof_listall' %}">Citaciones</a></li>
+            <li><a href="{% url 'proforma_extras_listall' %}">Extras</a></li>
+            <li><a href="{% url 'proforma_manual_add' %}">Manual</a></li>
+            <li><a href="{% url 'proforma_listall_borrador' %}">Borradores</a></li>
+            <li><a href="{% url 'proforma_listall' %}">Proformas</a></li>
+        </ul>
+    </li>
+    {% endif %}
+    
+    <li class="nav-item pcoded-menu-caption">
+        <label>Configuración</label>
+    </li>
+    
+    {% if request.user|has_vista:'DOCUMENTACION' or request.user.is_superuser == 1 %}
+    <li class="nav-item pcoded-hasmenu">
+        <a href="#" class="nav-link "><span class="pcoded-micon"><i class="fas fa-folder"></i></span><span class="pcoded-mtext">Documentación</span></a>
+        <ul class="pcoded-submenu">
+            <li><a href="{% url 'doc_listall' %}">Tipos de documentos</a></li>
+        </ul>
+    </li>
+    {% endif %}
+    
+    {% if request.user|has_vista:'EMPRESA' or request.user.is_superuser == 1 %}
+    <li class="nav-item pcoded-hasmenu">
+        <a href="#" class="nav-link "><span class="pcoded-micon"><i class="fas fa-building"></i></span><span class="pcoded-mtext">Empresa</span></a>
+        <ul class="pcoded-submenu">
+            <li><a href="{% url 'emp_listall' %}">Empresa</a></li>
+        </ul>
+    </li>
+    {% endif %}
+    
+    {% if request.user|has_vista:'EMPRESA' or request.user.is_superuser == 1 %}
+    <li class="nav-item pcoded-hasmenu">
+        <a href="#" class="nav-link "><span class="pcoded-micon"><i class="fas fa-building"></i></span><span class="pcoded-mtext">Relacion Usuario - Empresa</span></a>
+        <ul class="pcoded-submenu">
+            <li><a href="{% url 'us_emp_listall' %}">Relacion Usuario - Empresa</a></li>
+        </ul>
+    </li>
+    {% endif %}
+
+    {% if request.user.is_superuser %}
+        <li class="nav-item pcoded-hasmenu">
+            <a href="#" class="nav-link "><span class="pcoded-micon"><i class="fas fa-building"></i></span><span class="pcoded-mtext">Parametro</span></a>
+            <ul class="pcoded-submenu">
+                <li><a href="{% url 'parametro_list' %}">Parametros</a></li>
+            </ul>
+        </li>
+    {% endif %}
+    
+    {% if request.user|has_vista:'SECUENCIA' or request.user.is_superuser == 1 %}
+    <li class="nav-item pcoded-hasmenu">
+        <a href="#" class="nav-link "><span class="pcoded-micon"><i class="fas fa-random"></i></span><span class="pcoded-mtext">Secuencias</span></a>
+        <ul class="pcoded-submenu">
+            <li class="nav-item pcoded-hasmenu">
+                <a href="#" class="nav-link">Campos</a>
+                <ul class="pcoded-submenu">
+                    <li><a href="{% url 'camp_listall' %}">Campos</a></li>
+                    <li><a href="{% url 'camp_op_listall' %}">Opciones Campos</a></li>
+                </ul>
+            </li>
+            
+            {% if request.user|has_vista:'ETAPA' or request.user.is_superuser == 1 %}
+            <li class="nav-item pcoded-hasmenu">
+                <a href="#" class="nav-link">Etapas</a>
+                <ul class="pcoded-submenu">
+                    <li><a href="{% url 'etap_listall' %}">Etapas</a></li>
+                    <li><a href="{% url 'det_etap_listall' %}">Detalle Etapas</a></li>
+                </ul>
+            </li>
+            {%endif%}
+
+            <li class="nav-item pcoded-hasmenu">
+                <a href="#" class="nav-link">Secuencias</a>
+                <ul class="pcoded-submenu">
+                    <li><a href="{% url 'sec_listall' %}">Secuencia</a></li>
+                    <li><a href="{% url 'det_sec_listall' %}">Detalle Secuencia</a></li>
+                </ul>
+            </li>
+        </ul>
+    </li>
+    {% endif %}
+    
+    {% if request.user|has_vista:'PERFILAMIENTO' or request.user.is_superuser == 1 %}
+    <li class="nav-item pcoded-hasmenu">
+        <a href="#" class="nav-link "><span class="pcoded-micon"><i class="fas fa-user-cog"></i></span><span class="pcoded-mtext">Perfiles</span></a>
+        <ul class="pcoded-submenu">
+            <li class="nav-item">
+                <a href="{% url 'per_listall' %}" class="nav-link">Perfiles</a>
+            </li>
+            <li class="nav-item pcoded-hasmenu">
+                <a href="#" class="nav-link">Asignaciones</a>
+                <ul class="pcoded-submenu">
+                    <li><a href="{% url 'per_assi_perm_prof' %}">Permisos Perfil</a></li>
+                    <li><a href="{% url 'per_assi_us_prof' %}">Usuarios Perfil</a></li>
+                </ul>
+            </li>
+            
+            {% if request.user|has_vista:'USUARIOS' or request.user.is_superuser == 1 %}
+            <li class="nav-item pcoded-hasmenu">
+                <a href="#" class="nav-link">Usuarios</a>
+                <ul class="pcoded-submenu">
+                    <li><a href="{% url 'usr_listall' %}">Usuarios</a></li>
+                    <li><a href="{% url 'usr_addone' %}">Agregar Usuario</a></li>
+                </ul>
+            </li>
+            {% endif %}
+        </ul>
+    </li>
+    {% endif %}
+    
+    {% if request.user|has_vista:'ZONAS' or request.user.is_superuser == 1 %}
+    <li class="nav-item pcoded-hasmenu">
+        <a href="#" class="nav-link "><span class="pcoded-micon"><i class="fas fa-map-marker-alt"></i></span><span class="pcoded-mtext">Zonas</span></a>
+        <ul class="pcoded-submenu">
+            <li><a href="{% url 'zon_listall' %}">Zonas</a></li>
+        </ul>
+    </li>
+    {% endif %}
+</ul>

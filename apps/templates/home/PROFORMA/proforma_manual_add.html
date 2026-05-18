@@ -1,0 +1,527 @@
+{% extends "layouts/base.html" %}
+
+{% block title %} Proforma Manual {% endblock %} 
+
+<!-- Specific CSS goes HERE -->
+{% block stylesheets %}
+{% load humanize %}
+{% load i18n %}
+{% load l10n %}
+{% endblock stylesheets %}
+
+{% block content %}	
+
+	<!-- [ Main Content ] start -->
+	<section class="pcoded-main-container">
+		<div class="pcoded-content">
+			<!-- [ breadcrumb ] start -->
+			<div class="page-header">
+				<div class="page-block">
+					<div class="row align-items-center">
+						<div class="col-md-12">
+							<div class="page-header-title">
+								<h5 class="m-b-10">Proforma Manual</h5>
+							</div>
+							<ul class="breadcrumb">
+								<li class="breadcrumb-item"><a href="/"><i class="feather icon-home"></i></a></li>
+								<li class="breadcrumb-item"><a href="/">Proforma Manual</a></li>
+							</ul>
+						</div>
+					</div>
+				</div>
+			</div>
+			<!-- [ breadcrumb ] end -->
+			<!-- [ Main Content ] start -->
+			<div class="row">
+				<!-- [ Invoice ] start -->
+				<div class="container" id="printTable">
+					<div>
+						<div class="card">
+							<div class="row invoice-contact">
+								<div class="col-md-12">
+									<div class="invoice-box row">
+										<div class="col-sm-12">
+											<table class="table table-responsive invoice-table table-borderless p-l-20">
+												<tbody>
+													<tr>
+														<td><a href="/" class="b-brand">
+																<img class="img-fluid" src="/static/assets/images/logo-terramar.png" style="width: 150px;" alt="Logo Terramar">
+															</a>
+														</td>
+													</tr>
+													<tr>
+														<td><a class="text-secondary" href="mailto:contacto@terramar.cl" target="_top">contacto@terramar.cl</a></td>
+													</tr>
+													<tr>
+														<td>+56 9 XXXX XXXX</td>
+													</tr>
+												</tbody>
+											</table>
+											<hr>
+										</div>
+									</div>
+								</div>
+							</div>
+							<form method="POST" name="crear_proforma_manual">
+								{% csrf_token %}
+								<div class="card-body">
+									<div class="row invoive-info">
+										<div class="d-flex justify-content-flex col-sm-12 col-lg-12 col-xl-12 col-md-12">
+											<div class="form-group">
+												<label style="margin-bottom: 0px;">Cambiar fecha emisión</label>
+												<br />
+												<div class="switch switch-success d-inline" style="margin-left: 3rem !important;">
+													<label>No</label>
+													<input type="checkbox" id="switch-s-1">
+													<label for="switch-s-1" class="cr"></label>
+												</div>
+												<label>Si</label>
+											</div>
+										</div>
+										<div class="col-md-6 col-sm-6">
+											<h6 id="fecha_emision_actual">
+												<td> Fecha emisión: {{fecha_actual|date:"d-m-Y"}}</td>
+											</h6>
+											<div style="display: none;" id="div_fecha_emision_input">
+												<label for="if_fecha_emision_input">Fecha emisión</label>
+												<input type="date" name="fecha_emision" id="if_fecha_emision_input" class="form-control">
+											</div>
+										</div>
+									</div>
+									<hr class="col-6">
+									<div class="row invoive-info">
+										<!-- SELECTOR DE EMPRESA -->
+										<div class="col-md-6 col-xs-12 invoice-client-info mb-3">
+											<h6 class="mb-1">Seleccionar empresa:</h6>
+											<select class="form-control js-example-placeholder-multiple" name="empresa" id="empresa" required>
+												<option value="">Seleccionar empresa</option>
+												{% for empresa in empresas %}
+													<option value="{{empresa.pk}}">{{empresa.EP_CRAZONSOCIAL}}</option>
+												{% endfor %}
+											</select>
+										</div>
+										
+										<!-- INFORMACION DEL PROVEEDOR -->
+										<div class="col-md-6 col-xs-12 invoice-client-info">
+											<h6 class="mb-1">Proveedor:</h6>
+											<select class="form-control js-example-placeholder-multiple" name="proveedor" id="proveedor" required>
+												<option value="">Seleccionar proveedor</option>
+												{% for proveedor in proveedores %}
+													<option value="{{proveedor.pk}}">{{proveedor.SN_CRAZONSOCIAL}} - {{proveedor.SN_CRUT}}</option>
+												{% endfor %}
+											</select>
+											
+											<p class="m-0 m-t-10 mb-2 mt-2" id="razon_social_proveedor"></p>
+											<p class="m-0 mb-2" id="rut_proveedor"></p>
+											<p class="m-0 mb-2" id="direccion_proveedor"></p>
+											<p class="m-0 mb-2" id="telefono_proveedor"></p>
+											<p><a class="text-secondary" href="mailto:" target="_top" id="correo_proveedor"></a></p>
+										</div>
+									</div>
+									<div class="row invoive-info">
+										<div class="col-md-12 col-sm-12">
+											<h6 class="m-b-20">Comentarios<span><input type="text" id="comentarios" class="form-control" name="comentarios"></span></h6>
+										</div>
+									</div>
+									
+									<!-- INPUT CON VALORES ESCONDIDOS PARA EL FRONT PERO COMO CARGA PARA EL BACK -->
+									<input type="text" value="1" id="cantidad_lineas" name="cantidad_lineas" hidden>
+									<input type="number" value="0" id="subtotal_proforma_input" name="subtotal_proforma_input" hidden>
+									<input type="number" value="0" id="total_iva_input" name="total_iva_input" hidden>
+									<input type="number" value="0" id="total_proforma_input" name="total_proforma_input" hidden>
+									
+									<!-- DETALLE DE LA PROFORMA -->
+									<div class="row">
+										<div class="col-sm-12">
+											<div class="table-responsive">
+												<table class="table invoice-detail-table" id="tabla_proforma">
+													<thead>
+														<tr class="thead-default">
+															<th>Acción</th>
+															<th>Ítem</th>
+															<th>Tipo Item</th>
+															<th>Descripción</th>
+															<th>Precio Unitario CLP$</th>
+															<th>Cantidad</th>
+															<th>Total Ítem</th>
+														</tr>
+													</thead>
+													<tbody>
+														<tr id="tr_1">
+															<th><button type="button" class="btn btn-danger" id="borrar_detalle" onclick="borrar_una_linea(1)"><i class="fas fa-times"></i></button></th>
+															<th>1</th>
+															<th>
+																<select name="LP_CTIPO_ITEM_1" class="form-control" id="LP_CTIPO_ITEM_1" required disabled>
+																	<option value="">Seleccione empresa primero</option>
+																</select>
+															</th>
+															<th><input type="text" name="LP_CDESCRIPCION_1" class="form-control" placeholder="Escriba la descripción" id="LP_CDESCRIPCION_1" required></th>
+															<th><input type="number" name="LP_NPRECIO_UNITARIO_1" min=1 class="form-control" value=0 id="LP_NPRECIO_UNITARIO_1" onchange="calcular_total()" required></th>
+															<th><input type="number" name="LP_NCANTIDAD_1" min=1 class="form-control" value=1 id="LP_NCANTIDAD_1" onchange="calcular_total()" required></th>
+															<th><input type="number" name="LP_NTOTAL_1" min=0 class="form-control" value=0 id="LP_NTOTAL_1" required readonly></th>
+														</tr>
+													</tbody>
+												</table>
+												<div class="btn-group-lg mb-2 mr-2 text-center">
+													<th class="border">
+														<h6>
+															<button type="button" class="btn btn-secondary" id="agregar_detalle" onclick="crear_una_linea()">Agregar<i class="fas fa-plus ml-2"></i></button>
+															<button type="button" class="btn btn-secondary dropdown-toggle dropdown-toggle-split mr-3" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false"><span class="sr-only">Toggle Dropdown</span></button>
+															<div class="dropdown-menu">
+																<p class="dropdown-item">¿Cuántas filas?: 
+																	<input type="number" id="cantidad_detalle" value="0" class="form-control col-12">
+																</p>
+																<hr>
+																<p class="dropdown-item text-center btn btn-primary">
+																	<button type="button" class="btn btn-secondary" onclick="crear_cantidad_lineas()">Agregar</button>
+																</p>
+															</div>
+															<button class="btn btn-primary" type="button" onclick="submit_form()">Guardar Proforma</button>
+														</h6>
+													</th>
+												</div>
+											</div>
+										</div>
+									</div>
+									
+									<div class="row">
+										<div class="col-sm-12">
+											<table class="table table-responsive invoice-table invoice-total">
+												<tbody>
+													<tr>
+														<th>Sub Total:</th>
+														<td id="subtotal_detalle"></td>
+													</tr>
+													<tr>
+														<th>IVA:</th>
+														<td id="iva_proforma"></td>
+													</tr>
+													<tr class="text-info">
+														<td>
+															<hr />
+															<h5 class="text-primary m-r-10">Total:</h5>
+														</td>
+														<td>
+															<hr />
+															<h5 class="text-primary" id="total_proforma"></h5>
+														</td>
+													</tr>
+												</tbody>
+											</table>
+										</div>
+									</div>
+								</div>
+							</form>
+						</div>
+					</div>
+				</div>
+				<!-- [ Invoice ] end -->
+			</div>
+			<!-- [ Main Content ] end -->
+		</div>
+	</section>
+	<!-- [ Main Content ] end -->
+
+{% endblock content %}
+
+{% block javascripts %}
+
+<script>
+	// Toggle fecha emisión
+	$('#switch-s-1').on('change', function(){
+		valor = $(this).prop('checked');
+		var fecha_emision_actual = document.getElementById('fecha_emision_actual');
+		var div_fecha_emision_input = document.getElementById('div_fecha_emision_input');
+		if (valor == true){
+			div_fecha_emision_input.style.display = 'block'
+			fecha_emision_actual.style.display = 'none'
+		}else{
+			div_fecha_emision_input.style.display = 'none'
+			fecha_emision_actual.style.display = 'block'
+		}
+	});
+
+	// Cargar tipos de items cuando se selecciona una empresa
+	$('#empresa').on('change', function(){
+		var empresa_id = this.value;
+		
+		if(empresa_id){
+			// Cargar tipos de items en todas las líneas existentes
+			cargar_tipos_items(empresa_id);
+		} else {
+			// Deshabilitar tipos de items si no hay empresa seleccionada
+			var cantidad_lineas = parseInt(document.getElementById('cantidad_lineas').value);
+			for (let i = 1; i <= cantidad_lineas; i++) {
+				var select_tipo = document.getElementById('LP_CTIPO_ITEM_' + i);
+				if(select_tipo){
+					select_tipo.disabled = true;
+					select_tipo.innerHTML = '<option value="">Seleccione empresa primero</option>';
+				}
+			}
+		}
+	});
+
+	// Cargar información del proveedor
+	$('#proveedor').on('change', function(){
+		var proveedor_id = this.value;
+		var razon_social_proveedor = document.getElementById('razon_social_proveedor');
+		var rut_proveedor = document.getElementById('rut_proveedor');
+		var direccion_proveedor = document.getElementById('direccion_proveedor');
+		var telefono_proveedor = document.getElementById('telefono_proveedor');
+		var correo_proveedor = document.getElementById('correo_proveedor');
+		
+		if(proveedor_id){
+			var url = '{% url "info_proveedor" %}';
+			$.ajax({
+				url: url,
+				data: {
+					'proveedor': proveedor_id
+				},
+				success: function (data) {
+					razon_social_proveedor.innerHTML = data.razon_social || '';
+					rut_proveedor.innerHTML = data.rut ? 'RUT: ' + data.rut : '';
+					direccion_proveedor.innerHTML = data.direccion ? 'Dirección: ' + data.direccion : '';
+					telefono_proveedor.innerHTML = data.telefono ? 'Teléfono: ' + data.telefono : '';
+					correo_proveedor.innerHTML = data.email || '';
+					correo_proveedor.href = 'mailto:' + (data.email || '');
+				},
+				error: function(xhr, status, error) {
+					console.error('Error al cargar información del proveedor:', error);
+				}
+			});
+		} else {
+			razon_social_proveedor.innerHTML = '';
+			rut_proveedor.innerHTML = '';
+			direccion_proveedor.innerHTML = '';
+			telefono_proveedor.innerHTML = '';
+			correo_proveedor.innerHTML = '';
+		}
+	});
+
+	// Función para cargar tipos de items
+	function cargar_tipos_items(empresa_id){
+		var url = '{% url "get_tipos_items" %}';
+		$.ajax({
+			url: url,
+			data: {
+				'empresa': empresa_id
+			},
+			success: function (data) {
+				var cantidad_lineas = parseInt(document.getElementById('cantidad_lineas').value);
+				
+				for (let i = 1; i <= cantidad_lineas; i++) {
+					var select_tipo = document.getElementById('LP_CTIPO_ITEM_' + i);
+					if(select_tipo){
+						select_tipo.disabled = false;
+						select_tipo.innerHTML = '<option value="">Seleccione tipo de item</option>';
+						
+						if(data.tipos_items && data.tipos_items.length > 0){
+							data.tipos_items.forEach(function(tipo){
+								var option = document.createElement('option');
+								option.value = tipo.id;
+								option.text = tipo.nombre;
+								select_tipo.appendChild(option);
+							});
+						}
+					}
+				}
+			},
+			error: function(xhr, status, error) {
+				console.error('Error al cargar tipos de items:', error);
+			}
+		});
+	}
+
+	function crear_cantidad_lineas(){
+		var cantidad_detalle = document.getElementById('cantidad_detalle').value;
+		var cantidad_lineas_input = document.getElementById('cantidad_lineas');
+		var cantidad_lineas = parseInt(document.getElementById('cantidad_lineas').value);
+		var empresa_id = document.getElementById('empresa').value;
+		
+		if(cantidad_detalle < 0){
+			Swal.fire({
+				title: 'Atención!',
+				text: "La cantidad debe ser mayor que 0",
+				icon: 'info'
+			})	
+		} else {
+			for (let i = 0; i < cantidad_detalle; i++) {
+				numero_linea = cantidad_lineas++ + 1;
+				agregar_fila_tabla(numero_linea, empresa_id);
+			}
+			cantidad_lineas_input.value = parseInt(cantidad_lineas);
+		}
+	}
+
+	function crear_una_linea(){
+		var cantidad_lineas_input = document.getElementById('cantidad_lineas');
+		var cantidad_lineas = parseInt(document.getElementById('cantidad_lineas').value);
+		var empresa_id = document.getElementById('empresa').value;
+		
+		numero_linea = cantidad_lineas++ + 1;
+		agregar_fila_tabla(numero_linea, empresa_id);
+		cantidad_lineas_input.value = parseInt(cantidad_lineas);
+	}
+
+	function agregar_fila_tabla(numero_linea, empresa_id){
+		var disabled_attr = empresa_id ? '' : 'disabled';
+		var option_text = empresa_id ? 'Seleccione tipo de item' : 'Seleccione empresa primero';
+		
+		$("#tabla_proforma").append(
+			'<tr id="tr_'+numero_linea+'">'+
+				'<th><button type="button" class="btn btn-danger" id="borrar_detalle_'+numero_linea+'" onclick="borrar_una_linea('+numero_linea+')"><i class="fas fa-times"></i></button></th>'+
+				'<th>'+numero_linea+'</th>'+
+				'<th><select name="LP_CTIPO_ITEM_'+numero_linea+'" class="form-control" id="LP_CTIPO_ITEM_'+numero_linea+'" required '+disabled_attr+'><option value="">'+option_text+'</option></select></th>'+
+				'<th><input type="text" name="LP_CDESCRIPCION_'+numero_linea+'" class="form-control" placeholder="Escriba la descripción" id="LP_CDESCRIPCION_'+numero_linea+'" required></th>'+
+				'<th><input type="number" name="LP_NPRECIO_UNITARIO_'+numero_linea+'" min=1 class="form-control" value=0 id="LP_NPRECIO_UNITARIO_'+numero_linea+'" onchange="calcular_total()" required></th>'+
+				'<th><input type="number" name="LP_NCANTIDAD_'+numero_linea+'" min=1 class="form-control" value=1 id="LP_NCANTIDAD_'+numero_linea+'" onchange="calcular_total()" required></th>'+
+				'<th><input type="number" name="LP_NTOTAL_'+numero_linea+'" id="LP_NTOTAL_'+numero_linea+'" class="form-control" value=0 min=0 readonly></th>'+
+			'</tr>'
+		);
+		
+		// Si hay empresa seleccionada, cargar los tipos de items para esta nueva fila
+		if(empresa_id){
+			cargar_tipos_items(empresa_id);
+		}
+	}
+
+	function borrar_una_linea(numero){
+		var tr = document.getElementById('tr_'+numero);
+		var cantidad_lineas_input = document.getElementById('cantidad_lineas');
+		var cantidad_lineas = parseInt(document.getElementById('cantidad_lineas').value);
+		tr.remove();
+		cantidad_lineas--;
+		cantidad_lineas_input.value = parseInt(cantidad_lineas);
+		calcular_total();
+	}
+
+	function calcular_total(){
+		var cantidad_lineas = parseInt(document.getElementById('cantidad_lineas').value);
+		var subtotal_detalle = document.getElementById('subtotal_detalle');
+		var iva_proforma = document.getElementById('iva_proforma');
+		var total_proforma = document.getElementById('total_proforma');
+		var total_proforma_input = document.getElementById('total_proforma_input');
+		var subtotal_proforma_input = document.getElementById('subtotal_proforma_input');
+		var total_iva_input = document.getElementById('total_iva_input');
+		var subtotal_proforma = 0;
+		
+		for (let i = 0; i < cantidad_lineas; i++) {
+			var numero = parseInt(i) + 1;
+
+			var precio_unitario = 'LP_NPRECIO_UNITARIO_' + numero;
+			var precio_unitario_input = parseFloat(document.getElementById(precio_unitario)?.value || 0);
+
+			var cantidad = 'LP_NCANTIDAD_' + numero;
+			var cantidad_input = parseInt(document.getElementById(cantidad)?.value || 0);
+
+			var total = 'LP_NTOTAL_' + numero;
+			var total_input = document.getElementById(total);
+
+			if(total_input){
+				var precio_x_cantidad = precio_unitario_input * cantidad_input;
+				total_input.value = precio_x_cantidad;
+				
+				if (!isNaN(precio_x_cantidad)){
+					subtotal_proforma += Math.round(precio_x_cantidad);
+				}
+			}
+		}
+		
+		var iva = parseInt(Math.round(subtotal_proforma * 0.19));
+		var valor_total_proforma = parseInt(subtotal_proforma + iva);
+		
+		subtotal_detalle.innerHTML = '$ ' + subtotal_proforma.toLocaleString('es-CL');
+		iva_proforma.innerHTML = '$ ' + iva.toLocaleString('es-CL');
+		total_proforma.innerHTML = '$ ' + valor_total_proforma.toLocaleString('es-CL');
+		total_proforma_input.value = valor_total_proforma;
+		subtotal_proforma_input.value = subtotal_proforma;
+		total_iva_input.value = iva;
+	}
+
+	function submit_form(){
+		let listado_errores = [];
+		let lineas_errores_tipo = [];
+		let lineas_errores_descripcion = [];
+		let lineas_errores_valores = [];
+		
+		var empresa = document.getElementById('empresa').value;
+		var proveedor = document.getElementById('proveedor').value;
+		var cantidad_lineas = document.getElementById('cantidad_lineas').value;
+		var subtotal_proforma_input = document.getElementById('subtotal_proforma_input').value;
+		var total_iva_input = document.getElementById('total_iva_input').value;
+		var total_proforma_input = document.getElementById('total_proforma_input').value;
+		
+		if (empresa.length == 0) {
+			listado_errores.push('Empresa');
+		}
+		if (proveedor.length == 0) {
+			listado_errores.push('Proveedor');
+		}
+
+		for (let i = 0; i < cantidad_lineas; i++) {
+			var numero = parseInt(i) + 1;
+			var tipo_item = 'LP_CTIPO_ITEM_' + numero.toString();
+			var descripcion = 'LP_CDESCRIPCION_' + numero.toString();
+			var precio_unitario = 'LP_NPRECIO_UNITARIO_' + numero.toString();
+			var cantidad = 'LP_NCANTIDAD_' + numero.toString();
+			var total = 'LP_NTOTAL_' + numero.toString();
+			
+			var LP_CTIPO_ITEM = document.getElementById(tipo_item)?.value || '';
+			var LP_CDESCRIPCION = document.getElementById(descripcion)?.value || '';
+			var LP_NPRECIO_UNITARIO = document.getElementById(precio_unitario)?.value || 0;
+			var LP_NCANTIDAD = document.getElementById(cantidad)?.value || 0;
+			var LP_NTOTAL = document.getElementById(total)?.value || 0;
+			
+			if (LP_CTIPO_ITEM.length == 0) {
+				lineas_errores_tipo.push(numero);
+			}
+			if (LP_CDESCRIPCION.length == 0) {
+				lineas_errores_descripcion.push(numero);
+			}
+			if(LP_NTOTAL <= 0 || LP_NCANTIDAD <= 0 || LP_NPRECIO_UNITARIO <= 0){
+				lineas_errores_valores.push(numero);
+			}
+		}
+		
+		if (cantidad_lineas == 0){
+			Swal.fire({
+				title: 'Atención!',
+				text: 'La proforma debe tener al menos una línea!',
+				icon: 'info'
+			});
+		} else if (listado_errores.length != 0){
+			var texto = 'Los siguientes datos son obligatorios: <br><h4>'+ listado_errores.toString() + '.</h4>';
+			Swal.fire({
+				title: 'Atención!',
+				html: texto,
+				icon: 'info'
+			});
+		} else if (lineas_errores_tipo.length != 0){
+			var texto = 'Las siguientes líneas no tienen <strong>tipo de item</strong> seleccionado: <br><h4>'+ lineas_errores_tipo.toString() + '.</h4>';
+			Swal.fire({
+				title: 'Atención!',
+				html: texto,
+				icon: 'info'
+			});
+		} else if (lineas_errores_descripcion.length != 0){
+			var texto = 'Las siguientes líneas no tienen <strong>descripción</strong>: <br><h4>'+ lineas_errores_descripcion.toString() + '.</h4>';
+			Swal.fire({
+				title: 'Atención!',
+				html: texto,
+				icon: 'info'
+			});
+		} else if(lineas_errores_valores.length != 0){
+			var texto = 'Las siguientes líneas contienen errores en los <strong>valores</strong>: <br><h4>'+ lineas_errores_valores.toString() + '.</h4><br>Los valores no pueden ser negativos o 0.';
+			Swal.fire({
+				title: 'Atención!',
+				html: texto,
+				icon: 'info'
+			});
+		} else {		
+			document.crear_proforma_manual.submit();
+		}
+	}
+
+</script>
+
+{% endblock javascripts %}

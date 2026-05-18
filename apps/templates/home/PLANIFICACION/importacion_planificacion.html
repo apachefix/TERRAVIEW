@@ -1,0 +1,98 @@
+{% extends "layouts/base.html" %}
+
+{% block title %} Carga masiva {% endblock %} 
+
+<!-- Specific CSS goes HERE -->
+{% block stylesheets %}{% endblock stylesheets %}
+
+{% block content %}	
+    <!-- [ Main Content ] start -->
+    <section class="pcoded-main-container">
+        <div class="pcoded-content">
+            <!-- [ breadcrumb ] start -->
+            <div class="page-header">
+                <div class="page-block">
+                    <div class="row align-items-center">
+                        <div class="col-md-12">
+                            <div class="page-header-title">
+                                <h5 class="m-b-10">Carga masiva</h5>
+                            </div>
+                            <ul class="breadcrumb">
+                                <li class="breadcrumb-item"><a href="/"><i class="feather icon-home"></i></a></li>
+                                <li class="breadcrumb-item"><a href="#!">Carga masiva</a></li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <!-- [ breadcrumb ] end -->
+
+            <!-- [ Main Content ] start -->
+            <div class="row">
+                <!-- [ form-element ] start -->
+                <div class="col-sm-12">
+                        <div class="card-header">
+                            <h5>Subir documentos</h5>
+                        </div>
+                        <div class="card-body">
+                            <div class="d-flex justify-content-center">
+                                <div class="col-md-6">
+                                    <form  id="validation-form123" method="POST" enctype="multipart/form-data">
+                                        {% csrf_token %}
+                                        <div class="col-md-12 col-sm-12">
+                                            <div class="card card-border-c-red">
+                                                <div class="card-body">
+                                                    <div class="fieldWrapper">
+                                                        <label class="my-1 me-2" ><strong>Archivos</strong></label>
+                                                    </div>
+                                                    
+                                                    <div id="excel">
+                                                        <a class="btn btn-outline-success d-flex justify-content-center" id="excel_plantilla" href="{% url 'download_plantilla_planificacion' %}">Descargar plantilla</a>
+                                                    </div>
+                                                    <hr>
+                                                    <div class="custom-file">
+                                                        <input type="file" required id="exampleFormControlFile1" name="file" accept="xlsx/*" >
+                                                    </div>
+                                                    <br><br>
+                                                    <div class="form-group nav justify-content-end">
+                                                        <button class="btn btn-success"  type="button" onclick="cargarSpinner()" >Guardar</button>
+                                                        <p>&nbsp&nbsp</p>
+                                                        <a class="btn btn-secondary mr-1"
+                                                            onclick="window.history.go(-1); return false;">Volver</a>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </form>
+                                    {% if error == 1 %}
+                                        <div class="d-flex justify-content-center">
+                                            <p class="text-danger">Descargar excel con errores haciendo click <a href='{% url "download_excel"%}' download>AQUI!</a></p>
+                                        </div>
+                                    {% endif %}
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <!-- [ form-element ] end -->
+            <!-- [ Main Content ] end -->
+            <div id="exampleModalCenter" class="modal fade bd-example-modal-sm" tabindex="-1" role="dialog" aria-labelledby="exampleModalCenterTitle" aria-hidden="true" data-backdrop="static" data-keyboard="false">
+                <div class="modal-dialog modal-dialog-centered modal-sm" role="document">                        
+                    <div class="spinner-border text-light " role="status" id="spinner" style="height: 80px;width: 80px;top: auto;margin: auto;color:white"></div>
+                    <span class="sr-only text-white " >Cargando...</span>
+                </div>
+            </div>
+        </div>
+    </section>
+{% endblock content %}
+{% block javascripts %}
+    <script src="/static/assets/js/script.js"></script>
+    <!-- [ Main Content ] end -->
+    <script>
+        function cargarSpinner(){
+            $("#exampleModalCenter").modal({ show:true });
+            let form = document.getElementById("validation-form123");
+            form.submit();
+        };
+    </script>
+{% endblock javascripts %}

@@ -1,0 +1,129 @@
+{% extends "layouts/base.html" %}
+
+{% block title %}  Parámetro {% endblock %} 
+
+<!-- Specific CSS goes HERE -->
+{% block stylesheets %}
+    <link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet" />
+{% endblock stylesheets %}
+
+{% block content %}		
+    <!-- [ Main Content ] start -->
+    <section class="pcoded-main-container">
+        <div class="pcoded-content">
+            <!-- [ breadcrumb ] start -->
+            <div class="page-header">
+                <div class="page-block">
+                    <div class="row align-items-center">
+                        <div class="col-md-12">
+                            <div class="page-header-title">
+                                <h5 class="m-b-10">Parámetro</h5>
+                            </div>
+                            <ul class="breadcrumb">
+                                <li class="breadcrumb-item"><a href="/"><i class="feather icon-home"></i></a></li>
+                                <li class="breadcrumb-item"><a href="/">Sistema Camiones</a></li>
+                                <li class="breadcrumb-item"><a href="{% url 'parametro_list' %}">Parámetros</a></li>
+                                <li class="breadcrumb-item"><a href="{% url 'parametro_create' %}">Agregar parámetro</a></li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <!-- [ breadcrumb ] end -->
+            
+            <!-- [ Main Content ] start -->
+            <div class="row">
+                <div class="col-sm-12">
+                    <div class="card">
+                        <div class="card-header">
+                            <h5>Nuevo Parámetro</h5>
+                        </div>
+                        <div class="card-body">
+                            <h5>Ingrese datos</h5>
+                            <hr>
+                            <div class="row">
+                                <div class="col-md-6">
+                                    <form method="POST">
+                                        {% csrf_token %}
+                                        
+                                        <div class="form-group">
+                                            <label for="PM_CGRUPO">Grupo <span class="text-danger">*</span></label>
+                                            <input type="text" class="form-control" id="PM_CGRUPO" name="PM_CGRUPO" list="grupos_list" required>
+                                            <datalist id="grupos_list">
+                                                {% for grupo in grupos %}
+                                                    <option value="{{ grupo }}">
+                                                {% endfor %}
+                                            </datalist>
+                                            <small class="form-text text-muted">Puede seleccionar un grupo existente o crear uno nuevo</small>
+                                        </div>
+
+                                        <div class="form-group">
+                                            <label for="PM_CCODIGO">Código <span class="text-danger">*</span></label>
+                                            <input type="text" class="form-control" id="PM_CCODIGO" name="PM_CCODIGO" required>
+                                        </div>
+
+                                        <div class="form-group">
+                                            <label for="PM_CDESCRIPCION">Descripción <span class="text-danger">*</span></label>
+                                            <textarea class="form-control" id="PM_CDESCRIPCION" name="PM_CDESCRIPCION" rows="3" required></textarea>
+                                        </div>
+
+                                        <hr>
+                                        <h6>Valores de Texto</h6>
+
+                                        <div class="form-group">
+                                            <label for="PM_CVALOR1">Valor Texto 1 <span class="text-danger">*</span></label>
+                                            <input type="text" class="form-control" id="PM_CVALOR1" name="PM_CVALOR1" required>
+                                        </div>
+
+                                        <div class="form-group">
+                                            <label for="PM_CVALOR2">Valor Texto 2</label>
+                                            <input type="text" class="form-control" id="PM_CVALOR2" name="PM_CVALOR2">
+                                        </div>
+
+                                        <div class="form-group">
+                                            <label for="PM_CVALOR3">Valor Texto 3</label>
+                                            <input type="text" class="form-control" id="PM_CVALOR3" name="PM_CVALOR3">
+                                        </div>
+
+                                        <hr>
+                                        <h6>Valores Numéricos</h6>
+
+                                        <div class="form-group">
+                                            <label for="PM_NVALOR1">Valor Numérico 1</label>
+                                            <input type="number" step="0.00001" class="form-control" id="PM_NVALOR1" name="PM_NVALOR1">
+                                        </div>
+
+                                        <div class="form-group">
+                                            <label for="PM_NVALOR2">Valor Numérico 2</label>
+                                            <input type="number" step="0.00001" class="form-control" id="PM_NVALOR2" name="PM_NVALOR2">
+                                        </div>
+
+                                        <div class="form-group">
+                                            <label for="PM_NVALOR3">Valor Numérico 3</label>
+                                            <input type="number" step="0.00001" class="form-control" id="PM_NVALOR3" name="PM_NVALOR3">
+                                        </div>
+
+                                        <hr>
+                                        <div class="form-group nav justify-content-end">
+                                            <button class="btn btn-success" type="submit">Guardar</button>
+                                            <p>&nbsp;&nbsp;</p>
+                                            <a class="btn btn-danger mr-1" href="{% url 'parametro_list' %}">Cancelar</a>
+                                        </div>
+                                    </form>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <!-- [ Main Content ] end -->
+        </div>
+    </section>
+    <!-- [ Main Content ] end -->
+{% endblock content %}
+
+<!-- Specific Page JS goes HERE  -->
+{% block javascripts %}
+    <script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@10"></script>
+{% endblock javascripts %}

@@ -1,0 +1,91 @@
+{% extends "layouts/base.html" %}
+
+{% block title %} Cupo Proveedor {% endblock %} 
+
+<!-- Specific CSS goes HERE -->
+{% block stylesheets %}{% endblock stylesheets %}
+
+{% block content %}		
+    <!-- [ Main Content ] start -->
+    <section class="pcoded-main-container">
+        <div class="pcoded-content">
+            <!-- [ breadcrumb ] start -->
+            <div class="page-header">
+                <div class="page-block">
+                    <div class="row align-items-center">
+                        <div class="col-md-12">
+                            <div class="page-header-title">
+                                <h5 class="m-b-10">Planificación</h5>
+                            </div>
+                            <ul class="breadcrumb">
+                                <li class="breadcrumb-item"><a href="/"><i class="feather icon-home"></i></a></li>
+                                <li class="breadcrumb-item"><a href="{% url 'pla_listall' %}">Planificación</a></li>
+                                <li class="breadcrumb-item"><a href="#!">Agregar cupo</a></li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <!-- [ breadcrumb ] end -->
+            <!-- [ Main Content ] start -->
+            <div class="row">
+                <!-- [ form-element ] start -->
+                <div class="col-sm-12">
+                    <div class="card">
+                        <div class="card-header">
+                            <h5>Cupo Proveedor</h5>
+                        </div>
+                        <div class="card-body">
+                            <h5>Ingrese datos</h5>
+                            <hr>
+                            <div class="row">
+                                <div class="col-md-8">
+                                    <form method="POST" id="validation-form123"  enctype="multipart/form-data" > 
+                                    {% csrf_token %}
+                                        <input type="hidden" name="EP_NID" value="{{ planificacion.EP_NID.id }}">
+                                        <input type="hidden" name="PLA_NID" value="{{ planificacion.id }}">
+
+                                        {{ form.non_field_errors }}                                        
+                                        <div class="fieldWrapper" style="display: none;">
+                                            {{ form.PRO_NID.errors }}
+                                            <label class="my-1 me-2" for="{{ form.PRO_NID.id_for_label }}">Proveedor:</label>
+                                            {{form.PRO_NID}}
+                                        </div>
+                                        <div class="fieldWrapper">
+                                            {{ form.CUP_NCUPOS.errors }}
+                                            <label class="my-1 me-2" for="{{ form.CUP_NCUPOS.id_for_label }}">Cantidad de cupos:</label>
+                                            {{form.CUP_NCUPOS}}
+                                        </div>
+                                        {{ form.errors }}
+                                        <br>
+                                        <div class="form-group nav justify-content-end">
+                                            <button class="btn btn-success mr-4" type="submit">Guardar</button>
+                                            <a class="btn btn-danger mr-1"
+                                                onclick="window.history.go(-1); return false;">Volver
+                                            </a>
+                                        </div>
+                                    </form>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <!-- [ form-element ] end -->
+            </div>
+            <!-- [ Main Content ] end -->
+        </div>
+    </section>
+    <!-- [ Main Content ] end -->
+{% endblock content %}
+
+<!-- Specific Page JS goes HERE  -->
+{% block javascripts %}
+    <script src="https://cdn.lordicon.com/bhenfmcm.js"></script>
+    <!-- bootstrap-tagsinput-latest Js -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/typeahead.js/0.11.1/typeahead.bundle.min.js"></script>
+    <script src="/static/assets/js/plugins/bootstrap-tagsinput.min.js"></script>
+    <!-- bootstrap-maxlength Js -->
+    <script src="/static/assets/js/plugins/bootstrap-maxlength.js"></script>
+    <!-- form-advance custom js -->
+    <script src="/static/assets/js/pages/form-advance-custom.js"></script>
+{% endblock javascripts %}

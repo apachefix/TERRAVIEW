@@ -1,0 +1,308 @@
+
+
+	<!-- [ Header ] start -->
+	<header class="navbar pcoded-header navbar-expand-lg navbar-light headerpos-fixed header-orchidgreen"
+        style="height:70px; min-height:70px; max-height:70px;">
+
+    <div class="m-header">
+        <a class="mobile-menu" id="mobile-collapse" href="#!"><span></span></a>
+
+        <a href="{% url 'home' %}" class="b-brand">
+            <img src="/static/assets/images/logo-terramar.png"
+                 alt=""
+                 style="width:150px;"
+                 class="logo">
+        </a>
+
+        <a href="#!" class="mob-toggler">
+            <i class="feather icon-more-vertical"></i>
+        </a>
+    </div>
+
+    <div class="collapse navbar-collapse"
+         style="height:70px; min-height:70px; max-height:70px;">
+
+        <!-- BUSCADOR IZQUIERDA -->
+        <ul class="navbar-nav"
+            style="display:flex; align-items:center; flex-direction:row; height:70px; margin:0; padding:0;">
+
+            <li class="nav-item"
+                style="display:flex; align-items:center; height:70px; margin-right:15px; padding:0 10px;">
+
+                <input type="text"
+                       class="form-control form-control-sm"
+                       id="buscar-patente-input"
+                       placeholder="Buscar patente..."
+                       style="width:200px; height:32px; margin-right:5px;">
+
+                <button type="button"
+                        class="btn btn-primary btn-sm"
+                        id="btn-buscar-patente"
+                        style="height:32px; padding:0 12px; white-space:nowrap;">
+
+                    <i class="fas fa-search"></i> Ver Pesaje
+                </button>
+
+            </li>
+        </ul>
+
+        <!-- LADO DERECHO -->
+        <ul class="navbar-nav ml-auto"
+            style="display:flex; align-items:center; flex-direction:row; flex-wrap:nowrap; height:70px; margin:0; padding:0;">
+
+            <!-- EMPRESA ACTIVA -->
+            {% if empresa_activa %}
+            <li class="nav-item"
+                style="display:flex; align-items:center; height:70px; margin-right:16px; white-space:nowrap;">
+
+                {% if total_empresas_usuario > 1 %}
+
+                    <label style="color:#fff; margin:0 8px 0 0; font-size:14px; line-height:32px; white-space:nowrap;">
+                        Selecciona tu empresa:
+                    </label>
+
+                    <select class="form-control form-control-sm"
+                            onchange="window.location.href=this.value"
+                            style="width:190px; height:32px; font-size:12px; padding:2px 8px; margin:0;">
+
+                        {% for item in empresas_usuario %}
+                            <option value="{% url 'cambiar_empresa' item.EP_NID.id %}"
+                                    {% if empresa_activa.id == item.EP_NID.id %}selected{% endif %}>
+
+                                {% if item.EP_NID.id == 1 %}
+                                    TERRAMAR CHILE
+                                {% elif item.EP_NID.id == 2 %}
+                                    ACEITES SBH
+                                {% else %}
+                                    {{ item.EP_NID.EP_CRAZONSOCIAL|upper }}
+                                {% endif %}
+
+                            </option>
+                        {% endfor %}
+
+                    </select>
+
+                {% else %}
+
+                    <span style="color:#fff; font-size:14px; line-height:32px; white-space:nowrap;">
+                        {% if empresa_activa.id == 1 %}
+                            TERRAMAR CHILE
+                        {% elif empresa_activa.id == 2 %}
+                            ACEITES SBH
+                        {% else %}
+                            {{ empresa_activa.EP_CRAZONSOCIAL|upper }}
+                        {% endif %}
+                    </span>
+
+                {% endif %}
+
+            </li>
+            {% endif %}
+
+            <!-- NOTIFICACIONES -->
+            <li class="nav-item"
+                style="display:flex; align-items:center; height:70px; margin-right:18px;">
+
+                <div class="dropdown"
+                     style="display:flex; align-items:center; height:70px;">
+
+                    <a class="dropdown-toggle position-relative"
+                       href="#"
+                       data-toggle="dropdown"
+                       id="notification-dropdown"
+                       style="display:flex; align-items:center; height:70px; color:#fff;">
+
+                        <i class="fas fa-truck notification-icon"></i>
+                    </a>
+
+                    <div class="dropdown-menu dropdown-menu-right notification">
+
+                        <div class="noti-head">
+                            <h6 class="d-inline-block m-b-0">Notificaciones</h6>
+                        </div>
+
+                        <ul class="noti-body">
+                            <li class="n-title">
+                                <p class="m-b-0">Nuevos</p>
+                            </li>
+
+                            <hr>
+
+                            <div id="noti-body"></div>
+                        </ul>
+
+                    </div>
+                </div>
+            </li>
+
+            <!-- USUARIO -->
+            <li class="nav-item"
+                style="display:flex; align-items:center; height:70px; margin-right:8px;">
+
+                {% include 'includes/component-dropdown-user.html' %}
+
+            </li>
+
+        </ul>
+    </div>
+</header>
+    <style>
+        #buscar-patente-input {
+            height: 32px;
+            padding: 0.25rem 0.5rem;
+            font-size: 0.875rem;
+            line-height: 1.5;
+        }
+        #btn-buscar-patente {
+            height: 32px;
+            padding: 0.25rem 0.75rem;
+            font-size: 0.875rem;
+            white-space: nowrap;
+        }
+        @media (max-width: 991.98px) {
+            #buscar-patente-input {
+                width: 150px !important;
+            }
+        }
+    </style>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.7.1/jquery.min.js" integrity="sha512-v2CJ7UaYy4JwqLDIrZUI/4hqeoQieOmAZNXBeQyjo21dadnwR+8ZaIJVT8EE2iyI61OV8e6M8PP2/4hpQINQ/g==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+    <script>
+        
+        
+        function cambiar_empresa(){
+            var empresa = $("#select-empresa").val();
+            window.location.href = '/actualizar-empresa-usuario/' + empresa;
+        }
+        
+        // Búsqueda de patente
+        $(document).ready(function() {
+            $('#btn-buscar-patente').on('click', function() {
+                buscarPatente();
+            });
+            
+            $('#buscar-patente-input').on('keypress', function(e) {
+                if (e.which === 13) {
+                    buscarPatente();
+                }
+            });
+        });
+        
+        function buscarPatente() {
+            var patente = $('#buscar-patente-input').val().trim();
+            
+            if (!patente) {
+                Swal.fire({
+                    icon: 'warning',
+                    title: 'Atención',
+                    text: 'Por favor ingrese una patente para buscar'
+                });
+                return;
+            }
+            
+            $.ajax({
+                url: '/buscar-patente/',
+                type: 'GET',
+                data: {
+                    'patente': patente
+                },
+                success: function(response) {
+                    if (response.success) {
+                        // Mostrar modal con los datos
+                        mostrarModalPatente(response.data);
+                    } else {
+                        // Mostrar mensaje de error
+                        Swal.fire({
+                            icon: 'info',
+                            title: 'Información',
+                            text: response.message || 'No hay pesos registrados para la patente'
+                        });
+                    }
+                },
+                error: function(xhr, status, error) {
+                    Swal.fire({
+                        icon: 'error',
+                        title: 'Error',
+                        text: 'Ocurrió un error al buscar la patente'
+                    });
+                }
+            });
+        }
+        
+        function mostrarModalPatente(datos) {
+            // Mapeo de campos a mostrar con sus etiquetas
+            var campos = [
+                { key: 'cam_cpatente', label: 'Patente' },
+                { key: 'producto', label: 'Producto' },
+                { key: 'fecha', label: 'Fecha' },
+                { key: 'tiempo', label: 'Tiempo' },
+                { key: 'rutchofer', label: 'Rut Chofer' },
+                { key: 'nombrechofer', label: 'Nombre Chofer' },
+                { key: 'cliente', label: 'Socio de Negocio' },
+                { key: 'citacion', label: 'Citación' },
+                { key: 'folio', label: 'Folio' },
+                { key: 'con_npeso_entrada', label: 'Peso Entrada' },
+                { key: 'con_npeso_nsalida', label: 'Peso Salida' }
+            ];
+            
+            // Construir el contenido del modal con solo los campos especificados
+            var contenido = '<div class="table-responsive"><table class="table table-bordered table-striped">';
+            
+            campos.forEach(function(campo) {
+                var valor = datos[campo.key] || '-';
+                
+                // Formatear fecha si existe (formato: 20260105 -> 05/01/2026)
+                if (campo.key === 'fecha' && valor !== '-' && valor !== null && valor !== undefined && valor.length === 8) {
+                    var año = valor.substring(0, 4);
+                    var mes = valor.substring(4, 6);
+                    var dia = valor.substring(6, 8);
+                    valor = dia + '/' + mes + '/' + año;
+                }
+                
+                contenido += '<tr><th style="width: 30%;">' + campo.label + '</th><td>' + valor + '</td></tr>';
+            });
+            
+            // Calcular y agregar Peso Neto (valor absoluto de la resta entre entrada y salida)
+            var pesoEntrada = parseFloat(datos.con_npeso_entrada) || 0;
+            var pesoSalida = parseFloat(datos.con_npeso_nsalida) || 0;
+            var pesoNeto = Math.abs(pesoEntrada - pesoSalida);
+            
+            contenido += '<tr><th style="width: 30%;">Peso Neto</th><td>' + (pesoNeto > 0 ? pesoNeto : '-') + '</td></tr>';
+            
+            contenido += '</table></div>';
+            
+            var patente = datos.cam_cpatente || 'N/A';
+            
+            Swal.fire({
+                title: 'Datos de Pesaje - Patente: ' + patente,
+                html: contenido,
+                width: '80%',
+                confirmButtonText: 'Cerrar',
+                customClass: {
+                    popup: 'swal-wide'
+                }
+            });
+        }
+    </script>
+
+    <!-- Modal para mostrar datos de patente (alternativa con Bootstrap) -->
+    <div class="modal fade" id="ModalPatente" tabindex="-1" role="dialog" aria-labelledby="ModalPatenteLabel" aria-hidden="true">
+        <div class="modal-dialog modal-lg" role="document">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="ModalPatenteLabel">Datos de Pesaje</h5>
+                    <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                        <span aria-hidden="true">&times;</span>
+                    </button>
+                </div>
+                <div class="modal-body" id="modal-patente-body">
+                    <!-- Los datos se insertarán aquí dinámicamente -->
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-dismiss="modal">Cerrar</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+<!-- [ Header ] end -->
+

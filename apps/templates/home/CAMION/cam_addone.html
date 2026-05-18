@@ -1,0 +1,138 @@
+{% extends "layouts/base.html" %}
+
+{% block title %} Camion {% endblock %} 
+
+<!-- Specific CSS goes HERE -->
+{% block stylesheets %}{% endblock stylesheets %}
+
+{% block content %}		
+    <!-- [ Main Content ] start -->
+    <section class="pcoded-main-container">
+        <div class="pcoded-content">
+            <!-- [ breadcrumb ] start -->
+            <div class="page-header">
+                <div class="page-block">
+                    <div class="row align-items-center">
+                        <div class="col-md-12">
+                            <div class="page-header-title">
+                                <h5 class="m-b-10">Camion</h5>
+                            </div>
+                            <ul class="breadcrumb">
+                                <li class="breadcrumb-item"><a href="/"><i class="feather icon-home"></i></a></li>
+                                <li class="breadcrumb-item"><a href="#!">Camion</a></li>
+                                <li class="breadcrumb-item"><a href="#!">Agregar Camion</a></li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <!-- [ breadcrumb ] end -->
+            <!-- [ Main Content ] start -->
+            <div class="row">
+                <!-- [ form-element ] start -->
+                <div class="col-sm-12">
+                    <div class="card">
+                        <div class="card-header">
+                            <h5>Camion</h5>
+                        </div>
+                        <div class="card-body">
+                            <h5>Ingrese datos</h5>
+                            <hr>
+                            <div class="row">
+                                <div class="col-md-8">
+                                    <form method="POST" id="validation-form123"  enctype="multipart/form-data" > 
+                                    {% csrf_token %}
+                                        {{form.EP_NID}}
+                                        {{ form.non_field_errors }}
+                                        
+                                        <div class="fieldWrapper">
+                                            {{ form.SN_NID.errors }}
+                                            <label class="my-1 me-2" for="{{ form.SN_NID.id_for_label }}">Proveedor:</label>
+                                            {{form.SN_NID}}
+                                        </div>
+                                        <div class="fieldWrapper">
+                                            {{ form.CAM_CPATENTE.errors }}
+                                            <label class="my-1 me-2" for="{{ form.CAM_CPATENTE.id_for_label }}">Patente:</label>
+                                            {{form.CAM_CPATENTE}}
+                                        </div>
+                                        <div class="fieldWrapper">
+                                            {{ form.CAM_CMARCA.errors }}
+                                            <label class="my-1 me-2" for="{{ form.CAM_CMARCA.id_for_label }}">Marca:</label>
+                                            {{form.CAM_CMARCA}}
+                                        </div>
+                                        <div class="fieldWrapper">
+                                            {{ form.CAM_CCOLOR.errors }}
+                                            <label class="my-1 me-2" for="{{ form.CAM_CCOLOR.id_for_label }}">Color:</label>
+                                            {{form.CAM_CCOLOR}}
+                                        </div>
+                                        <div class="fieldWrapper">
+                                            {{ form.CAM_CMODELO.errors }}
+                                            <label class="my-1 me-2" for="{{ form.CAM_CMODELO.id_for_label }}">Modelo:</label>
+                                            {{form.CAM_CMODELO}}
+                                        </div>
+                                        <div class="fieldWrapper">
+                                            {{ form.CAM_CCARGA.errors }}
+                                            <label class="my-1 me-2" for="{{ form.CAM_CCARGA.id_for_label }}">Carga:</label>
+                                            {{form.CAM_CCARGA}}
+                                        </div>
+                                        <div class="fieldWrapper">
+                                            {{ form.CAM_NMETROS3.errors }}
+                                            <label class="my-1 me-2" for="{{ form.CAM_NMETROS3.id_for_label }}">Metros cubicos:</label>
+                                            {{form.CAM_NMETROS3}}
+                                        </div>
+                                        <div class="fieldWrapper">
+                                            {{ form.CAM_NANO.errors }}
+                                            <label class="my-1 me-2" for="{{ form.CAM_NANO.id_for_label }}">Año:</label>
+                                            {{form.CAM_NANO}}
+                                        </div>
+                                        <div class="fieldWrapper">
+                                            {{ form.CAM_NKILOMETRAJE.errors }}
+                                            <label class="my-1 me-2" for="{{ form.CAM_NKILOMETRAJE.id_for_label }}">Kilometraje:</label>
+                                            {{form.CAM_NKILOMETRAJE}}
+                                        </div>
+                                        <div class="form-group">
+                                            {{ form.CAM_BHABILITADO.errors }}
+                                            <label class=" font-weight-bold mr-3">¿Habilitado? </label>
+                                            <div class="switch switch-success d-inline m-r-10">
+                                                <label>No</label>
+                                                {{form.CAM_BHABILITADO}}
+                                                <label for="switch-s-1" class="cr"></label>
+                                            </div>
+                                            <label>Si</label>
+                                        </div>
+                                        
+
+                                        {{ form.errors }}
+                                        <br>
+                                        <div class="form-group nav justify-content-end">
+                                            <button class="btn btn-success mr-4" 
+                                            type="submit">Guardar</button>
+                                            <a class="btn btn-danger mr-1"
+                                                onclick="window.history.go(-1); return false;">Volver
+                                            </a>
+                                        </div>
+                                    </form>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <!-- [ form-element ] end -->
+            </div>
+            <!-- [ Main Content ] end -->
+        </div>
+    </section>
+    <!-- [ Main Content ] end -->
+{% endblock content %}
+
+<!-- Specific Page JS goes HERE  -->
+{% block javascripts %}
+    <!-- bootstrap-tagsinput-latest Js -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/typeahead.js/0.11.1/typeahead.bundle.min.js"></script>
+    <script src="/static/assets/js/plugins/bootstrap-tagsinput.min.js"></script>
+    <!-- bootstrap-maxlength Js -->
+    <script src="/static/assets/js/plugins/bootstrap-maxlength.js"></script>
+    <!-- form-advance custom js -->
+    <script src="/static/assets/js/pages/form-advance-custom.js"></script>
+
+{% endblock javascripts %}

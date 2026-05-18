@@ -1,0 +1,645 @@
+{% extends "layouts/base.html" %}
+
+{% block title %} Task List {% endblock %} 
+
+<!-- Specific CSS goes HERE -->
+{% block stylesheets %}
+
+    <!-- data tables css -->
+	<link rel="stylesheet" href="/static/assets/css/plugins/dataTables.bootstrap4.min.css">
+
+{% endblock stylesheets %}
+
+{% block content %}	
+	
+	<!-- [ chat user list ] start -->
+	<section class="header-user-list">
+		<a href="#!" class="h-close-text"><i class="feather icon-x"></i></a>
+		<ul class="nav nav-tabs" id="chatTab" role="tablist">
+			<li class="nav-item">
+				<a class="nav-link active text-uppercase border-0" id="chat-tab" data-toggle="tab" href="#chat" role="tab" aria-controls="chat" aria-selected="true"><i class="feather icon-message-circle mr-2"></i>Chat</a>
+			</li>
+			<li class="nav-item">
+				<a class="nav-link text-uppercase border-0" id="user-tab" data-toggle="tab" href="#user" role="tab" aria-controls="user" aria-selected="false"><i class="feather icon-users mr-2"></i>User</a>
+			</li>
+			<li class="nav-item">
+				<a class="nav-link text-uppercase border-0" id="setting-tab" data-toggle="tab" href="#setting" role="tab" aria-controls="setting" aria-selected="false"><i class="feather icon-settings mr-2"></i>Setting</a>
+			</li>
+		</ul>
+		<div class="tab-content" id="chatTabContent">
+			<div class="tab-pane fade show active" id="chat" role="tabpanel" aria-labelledby="chat-tab">
+				<div class="h-list-header">
+					<div class="input-group">
+						<input type="text" id="search-friends" class="form-control" placeholder="Search Friend . . .">
+					</div>
+				</div>
+				<div class="h-list-body">
+					<div class="main-friend-cont scroll-div">
+						<div class="main-friend-list">
+							<div class="media userlist-box" data-id="1" data-status="online" data-username="Josephin Doe">
+								<a class="media-left" href="#!"><img class="media-object img-radius" src="/static/assets/images/user/avatar-1.jpg" alt="Generic placeholder image ">
+									<div class="live-status">3</div>
+								</a>
+								<div class="media-body">
+									<h6 class="chat-header">Josephin Doe<small class="d-block text-c-green">Typing . . </small></h6>
+								</div>
+							</div>
+							<div class="media userlist-box" data-id="2" data-status="online" data-username="Lary Doe">
+								<a class="media-left" href="#!"><img class="media-object img-radius" src="/static/assets/images/user/avatar-2.jpg" alt="Generic placeholder image">
+									<div class="live-status">1</div>
+								</a>
+								<div class="media-body">
+									<h6 class="chat-header">Lary Doe<small class="d-block text-c-green">online</small></h6>
+								</div>
+							</div>
+							<div class="media userlist-box" data-id="3" data-status="online" data-username="Alice">
+								<a class="media-left" href="#!"><img class="media-object img-radius" src="/static/assets/images/user/avatar-3.jpg" alt="Generic placeholder image"></a>
+								<div class="media-body">
+									<h6 class="chat-header">Alice<small class="d-block text-c-green">online</small></h6>
+								</div>
+							</div>
+							<div class="media userlist-box" data-id="4" data-status="offline" data-username="Alia">
+								<a class="media-left" href="#!"><img class="media-object img-radius" src="/static/assets/images/user/avatar-1.jpg" alt="Generic placeholder image">
+									<div class="live-status">1</div>
+								</a>
+								<div class="media-body">
+									<h6 class="chat-header">Alia<small class="d-block text-muted">10 min ago</small></h6>
+								</div>
+							</div>
+							<div class="media userlist-box" data-id="5" data-status="offline" data-username="Suzen">
+								<a class="media-left" href="#!"><img class="media-object img-radius" src="/static/assets/images/user/avatar-4.jpg" alt="Generic placeholder image"></a>
+								<div class="media-body">
+									<h6 class="chat-header">Suzen<small class="d-block text-muted">15 min ago</small></h6>
+								</div>
+							</div>
+							<div class="media userlist-box" data-id="1" data-status="online" data-username="Josephin Doe">
+								<a class="media-left" href="#!"><img class="media-object img-radius" src="/static/assets/images/user/avatar-1.jpg" alt="Generic placeholder image ">
+									<div class="live-status">3</div>
+								</a>
+								<div class="media-body">
+									<h6 class="chat-header">Josephin Doe<small class="d-block text-c-green">Typing . . </small></h6>
+								</div>
+							</div>
+							<div class="media userlist-box" data-id="2" data-status="online" data-username="Lary Doe">
+								<a class="media-left" href="#!"><img class="media-object img-radius" src="/static/assets/images/user/avatar-2.jpg" alt="Generic placeholder image">
+									<div class="live-status">1</div>
+								</a>
+								<div class="media-body">
+									<h6 class="chat-header">Lary Doe<small class="d-block text-c-green">online</small></h6>
+								</div>
+							</div>
+							<div class="media userlist-box" data-id="3" data-status="online" data-username="Alice">
+								<a class="media-left" href="#!"><img class="media-object img-radius" src="/static/assets/images/user/avatar-3.jpg" alt="Generic placeholder image"></a>
+								<div class="media-body">
+									<h6 class="chat-header">Alice<small class="d-block text-c-green">online</small></h6>
+								</div>
+							</div>
+							<div class="media userlist-box" data-id="4" data-status="offline" data-username="Alia">
+								<a class="media-left" href="#!"><img class="media-object img-radius" src="/static/assets/images/user/avatar-1.jpg" alt="Generic placeholder image">
+									<div class="live-status">1</div>
+								</a>
+								<div class="media-body">
+									<h6 class="chat-header">Alia<small class="d-block text-muted">10 min ago</small></h6>
+								</div>
+							</div>
+							<div class="media userlist-box" data-id="5" data-status="offline" data-username="Suzen">
+								<a class="media-left" href="#!"><img class="media-object img-radius" src="/static/assets/images/user/avatar-4.jpg" alt="Generic placeholder image"></a>
+								<div class="media-body">
+									<h6 class="chat-header">Suzen<small class="d-block text-muted">15 min ago</small></h6>
+								</div>
+							</div>
+							<div class="media userlist-box" data-id="1" data-status="online" data-username="Josephin Doe">
+								<a class="media-left" href="#!"><img class="media-object img-radius" src="/static/assets/images/user/avatar-1.jpg" alt="Generic placeholder image ">
+									<div class="live-status">3</div>
+								</a>
+								<div class="media-body">
+									<h6 class="chat-header">Josephin Doe<small class="d-block text-c-green">Typing . . </small></h6>
+								</div>
+							</div>
+							<div class="media userlist-box" data-id="2" data-status="online" data-username="Lary Doe">
+								<a class="media-left" href="#!"><img class="media-object img-radius" src="/static/assets/images/user/avatar-2.jpg" alt="Generic placeholder image">
+									<div class="live-status">1</div>
+								</a>
+								<div class="media-body">
+									<h6 class="chat-header">Lary Doe<small class="d-block text-c-green">online</small></h6>
+								</div>
+							</div>
+							<div class="media userlist-box" data-id="3" data-status="online" data-username="Alice">
+								<a class="media-left" href="#!"><img class="media-object img-radius" src="/static/assets/images/user/avatar-3.jpg" alt="Generic placeholder image"></a>
+								<div class="media-body">
+									<h6 class="chat-header">Alice<small class="d-block text-c-green">online</small></h6>
+								</div>
+							</div>
+						</div>
+					</div>
+				</div>
+			</div>
+			<div class="tab-pane fade" id="user" role="tabpanel" aria-labelledby="user-tab">
+				<div class="h-list-body">
+					<div class="main-friend-cont scroll-div">
+						<div class="main-friend-list">
+							<div class="media px-3 d-flex align-items-center mt-3">
+								<a class="media-left m-r-15" href="#!">
+									<div class="hei-50 wid-50 bg-primary img-radius d-flex text-white f-22 align-items-center justify-content-center"><i class="icon feather icon-users"></i></div>
+								</a>
+								<div class="media-body">
+									<p class="chat-header f-w-600 mb-0">New Group</p>
+								</div>
+							</div>
+							<div class="media p-3 d-flex align-items-center">
+								<a class="media-left m-r-15" href="#!">
+									<div class="hei-50 wid-50 bg-primary img-radius d-flex text-white f-22 align-items-center justify-content-center"><i class="icon feather icon-user-plus"></i></div>
+								</a>
+								<div class="media-body">
+									<p class="chat-header f-w-600 mb-0">New Contact</p>
+								</div>
+							</div>
+							<div class="media userlist-box" data-id="1" data-status="online" data-username="Josephin Doe">
+								<a class="media-left" href="#!"><img class="media-object img-radius" src="/static/assets/images/user/avatar-1.jpg" alt="Generic placeholder image "></a>
+								<div class="media-body">
+									<p class="chat-header">Josephin Doe<small class="d-block">i am not what happened . .</small></p>
+								</div>
+							</div>
+							<div class="media userlist-box" data-id="2" data-status="online" data-username="Lary Doe">
+								<a class="media-left" href="#!"><img class="media-object img-radius" src="/static/assets/images/user/avatar-2.jpg" alt="Generic placeholder image"></a>
+								<div class="media-body">
+									<h6 class="chat-header">Lary Doe<small class="d-block">Avalable</small></h6>
+								</div>
+							</div>
+							<div class="media userlist-box" data-id="3" data-status="online" data-username="Alice">
+								<a class="media-left" href="#!"><img class="media-object img-radius" src="/static/assets/images/user/avatar-3.jpg" alt="Generic placeholder image"></a>
+								<div class="media-body">
+									<h6 class="chat-header">Alice<small class="d-block">hear using Elite able</small></h6>
+								</div>
+							</div>
+							<div class="media userlist-box" data-id="4" data-status="offline" data-username="Alia">
+								<a class="media-left" href="#!">
+									<div class="hei-50 wid-50 img-radius bg-success d-flex text-white f-22 align-items-center justify-content-center">A</div>
+								</a>
+								<div class="media-body">
+									<h6 class="chat-header">Alia<small class="d-block text-muted">Avalable</small></h6>
+								</div>
+							</div>
+							<div class="media userlist-box" data-id="5" data-status="offline" data-username="Suzen">
+								<a class="media-left" href="#!"><img class="media-object img-radius" src="/static/assets/images/user/avatar-4.jpg" alt="Generic placeholder image"></a>
+								<div class="media-body">
+									<h6 class="chat-header">Suzen<small class="d-block text-muted">Avalable</small></h6>
+								</div>
+							</div>
+							<div class="media userlist-box" data-id="1" data-status="online" data-username="Josephin Doe">
+								<a class="media-left" href="#!">
+									<div class="hei-50 wid-50 bg-danger img-radius d-flex text-white f-22 align-items-center justify-content-center">JD</div>
+								</a>
+								<div class="media-body">
+									<h6 class="chat-header">Josephin Doe<small class="d-block text-muted">Don't send me image</small></h6>
+								</div>
+							</div>
+							<div class="media userlist-box" data-id="2" data-status="online" data-username="Lary Doe">
+								<a class="media-left" href="#!"><img class="media-object img-radius" src="/static/assets/images/user/avatar-2.jpg" alt="Generic placeholder image"></a>
+								<div class="media-body">
+									<h6 class="chat-header">Lary Doe<small class="d-block text-muted">not send free msg</small></h6>
+								</div>
+							</div>
+						</div>
+					</div>
+				</div>
+			</div>
+			<div class="tab-pane fade" id="setting" role="tabpanel" aria-labelledby="setting-tab">
+				<div class="p-4 main-friend-cont scroll-div">
+					<h6 class="mt-2"><i class="feather icon-monitor mr-2"></i>Desktop settings</h6>
+					<hr>
+					<div class="form-group mb-0">
+						<div class="switch switch-primary d-inline m-r-10">
+							<input type="checkbox" id="cn-p-1" checked>
+							<label for="cn-p-1" class="cr"></label>
+						</div>
+						<label class="f-w-600">Allow desktop notification</label>
+					</div>
+					<p class="text-muted ml-5">you get lettest content at a time when data will updated</p>
+					<div class="form-group mb-0">
+						<div class="switch switch-primary d-inline m-r-10">
+							<input type="checkbox" id="cn-p-5">
+							<label for="cn-p-5" class="cr"></label>
+						</div>
+						<label class="f-w-600">Store Cookie</label>
+					</div>
+					<h6 class="mb-0 mt-5"><i class="feather icon-layout mr-2"></i>Application settings</h6>
+					<hr>
+					<div class="form-group mb-0">
+						<div class="switch switch-primary d-inline m-r-10">
+							<input type="checkbox" id="cn-p-3" checked>
+							<label for="cn-p-3" class="cr"></label>
+						</div>
+						<label class="f-w-600">Backup Storage</label>
+					</div>
+					<p class="text-muted mb-0 ml-5">Automaticaly take backup as par schedule</p>
+					<div class="form-group mb-4">
+						<div class="switch switch-primary d-inline m-r-10">
+							<input type="checkbox" id="cn-p-4" checked>
+							<label for="cn-p-4" class="cr"></label>
+						</div>
+						<label class="f-w-600">Allow guest to print file</label>
+					</div>
+					<h6 class="mb-0 mt-5"><i class="feather icon-globe mr-2"></i>System settings</h6>
+					<hr>
+					<div class="form-group mb-0">
+						<div class="switch switch-primary d-inline m-r-10">
+							<input type="checkbox" id="cn-p-2">
+							<label for="cn-p-2" class="cr"></label>
+						</div>
+						<label class="f-w-600">View other user chat</label>
+					</div>
+					<p class="text-muted ml-5">Allow to show public user message</p>
+				</div>
+			</div>
+		</div>
+	</section>
+	<!-- [ chat user list ] end -->
+
+	<!-- [ chat message ] start -->
+	<section class="header-chat">
+		<div class="h-list-header">
+			<h6>Josephin Doe</h6>
+			<a href="#!" class="h-back-user-list"><i class="feather icon-chevron-left"></i></a>
+		</div>
+		<div class="h-list-body">
+			<div class="main-chat-cont scroll-div">
+				<div class="main-friend-chat">
+					<div class="media chat-messages">
+						<a class="media-left photo-table" href="#!"><img class="media-object img-radius img-radius m-t-5" src="/static/assets/images/user/avatar-2.jpg" alt="Generic placeholder image"></a>
+						<div class="media-body chat-menu-content">
+							<div class="">
+								<p class="chat-cont">hello tell me something</p>
+								<p class="chat-cont">about yourself?</p>
+							</div>
+							<p class="chat-time">8:20 a.m.</p>
+						</div>
+					</div>
+					<div class="media chat-messages">
+						<div class="media-body chat-menu-reply">
+							<div class="">
+								<p class="chat-cont">Ohh! very nice</p>
+							</div>
+							<p class="chat-time">8:22 a.m.</p>
+						</div>
+						<a class="media-right photo-table" href="#!"><img class="media-object img-radius img-radius m-t-5" src="/static/assets/images/user/avatar-1.jpg" alt="Generic placeholder image"></a>
+					</div>
+					<div class="media chat-messages">
+						<a class="media-left photo-table" href="#!"><img class="media-object img-radius img-radius m-t-5" src="/static/assets/images/user/avatar-2.jpg" alt="Generic placeholder image"></a>
+						<div class="media-body chat-menu-content">
+							<div class="">
+								<p class="chat-cont">can you help me?</p>
+							</div>
+							<p class="chat-time">8:20 a.m.</p>
+						</div>
+					</div>
+				</div>
+			</div>
+		</div>
+		<div class="h-list-footer">
+			<div class="input-group">
+				<input type="file" class="chat-attach" style="display:none">
+				<a href="#!" class="input-group-prepend btn btn-success btn-attach">
+					<i class="feather icon-paperclip"></i>
+				</a>
+				<input type="text" name="h-chat-text" class="form-control h-auto h-send-chat" placeholder="Write hear . . ">
+				<button type="submit" class="input-group-append btn-send btn btn-primary">
+					<i class="feather icon-message-circle"></i>
+				</button>
+			</div>
+		</div>
+	</section>
+	<!-- [ chat message ] end -->
+
+	<!-- [ Main Content ] start -->
+	<section class="pcoded-main-container">
+		<div class="pcoded-content">
+			<!-- [ breadcrumb ] start -->
+			<div class="page-header">
+				<div class="page-block">
+					<div class="row align-items-center">
+						<div class="col-md-12">
+							<div class="page-header-title">
+								<h5 class="m-b-10">Task List</h5>
+							</div>
+							<ul class="breadcrumb">
+								<li class="breadcrumb-item"><a href="index.html"><i class="feather icon-home"></i></a></li>
+								<li class="breadcrumb-item"><a href="#!">Task</a></li>
+								<li class="breadcrumb-item"><a href="#!">Task List</a></li>
+							</ul>
+						</div>
+					</div>
+				</div>
+			</div>
+			<!-- [ breadcrumb ] end -->
+			<!-- [ Main Content ] start -->
+			<div class="row">
+				<!-- [ task-list ] start -->
+				<div class="col-sm-12">
+					<div class="card">
+						<div class="card-header">
+							<h5>Task List</h5>
+						</div>
+						<div class="card-body task-data">
+							<div class="table-responsive form-material">
+								<table id="simpletable" class="table dt-responsive task-list-table table-striped table-bordered nowrap">
+									<thead>
+										<tr>
+											<th>#</th>
+											<th>Task list</th>
+											<th>Last Commit</th>
+											<th>Status</th>
+											<th>Assigned User</th>
+											<th>Action</th>
+										</tr>
+									</thead>
+									<tbody class="task-page">
+										<tr>
+											<td>#12</td>
+											<td>Add Proper Cursor In Sortable Page</td>
+											<td>
+												<div class="form-group form-primary mb-0">
+													<input type="date" class="form-control" />
+													<span class="form-bar"></span>
+												</div>
+											</td>
+											<td>
+												<div class="form-group form-primary mb-0">
+													<select name="select" class="form-control form-control-sm">
+														<option value="opt1">Open</option>
+														<option value="opt2">Resolved</option>
+														<option value="opt3">Invalid</option>
+														<option value="opt4">On hold</option>
+														<option value="opt5">Close</option>
+													</select>
+													<span class="form-bar"></span>
+												</div>
+											</td>
+											<td>
+												<a href="#!"><img class="img-fluid img-radius mr-1" src="/static/assets/images/user/avatar-1.jpg" alt=""></a>
+												<a href="#!"><img class="img-fluid img-radius" src="/static/assets/images/user/avatar-2.jpg" alt=""></a>
+												<a href="#!"><i class="fas fa-plus f-w-600 m-l-5"></i></a>
+											</td>
+											<td class="text-center">
+												<a class="dropdown-toggle addon-btn" data-toggle="dropdown" aria-expanded="true">
+													<i class="fas fa-cog"></i>
+												</a>
+												<div class="dropdown-menu dropdown-menu-right">
+													<a class="dropdown-item" href="#!"><i class="icofont icofont-attachment"></i>Attach File</a>
+													<a class="dropdown-item" href="#!"><i class="icofont icofont-ui-edit"></i>Edit Task</a>
+													<div role="separator" class="dropdown-divider"></div>
+													<a class="dropdown-item" href="#!"><i class="icofont icofont-refresh"></i>Reassign Task</a>
+												</div>
+											</td>
+										</tr>
+										<tr>
+											<td>#56</td>
+											<td>Edit the draft for the icons</td>
+											<td>
+												<div class="form-group form-primary mb-0">
+													<input type="date" class="form-control" />
+													<span class="form-bar"></span>
+												</div>
+											</td>
+											<td>
+												<div class="form-group form-primary mb-0">
+													<select name="select" class="form-control form-control-sm">
+														<option value="opt1">Open</option>
+														<option value="opt2">Resolved</option>
+														<option value="opt3">Invalid</option>
+														<option value="opt4">On hold</option>
+														<option value="opt5">Close</option>
+													</select>
+													<span class="form-bar"></span>
+												</div>
+											</td>
+											<td>
+												<a href="#!"><img class="img-fluid img-radius mr-1" src="/static/assets/images/user/avatar-1.jpg" alt=""></a>
+												<a href="#!"><img class="img-fluid img-radius" src="/static/assets/images/user/avatar-2.jpg" alt=""></a>
+												<a href="#!"><i class="fas fa-plus f-w-600 m-l-5"></i></a>
+											</td>
+											<td class="text-center">
+												<a class="dropdown-toggle addon-btn" data-toggle="dropdown" aria-expanded="true">
+													<i class="fas fa-cog"></i>
+												</a>
+												<div class="dropdown-menu dropdown-menu-right">
+													<a class="dropdown-item" href="#!"><i class="icofont icofont-attachment"></i>Attach File</a>
+													<a class="dropdown-item" href="#!"><i class="icofont icofont-ui-edit"></i>Edit Task</a>
+													<div role="separator" class="dropdown-divider"></div>
+													<a class="dropdown-item" href="#!"><i class="icofont icofont-refresh"></i>Reassign Task</a>
+												</div>
+											</td>
+										</tr>
+										<tr>
+											<td>#78</td>
+											<td>Create UI design model</td>
+											<td>
+												<div class="form-group form-primary mb-0">
+													<input type="date" class="form-control" />
+													<span class="form-bar"></span>
+												</div>
+											</td>
+											<td>
+												<div class="form-group form-primary mb-0">
+													<select name="select" class="form-control form-control-sm">
+														<option value="opt1">Open</option>
+														<option value="opt2">Resolved</option>
+														<option value="opt3">Invalid</option>
+														<option value="opt4">On hold</option>
+														<option value="opt5">Close</option>
+													</select>
+													<span class="form-bar"></span>
+												</div>
+											</td>
+											<td>
+												<a href="#!"><img class="img-fluid img-radius mr-1" src="/static/assets/images/user/avatar-1.jpg" alt=""></a>
+												<a href="#!"><img class="img-fluid img-radius mr-1" src="/static/assets/images/user/avatar-2.jpg" alt=""></a>
+												<a href="#!"><img class="img-fluid img-radius" src="/static/assets/images/user/avatar-3.jpg" alt=""></a>
+												<a href="#!"><i class="fas fa-plus f-w-600 m-l-5"></i></a>
+											</td>
+											<td class="text-center">
+												<a class="dropdown-toggle addon-btn" data-toggle="dropdown" aria-expanded="true">
+													<i class="fas fa-cog"></i>
+												</a>
+												<div class="dropdown-menu dropdown-menu-right">
+													<a class="dropdown-item" href="#!"><i class="icofont icofont-attachment"></i>Attach File</a>
+													<a class="dropdown-item" href="#!"><i class="icofont icofont-ui-edit"></i>Edit Task</a>
+													<div role="separator" class="dropdown-divider"></div>
+													<a class="dropdown-item" href="#!"><i class="icofont icofont-refresh"></i>Reassign Task</a>
+												</div>
+											</td>
+										</tr>
+										<tr>
+											<td>#35</td>
+											<td>Checkbox Design issue</td>
+											<td>
+												<div class="form-group form-primary mb-0">
+													<input type="date" class="form-control" />
+													<span class="form-bar"></span>
+												</div>
+											</td>
+											<td>
+												<div class="form-group form-primary mb-0">
+													<select name="select" class="form-control form-control-sm">
+														<option value="opt1">Open</option>
+														<option value="opt2">Resolved</option>
+														<option value="opt3">Invalid</option>
+														<option value="opt4">On hold</option>
+														<option value="opt5">Close</option>
+													</select>
+													<span class="form-bar"></span>
+												</div>
+											</td>
+											<td>
+												<a href="#!"><img class="img-fluid img-radius" src="/static/assets/images/user/avatar-1.jpg" alt=""></a>
+												<a href="#!"><i class="fas fa-plus f-w-600 m-l-5"></i></a>
+											</td>
+											<td class="text-center">
+												<a class="dropdown-toggle addon-btn" data-toggle="dropdown" aria-expanded="true">
+													<i class="fas fa-cog"></i>
+												</a>
+												<div class="dropdown-menu dropdown-menu-right">
+													<a class="dropdown-item" href="#!"><i class="icofont icofont-attachment"></i>Attach File</a>
+													<a class="dropdown-item" href="#!"><i class="icofont icofont-ui-edit"></i>Edit Task</a>
+													<div role="separator" class="dropdown-divider"></div>
+													<a class="dropdown-item" href="#!"><i class="icofont icofont-refresh"></i>Reassign Task</a>
+												</div>
+											</td>
+										</tr>
+										<tr>
+											<td>#20</td>
+											<td>Create UI design model</td>
+											<td>
+												<div class="form-group form-primary mb-0">
+													<input type="date" class="form-control" />
+													<span class="form-bar"></span>
+												</div>
+											</td>
+											<td>
+												<div class="form-group form-primary mb-0">
+													<select name="select" class="form-control form-control-sm">
+														<option value="opt1">Open</option>
+														<option value="opt2">Resolved</option>
+														<option value="opt3">Invalid</option>
+														<option value="opt4">On hold</option>
+														<option value="opt5">Close</option>
+													</select>
+													<span class="form-bar"></span>
+												</div>
+											</td>
+											<td>
+												<a href="#!"><img class="img-fluid img-radius mr-1" src="/static/assets/images/user/avatar-2.jpg" alt=""></a>
+												<a href="#!"><img class="img-fluid img-radius" src="/static/assets/images/user/avatar-3.jpg" alt=""></a>
+												<a href="#!"><i class="fas fa-plus f-w-600 m-l-5"></i></a>
+											</td>
+											<td class="text-center">
+												<a class="dropdown-toggle addon-btn" data-toggle="dropdown" aria-expanded="true">
+													<i class="fas fa-cog"></i>
+												</a>
+												<div class="dropdown-menu dropdown-menu-right">
+													<a class="dropdown-item" href="#!"><i class="icofont icofont-attachment"></i>Attach File</a>
+													<a class="dropdown-item" href="#!"><i class="icofont icofont-ui-edit"></i>Edit Task</a>
+													<div role="separator" class="dropdown-divider"></div>
+													<a class="dropdown-item" href="#!"><i class="icofont icofont-refresh"></i>Reassign Task</a>
+												</div>
+											</td>
+										</tr>
+									</tbody>
+								</table>
+							</div>
+						</div>
+					</div>
+					<div class="card">
+						<div class="card-header">
+							<h5>To Do List</h5>
+						</div>
+						<div class="card-body">
+							<div class="input-group mb-3">
+								<input type="text" class="form-control add_task_todo" placeholder="Create your task list">
+								<div class="input-group-append">
+									<button class="btn waves-effect waves-light btn-primary btn-icon btn-msg-send" type="button"><i class="fa fa-plus"></i></button>
+								</div>
+							</div>
+							<div class="new-task">
+								<div class="to-do-list mb-4">
+									<div class="checkbox-fade fade-in-primary">
+										<label class="check-task done-task">
+											<input type="checkbox" checked>
+											<span class="cr mr-3">
+												<i class="cr-icon fas fa-check txt-primary"></i>
+											</span>
+											<span>Lorem Ipsum is simply dummy text of the printing and typesetting industry. Lorem Ipsum has been the industry's</span>
+										</label>
+									</div>
+
+								</div>
+								<div class="to-do-list mb-4">
+									<div class="checkbox-fade fade-in-primary">
+										<label class="check-task">
+											<input type="checkbox" value="">
+											<span class="cr mr-3">
+												<i class="cr-icon fas fa-check txt-primary"></i>
+											</span>
+											<span>scrambled it to make a type specimen book. It has survived not only five centuries</span>
+										</label>
+									</div>
+								</div>
+								<div class="to-do-list mb-4">
+									<div class="checkbox-fade fade-in-primary">
+										<label class="check-task">
+											<input type="checkbox" value="">
+											<span class="cr mr-3">
+												<i class="cr-icon fas fa-check txt-primary"></i>
+											</span>
+											<span>It is a long established fact that a reader will be distracted by the readable content of a page</span>
+										</label>
+									</div>
+								</div>
+								<div class="to-do-list mb-4">
+									<div class="checkbox-fade fade-in-primary">
+										<label class="check-task">
+											<input type="checkbox" value="">
+											<span class="cr mr-3">
+												<i class="cr-icon fas fa-check txt-primary"></i>
+											</span>
+											<span>Contrary to popular belief, Lorem Ipsum is not simply random text. It has roots</span>
+										</label>
+									</div>
+								</div>
+								<div class="to-do-list mb-4">
+									<div class="checkbox-fade fade-in-primary">
+										<label class="check-task">
+											<input type="checkbox" value="">
+											<span class="cr mr-3">
+												<i class="cr-icon fas fa-check txt-primary"></i>
+											</span>
+											<span>The standard chunk of Lorem Ipsum used since the 1500s is reproduced</span>
+										</label>
+									</div>
+								</div>
+							</div>
+						</div>
+					</div>
+				</div>
+				<!-- [ task-list ] end -->
+			</div>
+			<!-- [ Main Content ] end -->
+		</div>
+	</section>
+	<!-- [ Main Content ] end -->
+
+{% endblock content %}
+
+<!-- Specific Page JS goes HERE  -->
+{% block javascripts %}
+
+	<!-- datatable Js -->
+	<script src="/static/assets/js/plugins/jquery.dataTables.min.js"></script>
+	<script src="/static/assets/js/plugins/dataTables.bootstrap4.min.js"></script>
+	<script type="text/javascript">
+		setTimeout(function() {
+			$('#simpletable').DataTable();
+		}, 600);
+	</script>
+
+{% endblock javascripts %}

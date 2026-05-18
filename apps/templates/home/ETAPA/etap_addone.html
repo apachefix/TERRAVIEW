@@ -1,0 +1,220 @@
+{% extends "layouts/base.html" %}
+
+{% block title %} Etapa {% endblock %} 
+
+<!-- Specific CSS goes HERE -->
+{% block stylesheets %}{% endblock stylesheets %}
+
+{% block content %}		
+    <!-- [ Main Content ] start -->
+    <section class="pcoded-main-container">
+        <div class="pcoded-content">
+            <!-- [ breadcrumb ] start -->
+            <div class="page-header">
+                <div class="page-block">
+                    <div class="row align-items-center">
+                        <div class="col-md-12">
+                            <div class="page-header-title">
+                                <h5 class="m-b-10">Etapa</h5>
+                            </div>
+                            <ul class="breadcrumb">
+                                <li class="breadcrumb-item"><a href="/"><i class="feather icon-home"></i></a></li>
+                                <li class="breadcrumb-item"><a href="{% url 'etap_listall' %}">Etapa</a></li>
+                                <li class="breadcrumb-item"><a href="#!">Agregar etapa</a></li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <!-- [ breadcrumb ] end -->
+            <!-- [ Main Content ] start -->
+            <div class="row">
+                <!-- [ form-element ] start -->
+                <div class="col-sm-12">
+                    <div class="card">
+                        <div class="card-header">
+                            <h5>Etapa</h5>
+                        </div>
+                        <div class="card-body">
+                            <h5>Ingrese datos</h5>
+                            <hr>
+                            <div class="row">
+                                <div class="col-md-8">
+                                    <form method="POST" id="validation-form123"  enctype="multipart/form-data" > 
+                                    {% csrf_token %}
+                                        {{ form.non_field_errors }}
+                                        {{ form.EP_NID }}
+                                        <div class="fieldWrapper">
+                                            {{ form.ET_CTIPO.errors }}
+                                            <label class="my-1 me-2" for="{{ form.ET_CTIPO.id_for_label }}">Tipo:</label>
+                                            {{ form.ET_CTIPO }}
+                                        </div>
+                                        <div class="fieldWrapper">
+                                            {{ form.ET_CCODIGO.errors }}
+                                            <label class="my-1 me-2" for="{{ form.ET_CCODIGO.id_for_label }}">Codigo:</label>
+                                            {{ form.ET_CCODIGO }}
+                                        </div>
+                                        <div class="fieldWrapper">
+                                            {{ form.ET_CNOMBRE.errors }}
+                                            <label class="my-1 me-2" for="{{ form.ET_CNOMBRE.id_for_label }}">Nombre:</label>
+                                            {{ form.ET_CNOMBRE }}
+                                        </div>
+                                        <div class="fieldWrapper">
+                                            {{ form.ET_CDESCRIPCION.errors }}
+                                            <label class="my-1 me-2" for="{{ form.ET_CDESCRIPCION.id_for_label }}">Descripción:</label>
+                                            {{ form.ET_CDESCRIPCION }}
+                                        </div>
+                                        <div class="fieldWrapper">
+                                            {{ form.ET_NCANTIDADMAXIMA.errors }}
+                                            <label class="my-1 me-2" for="{{ form.ET_NCANTIDADMAXIMA.id_for_label }}">Cantidad Maxima:</label>
+                                            {{ form.ET_NCANTIDADMAXIMA }}
+                                        </div>
+                                        <div class="fieldWrapper">
+                                            {{ form.ET_NTIEMPOMAXIMO.errors }}
+                                            <label class="my-1 me-2" for="{{ form.ET_NTIEMPOMAXIMO.id_for_label }}">Tiempo Maximo:</label>
+                                            {{ form.ET_TTIEMPOMAXIMO }}
+                                        </div>
+                                        <div class="fieldWrapper">
+                                            {{ form.ET_TTIEMPOMINIMO.errors }}
+                                            <label class="my-1 me-2" for="{{ form.ET_TTIEMPOMINIMO.id_for_label }}">Tiempo Minimo:</label>
+                                            {{ form.ET_TTIEMPOMINIMO }}
+                                        </div>   
+                                        <div class="form-group">
+                                            {{ form.ET_BHABILITADO.errors }}
+                                            <label class=" font-weight-bold mr-3">¿Habilitado? </label>
+                                            <div class="switch switch-success d-inline m-r-10">
+                                                <label>No</label>
+                                                {{ form.ET_BHABILITADO }}
+                                                <label for="switch-s-2" class="cr"></label>
+                                            </div>
+                                            <label>Si</label>
+                                        </div>
+                                        <div class="form-group">
+                                            {{ form.ET_BINTEGRARSAP.errors }}
+                                            <label class=" font-weight-bold mr-3">¿Requiere integración SAP? </label>
+                                            <div class="switch switch-success d-inline m-r-10">
+                                                <label>No</label>
+                                                {{ form.ET_BINTEGRARSAP }}
+                                                <label for="switch-s-3" class="cr"></label>
+                                            </div>
+                                            <label>Si</label>
+                                        </div>
+                                        <div id="integracion_sap" style="display: none;">
+                                            <div class="form-group">
+                                                {{ form.ET_BISCABECERA.errors }}
+                                                <label class=" font-weight-bold mr-3">¿Es cabecera? </label>
+                                                <div class="switch switch-success d-inline m-r-10">
+                                                    <label>No</label>
+                                                    {{ form.ET_BISCABECERA }}
+                                                    <label for="switch-s-4" class="cr"></label>
+                                                </div>
+                                                <label>Si</label>
+                                            </div>
+                                            <div class="form-group">
+                                                {{ form.ET_BISLINEA.errors }}
+                                                <label class=" font-weight-bold mr-3">¿Es línea? </label>
+                                                <div class="switch switch-success d-inline m-r-10">
+                                                    <label>No</label>
+                                                    {{ form.ET_BISLINEA }}
+                                                    <label for="switch-s-5" class="cr"></label>
+                                                </div>
+                                                <label>Si</label>
+                                            </div>
+                                            <div class="fieldWrapper">
+                                                {{ form.ET_CNUMEROOBJETOSAP.errors }}
+                                                <label class="my-1 me-2" for="{{ form.ET_CNUMEROOBJETOSAP.id_for_label }}">Número objeto SAP:</label>
+                                                {{ form.ET_CNUMEROOBJETOSAP }}
+                                            </div>
+                                            <div class="fieldWrapper">
+                                                {{ form.ET_CENDPOINT.errors }}
+                                                <label class="my-1 me-2" for="{{ form.ET_CENDPOINT.id_for_label }}">End Point:</label>
+                                                {{ form.ET_CENDPOINT }}
+                                            </div>
+                                            <div id="id_etapa_ref" class="fieldWrapper" style="display: none;">
+                                                {{ form.ET_NID_REF.errors }}
+                                                <label class="my-1 me-2" for="{{ form.ET_NID_REF.id_for_label }}">Etapa referencia:</label>
+                                                {{ form.ET_NID_REF }}
+                                            </div>
+                                        </div>
+                                        <div id="id_zona" {% if not documento.ET_CTIPO == 'OPERACION' %}style="display: none;"{%endif%}>
+                                            <div class="fieldWrapper">
+                                                {{ form.ZON_NID.errors }}
+                                                <label class="my-1 me-2" for="{{ form.ZON_NID.id_for_label }}">Zona:</label>
+                                                {{ form.ZON_NID }}
+                                            </div>
+                                        </div>
+                                        <div id="id_etapa_ref_adicionales" style="display: none;">
+                                            <div class="fieldWrapper">
+                                                {{ form.ET_NID_REF_ADICIONALES.errors }}
+                                                <label class="my-1 me-2" for="{{ form.ET_NID_REF_ADICIONALES.id_for_label }}">Etapa referencia adicionales:</label>
+                                                {{ form.ET_NID_REF_ADICIONALES }}
+                                            </div>
+                                        </div>
+                                        <br>
+                                        <hr>
+                                        {{ form.errors }}
+                                        <div class="form-group nav justify-content-end">
+                                            <button class="btn btn-success mr-4" 
+                                            type="submit">Guardar</button>
+                                            <a class="btn btn-danger mr-1"
+                                                onclick="window.history.go(-1); return false;">Volver
+                                            </a>
+                                        </div>
+                                    </form>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <!-- [ form-element ] end -->
+            </div>
+            <!-- [ Main Content ] end -->
+        </div>
+    </section>
+    <!-- [ Main Content ] end -->
+{% endblock content %}
+
+<!-- Specific Page JS goes HERE  -->
+{% block javascripts %}
+    <!-- bootstrap-tagsinput-latest Js -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/typeahead.js/0.11.1/typeahead.bundle.min.js"></script>
+    <script src="/static/assets/js/plugins/bootstrap-tagsinput.min.js"></script>
+    <!-- bootstrap-maxlength Js -->
+    <script src="/static/assets/js/plugins/bootstrap-maxlength.js"></script>
+    <!-- form-advance custom js -->
+    <script src="/static/assets/js/pages/form-advance-custom.js"></script>
+    <script>
+        $("#switch-s-3").change(function(){
+            if($(this).is(":checked")){
+                $("#integracion_sap").show();
+            }else{
+                $("#integracion_sap").hide();
+            }
+        });
+        $('#switch-s-5').change(function(){
+            if($(this).is(":checked")){
+                $('#id_etapa_ref').show();
+            }else{
+                $('#id_etapa_ref').hide();
+            }
+        });
+
+        $('#tipo_etapa').on("change", function(){
+            const tipoEtapa = $('#tipo_etapa').val();
+            console.log(tipoEtapa);
+            if (tipoEtapa == "OPERACION") {
+                $('#id_zona').show();
+            } else {
+                $('#id_zona').hide();
+            }
+        });
+
+        $('#switch-s-6').change(function(){
+            if($(this).is(":checked")){
+                $('#id_etapa_ref_adicionales').show();
+            }else{
+                $('#id_etapa_ref_adicionales').hide();
+            }
+        });
+    </script>
+{% endblock javascripts %}

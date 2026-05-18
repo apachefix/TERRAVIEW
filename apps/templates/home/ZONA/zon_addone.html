@@ -1,0 +1,163 @@
+{% extends "layouts/base.html" %}
+
+{% block title %} Rutas {% endblock %} 
+
+<!-- Specific CSS goes HERE -->
+{% block stylesheets %}{% endblock stylesheets %}
+
+{% block content %}		
+    <!-- [ Main Content ] start -->
+    <section class="pcoded-main-container">
+        <div class="pcoded-content">
+            <!-- [ breadcrumb ] start -->
+            <div class="page-header">
+                <div class="page-block">
+                    <div class="row align-items-center">
+                        <div class="col-md-12">
+                            <div class="page-header-title">
+                                <h5 class="m-b-10"> Zona</h5>
+                            </div>
+                            <ul class="breadcrumb">
+                                <li class="breadcrumb-item"><a href="/"><i class="feather icon-home"></i></a></li>
+                                <li class="breadcrumb-item"><a href="{% url 'zon_listall' %}">Zonas</a></li>
+                                <li class="breadcrumb-item"><a href="#!">Agregar zona</a></li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <!-- [ breadcrumb ] end -->
+            <!-- [ Main Content ] start -->
+            
+            <div class="row">
+                <!-- [ form-element ] start -->
+                <div class="col-sm-12">
+                    <div class="card">
+                        <div class="card-header">
+                            <h5> Zona</h5>
+                        </div>
+                        <div class="card-body">
+                            {% if form.instance.pk %}
+                                <h5>Actualizar Ruta</h5>
+                            {% else %}
+                                <h5>Ingrese datos</h5>
+                            {% endif %}
+                            <hr>                        
+                            <div class="row">
+                                <div class="col-md-6">
+                                    <form method="POST">
+                                        {% csrf_token %}
+
+                                        {{ form.non_field_errors }}
+                                        <input type="hidden" name="EP_NID" value="{% if form.instance.pk %}{{ form.instance.EP_NID.id }}{% else %}{{ empresa }}{% endif %}">
+
+                                        <div class="fieldWrapper">
+                                            {{ form.ZON_CNOMBRE.errors }}
+                                            <label class="my-1 me-2" for="{{ form.ZON_CNOMBRE.id_for_label }}">Nombre:</label>
+                                            {{ form.ZON_CNOMBRE}}
+                                        </div>
+                                        <div class="fieldWrapper">
+                                            {{ form.ZON_NCANTIDADCUPOS.errors }}
+                                            <label class="my-1 me-2" for="{{ form.ZON_NCANTIDADCUPOS.id_for_label }}">Cantidad de cupos:</label>
+                                            {{ form.ZON_NCANTIDADCUPOS}}
+                                        </div>
+                                        <hr>
+                                        <h5>Coordenadas punto 1:</h5>
+                                        <div class="fieldWrapper">
+                                            {{ form.ZON_CLATITUD1.errors }}
+                                            <label class="my-1 me-2" for="{{ form.ZON_CLATITUD1.id_for_label }}">Latitud 1:</label>
+                                            {{ form.ZON_CLATITUD1}}
+                                        </div>
+                                        <div class="fieldWrapper">
+                                            {{ form.ZON_CLONGITUD1.errors }}
+                                            <label class="my-1 me-2" for="{{ form.ZON_CLONGITUD1.id_for_label }}">Longitud 1:</label>
+                                            {{ form.ZON_CLONGITUD1 }}
+                                        </div>
+                                        <hr>
+                                        <h5>Coordenadas punto 2:</h5>
+                                        <div class="fieldWrapper" id="id_region_termino">
+                                            {{ form.ZON_CLATITUD2.errors }}
+                                            <label class="my-1 me-2" for="{{ form.ZON_CLATITUD2.id_for_label }}">Latitud 2:</label>
+                                            {{ form.ZON_CLATITUD2 }}
+                                        </div>
+                                        <div class="fieldWrapper">
+                                            {{ form.ZON_CLONGITUD2.errors }}
+                                            <label class="my-1 me-2" for="{{ form.ZON_CLONGITUD2.id_for_label }}">Longitud 2:</label>
+                                            {{ form.ZON_CLONGITUD2 }}
+                                        </div>
+                                        <hr>
+                                        <h5>Coordenadas punto 3:</h5>
+                                        <div class="fieldWrapper" id="id_region_termino">
+                                            {{ form.ZON_CLATITUD3.errors }}
+                                            <label class="my-1 me-2" for="{{ form.ZON_CLATITUD3.id_for_label }}">Latitud 3:</label>
+                                            {{ form.ZON_CLATITUD3 }}
+                                        </div>
+                                        <div class="fieldWrapper">
+                                            {{ form.ZON_CLONGITUD3.errors }}
+                                            <label class="my-1 me-2" for="{{ form.ZON_CLONGITUD3.id_for_label }}">Longitud 3:</label>
+                                            {{ form.ZON_CLONGITUD3 }}
+                                        </div>
+                                        <hr>
+                                        <h5>Coordenadas punto 4:</h5>
+                                        <div class="fieldWrapper" id="id_region_termino">
+                                            {{ form.ZON_CLATITUD4.errors }}
+                                            <label class="my-1 me-2" for="{{ form.ZON_CLATITUD4.id_for_label }}">Latitud 4:</label>
+                                            {{ form.ZON_CLATITUD4 }}
+                                        </div>
+                                        <div class="fieldWrapper">
+                                            {{ form.ZON_CLONGITUD4.errors }}
+                                            <label class="my-1 me-2" for="{{ form.ZON_CLONGITUD4.id_for_label }}">Longitud 4:</label>
+                                            {{ form.ZON_CLONGITUD4 }}
+                                        </div>
+                                        <hr>
+                                        <div class="fieldWrapper">
+                                            {{ form.ZON_CDESCRIPCION.errors }}
+                                            <label class="my-1 me-2" for="{{ form.ZON_CDESCRIPCION.id_for_label }}">Descripción:</label>
+                                            {{ form.ZON_CDESCRIPCION }}
+                                        </div>
+                                        <div class="fieldWrapper">
+                                            {{ form.ZON_CCOLOR.errors }}
+                                            <label class="my-1 me-2" for="{{ form.ZON_CCOLOR.id_for_label }}">Color:</label>
+                                            {{ form.ZON_CCOLOR }}
+                                        </div>
+                                        <div class="fieldWrapper">
+                                            {{ form.ZON_BHABILITADO.errors }}
+                                            <label class="font-weight-bold mr-3">¿Habilitado? </label>
+                                            <div class="switch switch-success d-inline m-r-10">
+                                                <label>No</label>
+                                                {{ form.ZON_BHABILITADO }} <!-- Renderiza el checkbox -->
+                                                <label for="switch-s-1" class="cr"></label> <!-- Asegúrate de que el for coincida con el id -->
+                                            </div>
+                                            <label>Si</label>
+                                        </div>
+                                        <br>
+                                        {{ form.errors }}
+                                        <div class="form-group nav justify-content-end">
+                                            {% if form.instance.pk %}
+                                                <button class="btn btn-success" type="submit">Actualizar</button>
+                                            {% else %}
+                                                <button class="btn btn-success" id="guardar_ruta" type="submit">Guardar</button>
+                                            {% endif %}
+                                            <p>&nbsp&nbsp</p>
+                                            <a class="btn btn-danger mr-1"
+                                                onclick="window.history.go(-1); return false;">Volver</a>
+                                        </div>
+                                    </form>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <!-- [ form-element ] end -->
+            </div>           
+            <!-- [ Main Content ] end -->
+
+        </div>
+    </section>
+    <!-- [ Main Content ] end -->
+    <link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet" />
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@10"></script>
+{% endblock content %}
+
+<!-- Specific Page JS goes HERE  -->
+{% block javascripts %}{% endblock javascripts %}

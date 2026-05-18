@@ -1,0 +1,281 @@
+{% extends "layouts/base.html" %}
+
+{% block title %} Previsualización Etapa {% endblock %} 
+
+<!-- Specific CSS goes HERE -->
+{% block stylesheets %}
+
+    <!-- data tables css -->
+    <link rel="stylesheet" href="/static/assets/css/plugins/dataTables.bootstrap4.min.css">
+    {% load humanize %}
+    {% load i18n %}
+    {% load l10n %}
+{% endblock stylesheets %}
+
+{% block content %}	
+
+	<!-- [ chat user list ] start -->
+	<!-- chatbot -->
+	<!-- [ chat user list ] end -->
+
+	<!---->
+
+    <!-- [ Main Content ] start -->
+    
+    <section class="pcoded-main-container">
+        <div class="pcoded-content">
+            <!-- [ breadcrumb ] start -->
+            <div class="page-header">
+                <div class="page-block">
+                    <div class="row align-items-center">
+                        <div class="col-md-12">
+                            <div class="page-header-title">
+                                <h5 class="m-b-10">Tipo de documento</h5>
+                            </div>
+                            <ul class="breadcrumb">
+                                <li class="breadcrumb-item"><a href="/"><i class="feather icon-home"></i></a></li>
+                                <li class="breadcrumb-item"><a href="{% url 'doc_listall' %}">Tipos de documento</a></li>
+                                <li class="breadcrumb-item"><a href="#!">Agregar tipo de documento</a></li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <!-- [ breadcrumb ] end -->
+            <!-- [ Main Content ] start -->
+            <div class="row">
+                <!-- [ form-element ] start -->
+                <div class="col-sm-12">
+                    <div class="card">
+                        <div class="card-header">
+                            <h5>Previsualizacion</h5>
+                        </div>
+                        <div class="card-body d-flex justify-content-center">
+                        <div class="card-body">
+                            <h5>Previsualizacion de formulario {{data_etapa.ET_CNOMBRE}}</h5>
+                            <hr>
+                            <div class="row">
+                                <div class="col-md-8">
+                                    <form method="POST" id="validation-form123"  enctype="multipart/form-data" > 
+                                        {% for campo in data %}
+                                        
+                                            {% if campo.TYPE == 'texto' %}
+                                                <br>
+                                                <div class="fieldWrapper">
+                                                    <label class="my-1 me-2" for="">{{campo.PLACEHOLDER}}:</label>
+                                                    <input type="text" class="form-control" value="{{campo.DEFAULT_VALUE}}" maxlength = "{{campo.LARGO}}" {% if campo.OBLIGATORIO %} required{% endif %}>
+                                                </div>
+                                            {% endif %}
+                                            {% if campo.TYPE == 'numero' %}
+                                                <br>
+                                                <div class="fieldWrapper">
+                                                    <label class="my-1 me-2" for="">{{campo.PLACEHOLDER}}:</label>
+                                                    <input type="number" class="form-control" value="{{campo.DEFAULT_VALUE}}" {% if campo.OBLIGATORIO %} required{% endif %}>
+                                                </div>
+                                            {% endif %}
+                                            {% if campo.TYPE == 'decimal' %}
+                                                <br>
+                                                <div class="fieldWrapper">
+                                                    <label class="my-1 me-2" for="">{{campo.PLACEHOLDER}}:</label>
+                                                    <input type="number" class="form-control" value="{{campo.DEFAULT_VALUE}}" {% if campo.OBLIGATORIO %} required{% endif %}>
+                                                </div>
+                                            {% endif %}
+                                            {% if campo.TYPE == 'fecha' %}
+                                                <br>
+                                                <div class="fieldWrapper">
+                                                    <label class="my-1 me-2" for="">{{campo.PLACEHOLDER}}:</label>
+                                                    <input type="date" class="form-control" value="{{campo.DEFAULT_VALUE}}" {% if campo.OBLIGATORIO %} required{% endif %}>
+                                                </div>
+                                            {% endif %}
+                                            {% if campo.TYPE == 'fecha/hora' %}
+                                                <br>
+                                                <div class="fieldWrapper">
+                                                    <label class="my-1 me-2" for="">{{campo.PLACEHOLDER}}:</label>
+                                                    <input type="datetime" class="form-control" value="{{campo.DEFAULT_VALUE}}" {% if campo.OBLIGATORIO %} required{% endif %}>
+                                                </div>
+                                            {% endif %}
+                                            {% if campo.TYPE == 'archivo' %}
+                                                <br>
+                                                <div class="fieldWrapper">
+                                                    <label class="my-1 me-2" for="">{{campo.PLACEHOLDER}}:</label>
+                                                    <input type="file"  value="{{campo.DEFAULT_VALUE}}" {% if campo.OBLIGATORIO %} required{% endif %}>
+                                                </div>
+                                            {% endif %}
+                                            {% if campo.TYPE == 'lista' %}
+                                                <br>
+                                                <div class="fieldWrapper">
+                                                    <label class="my-1 me-2" for="">{{campo.PLACEHOLDER}}:</label>
+                                                    <select class="form-control js-example-placeholder-multiple" {% if campo.OBLIGATORIO %} required{% endif %}>
+                                                        <option value="">Seleccione una opción</option>
+                                                        {% for dato in campo.DATOS %}
+                                                            <option value="{{ dato.0 }}">{{ dato.1 }}</option>
+                                                        {% endfor %}
+                                                    </select>
+                                                </div>
+                                            {% endif %}
+                                            {% if campo.TYPE == 'check' %}
+                                                <br>
+                                                <div class="form-group">
+                                                    <label class=" font-weight-bold mr-3">{{campo.PLACEHOLDER}}</label>
+                                                    <div class="switch switch-success d-inline m-r-10">
+                                                        <label>No</label>
+                                                        <input type="checkbox" id = 'switch-s-1' class='form-check-input' value="{{campo.DEFAULT_VALUE}}" {% if campo.OBLIGATORIO %} required{% endif %}>
+                                                        <label for="switch-s-1" class="cr"></label>
+                                                    </div>
+                                                    <label>Si</label>
+                                                </div>
+                                        {% endif %}
+                                        {% endfor %}
+                                            <div class="form-group nav justify-content-end">
+                                                <button class="btn btn-success mr-4" 
+                                                type="submit">Guardar</button>
+                                                <a class="btn btn-danger mr-1"
+                                                    onclick="window.history.go(-1); return false;">Volver
+                                                </a>
+                                            </div>
+                                    </form>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <!-- [ form-element ] end -->
+            </div>
+            <!-- [ Main Content ] end -->
+        </div>
+    </section>
+
+    <!-- [ Main Content ] end -->
+
+
+{% endblock content %}
+
+<!-- Specific Page JS goes HERE  -->
+{% block javascripts %}
+
+    <!-- datatable Js -->
+    <script src="/static/assets/js/plugins/jquery.dataTables.min.js"></script>
+    <script src="/static/assets/js/plugins/dataTables.bootstrap4.min.js"></script>
+    <script src="/static/assets/js/plugins/buttons.colVis.min.js"></script>
+    <script src="/static/assets/js/plugins/buttons.print.min.js"></script>
+    <script src="/static/assets/js/plugins/pdfmake.min.js"></script>
+    <script src="/static/assets/js/plugins/jszip.min.js"></script>
+    <script src="/static/assets/js/plugins/dataTables.buttons.min.js"></script>
+    <script src="/static/assets/js/plugins/buttons.html5.min.js"></script>
+    <script src="/static/assets/js/plugins/buttons.bootstrap4.min.js"></script>
+    <script src="/static/assets/js/pages/data-export-custom.js"></script>
+    <script>
+        $('#delete_documento').on("click", function(){
+            const urlToNavigate = $(this).data('href');
+            Swal.fire({
+                title: '¡Atención!',
+                icon: 'warning',
+                text: '¿Estás seguro de eliminar a este tipo de documento?',
+                showCancelButton: true,
+                confirmButtonColor: '#299B0B',
+                cancelButtonColor: '#d33',
+                confirmButtonText: 'Confirmar',
+                cancelButtonText: 'Cancelar'
+            }).then((resultado) => {
+                if(resultado.isConfirmed){
+                    window.location.href = urlToNavigate;
+                }
+            });
+        });
+    </script>
+    <script>
+
+        function modalpreview(pk){
+            $.ajax({
+                url: '/get_preview_etapa/'+pk,
+                type: 'POST',
+                data: {
+                        'csrfmiddlewaretoken': '{{ csrf_token }}',
+                    },
+                success: function(response) {
+                    // Aqui se generara un formulario dinamico para cada campo en base a las opciones obtenidas en la bd
+                    $('#div_preview').empty(); // Limpiar el contenido anterior del div
+                    
+                    formHtml = CreacionCampos(response.data);
+                    $('#div_preview').html(formHtml); // Asignar el formulario generado al cuerpo del modal
+                    //$('#myExtraLargeModalLabel').modal('show'); // Mostrar el modal
+                },
+                error: function(error) {
+                    console.log('Error al cargar los datos:', error);
+                }
+            });
+        }
+        function CreacionCampos(json_campos){
+            for (let i = 0; i < json_campos.length; i++) {
+                tipo = json_campos[i].TYPE
+                valor_default = json_campos[i].DEFAULT_VALUE
+                placeholder = json_campos[i].PLACEHOLDER
+                largo = json_campos[i].LARGO
+                obligatorio = json_campos[i].OBLIGATORIO
+                var formHtml = '<form id="dynamicForm">';
+                formHtml += '<div class="form-group">';
+                formHtml += '<label>' + placeholder+ '</label>';
+                if (tipo.toLowerCase() === 'texto') {
+                    formHtml += '<input type="text" class="form-control" name="' + valor_default + '" placeholder="' + placeholder+ '"';
+                    if (obligatorio) {
+                        formHtml += ' required';
+                    }
+                    formHtml += '>';
+                }
+                if (tipo.toLowerCase() === 'numero') {
+                    formHtml += '<input type="number" class="form-control" name="' + valor_default + '" placeholder="' + placeholder+ '"';
+                    if (obligatorio) {
+                        formHtml += ' required';
+                    }
+                    formHtml += '>';
+                }
+                if (tipo.toLowerCase() === 'decimal') {
+                    formHtml += '<input type="number" class="form-control" name="' + valor_default + '" placeholder="' + placeholder+ '"';
+                    if (obligatorio) {
+                        formHtml += ' required';
+                    }
+                    formHtml += '>';
+                }
+                if (tipo.toLowerCase() === 'fecha') {
+                    formHtml += '<input type="date" class="form-control" name="' + valor_default + '" placeholder="' + placeholder+ '"';
+                    if (obligatorio) {
+                        formHtml += ' required';
+                    }
+                    formHtml += '>';
+                }
+                if (tipo.toLowerCase() === 'fecha/hora') {
+                    formHtml += '<input type="datetime" class="form-control" name="' + valor_default + '" placeholder="' + placeholder+ '"';
+                    if (obligatorio) {
+                        formHtml += ' required';
+                    }
+                    formHtml += '>';
+                }
+            
+                if (tipo.toLowerCase() === 'check') {
+                    formHtml += '<div class="form-check">';
+                    formHtml += '<input type="checkbox" class="form-check-input" id="' + placeholder+ '" name="' + placeholder+ '"';
+                    if (obligatorio) {
+                        formHtml += ' required';
+                    }
+                    formHtml += '>';
+                    formHtml += '<label class="form-check-label" for="' + placeholder+ '">' + placeholder+ '</label>';
+                    formHtml += '</div>';
+                }
+                if (tipo.toLowerCase() === 'archivo') {
+                    formHtml += '<input type="file" class="form-control" name="' + valor_default + '" placeholder="' + placeholder+ '"';
+                    if (obligatorio) {
+                        formHtml += ' required';
+                    }
+                    formHtml += '>';
+                }
+                // Aquí se pueden agregar más condiciones para otros tipos de campos si es necesario
+                formHtml += '</div>';
+
+            }
+            formHtml += '<button type="submit" class="btn btn-primary">Enviar</button>';
+            formHtml += '</form>';
+            return formHtml
+        }
+        
+    </script>
+{% endblock javascripts %}

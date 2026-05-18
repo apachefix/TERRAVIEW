@@ -1,0 +1,372 @@
+{% extends "layouts/base.html" %}
+
+{% block title %} Tarifa global {% endblock %} 
+
+<!-- Specific CSS goes HERE -->
+{% block stylesheets %}{% endblock stylesheets %}
+
+{% block content %}		
+    <!-- [ Main Content ] start -->
+    <section class="pcoded-main-container">
+        <div class="pcoded-content">
+            <!-- [ breadcrumb ] start -->
+            <div class="page-header">
+                <div class="page-block">
+                    <div class="row align-items-center">
+                        <div class="col-md-12">
+                            <div class="page-header-title">
+                                <h5 class="m-b-10"> Tarifa global</h5>
+                            </div>
+                            <ul class="breadcrumb">
+                                <li class="breadcrumb-item"><a href="/"><i class="feather icon-home"></i></a></li>
+                                <li class="breadcrumb-item"><a href="/">Tarifas</a></li>
+                                <li class="breadcrumb-item"><a href="{% url 'tg_listall' %}">Agregar tarifa global</a></li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <!-- [ breadcrumb ] end -->
+            <!-- [ Main Content ] start -->
+            
+            <div class="row">
+                <!-- [ form-element ] start -->
+                <div class="col-sm-12">
+                    <div class="card">
+                        <div class="card-header">
+                            <h5> Tarifa global</h5>
+                        </div>
+                        <div class="card-body">
+                            {% if form.instance.pk %}
+                                <h5>Actualizar Tarifa</h5>
+                            {% else %}
+                                <h5>Ingrese datos</h5>
+                            {% endif %}
+                            <hr>
+                            <button type="button" class="btn btn-primary" data-toggle="modal" data-target="#modalNuevoTipoTarifa">Nuevo Tipo de Tarifa</button>
+                            <button type="button" class="btn btn-primary" data-toggle="modal" data-target="#modalNuevaDivisa">Nueva Divisa</button>                            
+                            <div class="row">
+                                <div class="col-md-6">
+                                    <form method="POST">
+                                        {% csrf_token %}
+                                        {{ form.non_field_errors }}
+                                        {{ form.EP_NID }}
+                                        <br>
+                                        <div class="fieldWrapper" id="id_socio_negocio">
+                                            {{ form.subject.errors }}
+                                            <label class="my-1 me-2" for="{{ form.subject.2 }}">Socio de Negocio:</label>
+                                            {{ form.SN_NID }}
+                                        </div> 
+                                        <div class="fieldWrapper" id="id_ruta">
+                                            {{ form.RUT_NID.errors }}
+                                            <label class="my-1 me-2" for="{{ form.RUT_NID.id_for_label }}">Ruta:</label>
+                                            {{ form.RUT_NID}}
+                                        </div>   
+                                        <div class="fieldWrapper">
+                                            {{ form.TAR_CNOMBRETARIFA.errors }}
+                                            <label class="my-1 me-2"  for="{{ form.TAR_CNOMBRETARIFA.id_for_label }}">Nombre tarifa:</label>
+                                            {{form.TAR_CNOMBRETARIFA}}
+                                        </div>                            
+                                        <div class="fieldWrapper" id="valor_tarifa">
+                                            {{ form.subject.errors }}
+                                            <label class="my-1 me-2" for="{{ form.subject.id_for_label }}">Valor:</label>
+                                            {{ form.TAR_NVALOR }}
+                                        </div>                                                                             
+                                        <div class="fieldWrapper" id="tipo_tarifa">
+                                            {{ form.subject.errors }}
+                                            <label class="my-1 me-2" for="{{ form.subject.id_for_label }}">Tipo de Tarifa:</label>
+                                            <select name="TAR_CTIPOTARIFA" id="id_tipo_tarifa" class="form-control">
+                                                {% for tipo in form.TAR_CTIPOTARIFA %}
+                                                    <option value="{{ tipo.PM_CCODIGO }}">{{ tipo.PM_CCODIGO }}</option>
+                                                {% endfor %}
+                                            </select>
+                                        </div>
+                                        <div class="fieldWrapper" id="divisa">
+                                            {{ form.subject.errors }}
+                                            <label class="my-1 me-2" for="{{ form.subject.id_for_label }}">Divisa:</label>
+                                            <select name="TAR_CDIVISA" id="id_divisa" class="form-control">
+                                                {% for divisa in form.TAR_CDIVISA %}
+                                                    <option value="{{ divisa.PM_CCODIGO }}">{{ divisa.PM_CCODIGO }}</option>
+                                                {% endfor %}
+                                            </select>
+                                        </div>                                                                           
+                                        <br>
+                                        {{ form.errors }}
+                                        <div class="form-group nav justify-content-end">
+                                            {% if form.instance.pk %}
+                                                <button class="btn btn-success" type="submit">Actualizar</button>
+                                            {% else %}
+                                                <button class="btn btn-success" id="guardar_tarifa" type="submit">Guardar</button>
+                                            {% endif %}
+                                            <p>&nbsp&nbsp</p>
+                                            <a class="btn btn-danger mr-1"
+                                                onclick="window.history.go(-1); return false;">Volver</a>
+                                        </div>
+                                    </form>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <!-- [ form-element ] end -->
+            </div>
+
+            <!-- Modal para Crear Nuevo Tipo de Tarifa -->
+            <div class="modal fade" id="modalNuevoTipoTarifa" tabindex="-1" role="dialog" aria-labelledby="modalNuevoTipoTarifaLabel" aria-hidden="true">
+                <div class="modal-dialog" role="document">
+                    <div class="modal-content">
+                        <div class="modal-header">
+                            <h5 class="modal-title" id="modalNuevoTipoTarifaLabel">Nuevo Tipo de Tarifa</h5>
+                            <button type="button" class="close" data-dismiss="modal" aria-label="Cerrar">
+                                <span aria-hidden="true">&times;</span>
+                            </button>
+                        </div>
+                        <div class="modal-body">
+                            <form id="formNuevoTipoTarifa">
+                                <div class="form-group">
+                                    <label for="nombreTipoTarifa">Nombre del Tipo de Tarifa:</label>
+                                    <input type="text" class="form-control" id="nombreTipoTarifa" name="nombreTipoTarifa" required>
+                                </div>
+                                <div class="form-group">
+                                    <label for="descripcionTipoTarifa">Descripción de Tarifa</label>
+                                    <input type="text" class="form-control" id="descripcionTipoTarifa" name="descripcionTipoTarifa" required>
+                                </div>
+                                <button type="submit" class="btn btn-primary">Guardar</button>
+                            </form>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Modal para Crear Nueva Divisa -->
+            <div class="modal fade" id="modalNuevaDivisa" tabindex="-1" role="dialog" aria-labelledby="modalNuevaDivisaLabel" aria-hidden="true">
+                <div class="modal-dialog" role="document">
+                    <div class="modal-content">
+                        <div class="modal-header">
+                            <h5 class="modal-title" id="modalNuevaDivisaLabel">Nueva Divisa</h5>
+                            <button type="button" class="close" data-dismiss="modal" aria-label="Cerrar">
+                                <span aria-hidden="true">&times;</span>
+                            </button>
+                        </div>
+                        <div class="modal-body">
+                            <form id="formNuevaDivisa">
+                                <div class="form-group">
+                                    <label for="nombreDivisa">Nombre de la Divisa:</label>
+                                    <input type="text" class="form-control" id="nombreDivisa" required>
+                                </div>
+                                <div class="form-group">
+                                    <label for="descripcionDivisa">Descripción de Divisa</label>
+                                    <input type="text" class="form-control" id="descripcionDivisa" name="descripcionDivisa" required>
+                                </div>
+                                <button type="submit" class="btn btn-primary">Guardar</button>
+                            </form>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+
+            
+            <!-- [ Main Content ] end -->
+
+        </div>
+    </section>
+    <!-- [ Main Content ] end -->
+{% endblock content %}
+
+<!-- Specific Page JS goes HERE  -->
+{% block javascripts %}
+    <link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet" />
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@10"></script>
+    <script>
+        $(document).ready(function() {
+            $.ajax({
+                url: '{% url "obtener_tarifas" %}',
+                type: 'GET',
+                success: function(data) {
+                    actualizarSelectTipoTarifa(data.tarifas);
+                    actualizarSelectDivisa(data.divisas);
+                },
+                error: function() {
+                    Swal.fire({
+                        title: '¡Error!',
+                        text: 'No se pudo cargar los datos iniciales.',
+                        icon: 'error'
+                    });
+                }
+            });
+            
+
+            $('#id_ruta select').change(function() {
+                var ruta_pk = $(this).val();  // Obtener el valor seleccionado (la PK de la empresa)
+                console.log("Enviando PK de la RUTA: ", ruta_pk); // Mostrar la PK de la empresa en la consola
+                $.ajax({
+                    url: '{% url "obtener_tarifas" %}',
+                    type: 'GET',
+                    success: function(data) {
+                        actualizarSelectTipoTarifa(data.tarifas);
+                        actualizarSelectDivisa(data.divisas);
+                    },
+                    error: function() {
+                        Swal.fire({
+                            title: '¡Error!',
+                            text: 'No se pudo cargar los datos iniciales.',
+                            icon: 'error'
+                        });
+                    }
+                });            
+                $('#valor_tarifa').show();
+                $('#tipo_tarifa').show();
+                $('#divisa').show();
+                generarNombreTarifa();
+            });
+
+
+            // Función para actualizar el select de tipos de tarifa
+            function actualizarSelectTipoTarifa(tarifas) {
+                var select = $('#id_tipo_tarifa');
+                select.empty();
+                // Agregar opción predeterminada
+                select.append($('<option></option>').attr('value', '').text('Seleccione un tipo de tarifa'));
+                tarifas.forEach(function(tarifa) {
+                    var option = $('<option></option>').attr('value', tarifa.PM_CCODIGO).text(tarifa.PM_CCODIGO);
+                    if ('{{ form.instance.TAR_CTIPOTARIFA }}' === tarifa.PM_CCODIGO) {
+                        option.prop('selected', true);
+                    }
+                    select.append(option);
+                });
+            }
+            
+            // Función para actualizar el select de divisas
+            function actualizarSelectDivisa(divisas) {
+                var select = $('#id_divisa');
+                select.empty();
+                // Agregar opción predeterminada
+                select.append($('<option></option>').attr('value', '').text('Seleccione una divisa'));
+                divisas.forEach(function(divisa) {
+                    var option = $('<option></option>').attr('value', divisa.PM_CCODIGO).text(divisa.PM_CCODIGO);
+                    if ('{{ form.instance.TAR_CDIVISA }}' === divisa.PM_CCODIGO) {
+                        option.prop('selected', true);
+                    }
+                    select.append(option);
+                });
+            }
+
+            // Función para generar el nombre de la Tarifa
+            function generarNombreTarifa() {
+                var nombreRuta = $('#id_ruta select option:selected').text();
+                var proveedor = $('#id_socio_negocio option:selected').text();
+                var nombreTarifa = proveedor + ': ' + nombreRuta;            
+                $('#nombre_tarifa').attr('placeholder', nombreTarifa); 
+                $('#nombre_tarifa').val(nombreTarifa);
+                console.log(nombreTarifa);         
+            }
+
+            $('#divisa').change(function() {
+                $('#guardar_tarifa').removeAttr('disabled');
+            });
+
+            $('#formNuevoTipoTarifa').submit(function(event) {
+                event.preventDefault();
+                var nombreTipoTarifa = $('#nombreTipoTarifa').val();
+                var descripcionTipoTarifa = $('#descripcionTipoTarifa').val();
+                $.ajax({
+                    url: '{% url "guardar_parametro" %}',
+                    type: 'POST',
+                    data: {
+                        'grupo': 'TIPO_TARIFA',
+                        'codigo': nombreTipoTarifa,
+                        'descripcion': descripcionTipoTarifa,
+                        'csrfmiddlewaretoken': '{{ csrf_token }}'
+                    },
+                    success: function(response) {
+                        $('#modalNuevoTipoTarifa').modal('hide');
+                        if (response.success) {
+                            Swal.fire({
+                                title: '¡Listo!',
+                                text: 'El tipo de tarifa se ha guardado correctamente.',
+                                icon: 'success'
+                            }).then((result) => {
+                                if (result.value) {
+                                    // Actualizar select de tipos de tarifa
+                                    $.ajax({
+                                        url: '{% url "obtener_tarifas" %}',
+                                        type: 'GET',
+                                        success: function(data) {
+                                            actualizarSelectTipoTarifa(data.tarifas);
+                                        }
+                                    });
+                                }
+                            });
+                        } else {
+                            Swal.fire({
+                                title: '¡Error!',
+                                text: 'Ha ocurrido un error al guardar el tipo de tarifa.',
+                                icon: 'error'
+                            });
+                        }
+                    },
+                    error: function(xhr, status, error) {
+                        console.log(error);
+                        Swal.fire({
+                            title: '¡Error!',
+                            text: 'Ha ocurrido un error en la solicitud.',
+                            icon: 'error'
+                        });
+                    }
+                });
+            });
+            
+            $('#formNuevaDivisa').submit(function(event) {
+                event.preventDefault();
+                var nombreDivisa = $('#nombreDivisa').val();
+                var descripcionDivisa = $('#descripcionDivisa').val();
+                $.ajax({
+                    url: '{% url "guardar_parametro" %}',
+                    type: 'POST',
+                    data: {
+                        'grupo': 'DIVISA',
+                        'codigo': nombreDivisa,
+                        'descripcion': descripcionDivisa,
+                        'csrfmiddlewaretoken': '{{ csrf_token }}'
+                    },
+                    success: function(response) {
+                        $('#modalNuevaDivisa').modal('hide');
+                        if (response.success) {
+                            Swal.fire({
+                                title: '¡Listo!',
+                                text: 'La divisa se ha guardado correctamente.',
+                                icon: 'success'
+                            }).then((result) => {
+                                if (result.value) {
+                                    // Actualizar select de divisas
+                                    $.ajax({
+                                        url: '{% url "obtener_tarifas" %}',
+                                        type: 'GET',
+                                        success: function(data) {
+                                            actualizarSelectDivisa(data.divisas);
+                                        }
+                                    });
+                                }
+                            });
+                        } else {
+                            Swal.fire({
+                                title: '¡Error!',
+                                text: 'Ha ocurrido un error al guardar la divisa.',
+                                icon: 'error'
+                            });
+                        }
+                    },
+                    error: function(xhr, status, error) {
+                        console.log(error);
+                        Swal.fire({
+                            title: '¡Error!',
+                            text: 'Ha ocurrido un error en la solicitud.',
+                            icon: 'error'
+                        });
+                    }
+                });
+            });
+        });
+    </script>
+{% endblock javascripts %}

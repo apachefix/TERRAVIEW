@@ -1,0 +1,634 @@
+{% extends "layouts/base.html" %}
+
+{% block title %} {{ proveedor }} {% endblock %} 
+
+<!-- Specific CSS goes HERE -->
+{% block stylesheets %}
+
+    <!-- data tables css -->
+    <link rel="stylesheet" href="/static/assets/css/plugins/dataTables.bootstrap4.min.css">
+    {% load humanize %}
+    {% load i18n %}
+    {% load l10n %}
+    {% load formats %}
+{% endblock stylesheets %}
+
+{% block content %}	
+
+	<!-- [ chat user list ] start -->
+	<!-- chatbot -->
+	<!-- [ chat user list ] end -->
+
+	<!---->
+
+<!-- [ Main Content ] start -->
+    <section class="pcoded-main-container">
+        <div class="pcoded-content">
+            <!-- [ breadcrumb ] start -->
+            <div class="page-header">
+                <div class="page-block">
+                    <div class="row align-items-center">
+                        <div class="col-md-12">
+                            <div class="page-header-title">
+                                <h5 class="m-b-10">{{ proveedor }}</h5>
+                            </div>
+                            <ul class="breadcrumb">
+                                <li class="breadcrumb-item"><a href="/"><i class="feather icon-home"></i></a></li>
+                                <li class="breadcrumb-item"><a href="/">Sistema Camiones</a></li>
+                                <li class="breadcrumb-item"><a href="{% url 'pro_listall' %}">Proveedor</a></li>
+                                
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <!-- [ breadcrumb ] end -->
+            <!-- [ Main Content ] start -->
+            <div class="container-fluid row">
+                <!-- HTML5 Export Buttons table start -->
+                <div class="col-sm-12 col-md-12 col-lg-8">
+                    <div class="card">
+                        <!----------- INFO PROVEEDOR ---------------->
+                        <div class="card-body">
+                            <div class="form-group">
+                                <label class="my-1 me-2">Razon social:</label>
+                                <p class="form-control col-12">{{proveedor.SN_CRAZONSOCIAL}}</p>
+                            </div>
+                            <div class="form-group">
+                                <label class="my-1 me-2">Rut:</label>
+                                <p class="form-control col-12">{{proveedor.SN_CRUT}}</p>
+                            </div>
+                            <div class="form-group">
+                                <label class="my-1 me-2">Codigo SAP:</label>
+                                <p class="form-control col-12">{{proveedor.SN_CCODIGO_SAP}}</p>
+                            </div>
+                            <div class="form-group">
+                                <label class="my-1 me-2">Nombre contacto:</label>
+                                <p class="form-control col-12">{{proveedor.SN_CCONTACTO}}</p>
+                            </div>
+                            <div class="form-group">
+                                <label class="my-1 me-2">Direccion:</label>
+                                <p class="form-control col-12">{{proveedor.SN_CDIRECCION}}</p>
+                            </div>
+                            <div class="form-group">
+                                <label class="my-1 me-2">Telefono:</label>
+                                <p class="form-control col-12">{{proveedor.SN_CTELEFONO}}</p>
+                            </div>
+                            <div class="form-group">
+                                <label class="my-1 me-2">Correo:</label>
+                                <p class="form-control col-12">{{proveedor.SN_CEMAIL}}</p>
+                            </div>
+                            
+                            {% for documento in tipos_documentos %}
+                                <p class="data_list" hidden>{{documento}}</p>
+                            {% endfor %}
+                        </div>
+                    </div>
+                </div>
+                <!----------- BOTONES PARA ABRIR LOS MODALES ---------------->
+                <div class="col-sm-12 col-md-12 col-lg-4 col-xl-4">
+                    <div class="accordion" id="accordionExample" >
+                        <!--------------------------- DOCUMENTOS GENERALES ---------------------------->
+                        <div class="card">
+                            <div class="card-header" id="headingTwo">
+                                <h4 class="mb-0">
+                                    <a href="#!" data-toggle="collapse" data-target="#collapseTwo" aria-expanded="false" aria-controls="collapseTwo">Documentos generales<i class="fas fa-caret-down"></i>
+                                    </a>
+                                </h4>
+                            </div>
+                            <div id="collapseTwo" class=" card-body collapse" aria-labelledby="headingTwo" data-parent="#accordionExample">
+                                {% for documento in list_doc %}
+                                    <div class="d-flex justify-content-between">
+                                        {% if documento.1 == 'CARGADO' %}
+                                            {% if documento.2 == 'AL DÍA' or documento.2 == '--' %}
+                                                <a href="{% url 'download_doc_pro' documento.4 %}"><p class="w-100 p-1 m-b-0 col text-left">{{documento.0}}</p></a>    
+                                                <i class="fas fa-check" style="color: green;"></i>
+                                            {% else %}
+                                                <p class="w-100 p-1 m-b-0 col text-left">{{documento.0}}</p>
+                                                <i class="fas fa-times" style="color: red;"></i>
+                                            {% endif %}
+                                        {% else %}
+                                            <p class="w-100 p-1 m-b-0 col text-left">{{documento.0}}</p>
+                                            <i class="fas fa-times" style="color: red;"></i>
+                                        {% endif %}
+                                    </div>
+                                    <hr> 
+                                {% endfor %}
+                            </div>
+                        </div>
+                    </div>
+                    <!---------------------------- BOTONES DOCUMENTOS -------------------------->
+                    {% if bool_dias == 2 %}
+                        <div class="col-12 col-sm-12 col-md-12 col-lg-12 col-lg-12"  data-toggle="tooltip" data-placement="bottom" title="" data-original-title="Hay documentos que vencieron">
+                            <button class="col-sm-9 card bg-c-red order-card" data-toggle="modal" data-target="#ModalDocumentos">
+                                <div class="card-body">
+                                    <i class="fas fa-ban" style="color: rgb(255, 0, 0);top: 10px;right: 10px;position: absolute;"></i>
+                                    <h6 class="text-white center">DOCUMENTOS</h6>
+                                    <h2 class="text-right text-white"><i class="fas fa-file-alt float-left"></i><span>{{count_list.2}}</span></h2>
+                                </div>
+                            </button>
+                        </div>
+                    {% elif bool_dias == 1 %}
+                        <div class="col-12 col-sm-12 col-md-12 col-lg-12 col-lg-12"  data-toggle="tooltip" data-placement="bottom" title="" data-original-title="Documentos proximos a vencer">
+                            <button class="col-sm-9 card bg-c-yellow order-card" data-toggle="modal" data-target="#ModalDocumentos">
+                                <div class="card-body">
+                                    <i class="fas fa-exclamation-circle" style="color: rgb(255, 230, 0);top: 10px;right: 10px;position: absolute;"></i>
+                                    <h6 class="text-white">DOCUMENTOS </h6>
+                                    <h2 class="text-right text-white"><i class="fas fa-file-alt float-left"></i><span>{{count_list.2}}</span></h2>
+                                    <p class="w-100 p-1 m-b-0 col">VER DOCUMENTOS</p>
+                                </div>
+                            </button>
+                        </div>
+                    {% else %}
+                        <div class="col-12 col-sm-12 col-md-12 col-lg-12 col-lg-12">
+                            <button class="col-sm-9 card bg-c-blue order-card" data-toggle="modal" data-target="#ModalDocumentos">
+                                <div class="card-body">
+                                    <h6 class="text-white">DOCUMENTOS </h6>
+                                    <h2 class="text-right text-white"><i class="fas fa-file-alt float-left"></i><span>{{count_list.2}}</span></h2>
+                                    <p class="w-100 p-1 m-b-0 col">VER DOCUMENTOS</p>
+                                </div>
+                            </button>
+                        </div>
+                    {% endif %}
+                    <div class="col-12 col-sm-12 col-md-12 col-lg-12 col-lg-12">
+                        <button class="col-sm-9 card bg-c-blue order-card" data-toggle="modal" data-target="#ModalProveedores">
+                            <div class="card-body">
+                                <h6 class="text-white">CONDUCTORES</h6>
+                                <h2 class="text-right text-white"><i class="far fa-building float-left"></i><span>{{count_list.0}}</span></h2>
+                                <p class="w-100 p-1 m-b-0 col">VER CONDUCTORES</p>
+                            </div>
+                        </button>
+                    </div>
+                    <div class="col-12 col-sm-12 col-md-12 col-lg-12 col-lg-12">
+                        <button class="col-sm-9 card bg-c-blue order-card" data-toggle="modal" data-target="#ModalCamiones">
+                            <div class="card-body">
+                                <h6 class="text-white">CAMIONES</h6>
+                                <h2 class="text-right text-white"><i class="far fa-address-book float-left"></i><span>{{count_list.1}}</span></h2>
+                                <p class="w-100 p-1 m-b-0 col">VER CAMIONES</p>
+                            </div>
+                        </button>
+                    </div>
+                    <div class="col-12 col-sm-12 col-md-12 col-lg-12 col-lg-12">
+                        <button class="col-sm-9 card bg-c-blue order-card" data-toggle="modal" data-target="#ModalTarifas">
+                            <div class="card-body">
+                                <h6 class="text-white">TARIFAS</h6>
+                                <h2 class="text-right text-white"><i class="fas fa-money-check-alt float-left"></i><span>{{count_list.3}}</span></h2>
+                                <p class="w-100 p-1 m-b-0 col">VER TARIFAS DE &nbsp<span class="text-uppercase">{{proveedor.SN_CRAZONSOCIAL}}</span></p>
+                            </div>
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+<!-- [ Main Content ] end -->
+<!------------------------------------------------------------------------------------------------------------>
+<!------------------------------------ MODAL CONDUCTORES ---------------------------------------------------->
+<!------------------------------------------------------------------------------------------------------------>
+    <!-- Modal Content Conductores-->
+    <div class="modal fade " id="ModalProveedores" tabindex="-1" role="dialog" aria-labelledby="ModalSucursalesLabel" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered modal-xl" role="document">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="ModalVinoLabel">Conductores</h5>
+                    <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                      <span aria-hidden="true">&times;</span>
+                    </button>          
+                  </div>
+
+                <div class="modal-body">
+                    <div class="dt-responsive table-responsive">
+                        <table id="basic-btn" class="table table-striped table-bordered nowrap" >
+
+                            <thead>
+                                <tr>
+                                    <th>ACCIONES</th>
+                                    <th>NOMBRE</th>
+                                    <th>RUT</th>
+                                    <th>TELEFONO</th>   
+                                    <th>EMAIL</th>
+                                    <th>DIRECCION</th>
+                                    <th>HABILITADO</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for objeto in conductores %}
+                                    <tr>
+                                        <td>
+                                            {% if not request.user.userv.UX_IS_PROVEEDOR %}
+                                            <a class="btn btn-info" href="{% url 'con_update' objeto.id %}">
+                                                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-pencil-square" viewBox="0 0 16 16">
+                                                    <path d="M15.502 1.94a.5.5 0 0 1 0 .706L14.459 3.69l-2-2L13.502.646a.5.5 0 0 1 .707 0l1.293 1.293zm-1.75 2.456-2-2L4.939 9.21a.5.5 0 0 0-.121.196l-.805 2.414a.25.25 0 0 0 .316.316l2.414-.805a.5.5 0 0 0 .196-.12l6.813-6.814z"/>
+                                                    <path fill-rule="evenodd" d="M1 13.5A1.5 1.5 0 0 0 2.5 15h11a1.5 1.5 0 0 0 1.5-1.5v-6a.5.5 0 0 0-1 0v6a.5.5 0 0 1-.5.5h-11a.5.5 0 0 1-.5-.5v-11a.5.5 0 0 1 .5-.5H9a.5.5 0 0 0 0-1H2.5A1.5 1.5 0 0 0 1 2.5v11z"/>
+                                                </svg>
+                                            </a>
+                                            {% endif %}
+                                            <a class="btn btn-info" href="{% url 'con_listone' objeto.id %}">
+                                                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-eye" viewBox="0 0 16 16">
+                                                    <path d="M16 8s-3-5.5-8-5.5S0 8 0 8s3 5.5 8 5.5S16 8 16 8zM1.173 8a13.133 13.133 0 0 1 1.66-2.043C4.12 4.668 5.88 3.5 8 3.5c2.12 0 3.879 1.168 5.168 2.457A13.133 13.133 0 0 1 14.828 8c-.058.087-.122.183-.195.288-.335.48-.83 1.12-1.465 1.755C11.879 11.332 10.119 12.5 8 12.5c-2.12 0-3.879-1.168-5.168-2.457A13.134 13.134 0 0 1 1.172 8z"/>
+                                                    <path d="M8 5.5a2.5 2.5 0 1 0 0 5 2.5 2.5 0 0 0 0-5zM4.5 8a3.5 3.5 0 1 1 7 0 3.5 3.5 0 0 1-7 0z"/>
+                                                </svg>
+                                            </a>
+
+                                        </td>
+                                        <td><span class="fw-normal">{{ objeto.CON_CNOMBRE }} {{ objeto.CON_CAPELLIDO }}</span></td>
+                                        <td><span class="fw-normal">{{ objeto.CON_CRUT }}</span></td>
+                                        <td><span class="fw-normal">{{ objeto.CON_CTELEFONO }}</span></td>
+                                        <td><span class="fw-normal">{{ objeto.CON_CEMAIL }}</span></td>
+                                        <td><span class="fw-normal">{{ objeto.CON_CDIRECCION }}</span></td>
+
+                                        {% if objeto.CON_BHABILITADO == 1%}
+                                        <td class="text-center"><span class="fw-bold text-success ">
+                                            <svg xmlns="http://www.w3.org/2000/svg" width="25" height="25" fill="currentColor" class="bi bi-check-lg" viewBox="0 0 16 16">
+                                            <path d="M12.736 3.97a.733.733 0 0 1 1.047 0c.286.289.29.756.01 1.05L7.88 12.01a.733.733 0 0 1-1.065.02L3.217 8.384a.757.757 0 0 1 0-1.06.733.733 0 0 1 1.047 0l3.052 3.093 5.4-6.425a.247.247 0 0 1 .02-.022Z"/>
+                                            </svg>
+                                            </span>
+                                        </td>
+                                        {% else %}
+                                        <td class="text-center"><span class="fw-bold text-danger">
+                                            <svg xmlns="http://www.w3.org/2000/svg" width="25" height="25" fill="currentColor" class="bi bi-dash-lg" viewBox="0 0 16 16">
+                                            <path fill-rule="evenodd" d="M2 8a.5.5 0 0 1 .5-.5h11a.5.5 0 0 1 0 1h-11A.5.5 0 0 1 2 8Z"/>
+                                            </svg>
+                                            </span>
+                                            </td>
+                                        {% endif %}
+                                    </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table> 
+                    </div>                   
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-danger" data-dismiss="modal">Cerrar</button>
+                </div>
+            </div>
+        </div>
+    </div>
+<!-- End of Modal Content -->
+<!------------------------------------------------------------------------------------------------------------>
+<!-------------------------------------- MODAL CAMIONES ------------------------------------------------------>
+<!------------------------------------------------------------------------------------------------------------>
+<!-- Modal Content CAMIONES-->
+    <div class="modal fade " id="ModalCamiones" tabindex="-1" role="dialog" aria-labelledby="ModalCamionesLabel" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered modal-xl" role="document">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="ModalCamionesLabel">Camiones </h5>
+                    <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                        <span aria-hidden="true">&times;</span>
+                    </button>
+                    </div>
+                <div class="modal-body">
+                    <table id="basic-btn1" class="table table-striped table-bordered nowrap table-responsive">
+                        <thead>
+                            <tr>
+                                <th>ACCIONES</th>
+                                <th>PATENTE</th>
+                                <th>MARCA</th>
+                                <th>MODELO</th>
+                                <th>COLOR</th>
+                                <th>AÑO</th>
+                                <th>KILOMETRAJE</th>
+                                <th>FECHA DE REGISTRO</th>
+                                <th>HABILITADO</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+
+                            {% for objeto in camiones %}
+                            <tr>
+                                <td>
+                                    {% if not request.user.userv.UX_IS_PROVEEDOR %}
+                                    <a class="btn btn-info" href="{% url 'cam_update' objeto.id  %}">
+                                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-pencil-square" viewBox="0 0 16 16">
+                                            <path d="M15.502 1.94a.5.5 0 0 1 0 .706L14.459 3.69l-2-2L13.502.646a.5.5 0 0 1 .707 0l1.293 1.293zm-1.75 2.456-2-2L4.939 9.21a.5.5 0 0 0-.121.196l-.805 2.414a.25.25 0 0 0 .316.316l2.414-.805a.5.5 0 0 0 .196-.12l6.813-6.814z"/>
+                                            <path fill-rule="evenodd" d="M1 13.5A1.5 1.5 0 0 0 2.5 15h11a1.5 1.5 0 0 0 1.5-1.5v-6a.5.5 0 0 0-1 0v6a.5.5 0 0 1-.5.5h-11a.5.5 0 0 1-.5-.5v-11a.5.5 0 0 1 .5-.5H9a.5.5 0 0 0 0-1H2.5A1.5 1.5 0 0 0 1 2.5v11z"/>
+                                        </svg>
+                                    </a>
+                                        {% endif %}
+                                    <a class="btn btn-info" href="{% url 'cam_listone' objeto.id  %}">
+                                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-eye" viewBox="0 0 16 16">
+                                            <path d="M16 8s-3-5.5-8-5.5S0 8 0 8s3 5.5 8 5.5S16 8 16 8zM1.173 8a13.133 13.133 0 0 1 1.66-2.043C4.12 4.668 5.88 3.5 8 3.5c2.12 0 3.879 1.168 5.168 2.457A13.133 13.133 0 0 1 14.828 8c-.058.087-.122.183-.195.288-.335.48-.83 1.12-1.465 1.755C11.879 11.332 10.119 12.5 8 12.5c-2.12 0-3.879-1.168-5.168-2.457A13.134 13.134 0 0 1 1.172 8z"/>
+                                            <path d="M8 5.5a2.5 2.5 0 1 0 0 5 2.5 2.5 0 0 0 0-5zM4.5 8a3.5 3.5 0 1 1 7 0 3.5 3.5 0 0 1-7 0z"/>
+                                        </svg>
+                                    </a>
+                                </td>
+                                <td><span class="fw-normal">{{ objeto.CAM_CPATENTE }}</span></td>
+                                <td><span class="fw-normal">{{ objeto.CAM_CMARCA }}</span></td>
+                                <td><span class="fw-normal">{{ objeto.CAM_CMODELO }}</span></td>
+                                <td><span class="fw-normal">{{ objeto.CAM_CCOLOR }}</span></td>
+                                <td><span class="fw-normal">{{ objeto.CAM_NANO }}</span></td>
+                                <td><span class="fw-normal">{{ objeto.CAM_NKILOMETRAJE }}</span></td>
+                                <td><span class="fw-normal">{{ objeto.CAM_FFECHAREGISTRO|date:"d/m/Y H:i" }}</span></td>
+                                {% if objeto.CAM_BHABILITADO == 1%}
+                                <td class="text-center"><span class="fw-bold text-success ">
+                                    <svg xmlns="http://www.w3.org/2000/svg" width="25" height="25" fill="currentColor" class="bi bi-check-lg" viewBox="0 0 16 16">
+                                    <path d="M12.736 3.97a.733.733 0 0 1 1.047 0c.286.289.29.756.01 1.05L7.88 12.01a.733.733 0 0 1-1.065.02L3.217 8.384a.757.757 0 0 1 0-1.06.733.733 0 0 1 1.047 0l3.052 3.093 5.4-6.425a.247.247 0 0 1 .02-.022Z"/>
+                                    </svg>
+                                    </span>
+                                </td>
+                                {% else %}
+                                <td class="text-center">
+                                    <span class="fw-bold text-danger">
+                                        <svg xmlns="http://www.w3.org/2000/svg" width="25" height="25" fill="currentColor" class="bi bi-dash-lg" viewBox="0 0 16 16">
+                                            <path fill-rule="evenodd" d="M2 8a.5.5 0 0 1 .5-.5h11a.5.5 0 0 1 0 1h-11A.5.5 0 0 1 2 8Z"/>
+                                        </svg>
+                                    </span>
+                                </td>
+                                {% endif %} 
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>                    
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-danger" data-dismiss="modal">Cerrar</button>
+                </div>
+            </div>
+        </div>
+    </div>
+    <!-- End of Modal Content -->
+<!------------------------------------------------------------------------------------------------------------>
+<!------------------------------------ MODALES DOCUMENTOS ---------------------------------------------------->
+<!------------------------------------------------------------------------------------------------------------>
+
+<!-- Modal Content Documentos-->
+    <div class="modal fade " id="ModalDocumentos" tabindex="-1" role="dialog" aria-labelledby="ModalDocumentosContLabel" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered modal-xl modal-dialog-scrollable" role="document">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="ModalDocumentosContLabel">Documentos </h5>
+                    <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                    <span aria-hidden="true">&times;</span>
+                    </button>
+                </div>
+                <div class="modal-body">
+                {% if documentos %}
+                    <table id="basic-btn2" class="table table-striped table-bordered nowrap table-responsive ">
+                        <thead>
+                            <tr>
+                                <th>ESTADO VENCIMIENTO</th>
+                                <th>TIPO DOCUMENTO</th>
+                                <th>FECHA REGISTRO</th>
+                                <th>FECHA EMISION</th>
+                                <th>FECHA VENCIMIENTO</th>
+                                <th>DIAS PARA VENCER </th>
+                                <th>DOCUMENTO</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <!-- BOTÓN PARA AGREGAR DOCUMENTOS -->
+                            <div class=" mb-2 mb-md-0" style="right:20px;top: 10px; position: absolute;">
+                                <button type='button' data-toggle="modal" data-target="#ModalAgregarDocumento" class="btn  btn-primary d-inline-flex align-items-center"><i class="fas fa-user-plus"></i>
+                                    &nbsp&nbsp Agregar Documento
+                                </button>
+                            </div>
+                            {% for documento in documentos %}
+                                {% if documento.DSN_FFECHAVENCIMIENTO %}
+                                    {% if documento.DIAS_VENCIMIENTO < 10 and documento.DIAS_VENCIMIENTO >= 1 %}
+                                        <tr>
+                                            <td class="text-center bg-warning"><span class="fw-normal">PROXIMO A VENCER <i class="fas fa-exclamation" style="color: rgb(252, 233, 0);"></i></span></td>
+                                            <td><span class="fw-normal">{{ documento.DSN_CTIPO}}</span></td>
+                                            <td><span class="fw-normal">{{ documento.DSN_FFECHAREGISTRO|date:"d/m/Y H:i" }}</span></td>
+                                            <td><span class="fw-normal">{{ documento.DSN_FFECHAEMISION|date:"d/m/Y" }}</span></td>
+                                            <td><span class="fw-normal">{{ documento.DSN_FFECHAVENCIMIENTO|date:"d/m/Y" }}</span></td>
+                                            <td><span class="fw-normal">{{ documento.DIAS_VENCIMIENTO }} dias</span></td>
+                                            <td><span class="fw-normal"><a href="{% url 'download_doc_pro' documento.id %}"><i class="fas fa-file-pdf"></i>  Descargar</a></span></td>
+                                        </tr>
+                                    {% elif documento.DIAS_VENCIMIENTO <= 0  %}
+                                        <tr>
+                                            <td class="text-center bg-danger"><span class="fw-warning">VENCIDO <i class="fas fa-ban" style="color: rgb(255, 0, 0);"></i></span></td>
+                                            <td><span class="fw-normal">{{ documento.DSN_CTIPO}}</span></td>
+                                            <td><span class="fw-normal">{{ documento.DSN_FFECHAREGISTRO|date:"d/m/Y H:i" }}</span></td>
+                                            <td><span class="fw-normal">{{ documento.DSN_FFECHAEMISION|date:"d/m/Y" }}</span></td>
+                                            <td><span class="fw-normal">{{ documento.DSN_FFECHAVENCIMIENTO|date:"d/m/Y" }}</span></td>
+                                            <td><span class="fw-normal">{{ documento.DIAS_VENCIMIENTO }} dias</span></td>
+                                            <td><span class="fw-normal"><a href="{% url 'download_doc_pro' documento.id %}"><i class="fas fa-file-pdf"></i>  Descargar</a></span></td>
+                                        </tr>
+                                    {% else %}
+                                        <tr >
+                                            <td class="text-center" style="background-color: rgba(46, 216, 91, 0.8);"><span class="fw-success" style="color:white">OK </span><i class="fas fa-check" style="color: green;"></i></td>
+                                            <td><span class="fw-normal">{{ documento.DSN_CTIPO}}</span></td>
+                                            <td><span class="fw-normal">{{ documento.DSN_FFECHAREGISTRO|date:"d/m/Y H:i" }}</span></td>
+                                            <td><span class="fw-normal">{{ documento.DSN_FFECHAEMISION|date:"d/m/Y" }}</span></td>
+                                            <td><span class="fw-normal">{{ documento.DSN_FFECHAVENCIMIENTO|date:"d/m/Y" }}</span></td>
+                                            <td><span class="fw-normal">{{ documento.DIAS_VENCIMIENTO }} dias</span></td>
+                                            <td><span class="fw-normal"><a href="{% url 'download_doc_pro' documento.id %}"><i class="fas fa-file-pdf"></i>  Descargar</a></span></td>
+                                        </tr>
+                                    {% endif %} 
+                                {% else %}
+                                    <tr >
+                                        <td class="text-center" style="background-color: rgba(46, 216, 91, 0.8);"><span class="fw-success" style="color:white">OK </span><i class="fas fa-check" style="color: green;"></i></td>
+                                        <td><span class="fw-normal">{{ documento.DSN_CTIPO}}</span></td>
+                                        <td><span class="fw-normal">{{ documento.DSN_FFECHAREGISTRO|date:"d/m/Y H:i" }}</span></td>
+                                        <td><span class="fw-normal">{{ documento.DSN_FFECHAEMISION|date:"d/m/Y" }}</span></td>
+                                        <td><span class="fw-normal">No registrada</span></td>
+                                        <td><span class="fw-normal">No registrada</span></td>
+                                        <td><span class="fw-normal"><a href="{% url 'download_doc_pro' documento.id %}"><i class="fas fa-file-pdf"></i>  Descargar</a></span></td>
+                                    </tr>
+                                {% endif %} 
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                {% else %}
+                <br>
+                    <div class="d-flex flex-column justify-content-center">
+                        <label class="text-center my-1 me-2">No se ha agregado ningun documento para este proveedor</label>
+                        <label class="text-center my-1 me-2">¿Quiere agregar uno ahora?</label>
+                        <br>
+                        <button type="button" id="add_container" class="btn btn-primary"  data-toggle="modal" data-target="#ModalAgregarDocumento" >Agregar documento</button>
+                    </div>
+                {% endif %}                   
+                </div>
+                <div class="modal-footer d-flex justify-content-end">
+                    <button type="button" class="btn btn-danger" data-dismiss="modal">Cerrar</button>
+                </div>
+            </div>
+        </div>
+    </div>
+<!-- End of Modal Content -->
+
+<!-- Modal Content agregar Documento-->
+    <div class="modal fade " id="ModalAgregarDocumento" tabindex="-1" role="dialog" aria-labelledby="ModalAgregarDocumentoLabel" aria-hidden="true" modal-backdrop-opacity=".9">
+        <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable" role="document">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="ModalAgregarDocumentoLabel">Agregar Documento</h5>
+                    <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                        <span aria-hidden="true">&times;</span>
+                    </button>
+                    </div>
+                <div class="modal-body"> 
+                    <form class="agregar-documento" method="POST" name="form_adddoc" id="form_adddoc" action="{% url 'add_doc_pro' proveedor.id %}?next={{request.path}}" enctype="multipart/form-data">    
+                        {% csrf_token %} 
+                        <input type="text" name="SN_NID" hidden value="{{proveedor.id}}">
+                        <input type="text" name="EP_NID" hidden value="{{proveedor.EP_NID.id}}">
+                        <div class="fieldWrapper" id="uploadForm">
+                            <label class="my-1 me-2" >Seleccione documento:</label>
+                            <div class="d-flex justify-content-flex">
+                                <input type="file" name='DSN_CRUTADOC' id='file' class="form-control-file validation-file"/>
+                                <button type="button" data-toggle="modal" data-target="#ModalVerPdf" class="btn btn-primary" id="btn_ver" style="display: none;"><i class="fas fa-eye" ></i></button>
+                            </div>
+                            <br>
+                        </div>
+                        <div class="fieldWrapper" style="display: none;" id="tipo_doc_div">
+                            <label class="my-1 me-2" >Tipo de documento:</label>
+                            <select class="form-control" name="DSN_CTIPO" id="add_doc">
+                            </select>
+                        </div>
+                        <br>
+                        <div class="fieldWrapper" style="display:none" id="fecha_venc_div">
+                            <label class="my-1 me-2" id='label_emision'>Fecha de emision del documento:</label>
+                            <input type="date" name="DSN_FFECHAEMISION" id="fecha_emision" class="form-control" required>
+                            <br>
+                        </div>
+                        
+                        <div class="fieldWrapper" style="display:none" id="fecha_emi_div">
+                            <label class="my-1 me-2" >Fecha de vencimiento del documento:</label>
+                            <input type="date" name="DSN_FFECHAVENCIMIENTO" id="fecha_vencimiento" class="form-control" required>
+                            <br> 
+                        </div>
+                        <p class="text-danger text-center" id="onError" style="display: none;font-size: 20px;"></p>
+                        <br>
+                        <div class="d-flex justify-content-end">
+                            <button type="submit" class="m-2 btn btn-primary" id="btn_guardar" disabled >Guardar</button>
+                            <button type="button" class="m-2 btn btn-danger" data-dismiss="modal">Cerrar</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+<!-- End of Modal Content -->
+
+<!-- Modal Content Ver Documento-->
+    <div class="modal fade " id="ModalVerPdf" tabindex="-1" role="dialog" aria-labelledby="ModalVerPdfLabel" aria-hidden="true" >
+        <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable modal-lg" role="document">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="ModalVerPdfLabel">PDF</h5>
+                    <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                        <span aria-hidden="true">&times;</span>
+                    </button>
+                    </div>
+                <div class="modal-body"> 
+                    <span>1.- Zoom = mantener letra "CTRL" y mover la rueda del mouse arriba y abajo</span>
+                    <br>
+                    <span>2.-Mover = Presionar la rueda del mouse para desplazarse en el archivo</span>
+                    <embed  type="application/pdf" id="vs_pdf"  style="width: 100%;height: 600px;">
+                </div>
+            </div>
+        </div>
+    </div>
+<!-- End of Modal Content -->
+
+<!------------------------------------------------------------------------------------------------------------>
+<!------------------------------------ MODALES TARIFAS ---------------------------------------------------->
+<!------------------------------------------------------------------------------------------------------------>
+<div class="modal fade " id="ModalTarifas" tabindex="-1" role="dialog" aria-labelledby="ModalTarifasLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered modal-xl" role="document">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="ModalVinoLabel">Tarifas</h5>
+                <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                  <span aria-hidden="true">&times;</span>
+                </button>          
+              </div>
+
+            <div class="modal-body">
+                <div class="dt-responsive table-responsive">
+                    <table id="basic-btn" class="table table-striped table-bordered nowrap" >
+
+                        <thead>
+                            <tr>
+                                <th>NOMBRE TARIFA</th>
+                                <th>TIPO TARIFA</th>
+                                <th>VALOR ACTUAL</th>   
+                                <th>VALOR PREVIO</th>
+                                <th>DIVISA</th>
+                                <th>ULTIMA MODIFICACIÓN</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for objeto in tarifas %}
+                                <tr>
+                                    <td><span class="fw-normal">{{ objeto.TAR_CNOMBRETARIFA }}</span></td>
+                                    <td><span class="fw-normal">{{ objeto.TAR_CTIPOTARIFA }}</span></td>
+                                    <td><span class="fw-normal">{{ objeto.TAR_NVALOR|custom_number_format }}</span></td>
+                                    <td><span class="fw-normal">{{ objeto.TAR_NVALORPREVIO|custom_number_format }}</span></td>
+                                    <td><span class="fw-normal">{{ objeto.TAR_CDIVISA }}</span></td>
+                                    <td><span class="fw-normal">{{ objeto.TAR_FFECHAULTIMAMODIFICACION|date:"d/m/Y H:i" }}</span></td>
+                                </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table> 
+                </div>                   
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-danger" data-dismiss="modal">Cerrar</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock content %}
+
+<!-- Specific Page JS goes HERE  -->
+{% block javascripts %}
+
+<!-- datatable Js -->
+    <script src="/static/assets/js/plugins/jquery.dataTables.min.js"></script>
+    <script src="/static/assets/js/plugins/dataTables.bootstrap4.min.js"></script>
+    <script src="/static/assets/js/plugins/buttons.colVis.min.js"></script>
+    <script src="/static/assets/js/plugins/buttons.print.min.js"></script>
+    <script src="/static/assets/js/plugins/pdfmake.min.js"></script>
+    <script src="/static/assets/js/plugins/jszip.min.js"></script>
+    <script src="/static/assets/js/plugins/dataTables.buttons.min.js"></script>
+    <script src="/static/assets/js/plugins/buttons.html5.min.js"></script>
+    <script src="/static/assets/js/plugins/buttons.bootstrap4.min.js"></script>
+    <script src="/static/assets/js/pages/data-export-custom.js"></script>
+<!-- end datatable Js -->
+
+<script>
+    
+    $('#file').change(function () {
+        let lista_doc = [];
+        let datos = document.getElementsByClassName('data_list');
+        const btnGuardar = document.querySelector('#btn_guardar');     
+        const data_extra = document.querySelector('#data_extra');
+        const data_extra_div = document.querySelector('#data_extra_div');
+        const tipo_doc_div = document.querySelector('#tipo_doc_div');        
+        const fecha_ven_div = document.querySelector('#fecha_venc_div');        
+        const fecha_emi_div = document.querySelector('#fecha_emi_div');
+        const input_doc = document.querySelector('#add_doc');
+        for (let i = 0; i < datos.length; i++) {
+            var a = datos[i].innerHTML.split(',');
+            lista_doc.push(a);
+        }
+        console.log(lista_doc);
+        for (let i = 0; i < lista_doc.length; i++) {
+            console.log(lista_doc[i]);
+            $('#add_doc').append('<option value="'+lista_doc[i]+'">'+lista_doc[i]+'</option>');
+        }
+        tipo_doc_div.style.display =    "block";
+        fecha_ven_div.style.display =   "block";
+        fecha_emi_div.style.display =   "block";
+        btnGuardar.disabled = false;
+        input_doc.removeAttribute('readonly','readonly');
+        filePreview(this);
+    });
+
+    function filePreview(input) {
+        if (input.files && input.files[0]) {
+            let pdf  = input.files[0]
+            let pdfURL = URL.createObjectURL(pdf)+"#toolbar=0";
+            console.log(pdfURL);
+            const embed = document.querySelector('#vs_pdf')
+            const btn_ver = document.querySelector('#btn_ver')
+            embed.style.display = 'block';
+            btn_ver.style.display = 'block';
+            embed.setAttribute('src',pdfURL);
+        }
+    }        
+</script>
+
+{% endblock javascripts %}

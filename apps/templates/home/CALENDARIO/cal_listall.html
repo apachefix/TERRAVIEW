@@ -1,0 +1,508 @@
+{% extends "layouts/base.html" %}
+
+{% block title %} Calendario {% endblock %}
+
+<!-- Specific CSS goes HERE -->
+{% block stylesheets %}
+<!-- Full Calendar CSS -->
+{% comment %} <link rel="stylesheet" href="/static/assets/css/plugins/fullcalendar.min.css"> {% endcomment %}
+<link href='https://cdnjs.cloudflare.com/ajax/libs/fullcalendar/6.0.0/main.min.css' rel='stylesheet' />
+
+
+{% load humanize %}
+{% comment %} {% load i18n %} {% load l10n %} {% endcomment %}
+<!-- Flatpickr CSS -->
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
+<style>
+.calendar-filters {
+    margin-top: 10px;
+}
+.calendar-filters button {
+    margin-right: 5px;
+}
+</style>
+{% endblock stylesheets %}
+
+{% block content %}
+<!-- [ Main Content ] start -->
+<section class="pcoded-main-container">
+    <div class="pcoded-content">
+    <!-- [ breadcrumb ] start -->
+        <div class="page-header">
+            <div class="page-block">
+                <div class="row align-items-center">
+                    <div class="col-md-12">
+                        <div class="page-header-title">
+                            <h5 class="m-b-10">Calendario</h5>
+                        </div>
+                        <ul class="breadcrumb">
+                            <li class="breadcrumb-item"><a href="/"><i class="feather icon-home"></i></a></li>
+                            <li class="breadcrumb-item"><a href="/">Sistema Camiones</a></li>
+                            <li class="breadcrumb-item"><a href="{% url 'cal_listall' %}">Calendario</a></li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+        </div>
+    <!-- [ breadcrumb ] end -->
+
+    <!-- [ Main Content ] start -->
+        <div class="row">
+            <div class="col-sm-12">
+                <div class="card">
+                    <div class="card-body">                        
+                        <div class="col-md-12">
+                            <div id='calendar' class='calendar'></div>
+                        </div>
+                        <div class="calendar-filters" style="text-align: center;">
+                            <button id="addHoliday" style="background-color: #4CAF50; color: white; padding: 10px 20px; margin: 10px; border: none; border-radius: 5px; cursor: pointer;">Agregar Feriado</button>
+                            <button id="modifyHours" style="background-color: #008CBA; color: white; padding: 10px 20px; margin: 10px; border: none; border-radius: 5px; cursor: pointer;">Modificar Horario</button>
+                            <a href="{% url 'pla_addone' %}">
+                                <button id="addPlanificacion" style="background-color: #FF5733; color: white; padding: 10px 20px; margin: 10px; border: none; border-radius: 5px; cursor: pointer;">Agregar Planificación</button>
+                            </a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    <!-- [ Main Content ] end -->
+    </div>
+</section>
+<!-- [ Main Content ] end -->
+{% endblock content %}
+
+<!-- Specific Page JS goes HERE -->
+{% block javascripts %}
+
+<!-- FullCalendar JS -->
+<script src="/static/assets/js/plugins/moment.js"></script>
+<script src="/static/assets/js/plugins/jquery-ui.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/moment.js/2.29.1/moment.min.js"></script>
+<script src='https://cdnjs.cloudflare.com/ajax/libs/fullcalendar/6.1.13/index.global.js'></script>
+<!-- SweetAlert JS -->
+<script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+<!-- Flatpickr JS -->
+<script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
+<script src="https://cdn.jsdelivr.net/npm/flatpickr/dist/l10n/es.js"></script>
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        console.log("DOM completamente cargado y analizado");
+        // Función para agregar el token CSRF a un formulario
+        function addCsrfToken(form) {
+            const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]').value;
+            const csrfInput = document.createElement('input');
+            csrfInput.type = 'hidden';
+            csrfInput.name = 'csrfmiddlewaretoken';
+            csrfInput.value = csrfToken;
+            form.appendChild(csrfInput);
+        }
+
+        // Generar la lista de eventos utilizando la sintaxis de Django
+        var eventos = [
+            {% for evento in events %}
+                {
+                    id: '{{ evento.id }}',
+                    title: '{{ evento.title|safe }}',
+                    start: '{{ evento.start|date:"c" }}',
+                    end: '{{ evento.end|date:"c" }}',
+                    allDay: false,
+                    borderColor: '{{ evento.borderColor }}',
+                    backgroundColor: '{{ evento.backgroundColor }}'
+                    
+                },
+            {% endfor %}
+            {% for feriado in feriados %}
+                {
+                    id: '{{ feriado.id }}',
+                    title: '{{ feriado.CA_CNOMBRE }}',
+                    start: '{{ feriado.CA_NANO }}-{{ feriado.CA_NMES|stringformat:"02d" }}-{{ feriado.CA_NDIA|stringformat:"02d" }}',
+                    allDay: true,
+                },
+            {% endfor %}
+        ];
+
+        if (eventos.length > 0) {
+            console.log("Eventos encontrados:", eventos);
+        }else {
+            eventos = [];
+            console.log("No se encontraron eventos");
+        }
+
+        var disabledDates = [
+            {% for feriado in feriados %}                                    
+                '{{ feriado.CA_NANO }}-{{ feriado.CA_NMES|stringformat:"02d" }}-{{ feriado.CA_NDIA|stringformat:"02d" }}',                
+            {% endfor %}
+        ];
+
+        var bussinesHoursAnexo = [
+            {% for horario in horarios_distintos %}
+                {
+                    id: '{{ horario.id }}',
+                    date: '{{ horario.CA_NANO }}-{{ horario.CA_NMES|stringformat:"02d" }}-{{ horario.CA_NDIA|stringformat:"02d" }}',
+                    startTime: '{{horario.CA_FHORA_APERTURA}}',
+
+                    endTime: '{{horario.CA_FHORA_CIERRE}}'
+                },
+            {% endfor %}
+        ];
+        if (bussinesHoursAnexo.length > 0) {
+            console.log("Horarios de anexo encontrados:", bussinesHoursAnexo);
+        }else {
+            bussinesHoursAnexo = [];
+
+            console.log("No se encontraron eventos");
+        }
+
+        var businessHours = [{
+            daysOfWeek: [ 1, 2, 3, 4, 5 ], // Lunes a Viernes
+            startTime: '08:00',
+            endTime: '15:00',
+        }];
+        // Adaptación a FullCalendar v6 con funcionalidad de clic en eventos
+        var calendarEl = document.getElementById('calendar');
+        var calendar = new FullCalendar.Calendar(calendarEl, {
+            locale: 'es',
+            initialView: 'dayGridMonth',
+            initialDate: new Date({{ ano }}, {{ mes }} - 1, 1),
+            datesSet: function(info) {
+                var currentMonth = info.view.currentStart.getMonth() + 1;
+                var currentYear = info.view.currentStart.getFullYear();
+                var url = `{% url 'cal_listall' %}?mes=${currentMonth}&ano=${currentYear}`;
+                window.history.replaceState(null, '', url);
+            },
+            headerToolbar: {
+                left: 'prev,next today',
+                center: 'title',
+                right: 'dayGridMonth,timeGridWeek,timeGridDay'
+            },
+            buttonIcons: {
+                prev: 'chevron-left',
+                next: 'chevron-right',
+                prevYear: 'chevrons-left', // double chevron
+                nextYear: 'chevrons-right' // double chevron
+            },
+            buttonText: {
+                today: 'Hoy',
+                month: 'Mes',
+                week: 'Semana',
+                day: 'Día'
+            },
+            businessHours,
+            slotMinTime: '08:00',
+            slotMaxTime: '19:00',
+            events: eventos,
+            eventClick: function(info) {
+                if (info.event.title.includes("Planificación")) {
+                    Swal.fire({
+                        title: info.event.title.split(':')[0],
+                        html: `
+                            <h4 style="color: darkgray;">
+                                Inicio: ${info.event.start.toLocaleString()}
+                                <br>
+                                Fin: ${info.event.end.toLocaleString()}
+                                <br>
+                                Cupos: ${info.event.title.split(':')[1]}
+                            </h4>`,
+                        showCancelButton: true,
+                        showConfirmButton: true,
+                        confirmButtonColor: '#3085d6',
+                        cancelButtonColor: '#d33',
+                        confirmButtonText: 'Ir a planificación',
+                        cancelButtonText: 'Cerrar',
+                        preConfirm: () => {
+                            window.location.href = `/pla_listone/${info.event.id}`;
+                        }
+                    });
+                }
+            },
+            
+        });
+        calendar.render();
+
+        markCalendarDatesOut();
+        function markCalendarDatesOut(){
+            const getDayOfWeek = dateString => {
+                let [year, month, day] = dateString.split('-');
+                return new Date(year, month - 1, day).getDay();
+            };
+            disabledDates.forEach(function(day) {
+                let indice = getDayOfWeek(day);
+                businessHours.forEach(function(hours) {
+                    var daysOfWeek = hours.daysOfWeek;
+                    var startTime = hours.startTime;
+                    var endTime = hours.endTime;
+                    if (daysOfWeek.includes(indice)) {
+                        calendar.addEvent({
+                            title: '',
+                            start: day+' '+startTime,
+                            end: day+' '+endTime,
+                            rendering: 'background',
+                            backgroundColor: 'rgb(212 212 212)',
+                            borderColor : 'rgb(212 212 212)',
+                            textColor : 'rgb(212 212 212)',
+                            display : 'background',
+                            interactive: false,
+                            editable: false,
+                            eventClick: function() { return false; } // Deshabilitar clics en estos eventos
+                        })
+                    }
+                });
+            });
+            bussinesHoursAnexo.forEach(function(day) {
+                let indice = getDayOfWeek(day.date);
+                businessHours.forEach(function(hours) {
+                    var daysOfWeek = hours.daysOfWeek;
+                    var startTime = hours.startTime;
+                    var endTime = hours.endTime;
+                    if (daysOfWeek.includes(indice)) {
+                        calendar.addEvent({
+                            title: '',
+                            start: day.date+' '+startTime,
+                            end: day.date+' '+day.startTime,
+                            rendering: 'background',
+                            backgroundColor: 'rgb(212 212 212)',
+                            borderColor : 'rgb(212 212 212)',
+                            textColor : 'rgb(212 212 212)',
+                            display : 'background',
+                            interactive: false,
+                            editable: false,
+                            eventClick: function() { return false; } // Deshabilitar clics en estos eventos
+                        });
+                        calendar.addEvent({
+                            title: '',
+                            start: day.date+' '+day.endTime,
+                            end: day.date+' '+endTime,
+                            rendering: 'background',
+                            backgroundColor: 'rgb(212 212 212)',
+                            borderColor : 'rgb(212 212 212)',
+                            textColor : 'rgb(212 212 212)',
+                            display : 'background',
+                            interactive: false,
+                            editable: false,
+                            eventClick: function() { return false; } // Deshabilitar clics en estos eventos
+                        })
+                    }
+
+                });
+            });
+        }      
+        function validateDateOut(fecha, horaIni) {
+            if (disabledDates.includes(fecha)) {
+                return false;
+            }
+            const getDayOfWeek = dateString => {
+                let [year, month, day] = dateString.split('-');
+                return new Date(year, month - 1, day).getDay();
+            };
+            let flag = true;
+            let isInWeek = false;
+            var stime = horaIni.split(':').reduce((acc, time) => acc * 60 + parseInt(time, 10), 0);
+            businessHours.forEach(function(hours) {
+                var daysOfWeek = hours.daysOfWeek;
+                var startTime = hours.startTime;
+                let itime = startTime.split(':').reduce((acc, time) => acc * 60 + parseInt(time, 10), 0);
+                var endTime = hours.endTime;
+                let ftime = endTime.split(':').reduce((acc, time) => acc * 60 + parseInt(time, 10), 0);
+                let indice = getDayOfWeek(fecha);
+                if (daysOfWeek.includes(indice)) {
+                    isInWeek = true;
+                    if (stime >= ftime || stime < itime) {
+                        flag = false;
+                    }
+                }
+            })
+            bussinesHoursAnexo.forEach(function(anexo) {
+                if (anexo.date == fecha) {
+                    let itime = anexo.startTime.split(':').reduce((acc, time) => acc * 60 + parseInt(time, 10), 0);
+                    let ftime = anexo.endTime.split(':').reduce((acc, time) => acc * 60 + parseInt(time, 10), 0);
+                    if (stime >= ftime || stime < itime) {
+                        flag = false;
+                    }
+                }
+            });
+            flag = !isInWeek ? isInWeek : flag;
+            return flag;
+        }
+
+        console.log("Calendario renderizado", calendar);        
+
+        // Configuración de Flatpickr
+        var datePickerConfig = {
+            dateFormat: 'd-m-Y',
+            locale: 'es'
+        };
+        var timePickerConfig = {
+            enableTime: true,
+            noCalendar: true,
+            dateFormat: 'H:i',
+            locale: 'es'
+        };
+
+        // Agregar evento de clic al botón "Agregar Feriado"
+        document.getElementById('addHoliday').addEventListener('click', function() {
+            console.log("Evento clic en 'Agregar Feriado' activado");
+            Swal.fire({
+                title: 'Agregar Feriado',
+                html:
+                    '<input id="holidayTitle" class="swal2-input" placeholder="Nombre del feriado">' +
+                    '<input id="holidayStart" class="swal2-input flatpickr-input" placeholder="Fecha de inicio">' +
+                    '<input id="holidayEnd" class="swal2-input flatpickr-input" placeholder="Fecha de fin (opcional)">',
+                focusConfirm: false,
+                didOpen: function() {
+                    flatpickr('#holidayStart', datePickerConfig);
+                    flatpickr('#holidayEnd', datePickerConfig);
+                },
+                preConfirm: () => {
+                    const title = document.getElementById('holidayTitle').value;
+                    const start = document.getElementById('holidayStart').value;
+                    const end = document.getElementById('holidayEnd').value;
+                    if (title && start) {
+                        const startDate = moment(start, 'DD-MM-YYYY').format('YYYY-MM-DD');
+                        const endDate = end ? moment(end, 'DD-MM-YYYY').format('YYYY-MM-DD') : null;
+                        return { title, start: startDate, end: endDate };
+                    }
+                }
+            }).then((result) => {
+                if (result.value) {
+                    console.log("Feriado agregado:", result.value);
+                    const { title, start, end } = result.value;
+                    const form = document.createElement('form');
+                    form.method = 'POST';
+                    form.action = '{% url "cal_add_holiday" %}';
+                    // Agregar token CSRF
+                    addCsrfToken(form);
+                    const titleInput = document.createElement('input');
+                    titleInput.type = 'hidden';
+                    titleInput.name = 'title';
+                    titleInput.value = title;
+                    form.appendChild(titleInput);
+                    const startInput = document.createElement('input');
+                    startInput.type = 'hidden';
+                    startInput.name = 'start';
+                    startInput.value = start;
+                    form.appendChild(startInput);
+                    if (end) {
+                        const endInput = document.createElement('input');
+                        endInput.type = 'hidden';
+                        endInput.name = 'end';
+                        endInput.value = end;
+                        form.appendChild(endInput);
+                    }
+                    document.body.appendChild(form);
+                    form.submit();
+                }
+            });
+        });
+
+        // Agregar evento de clic al botón "Modificar Horario"
+        document.getElementById('modifyHours').addEventListener('click', function() {
+            console.log("Evento clic en 'Modificar Horario' activado");
+            Swal.fire({
+                title: 'Modificar Horario',
+                html:
+                    '<select id="modifyType" class="swal2-select">' +
+                    '<option value="single">Día específico</option>' +
+                    '<option value="range">Rango de días</option>' +
+                    '</select>' +
+                    '<div id="singleDayOptions" style="display: none;">' +
+                    '<input id="modifyDate" class="swal2-input flatpickr-input" placeholder="Fecha">' +
+                    '</div>' +
+                    '<div id="rangeDayOptions" style="display: none;">' +
+                    '<input id="modifyStart" class="swal2-input flatpickr-input" placeholder="Fecha de inicio">' +
+                    '<input id="modifyEnd" class="swal2-input flatpickr-input" placeholder="Fecha de fin">' +
+                    '</div>' +
+                    '<input id="modifyStartTime" class="swal2-input flatpickr-input" placeholder="Hora de apertura">' +
+                    '<input id="modifyEndTime" class="swal2-input flatpickr-input" placeholder="Hora de cierre">',
+                focusConfirm: false,
+                didOpen: function() {
+                    const modifyTypeSelect = document.getElementById('modifyType');
+                    const singleDayOptions = document.getElementById('singleDayOptions');
+                    const rangeDayOptions = document.getElementById('rangeDayOptions');
+
+                    function updateOptions() {
+                        if (modifyTypeSelect.value === 'single') {
+                            singleDayOptions.style.display = 'block';
+                            rangeDayOptions.style.display = 'none';
+                        } else {
+                            singleDayOptions.style.display = 'none';
+                            rangeDayOptions.style.display = 'block';
+                        }
+                    }
+
+                    modifyTypeSelect.addEventListener('change', updateOptions);
+                    updateOptions(); 
+
+                    flatpickr('#modifyDate', datePickerConfig);
+                    flatpickr('#modifyStart', datePickerConfig);
+                    flatpickr('#modifyEnd', datePickerConfig);
+                    flatpickr('#modifyStartTime', timePickerConfig);
+                    flatpickr('#modifyEndTime', timePickerConfig);
+                },
+                preConfirm: () => {
+                    const modifyType = document.getElementById('modifyType').value;
+                    const modifyDate = document.getElementById('modifyDate').value;
+                    const modifyStart = document.getElementById('modifyStart').value;
+                    const modifyEnd = document.getElementById('modifyEnd').value;
+                    const modifyStartTime = document.getElementById('modifyStartTime').value;
+                    const modifyEndTime = document.getElementById('modifyEndTime').value;
+                    if (modifyType === 'single' && modifyDate && modifyStartTime && modifyEndTime) {
+                        const date = moment(modifyDate, 'DD-MM-YYYY').format('YYYY-MM-DD');
+                        return { type: 'single', date, startTime: modifyStartTime, endTime: modifyEndTime };
+                    } else if (modifyType === 'range' && modifyStart && modifyEnd && modifyStartTime && modifyEndTime) {
+                        const start = moment(modifyStart, 'DD-MM-YYYY').format('YYYY-MM-DD');
+                        const end = moment(modifyEnd, 'DD-MM-YYYY').format('YYYY-MM-DD');
+                        return { type: 'range', start, end, startTime: modifyStartTime, endTime: modifyEndTime };
+                    }
+                }
+            }).then((result) => {
+                if (result.value) {
+                    const { type, date, start, end, startTime, endTime } = result.value;
+                    const form = document.createElement('form');
+                    form.method = 'POST';
+                    form.action = '{% url "cal_modify_hours" %}';
+                    // Agregar token CSRF
+                    addCsrfToken(form);
+                    const typeInput = document.createElement('input');
+                    typeInput.type = 'hidden';
+                    typeInput.name = 'type';
+                    typeInput.value = type;
+                    form.appendChild(typeInput);
+                    if (type === 'single') {
+                        const dateInput = document.createElement('input');
+                        dateInput.type = 'hidden';
+                        dateInput.name = 'date';
+                        dateInput.value = date;
+                        form.appendChild(dateInput);
+                    } else if (type === 'range') {
+                        const startInput = document.createElement('input');
+                        startInput.type = 'hidden';
+                        startInput.name = 'start';
+                        startInput.value = start;
+                        form.appendChild(startInput);
+                        const endInput = document.createElement('input');
+                        endInput.type = 'hidden';
+                        endInput.name = 'end';
+                        endInput.value = end;
+                        form.appendChild(endInput);
+                    }
+                    const startTimeInput = document.createElement('input');
+                    startTimeInput.type = 'hidden';
+                    startTimeInput.name = 'startTime';
+                    startTimeInput.value = startTime;
+                    form.appendChild(startTimeInput);
+                    const endTimeInput = document.createElement('input');
+                    endTimeInput.type = 'hidden';
+                    endTimeInput.name = 'endTime';
+                    endTimeInput.value = endTime;
+                    form.appendChild(endTimeInput);
+                    document.body.appendChild(form);
+                    form.submit();
+                }
+            });
+        });
+    });
+</script>
+
+
+
+{% endblock javascripts %}

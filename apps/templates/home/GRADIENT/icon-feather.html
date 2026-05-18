@@ -1,0 +1,425 @@
+{% extends "layouts/base.html" %}
+
+{% block title %} Icon Feather {% endblock %} 
+
+<!-- Specific CSS goes HERE -->
+{% block stylesheets %}{% endblock stylesheets %}
+
+{% block content %}	
+	
+	<!-- [ chat user list ] start -->
+	<section class="header-user-list">
+		<a href="#!" class="h-close-text"><i class="feather icon-x"></i></a>
+		<ul class="nav nav-tabs" id="chatTab" role="tablist">
+			<li class="nav-item">
+				<a class="nav-link active text-uppercase border-0" id="chat-tab" data-toggle="tab" href="#chat" role="tab" aria-controls="chat" aria-selected="true"><i class="feather icon-message-circle mr-2"></i>Chat</a>
+			</li>
+			<li class="nav-item">
+				<a class="nav-link text-uppercase border-0" id="user-tab" data-toggle="tab" href="#user" role="tab" aria-controls="user" aria-selected="false"><i class="feather icon-users mr-2"></i>User</a>
+			</li>
+			<li class="nav-item">
+				<a class="nav-link text-uppercase border-0" id="setting-tab" data-toggle="tab" href="#setting" role="tab" aria-controls="setting" aria-selected="false"><i class="feather icon-settings mr-2"></i>Setting</a>
+			</li>
+		</ul>
+		<div class="tab-content" id="chatTabContent">
+			<div class="tab-pane fade show active" id="chat" role="tabpanel" aria-labelledby="chat-tab">
+				<div class="h-list-header">
+					<div class="input-group">
+						<input type="text" id="search-friends" class="form-control" placeholder="Search Friend . . .">
+					</div>
+				</div>
+				<div class="h-list-body">
+					<div class="main-friend-cont scroll-div">
+						<div class="main-friend-list">
+							<div class="media userlist-box" data-id="1" data-status="online" data-username="Josephin Doe">
+								<a class="media-left" href="#!"><img class="media-object img-radius" src="/static/assets/images/user/avatar-1.jpg" alt="Generic placeholder image ">
+									<div class="live-status">3</div>
+								</a>
+								<div class="media-body">
+									<h6 class="chat-header">Josephin Doe<small class="d-block text-c-green">Typing . . </small></h6>
+								</div>
+							</div>
+							<div class="media userlist-box" data-id="2" data-status="online" data-username="Lary Doe">
+								<a class="media-left" href="#!"><img class="media-object img-radius" src="/static/assets/images/user/avatar-2.jpg" alt="Generic placeholder image">
+									<div class="live-status">1</div>
+								</a>
+								<div class="media-body">
+									<h6 class="chat-header">Lary Doe<small class="d-block text-c-green">online</small></h6>
+								</div>
+							</div>
+							<div class="media userlist-box" data-id="3" data-status="online" data-username="Alice">
+								<a class="media-left" href="#!"><img class="media-object img-radius" src="/static/assets/images/user/avatar-3.jpg" alt="Generic placeholder image"></a>
+								<div class="media-body">
+									<h6 class="chat-header">Alice<small class="d-block text-c-green">online</small></h6>
+								</div>
+							</div>
+							<div class="media userlist-box" data-id="4" data-status="offline" data-username="Alia">
+								<a class="media-left" href="#!"><img class="media-object img-radius" src="/static/assets/images/user/avatar-1.jpg" alt="Generic placeholder image">
+									<div class="live-status">1</div>
+								</a>
+								<div class="media-body">
+									<h6 class="chat-header">Alia<small class="d-block text-muted">10 min ago</small></h6>
+								</div>
+							</div>
+							<div class="media userlist-box" data-id="5" data-status="offline" data-username="Suzen">
+								<a class="media-left" href="#!"><img class="media-object img-radius" src="/static/assets/images/user/avatar-4.jpg" alt="Generic placeholder image"></a>
+								<div class="media-body">
+									<h6 class="chat-header">Suzen<small class="d-block text-muted">15 min ago</small></h6>
+								</div>
+							</div>
+							<div class="media userlist-box" data-id="1" data-status="online" data-username="Josephin Doe">
+								<a class="media-left" href="#!"><img class="media-object img-radius" src="/static/assets/images/user/avatar-1.jpg" alt="Generic placeholder image ">
+									<div class="live-status">3</div>
+								</a>
+								<div class="media-body">
+									<h6 class="chat-header">Josephin Doe<small class="d-block text-c-green">Typing . . </small></h6>
+								</div>
+							</div>
+							<div class="media userlist-box" data-id="2" data-status="online" data-username="Lary Doe">
+								<a class="media-left" href="#!"><img class="media-object img-radius" src="/static/assets/images/user/avatar-2.jpg" alt="Generic placeholder image">
+									<div class="live-status">1</div>
+								</a>
+								<div class="media-body">
+									<h6 class="chat-header">Lary Doe<small class="d-block text-c-green">online</small></h6>
+								</div>
+							</div>
+							<div class="media userlist-box" data-id="3" data-status="online" data-username="Alice">
+								<a class="media-left" href="#!"><img class="media-object img-radius" src="/static/assets/images/user/avatar-3.jpg" alt="Generic placeholder image"></a>
+								<div class="media-body">
+									<h6 class="chat-header">Alice<small class="d-block text-c-green">online</small></h6>
+								</div>
+							</div>
+							<div class="media userlist-box" data-id="4" data-status="offline" data-username="Alia">
+								<a class="media-left" href="#!"><img class="media-object img-radius" src="/static/assets/images/user/avatar-1.jpg" alt="Generic placeholder image">
+									<div class="live-status">1</div>
+								</a>
+								<div class="media-body">
+									<h6 class="chat-header">Alia<small class="d-block text-muted">10 min ago</small></h6>
+								</div>
+							</div>
+							<div class="media userlist-box" data-id="5" data-status="offline" data-username="Suzen">
+								<a class="media-left" href="#!"><img class="media-object img-radius" src="/static/assets/images/user/avatar-4.jpg" alt="Generic placeholder image"></a>
+								<div class="media-body">
+									<h6 class="chat-header">Suzen<small class="d-block text-muted">15 min ago</small></h6>
+								</div>
+							</div>
+							<div class="media userlist-box" data-id="1" data-status="online" data-username="Josephin Doe">
+								<a class="media-left" href="#!"><img class="media-object img-radius" src="/static/assets/images/user/avatar-1.jpg" alt="Generic placeholder image ">
+									<div class="live-status">3</div>
+								</a>
+								<div class="media-body">
+									<h6 class="chat-header">Josephin Doe<small class="d-block text-c-green">Typing . . </small></h6>
+								</div>
+							</div>
+							<div class="media userlist-box" data-id="2" data-status="online" data-username="Lary Doe">
+								<a class="media-left" href="#!"><img class="media-object img-radius" src="/static/assets/images/user/avatar-2.jpg" alt="Generic placeholder image">
+									<div class="live-status">1</div>
+								</a>
+								<div class="media-body">
+									<h6 class="chat-header">Lary Doe<small class="d-block text-c-green">online</small></h6>
+								</div>
+							</div>
+							<div class="media userlist-box" data-id="3" data-status="online" data-username="Alice">
+								<a class="media-left" href="#!"><img class="media-object img-radius" src="/static/assets/images/user/avatar-3.jpg" alt="Generic placeholder image"></a>
+								<div class="media-body">
+									<h6 class="chat-header">Alice<small class="d-block text-c-green">online</small></h6>
+								</div>
+							</div>
+						</div>
+					</div>
+				</div>
+			</div>
+			<div class="tab-pane fade" id="user" role="tabpanel" aria-labelledby="user-tab">
+				<div class="h-list-body">
+					<div class="main-friend-cont scroll-div">
+						<div class="main-friend-list">
+							<div class="media px-3 d-flex align-items-center mt-3">
+								<a class="media-left m-r-15" href="#!">
+									<div class="hei-50 wid-50 bg-primary img-radius d-flex text-white f-22 align-items-center justify-content-center"><i class="icon feather icon-users"></i></div>
+								</a>
+								<div class="media-body">
+									<p class="chat-header f-w-600 mb-0">New Group</p>
+								</div>
+							</div>
+							<div class="media p-3 d-flex align-items-center">
+								<a class="media-left m-r-15" href="#!">
+									<div class="hei-50 wid-50 bg-primary img-radius d-flex text-white f-22 align-items-center justify-content-center"><i class="icon feather icon-user-plus"></i></div>
+								</a>
+								<div class="media-body">
+									<p class="chat-header f-w-600 mb-0">New Contact</p>
+								</div>
+							</div>
+							<div class="media userlist-box" data-id="1" data-status="online" data-username="Josephin Doe">
+								<a class="media-left" href="#!"><img class="media-object img-radius" src="/static/assets/images/user/avatar-1.jpg" alt="Generic placeholder image "></a>
+								<div class="media-body">
+									<p class="chat-header">Josephin Doe<small class="d-block">i am not what happened . .</small></p>
+								</div>
+							</div>
+							<div class="media userlist-box" data-id="2" data-status="online" data-username="Lary Doe">
+								<a class="media-left" href="#!"><img class="media-object img-radius" src="/static/assets/images/user/avatar-2.jpg" alt="Generic placeholder image"></a>
+								<div class="media-body">
+									<h6 class="chat-header">Lary Doe<small class="d-block">Avalable</small></h6>
+								</div>
+							</div>
+							<div class="media userlist-box" data-id="3" data-status="online" data-username="Alice">
+								<a class="media-left" href="#!"><img class="media-object img-radius" src="/static/assets/images/user/avatar-3.jpg" alt="Generic placeholder image"></a>
+								<div class="media-body">
+									<h6 class="chat-header">Alice<small class="d-block">hear using Elite able</small></h6>
+								</div>
+							</div>
+							<div class="media userlist-box" data-id="4" data-status="offline" data-username="Alia">
+								<a class="media-left" href="#!">
+									<div class="hei-50 wid-50 img-radius bg-success d-flex text-white f-22 align-items-center justify-content-center">A</div>
+								</a>
+								<div class="media-body">
+									<h6 class="chat-header">Alia<small class="d-block text-muted">Avalable</small></h6>
+								</div>
+							</div>
+							<div class="media userlist-box" data-id="5" data-status="offline" data-username="Suzen">
+								<a class="media-left" href="#!"><img class="media-object img-radius" src="/static/assets/images/user/avatar-4.jpg" alt="Generic placeholder image"></a>
+								<div class="media-body">
+									<h6 class="chat-header">Suzen<small class="d-block text-muted">Avalable</small></h6>
+								</div>
+							</div>
+							<div class="media userlist-box" data-id="1" data-status="online" data-username="Josephin Doe">
+								<a class="media-left" href="#!">
+									<div class="hei-50 wid-50 bg-danger img-radius d-flex text-white f-22 align-items-center justify-content-center">JD</div>
+								</a>
+								<div class="media-body">
+									<h6 class="chat-header">Josephin Doe<small class="d-block text-muted">Don't send me image</small></h6>
+								</div>
+							</div>
+							<div class="media userlist-box" data-id="2" data-status="online" data-username="Lary Doe">
+								<a class="media-left" href="#!"><img class="media-object img-radius" src="/static/assets/images/user/avatar-2.jpg" alt="Generic placeholder image"></a>
+								<div class="media-body">
+									<h6 class="chat-header">Lary Doe<small class="d-block text-muted">not send free msg</small></h6>
+								</div>
+							</div>
+						</div>
+					</div>
+				</div>
+			</div>
+			<div class="tab-pane fade" id="setting" role="tabpanel" aria-labelledby="setting-tab">
+				<div class="p-4 main-friend-cont scroll-div">
+					<h6 class="mt-2"><i class="feather icon-monitor mr-2"></i>Desktop settings</h6>
+					<hr>
+					<div class="form-group mb-0">
+						<div class="switch switch-primary d-inline m-r-10">
+							<input type="checkbox" id="cn-p-1" checked>
+							<label for="cn-p-1" class="cr"></label>
+						</div>
+						<label class="f-w-600">Allow desktop notification</label>
+					</div>
+					<p class="text-muted ml-5">you get lettest content at a time when data will updated</p>
+					<div class="form-group mb-0">
+						<div class="switch switch-primary d-inline m-r-10">
+							<input type="checkbox" id="cn-p-5">
+							<label for="cn-p-5" class="cr"></label>
+						</div>
+						<label class="f-w-600">Store Cookie</label>
+					</div>
+					<h6 class="mb-0 mt-5"><i class="feather icon-layout mr-2"></i>Application settings</h6>
+					<hr>
+					<div class="form-group mb-0">
+						<div class="switch switch-primary d-inline m-r-10">
+							<input type="checkbox" id="cn-p-3" checked>
+							<label for="cn-p-3" class="cr"></label>
+						</div>
+						<label class="f-w-600">Backup Storage</label>
+					</div>
+					<p class="text-muted mb-0 ml-5">Automaticaly take backup as par schedule</p>
+					<div class="form-group mb-4">
+						<div class="switch switch-primary d-inline m-r-10">
+							<input type="checkbox" id="cn-p-4" checked>
+							<label for="cn-p-4" class="cr"></label>
+						</div>
+						<label class="f-w-600">Allow guest to print file</label>
+					</div>
+					<h6 class="mb-0 mt-5"><i class="feather icon-globe mr-2"></i>System settings</h6>
+					<hr>
+					<div class="form-group mb-0">
+						<div class="switch switch-primary d-inline m-r-10">
+							<input type="checkbox" id="cn-p-2">
+							<label for="cn-p-2" class="cr"></label>
+						</div>
+						<label class="f-w-600">View other user chat</label>
+					</div>
+					<p class="text-muted ml-5">Allow to show public user message</p>
+				</div>
+			</div>
+		</div>
+	</section>
+	<!-- [ chat user list ] end -->
+
+	<!-- [ chat message ] start -->
+	<section class="header-chat">
+		<div class="h-list-header">
+			<h6>Josephin Doe</h6>
+			<a href="#!" class="h-back-user-list"><i class="feather icon-chevron-left"></i></a>
+		</div>
+		<div class="h-list-body">
+			<div class="main-chat-cont scroll-div">
+				<div class="main-friend-chat">
+					<div class="media chat-messages">
+						<a class="media-left photo-table" href="#!"><img class="media-object img-radius img-radius m-t-5" src="/static/assets/images/user/avatar-2.jpg" alt="Generic placeholder image"></a>
+						<div class="media-body chat-menu-content">
+							<div class="">
+								<p class="chat-cont">hello tell me something</p>
+								<p class="chat-cont">about yourself?</p>
+							</div>
+							<p class="chat-time">8:20 a.m.</p>
+						</div>
+					</div>
+					<div class="media chat-messages">
+						<div class="media-body chat-menu-reply">
+							<div class="">
+								<p class="chat-cont">Ohh! very nice</p>
+							</div>
+							<p class="chat-time">8:22 a.m.</p>
+						</div>
+						<a class="media-right photo-table" href="#!"><img class="media-object img-radius img-radius m-t-5" src="/static/assets/images/user/avatar-1.jpg" alt="Generic placeholder image"></a>
+					</div>
+					<div class="media chat-messages">
+						<a class="media-left photo-table" href="#!"><img class="media-object img-radius img-radius m-t-5" src="/static/assets/images/user/avatar-2.jpg" alt="Generic placeholder image"></a>
+						<div class="media-body chat-menu-content">
+							<div class="">
+								<p class="chat-cont">can you help me?</p>
+							</div>
+							<p class="chat-time">8:20 a.m.</p>
+						</div>
+					</div>
+				</div>
+			</div>
+		</div>
+		<div class="h-list-footer">
+			<div class="input-group">
+				<input type="file" class="chat-attach" style="display:none">
+				<a href="#!" class="input-group-prepend btn btn-success btn-attach">
+					<i class="feather icon-paperclip"></i>
+				</a>
+				<input type="text" name="h-chat-text" class="form-control h-auto h-send-chat" placeholder="Write hear . . ">
+				<button type="submit" class="input-group-append btn-send btn btn-primary">
+					<i class="feather icon-message-circle"></i>
+				</button>
+			</div>
+		</div>
+	</section>
+	<!-- [ chat message ] end -->
+
+	<!-- [ Main Content ] start -->
+	<div class="pcoded-main-container">
+		<div class="pcoded-content">
+			<!-- [ breadcrumb ] start -->
+			<div class="page-header">
+				<div class="page-block">
+					<div class="row align-items-center">
+						<div class="col-md-12">
+							<div class="page-header-title">
+								<h5 class="m-b-10">Feather</h5>
+							</div>
+							<ul class="breadcrumb">
+								<li class="breadcrumb-item"><a href="index.html"><i class="feather icon-home"></i></a></li>
+								<li class="breadcrumb-item"><a href="#!">Icons</a></li>
+								<li class="breadcrumb-item"><a href="#!">Feather icon</a></li>
+							</ul>
+						</div>
+					</div>
+				</div>
+			</div>
+			<!-- [ breadcrumb ] end -->
+			<!-- [ Main Content ] start -->
+			<div class="row">
+				<!-- [ feather-icon ] start -->
+				<div class="col-sm-12">
+					<div class="card">
+						<div class="card-header">
+							<h5>Feather Icon</h5>
+						</div>
+						<div class="card-body text-center">
+							<div class="row justify-content-center">
+								<div class="col-sm-6">
+									<input type="text" id="icon-search" class="form-control mb-4" placeholder="search . . ">
+								</div>
+							</div>
+							<div class="i-main" id="icon-wrapper"></div>
+						</div>
+					</div>
+				</div>
+				<!-- [ feather-icon ] end -->
+			</div>
+			<!-- [ Main Content ] end -->
+		</div>
+	</div>
+	<!-- [ Main Content ] end -->
+
+{% endblock content %}
+
+<!-- Specific Page JS goes HERE  -->
+{% block javascripts %}
+
+<script src="/static/assets/js/plugins/clipboard.min.js"></script>
+<script type="text/javascript">
+    var iconlist = ['icon-alert-octagon', 'icon-alert-circle', 'icon-activity', 'icon-alert-triangle', 'icon-align-center', 'icon-airplay', 'icon-align-justify', 'icon-align-left', 'icon-align-right', 'icon-arrow-down-left',
+        'icon-arrow-down-right', 'icon-anchor', 'icon-aperture', 'icon-arrow-left', 'icon-arrow-right', 'icon-arrow-down', 'icon-arrow-up-left', 'icon-arrow-up-right', 'icon-arrow-up', 'icon-award', 'icon-bar-chart', 'icon-at-sign',
+        'icon-bar-chart-2', 'icon-battery-charging', 'icon-bell-off', 'icon-battery', 'icon-bluetooth', 'icon-bell', 'icon-book', 'icon-briefcase', 'icon-camera-off', 'icon-calendar', 'icon-bookmark', 'icon-box', 'icon-camera',
+        'icon-check-circle', 'icon-check', 'icon-check-square', 'icon-cast', 'icon-chevron-down', 'icon-chevron-left', 'icon-chevron-right', 'icon-chevron-up', 'icon-chevrons-down', 'icon-chevrons-right', 'icon-chevrons-up',
+        'icon-chevrons-left', 'icon-circle', 'icon-clipboard', 'icon-chrome', 'icon-clock', 'icon-cloud-lightning', 'icon-cloud-drizzle', 'icon-cloud-rain', 'icon-cloud-off', 'icon-codepen', 'icon-cloud-snow', 'icon-compass', 'icon-copy',
+        'icon-corner-down-right', 'icon-corner-down-left', 'icon-corner-left-down', 'icon-corner-left-up', 'icon-corner-up-left', 'icon-corner-up-right', 'icon-corner-right-down', 'icon-corner-right-up', 'icon-cpu', 'icon-credit-card',
+        'icon-crosshair', 'icon-disc', 'icon-delete', 'icon-download-cloud', 'icon-download', 'icon-droplet', 'icon-edit-2', 'icon-edit', 'icon-edit-1', 'icon-external-link', 'icon-eye', 'icon-feather', 'icon-facebook', 'icon-file-minus',
+        'icon-eye-off', 'icon-fast-forward', 'icon-file-text', 'icon-film', 'icon-file', 'icon-file-plus', 'icon-folder', 'icon-filter', 'icon-flag', 'icon-globe', 'icon-grid', 'icon-heart', 'icon-home', 'icon-github', 'icon-image',
+        'icon-inbox', 'icon-layers', 'icon-info', 'icon-instagram', 'icon-layout', 'icon-link-2', 'icon-life-buoy', 'icon-link', 'icon-log-in', 'icon-list', 'icon-lock', 'icon-log-out', 'icon-loader', 'icon-mail', 'icon-maximize-2',
+        'icon-map', 'icon-map-pin', 'icon-menu', 'icon-message-circle', 'icon-message-square', 'icon-minimize-2', 'icon-mic-off', 'icon-minus-circle', 'icon-mic', 'icon-minus-square', 'icon-minus', 'icon-moon', 'icon-monitor',
+        'icon-more-vertical', 'icon-more-horizontal', 'icon-move', 'icon-music', 'icon-navigation-2', 'icon-navigation', 'icon-octagon', 'icon-package', 'icon-pause-circle', 'icon-pause', 'icon-percent', 'icon-phone-call',
+        'icon-phone-forwarded', 'icon-phone-missed', 'icon-phone-off', 'icon-phone-incoming', 'icon-phone', 'icon-phone-outgoing', 'icon-pie-chart', 'icon-play-circle', 'icon-play', 'icon-plus-square', 'icon-plus-circle', 'icon-plus',
+        'icon-pocket', 'icon-printer', 'icon-power', 'icon-radio', 'icon-repeat', 'icon-refresh-ccw', 'icon-rewind', 'icon-rotate-ccw', 'icon-refresh-cw', 'icon-rotate-cw', 'icon-save', 'icon-search', 'icon-server', 'icon-scissors',
+        'icon-share-2', 'icon-share', 'icon-shield', 'icon-settings', 'icon-skip-back', 'icon-shuffle', 'icon-sidebar', 'icon-skip-forward', 'icon-slack', 'icon-slash', 'icon-smartphone', 'icon-square', 'icon-speaker', 'icon-star',
+        'icon-stop-circle', 'icon-sun', 'icon-sunrise', 'icon-tablet', 'icon-tag', 'icon-sunset', 'icon-target', 'icon-thermometer', 'icon-thumbs-up', 'icon-thumbs-down', 'icon-toggle-left', 'icon-toggle-right', 'icon-trash-2', 'icon-trash',
+        'icon-trending-up', 'icon-trending-down', 'icon-triangle', 'icon-type', 'icon-twitter', 'icon-upload', 'icon-umbrella', 'icon-upload-cloud', 'icon-unlock', 'icon-user-check', 'icon-user-minus', 'icon-user-plus', 'icon-user-x',
+        'icon-user', 'icon-users', 'icon-video-off', 'icon-video', 'icon-voicemail', 'icon-volume-x', 'icon-volume-2', 'icon-volume-1', 'icon-volume', 'icon-watch', 'icon-wifi', 'icon-x-square', 'icon-wind', 'icon-x', 'icon-x-circle',
+        'icon-zap', 'icon-zoom-in', 'icon-zoom-out', 'icon-command', 'icon-cloud', 'icon-hash', 'icon-headphones', 'icon-underline', 'icon-italic', 'icon-bold', 'icon-crop', 'icon-help-circle', 'icon-paperclip', 'icon-shopping-cart',
+        'icon-tv', 'icon-wifi-off', 'icon-minimize', 'icon-maximize', 'icon-gitlab', 'icon-sliders', 'icon-star-on', 'icon-heart-on'
+    ];
+
+    for (var i = 0, l = iconlist.length; i < l; i++) {
+        $('#icon-wrapper').append(
+            '<div class="i-block" data-clipboard-text="feather ' + iconlist[i] + '" data-filter="' + iconlist[i] + '"  data-toggle="tooltip" title="' + iconlist[i] + '">' +
+            '<i class="feather ' + iconlist[i] + '"></i>' +
+            '</div>');
+    }
+    $(window).on('load', function() {
+        var iclp = new ClipboardJS('.i-block');
+        iclp.on('success', function(e) {
+            $(e.trigger).append("<span class='ic-badge badge badge-success'>copied</span>");
+            setTimeout(function() {
+                $('.i-block').children('.ic-badge').remove();
+            }, 3000);
+        });
+
+        iclp.on('error', function(e) {
+            $(e.trigger).append("<span class='ic-badge badge badge-danger'>Error</span>");
+            setTimeout(function() {
+                $('.i-block').children('.ic-badge').remove();
+            }, 3000);
+        });
+
+        $("#icon-search").on("keyup", function() {
+            var g = $(this).val().toLowerCase();
+            $(".i-main .i-block").each(function() {
+                var t = $(this).attr('data-filter');
+                if (t) {
+                    var s = t.toLowerCase();
+                }
+                if (s) {
+                    var n = s.indexOf(g);
+                    if (n !== -1) {
+                        $(this).show();
+                    } else {
+                        $(this).hide();
+                    }
+                }
+            });
+        });
+    });
+</script>
+
+{% endblock javascripts %}

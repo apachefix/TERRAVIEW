@@ -1,0 +1,287 @@
+{% extends "layouts/base.html" %}
+
+{% block title %} Etapas {% endblock %} 
+
+<!-- Specific CSS goes HERE -->
+{% block stylesheets %}
+
+    <!-- data tables css -->
+    <link rel="stylesheet" href="/static/assets/css/plugins/dataTables.bootstrap4.min.css">
+    {% load humanize %}
+    {% load i18n %}
+    {% load l10n %}
+{% endblock stylesheets %}
+
+{% block content %}	
+
+	<!-- [ chat user list ] start -->
+	<!-- chatbot -->
+	<!-- [ chat user list ] end -->
+
+	<!---->
+
+    <!-- [ Main Content ] start -->
+    
+    <section class="pcoded-main-container">
+        <div class="pcoded-content">
+            <!-- [ breadcrumb ] start -->
+            <div class="page-header">
+                <div class="page-block">
+                    <div class="row align-items-center">
+                        <div class="col-md-12">
+                            <div class="page-header-title">
+                                <h5 class="m-b-10">Lista de Etapas</h5>
+                            </div>
+                            <ul class="breadcrumb">
+                                <li class="breadcrumb-item"><a href="/"><i class="feather icon-home"></i></a></li>
+                                <li class="breadcrumb-item"><a href="/">Sistema Camiones</a></li>
+                                <li class="breadcrumb-item"><a href="{% url 'etap_listall' %}">Etapas</a></li>
+                                
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+            <!-- [ breadcrumb ] end -->
+            <!-- [ Main Content ] start -->
+            <div class="row">
+                <!-- HTML5 Export Buttons table start -->
+                <div class="col-sm-12">
+                    <div class="card">
+                        <div class="d-flex justify-content-between">
+                            <div class="card-header table-card-header">
+                                <h5>Opciones de exportación</h5>
+                            </div>
+                            <div class=" mb-2 mb-md-0" style="margin-right: 50px;margin-top: 20px;">
+                                <a href="{% url 'etap_addone' %}" class="btn  btn-primary d-inline-flex align-items-center"><i class="fas fa-user-plus"></i>
+                                    &nbsp&nbsp Nuevo
+                                </a>
+                            </div>
+                        </div>
+                        <div class="card-body">
+                            <div class="dt-responsive table-responsive">
+                                <table id="basic-btn" class="table table-striped table-bordered nowrap">
+                                    <thead>
+                                        <tr>
+                                            <th>ACCIONES</th>
+                                            <th>TIPO</th>
+                                            <th>CÓDIGO</th>
+                                            <th>NOMBRE</th>
+                                            <th>DESCRIPCIÓN</th>
+                                            <th>FECHA DE REGISTRO</th>
+                                            <th>CANTIDAD MÁXIMA</th>
+                                            <th>TIEMPO MÁXIMO</th>
+                                            <th>TIEMPO MÍNIMO</th>
+                                            <th>HABILITADO</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {% for object in object_list %}
+                                            <tr>
+                                                <td>
+                                                    {% if request.user.is_superuser == 1 %}
+                                                        <a class="btn btn-primary" href="{% url 'etap_update' object.pk %}">
+                                                            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-pencil-square" viewBox="0 0 16 16">
+                                                                <path d="M15.502 1.94a.5.5 0 0 1 0 .706L14.459 3.69l-2-2L13.502.646a.5.5 0 0 1 .707 0l1.293 1.293zm-1.75 2.456-2-2L4.939 9.21a.5.5 0 0 0-.121.196l-.805 2.414a.25.25 0 0 0 .316.316l2.414-.805a.5.5 0 0 0 .196-.12l6.813-6.814z"/>
+                                                                <path fill-rule="evenodd" d="M1 13.5A1.5 1.5 0 0 0 2.5 15h11a1.5 1.5 0 0 0 1.5-1.5v-6a.5.5 0 0 0-1 0v6a.5.5 0 0 1-.5.5h-11a.5.5 0 0 1-.5-.5v-11a.5.5 0 0 1 .5-.5H9a.5.5 0 0 0 0-1H2.5A1.5 1.5 0 0 0 1 2.5v11z"/>
+                                                            </svg>
+                                                        </a>
+                                                        {% comment %} <a class="btn btn-danger delete_etapa" data-href="{% url 'etap_delete' object.pk %}" id="delete_etapa">
+                                                            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-trash" viewBox="0 0 16 16">
+                                                                <path d="M5.5 5.5A.5.5 0 0 1 6 6v6a.5.5 0 0 1-1 0V6a.5.5 0 0 1 .5-.5zm2.5 0a.5.5 0 0 1 .5.5v6a.5.5 0 0 1-1 0V6a.5.5 0 0 1 .5-.5zm3 .5a.5.5 0 0 0-1 0v6a.5.5 0 0 0 1 0V6z" />
+                                                                <path fill-rule="evenodd"d="M14.5 3a1 1 0 0 1-1 1H13v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V4h-.5a1 1 0 0 1-1-1V2a1 1 0 0 1 1-1H6a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1h3.5a1 1 0 0 1 1 1v1zM4.118 4 4 4.059V13a1 1 0 0 0 1 1h6a1 1 0 0 0 1-1V4.059L11.882 4H4.118zM2.5 3V2h11v1h-11z" />
+                                                            </svg>
+                                                        </a> {% endcomment %}
+                                                    {% endif %}
+                                                    <a type="button" class="btn  btn-primary"  href="{% url 'get_preview_etapa' object.pk %}">
+                                                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-file-earmark-medical" viewBox="0 0 16 16">
+                                                            <path d="M7.5 5.5a.5.5 0 0 0-1 0v.634l-.549-.317a.5.5 0 1 0-.5.866L6 7l-.549.317a.5.5 0 1 0 .5.866l.549-.317V8.5a.5.5 0 1 0 1 0v-.634l.549.317a.5.5 0 1 0 .5-.866L8 7l.549-.317a.5.5 0 1 0-.5-.866l-.549.317zm-2 4.5a.5.5 0 0 0 0 1h5a.5.5 0 0 0 0-1zm0 2a.5.5 0 0 0 0 1h5a.5.5 0 0 0 0-1z"/>
+                                                            <path d="M14 14V4.5L9.5 0H4a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2M9.5 3A1.5 1.5 0 0 0 11 4.5h2V14a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V2a1 1 0 0 1 1-1h5.5z"/>
+                                                          </svg>
+                                                    </a>
+                                                </td>
+                                                <td>{{ object.ET_CTIPO }}</td>
+                                                <td>{{ object.ET_CCODIGO }}</td>
+                                                <td>{{ object.ET_CNOMBRE }}</td>
+                                                <td>{{ object.ET_CDESCRIPCION }}</td>
+                                                <td>{{ object.ET_FFECHAREGISTRO|date:'d/m/Y H:i' }}</td>
+                                                <td>{{ object.ET_NCANTIDADMAXIMA }}</td>
+                                                <td>{{ object.ET_TTIEMPOMAXIMO|time:'H:i' }}</td>
+                                                <td>{{ object.ET_TTIEMPOMINIMO|time:'H:i' }}</td>
+                                                    {% if object.ET_BHABILITADO %}
+                                                        <td class="text-center"><span class="fw-bold text-success ">
+                                                            <svg xmlns="http://www.w3.org/2000/svg" width="25" height="25" fill="currentColor" class="bi bi-check-lg" viewBox="0 0 16 16">
+                                                            <path d="M12.736 3.97a.733.733 0 0 1 1.047 0c.286.289.29.756.01 1.05L7.88 12.01a.733.733 0 0 1-1.065.02L3.217 8.384a.757.757 0 0 1 0-1.06.733.733 0 0 1 1.047 0l3.052 3.093 5.4-6.425a.247.247 0 0 1 .02-.022Z"/>
+                                                            </svg>
+                                                            </span>
+                                                        </td>
+                                                    {% else %}
+                                                        <td class="text-center"><span class="fw-bold text-info">
+                                                            <svg xmlns="http://www.w3.org/2000/svg" width="25" height="25" fill="currentColor" class="bi bi-dash-lg" viewBox="0 0 16 16">
+                                                            <path fill-rule="evenodd" d="M2 8a.5.5 0 0 1 .5-.5h11a.5.5 0 0 1 0 1h-11A.5.5 0 0 1 2 8Z"/>
+                                                            </svg>
+                                                            </span>
+                                                        </td>
+                                                    {% endif %}
+                                            </tr>
+                                        {% endfor %}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <!-- [ Main Content ] end -->
+        </div>
+    </section>
+    <div id="div_preview">
+
+    </div>
+    <!-- [ Main Content ] end -->
+    <div id = 'myExtraLargeModal' class="modal fade bd-example-modal-xl" tabindex="-1" role="dialog" aria-labelledby="myExtraLargeModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-xl">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title h4" id="myExtraLargeModalLabel">Extra Large Modal</h5>
+                    <button type="button" class="close" data-dismiss="modal" aria-label="Close"><span aria-hidden="true">&times;</span></button>
+                </div>
+                <div class="modal-body">
+
+                </div>
+            </div>
+        </div>
+    </div>
+
+{% endblock content %}
+
+<!-- Specific Page JS goes HERE  -->
+{% block javascripts %}
+
+    <!-- datatable Js -->
+    <script src="/static/assets/js/plugins/jquery.dataTables.min.js"></script>
+    <script src="/static/assets/js/plugins/dataTables.bootstrap4.min.js"></script>
+    <script src="/static/assets/js/plugins/buttons.colVis.min.js"></script>
+    <script src="/static/assets/js/plugins/buttons.print.min.js"></script>
+    <script src="/static/assets/js/plugins/pdfmake.min.js"></script>
+    <script src="/static/assets/js/plugins/jszip.min.js"></script>
+    <script src="/static/assets/js/plugins/dataTables.buttons.min.js"></script>
+    <script src="/static/assets/js/plugins/buttons.html5.min.js"></script>
+    <script src="/static/assets/js/plugins/buttons.bootstrap4.min.js"></script>
+    <script src="/static/assets/js/pages/data-export-custom.js"></script>
+    <script>
+        $('.delete_etapa').on("click", function(){
+            const urlToNavigate = $(this).data('href');
+            Swal.fire({
+                title: '¡Atención!',
+                icon: 'warning',
+                text: '¿Estás seguro de eliminar esta Etapa?',
+                showCancelButton: true,
+                confirmButtonColor: '#299B0B',
+                cancelButtonColor: '#d33',
+                confirmButtonText: 'Confirmar',
+                cancelButtonText: 'Cancelar'
+            }).then((resultado) => {
+                if(resultado.isConfirmed){
+                    window.location.href = urlToNavigate;
+                }
+            });
+        });
+    </script>
+    <script>
+
+        function modalpreview(pk){
+            $.ajax({
+                url: '/get_preview_etapa/'+pk,
+                type: 'POST',
+                data: {
+                        'csrfmiddlewaretoken': '{{ csrf_token }}',
+                    },
+                success: function(response) {
+                    // Aqui se generara un formulario dinamico para cada campo en base a las opciones obtenidas en la bd
+                    $('#div_preview').empty(); // Limpiar el contenido anterior del div
+                    
+                    formHtml = CreacionCampos(response.data);
+                    $('#div_preview').html(formHtml); // Asignar el formulario generado al cuerpo del modal
+                    //$('#myExtraLargeModalLabel').modal('show'); // Mostrar el modal
+                },
+                error: function(error) {
+                    console.log('Error al cargar los datos:', error);
+                }
+            });
+        }
+        function CreacionCampos(json_campos){
+            for (let i = 0; i < json_campos.length; i++) {
+                tipo = json_campos[i].TYPE
+                valor_default = json_campos[i].DEFAULT_VALUE
+                placeholder = json_campos[i].PLACEHOLDER
+                largo = json_campos[i].LARGO
+                obligatorio = json_campos[i].OBLIGATORIO
+                var formHtml = '<form id="dynamicForm">';
+                formHtml += '<div class="form-group">';
+                formHtml += '<label>' + placeholder+ '</label>';
+                if (tipo.toLowerCase() === 'texto') {
+                    formHtml += '<input type="text" class="form-control" name="' + valor_default + '" placeholder="' + placeholder+ '"';
+                    if (obligatorio) {
+                        formHtml += ' required';
+                    }
+                    formHtml += '>';
+                }
+                if (tipo.toLowerCase() === 'numero') {
+                    formHtml += '<input type="number" class="form-control" name="' + valor_default + '" placeholder="' + placeholder+ '"';
+                    if (obligatorio) {
+                        formHtml += ' required';
+                    }
+                    formHtml += '>';
+                }
+                if (tipo.toLowerCase() === 'decimal') {
+                    formHtml += '<input type="number" class="form-control" name="' + valor_default + '" placeholder="' + placeholder+ '"';
+                    if (obligatorio) {
+                        formHtml += ' required';
+                    }
+                    formHtml += '>';
+                }
+                if (tipo.toLowerCase() === 'fecha') {
+                    formHtml += '<input type="date" class="form-control" name="' + valor_default + '" placeholder="' + placeholder+ '"';
+                    if (obligatorio) {
+                        formHtml += ' required';
+                    }
+                    formHtml += '>';
+                }
+                if (tipo.toLowerCase() === 'fecha/hora') {
+                    formHtml += '<input type="datetime" class="form-control" name="' + valor_default + '" placeholder="' + placeholder+ '"';
+                    if (obligatorio) {
+                        formHtml += ' required';
+                    }
+                    formHtml += '>';
+                }
+            
+                if (tipo.toLowerCase() === 'check') {
+                    formHtml += '<div class="form-check">';
+                    formHtml += '<input type="checkbox" class="form-check-input" id="' + placeholder+ '" name="' + placeholder+ '"';
+                    if (obligatorio) {
+                        formHtml += ' required';
+                    }
+                    formHtml += '>';
+                    formHtml += '<label class="form-check-label" for="' + placeholder+ '">' + placeholder+ '</label>';
+                    formHtml += '</div>';
+                }
+                if (tipo.toLowerCase() === 'archivo') {
+                    formHtml += '<input type="file" class="form-control" name="' + valor_default + '" placeholder="' + placeholder+ '"';
+                    if (obligatorio) {
+                        formHtml += ' required';
+                    }
+                    formHtml += '>';
+                }
+                // Aquí se pueden agregar más condiciones para otros tipos de campos si es necesario
+                formHtml += '</div>';
+
+            }
+            formHtml += '<button type="submit" class="btn btn-primary">Enviar</button>';
+            formHtml += '</form>';
+            return formHtml
+        }
+        
+    </script>
+{% endblock javascripts %}

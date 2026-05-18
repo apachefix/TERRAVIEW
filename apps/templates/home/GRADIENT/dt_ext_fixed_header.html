@@ -1,0 +1,1187 @@
+{% extends "layouts/base.html" %}
+
+{% block title %} DT Fixed Header {% endblock %} 
+
+<!-- Specific CSS goes HERE -->
+{% block stylesheets %}
+
+    <!-- data tables css -->
+    <link rel="stylesheet" href="/static/assets/css/plugins/dataTables.bootstrap4.min.css">
+    <link rel="stylesheet" href="/static/assets/css/plugins/fixedHeader.bootstrap4.min.css">
+
+{% endblock stylesheets %}
+
+{% block content %}	
+	
+	<!-- [ chat user list ] start -->
+	<section class="header-user-list">
+		<a href="#!" class="h-close-text"><i class="feather icon-x"></i></a>
+		<ul class="nav nav-tabs" id="chatTab" role="tablist">
+			<li class="nav-item">
+				<a class="nav-link active text-uppercase border-0" id="chat-tab" data-toggle="tab" href="#chat" role="tab" aria-controls="chat" aria-selected="true"><i class="feather icon-message-circle mr-2"></i>Chat</a>
+			</li>
+			<li class="nav-item">
+				<a class="nav-link text-uppercase border-0" id="user-tab" data-toggle="tab" href="#user" role="tab" aria-controls="user" aria-selected="false"><i class="feather icon-users mr-2"></i>User</a>
+			</li>
+			<li class="nav-item">
+				<a class="nav-link text-uppercase border-0" id="setting-tab" data-toggle="tab" href="#setting" role="tab" aria-controls="setting" aria-selected="false"><i class="feather icon-settings mr-2"></i>Setting</a>
+			</li>
+		</ul>
+		<div class="tab-content" id="chatTabContent">
+			<div class="tab-pane fade show active" id="chat" role="tabpanel" aria-labelledby="chat-tab">
+				<div class="h-list-header">
+					<div class="input-group">
+						<input type="text" id="search-friends" class="form-control" placeholder="Search Friend . . .">
+					</div>
+				</div>
+				<div class="h-list-body">
+					<div class="main-friend-cont scroll-div">
+						<div class="main-friend-list">
+							<div class="media userlist-box" data-id="1" data-status="online" data-username="Josephin Doe">
+								<a class="media-left" href="#!"><img class="media-object img-radius" src="/static/assets/images/user/avatar-1.jpg" alt="Generic placeholder image ">
+									<div class="live-status">3</div>
+								</a>
+								<div class="media-body">
+									<h6 class="chat-header">Josephin Doe<small class="d-block text-c-green">Typing . . </small></h6>
+								</div>
+							</div>
+							<div class="media userlist-box" data-id="2" data-status="online" data-username="Lary Doe">
+								<a class="media-left" href="#!"><img class="media-object img-radius" src="/static/assets/images/user/avatar-2.jpg" alt="Generic placeholder image">
+									<div class="live-status">1</div>
+								</a>
+								<div class="media-body">
+									<h6 class="chat-header">Lary Doe<small class="d-block text-c-green">online</small></h6>
+								</div>
+							</div>
+							<div class="media userlist-box" data-id="3" data-status="online" data-username="Alice">
+								<a class="media-left" href="#!"><img class="media-object img-radius" src="/static/assets/images/user/avatar-3.jpg" alt="Generic placeholder image"></a>
+								<div class="media-body">
+									<h6 class="chat-header">Alice<small class="d-block text-c-green">online</small></h6>
+								</div>
+							</div>
+							<div class="media userlist-box" data-id="4" data-status="offline" data-username="Alia">
+								<a class="media-left" href="#!"><img class="media-object img-radius" src="/static/assets/images/user/avatar-1.jpg" alt="Generic placeholder image">
+									<div class="live-status">1</div>
+								</a>
+								<div class="media-body">
+									<h6 class="chat-header">Alia<small class="d-block text-muted">10 min ago</small></h6>
+								</div>
+							</div>
+							<div class="media userlist-box" data-id="5" data-status="offline" data-username="Suzen">
+								<a class="media-left" href="#!"><img class="media-object img-radius" src="/static/assets/images/user/avatar-4.jpg" alt="Generic placeholder image"></a>
+								<div class="media-body">
+									<h6 class="chat-header">Suzen<small class="d-block text-muted">15 min ago</small></h6>
+								</div>
+							</div>
+							<div class="media userlist-box" data-id="1" data-status="online" data-username="Josephin Doe">
+								<a class="media-left" href="#!"><img class="media-object img-radius" src="/static/assets/images/user/avatar-1.jpg" alt="Generic placeholder image ">
+									<div class="live-status">3</div>
+								</a>
+								<div class="media-body">
+									<h6 class="chat-header">Josephin Doe<small class="d-block text-c-green">Typing . . </small></h6>
+								</div>
+							</div>
+							<div class="media userlist-box" data-id="2" data-status="online" data-username="Lary Doe">
+								<a class="media-left" href="#!"><img class="media-object img-radius" src="/static/assets/images/user/avatar-2.jpg" alt="Generic placeholder image">
+									<div class="live-status">1</div>
+								</a>
+								<div class="media-body">
+									<h6 class="chat-header">Lary Doe<small class="d-block text-c-green">online</small></h6>
+								</div>
+							</div>
+							<div class="media userlist-box" data-id="3" data-status="online" data-username="Alice">
+								<a class="media-left" href="#!"><img class="media-object img-radius" src="/static/assets/images/user/avatar-3.jpg" alt="Generic placeholder image"></a>
+								<div class="media-body">
+									<h6 class="chat-header">Alice<small class="d-block text-c-green">online</small></h6>
+								</div>
+							</div>
+							<div class="media userlist-box" data-id="4" data-status="offline" data-username="Alia">
+								<a class="media-left" href="#!"><img class="media-object img-radius" src="/static/assets/images/user/avatar-1.jpg" alt="Generic placeholder image">
+									<div class="live-status">1</div>
+								</a>
+								<div class="media-body">
+									<h6 class="chat-header">Alia<small class="d-block text-muted">10 min ago</small></h6>
+								</div>
+							</div>
+							<div class="media userlist-box" data-id="5" data-status="offline" data-username="Suzen">
+								<a class="media-left" href="#!"><img class="media-object img-radius" src="/static/assets/images/user/avatar-4.jpg" alt="Generic placeholder image"></a>
+								<div class="media-body">
+									<h6 class="chat-header">Suzen<small class="d-block text-muted">15 min ago</small></h6>
+								</div>
+							</div>
+							<div class="media userlist-box" data-id="1" data-status="online" data-username="Josephin Doe">
+								<a class="media-left" href="#!"><img class="media-object img-radius" src="/static/assets/images/user/avatar-1.jpg" alt="Generic placeholder image ">
+									<div class="live-status">3</div>
+								</a>
+								<div class="media-body">
+									<h6 class="chat-header">Josephin Doe<small class="d-block text-c-green">Typing . . </small></h6>
+								</div>
+							</div>
+							<div class="media userlist-box" data-id="2" data-status="online" data-username="Lary Doe">
+								<a class="media-left" href="#!"><img class="media-object img-radius" src="/static/assets/images/user/avatar-2.jpg" alt="Generic placeholder image">
+									<div class="live-status">1</div>
+								</a>
+								<div class="media-body">
+									<h6 class="chat-header">Lary Doe<small class="d-block text-c-green">online</small></h6>
+								</div>
+							</div>
+							<div class="media userlist-box" data-id="3" data-status="online" data-username="Alice">
+								<a class="media-left" href="#!"><img class="media-object img-radius" src="/static/assets/images/user/avatar-3.jpg" alt="Generic placeholder image"></a>
+								<div class="media-body">
+									<h6 class="chat-header">Alice<small class="d-block text-c-green">online</small></h6>
+								</div>
+							</div>
+						</div>
+					</div>
+				</div>
+			</div>
+			<div class="tab-pane fade" id="user" role="tabpanel" aria-labelledby="user-tab">
+				<div class="h-list-body">
+					<div class="main-friend-cont scroll-div">
+						<div class="main-friend-list">
+							<div class="media px-3 d-flex align-items-center mt-3">
+								<a class="media-left m-r-15" href="#!">
+									<div class="hei-50 wid-50 bg-primary img-radius d-flex text-white f-22 align-items-center justify-content-center"><i class="icon feather icon-users"></i></div>
+								</a>
+								<div class="media-body">
+									<p class="chat-header f-w-600 mb-0">New Group</p>
+								</div>
+							</div>
+							<div class="media p-3 d-flex align-items-center">
+								<a class="media-left m-r-15" href="#!">
+									<div class="hei-50 wid-50 bg-primary img-radius d-flex text-white f-22 align-items-center justify-content-center"><i class="icon feather icon-user-plus"></i></div>
+								</a>
+								<div class="media-body">
+									<p class="chat-header f-w-600 mb-0">New Contact</p>
+								</div>
+							</div>
+							<div class="media userlist-box" data-id="1" data-status="online" data-username="Josephin Doe">
+								<a class="media-left" href="#!"><img class="media-object img-radius" src="/static/assets/images/user/avatar-1.jpg" alt="Generic placeholder image "></a>
+								<div class="media-body">
+									<p class="chat-header">Josephin Doe<small class="d-block">i am not what happened . .</small></p>
+								</div>
+							</div>
+							<div class="media userlist-box" data-id="2" data-status="online" data-username="Lary Doe">
+								<a class="media-left" href="#!"><img class="media-object img-radius" src="/static/assets/images/user/avatar-2.jpg" alt="Generic placeholder image"></a>
+								<div class="media-body">
+									<h6 class="chat-header">Lary Doe<small class="d-block">Avalable</small></h6>
+								</div>
+							</div>
+							<div class="media userlist-box" data-id="3" data-status="online" data-username="Alice">
+								<a class="media-left" href="#!"><img class="media-object img-radius" src="/static/assets/images/user/avatar-3.jpg" alt="Generic placeholder image"></a>
+								<div class="media-body">
+									<h6 class="chat-header">Alice<small class="d-block">hear using Elite able</small></h6>
+								</div>
+							</div>
+							<div class="media userlist-box" data-id="4" data-status="offline" data-username="Alia">
+								<a class="media-left" href="#!">
+									<div class="hei-50 wid-50 img-radius bg-success d-flex text-white f-22 align-items-center justify-content-center">A</div>
+								</a>
+								<div class="media-body">
+									<h6 class="chat-header">Alia<small class="d-block text-muted">Avalable</small></h6>
+								</div>
+							</div>
+							<div class="media userlist-box" data-id="5" data-status="offline" data-username="Suzen">
+								<a class="media-left" href="#!"><img class="media-object img-radius" src="/static/assets/images/user/avatar-4.jpg" alt="Generic placeholder image"></a>
+								<div class="media-body">
+									<h6 class="chat-header">Suzen<small class="d-block text-muted">Avalable</small></h6>
+								</div>
+							</div>
+							<div class="media userlist-box" data-id="1" data-status="online" data-username="Josephin Doe">
+								<a class="media-left" href="#!">
+									<div class="hei-50 wid-50 bg-danger img-radius d-flex text-white f-22 align-items-center justify-content-center">JD</div>
+								</a>
+								<div class="media-body">
+									<h6 class="chat-header">Josephin Doe<small class="d-block text-muted">Don't send me image</small></h6>
+								</div>
+							</div>
+							<div class="media userlist-box" data-id="2" data-status="online" data-username="Lary Doe">
+								<a class="media-left" href="#!"><img class="media-object img-radius" src="/static/assets/images/user/avatar-2.jpg" alt="Generic placeholder image"></a>
+								<div class="media-body">
+									<h6 class="chat-header">Lary Doe<small class="d-block text-muted">not send free msg</small></h6>
+								</div>
+							</div>
+						</div>
+					</div>
+				</div>
+			</div>
+			<div class="tab-pane fade" id="setting" role="tabpanel" aria-labelledby="setting-tab">
+				<div class="p-4 main-friend-cont scroll-div">
+					<h6 class="mt-2"><i class="feather icon-monitor mr-2"></i>Desktop settings</h6>
+					<hr>
+					<div class="form-group mb-0">
+						<div class="switch switch-primary d-inline m-r-10">
+							<input type="checkbox" id="cn-p-1" checked>
+							<label for="cn-p-1" class="cr"></label>
+						</div>
+						<label class="f-w-600">Allow desktop notification</label>
+					</div>
+					<p class="text-muted ml-5">you get lettest content at a time when data will updated</p>
+					<div class="form-group mb-0">
+						<div class="switch switch-primary d-inline m-r-10">
+							<input type="checkbox" id="cn-p-5">
+							<label for="cn-p-5" class="cr"></label>
+						</div>
+						<label class="f-w-600">Store Cookie</label>
+					</div>
+					<h6 class="mb-0 mt-5"><i class="feather icon-layout mr-2"></i>Application settings</h6>
+					<hr>
+					<div class="form-group mb-0">
+						<div class="switch switch-primary d-inline m-r-10">
+							<input type="checkbox" id="cn-p-3" checked>
+							<label for="cn-p-3" class="cr"></label>
+						</div>
+						<label class="f-w-600">Backup Storage</label>
+					</div>
+					<p class="text-muted mb-0 ml-5">Automaticaly take backup as par schedule</p>
+					<div class="form-group mb-4">
+						<div class="switch switch-primary d-inline m-r-10">
+							<input type="checkbox" id="cn-p-4" checked>
+							<label for="cn-p-4" class="cr"></label>
+						</div>
+						<label class="f-w-600">Allow guest to print file</label>
+					</div>
+					<h6 class="mb-0 mt-5"><i class="feather icon-globe mr-2"></i>System settings</h6>
+					<hr>
+					<div class="form-group mb-0">
+						<div class="switch switch-primary d-inline m-r-10">
+							<input type="checkbox" id="cn-p-2">
+							<label for="cn-p-2" class="cr"></label>
+						</div>
+						<label class="f-w-600">View other user chat</label>
+					</div>
+					<p class="text-muted ml-5">Allow to show public user message</p>
+				</div>
+			</div>
+		</div>
+	</section>
+	<!-- [ chat user list ] end -->
+
+	<!-- [ chat message ] start -->
+	<section class="header-chat">
+		<div class="h-list-header">
+			<h6>Josephin Doe</h6>
+			<a href="#!" class="h-back-user-list"><i class="feather icon-chevron-left"></i></a>
+		</div>
+		<div class="h-list-body">
+			<div class="main-chat-cont scroll-div">
+				<div class="main-friend-chat">
+					<div class="media chat-messages">
+						<a class="media-left photo-table" href="#!"><img class="media-object img-radius img-radius m-t-5" src="/static/assets/images/user/avatar-2.jpg" alt="Generic placeholder image"></a>
+						<div class="media-body chat-menu-content">
+							<div class="">
+								<p class="chat-cont">hello tell me something</p>
+								<p class="chat-cont">about yourself?</p>
+							</div>
+							<p class="chat-time">8:20 a.m.</p>
+						</div>
+					</div>
+					<div class="media chat-messages">
+						<div class="media-body chat-menu-reply">
+							<div class="">
+								<p class="chat-cont">Ohh! very nice</p>
+							</div>
+							<p class="chat-time">8:22 a.m.</p>
+						</div>
+						<a class="media-right photo-table" href="#!"><img class="media-object img-radius img-radius m-t-5" src="/static/assets/images/user/avatar-1.jpg" alt="Generic placeholder image"></a>
+					</div>
+					<div class="media chat-messages">
+						<a class="media-left photo-table" href="#!"><img class="media-object img-radius img-radius m-t-5" src="/static/assets/images/user/avatar-2.jpg" alt="Generic placeholder image"></a>
+						<div class="media-body chat-menu-content">
+							<div class="">
+								<p class="chat-cont">can you help me?</p>
+							</div>
+							<p class="chat-time">8:20 a.m.</p>
+						</div>
+					</div>
+				</div>
+			</div>
+		</div>
+		<div class="h-list-footer">
+			<div class="input-group">
+				<input type="file" class="chat-attach" style="display:none">
+				<a href="#!" class="input-group-prepend btn btn-success btn-attach">
+					<i class="feather icon-paperclip"></i>
+				</a>
+				<input type="text" name="h-chat-text" class="form-control h-auto h-send-chat" placeholder="Write hear . . ">
+				<button type="submit" class="input-group-append btn-send btn btn-primary">
+					<i class="feather icon-message-circle"></i>
+				</button>
+			</div>
+		</div>
+	</section>
+	<!-- [ chat message ] end -->
+
+    <!-- [ Main Content ] start -->
+    <section class="pcoded-main-container">
+        <div class="pcoded-content">
+            <!-- [ breadcrumb ] start -->
+            <div class="page-header">
+                <div class="page-block">
+                    <div class="row align-items-center">
+                        <div class="col-md-12">
+                            <div class="page-header-title">
+                                <h5 class="m-b-10">Fixed Header</h5>
+                            </div>
+                            <ul class="breadcrumb">
+                                <li class="breadcrumb-item"><a href="index.html"><i class="feather icon-home"></i></a></li>
+                                <li class="breadcrumb-item"><a href="#!">Data Table</a></li>
+                                <li class="breadcrumb-item"><a href="#!">Fixed Header</a></li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <!-- [ breadcrumb ] end -->
+            <!-- [ Main Content ] start -->
+            <div class="row">
+                <!-- Basic Header fix table start -->
+                <div class="col-sm-12">
+                    <div class="card">
+                        <div class="card-header">
+                            <h5>Basic Initialisation</h5>
+                        </div>
+                        <div class="card-body">
+                            <div class="dt-responsive table-responsive">
+                                <table id="fix-header" class="table table-striped table-bordered nowrap">
+                                    <thead>
+                                        <tr>
+                                            <th>Name</th>
+                                            <th>Position</th>
+                                            <th>Office</th>
+                                            <th>Age</th>
+                                            <th>Start date</th>
+                                            <th>Salary</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        <tr>
+                                            <td>Tiger Nixon</td>
+                                            <td>System Architect</td>
+                                            <td>Edinburgh</td>
+                                            <td>61</td>
+                                            <td>2011/04/25</td>
+                                            <td>$320,800</td>
+                                        </tr>
+                                        <tr>
+                                            <td>Garrett Winters</td>
+                                            <td>Accountant</td>
+                                            <td>Tokyo</td>
+                                            <td>63</td>
+                                            <td>2011/07/25</td>
+                                            <td>$170,750</td>
+                                        </tr>
+                                        <tr>
+                                            <td>Ashton Cox</td>
+                                            <td>Junior Technical Author</td>
+                                            <td>San Francisco</td>
+                                            <td>66</td>
+                                            <td>2009/01/12</td>
+                                            <td>$86,000</td>
+                                        </tr>
+                                        <tr>
+                                            <td>Cedric Kelly</td>
+                                            <td>Senior Javascript Developer</td>
+                                            <td>Edinburgh</td>
+                                            <td>22</td>
+                                            <td>2012/03/29</td>
+                                            <td>$433,060</td>
+                                        </tr>
+                                        <tr>
+                                            <td>Airi Satou</td>
+                                            <td>Accountant</td>
+                                            <td>Tokyo</td>
+                                            <td>33</td>
+                                            <td>2008/11/28</td>
+                                            <td>$162,700</td>
+                                        </tr>
+                                        <tr>
+                                            <td>Brielle Williamson</td>
+                                            <td>Integration Specialist</td>
+                                            <td>New York</td>
+                                            <td>61</td>
+                                            <td>2012/12/02</td>
+                                            <td>$372,000</td>
+                                        </tr>
+                                        <tr>
+                                            <td>Herrod Chandler</td>
+                                            <td>Sales Assistant</td>
+                                            <td>San Francisco</td>
+                                            <td>59</td>
+                                            <td>2012/08/06</td>
+                                            <td>$137,500</td>
+                                        </tr>
+                                        <tr>
+                                            <td>Rhona Davidson</td>
+                                            <td>Integration Specialist</td>
+                                            <td>Tokyo</td>
+                                            <td>55</td>
+                                            <td>2010/10/14</td>
+                                            <td>$327,900</td>
+                                        </tr>
+                                        <tr>
+                                            <td>Colleen Hurst</td>
+                                            <td>Javascript Developer</td>
+                                            <td>San Francisco</td>
+                                            <td>39</td>
+                                            <td>2009/09/15</td>
+                                            <td>$205,500</td>
+                                        </tr>
+                                        <tr>
+                                            <td>Sonya Frost</td>
+                                            <td>Software Engineer</td>
+                                            <td>Edinburgh</td>
+                                            <td>23</td>
+                                            <td>2008/12/13</td>
+                                            <td>$103,600</td>
+                                        </tr>
+                                        <tr>
+                                            <td>Jena Gaines</td>
+                                            <td>Office Manager</td>
+                                            <td>London</td>
+                                            <td>30</td>
+                                            <td>2008/12/19</td>
+                                            <td>$90,560</td>
+                                        </tr>
+                                        <tr>
+                                            <td>Quinn Flynn</td>
+                                            <td>Support Lead</td>
+                                            <td>Edinburgh</td>
+                                            <td>22</td>
+                                            <td>2013/03/03</td>
+                                            <td>$342,000</td>
+                                        </tr>
+                                        <tr>
+                                            <td>Charde Marshall</td>
+                                            <td>Regional Director</td>
+                                            <td>San Francisco</td>
+                                            <td>36</td>
+                                            <td>2008/10/16</td>
+                                            <td>$470,600</td>
+                                        </tr>
+                                        <tr>
+                                            <td>Haley Kennedy</td>
+                                            <td>Senior Marketing Designer</td>
+                                            <td>London</td>
+                                            <td>43</td>
+                                            <td>2012/12/18</td>
+                                            <td>$313,500</td>
+                                        </tr>
+                                        <tr>
+                                            <td>Tatyana Fitzpatrick</td>
+                                            <td>Regional Director</td>
+                                            <td>London</td>
+                                            <td>19</td>
+                                            <td>2010/03/17</td>
+                                            <td>$385,750</td>
+                                        </tr>
+                                        <tr>
+                                            <td>Michael Silva</td>
+                                            <td>Marketing Designer</td>
+                                            <td>London</td>
+                                            <td>66</td>
+                                            <td>2012/11/27</td>
+                                            <td>$198,500</td>
+                                        </tr>
+                                        <tr>
+                                            <td>Paul Byrd</td>
+                                            <td>Chief Financial Officer (CFO)</td>
+                                            <td>New York</td>
+                                            <td>64</td>
+                                            <td>2010/06/09</td>
+                                            <td>$725,000</td>
+                                        </tr>
+                                        <tr>
+                                            <td>Gloria Little</td>
+                                            <td>Systems Administrator</td>
+                                            <td>New York</td>
+                                            <td>59</td>
+                                            <td>2009/04/10</td>
+                                            <td>$237,500</td>
+                                        </tr>
+                                        <tr>
+                                            <td>Bradley Greer</td>
+                                            <td>Software Engineer</td>
+                                            <td>London</td>
+                                            <td>41</td>
+                                            <td>2012/10/13</td>
+                                            <td>$132,000</td>
+                                        </tr>
+                                        <tr>
+                                            <td>Dai Rios</td>
+                                            <td>Personnel Lead</td>
+                                            <td>Edinburgh</td>
+                                            <td>35</td>
+                                            <td>2012/09/26</td>
+                                            <td>$217,500</td>
+                                        </tr>
+                                        <tr>
+                                            <td>Jenette Caldwell</td>
+                                            <td>Development Lead</td>
+                                            <td>New York</td>
+                                            <td>30</td>
+                                            <td>2011/09/03</td>
+                                            <td>$345,000</td>
+                                        </tr>
+                                        <tr>
+                                            <td>Yuri Berry</td>
+                                            <td>Chief Marketing Officer (CMO)</td>
+                                            <td>New York</td>
+                                            <td>40</td>
+                                            <td>2009/06/25</td>
+                                            <td>$675,000</td>
+                                        </tr>
+                                        <tr>
+                                            <td>Caesar Vance</td>
+                                            <td>Pre-Sales Support</td>
+                                            <td>New York</td>
+                                            <td>21</td>
+                                            <td>2011/12/12</td>
+                                            <td>$106,450</td>
+                                        </tr>
+                                        <tr>
+                                            <td>Doris Wilder</td>
+                                            <td>Sales Assistant</td>
+                                            <td>Sidney</td>
+                                            <td>23</td>
+                                            <td>2010/09/20</td>
+                                            <td>$85,600</td>
+                                        </tr>
+                                        <tr>
+                                            <td>Angelica Ramos</td>
+                                            <td>Chief Executive Officer (CEO)</td>
+                                            <td>London</td>
+                                            <td>47</td>
+                                            <td>2009/10/09</td>
+                                            <td>$1,200,000</td>
+                                        </tr>
+                                        <tr>
+                                            <td>Gavin Joyce</td>
+                                            <td>Developer</td>
+                                            <td>Edinburgh</td>
+                                            <td>42</td>
+                                            <td>2010/12/22</td>
+                                            <td>$92,575</td>
+                                        </tr>
+                                        <tr>
+                                            <td>Jennifer Chang</td>
+                                            <td>Regional Director</td>
+                                            <td>Singapore</td>
+                                            <td>28</td>
+                                            <td>2010/11/14</td>
+                                            <td>$357,650</td>
+                                        </tr>
+                                        <tr>
+                                            <td>Brenden Wagner</td>
+                                            <td>Software Engineer</td>
+                                            <td>San Francisco</td>
+                                            <td>28</td>
+                                            <td>2011/06/07</td>
+                                            <td>$206,850</td>
+                                        </tr>
+                                        <tr>
+                                            <td>Fiona Green</td>
+                                            <td>Chief Operating Officer (COO)</td>
+                                            <td>San Francisco</td>
+                                            <td>48</td>
+                                            <td>2010/03/11</td>
+                                            <td>$850,000</td>
+                                        </tr>
+                                        <tr>
+                                            <td>Shou Itou</td>
+                                            <td>Regional Marketing</td>
+                                            <td>Tokyo</td>
+                                            <td>20</td>
+                                            <td>2011/08/14</td>
+                                            <td>$163,000</td>
+                                        </tr>
+                                    </tbody>
+                                    <tfoot>
+                                        <tr>
+                                            <th>Name</th>
+                                            <th>Position</th>
+                                            <th>Office</th>
+                                            <th>Age</th>
+                                            <th>Start date</th>
+                                            <th>Salary</th>
+                                        </tr>
+                                    </tfoot>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <!-- Basic Header fix table end -->
+                <!-- Header and Footer fix table start -->
+                <div class="col-sm-12">
+                    <div class="card">
+                        <div class="card-header">
+                            <h5>Header And Footer Fixed</h5>
+                        </div>
+                        <div class="card-body">
+                            <div class="dt-responsive table-responsive">
+                                <table id="header-footer-fix" class="table table-striped table-bordered nowrap">
+                                    <thead>
+                                        <tr>
+                                            <th>Name</th>
+                                            <th>Position</th>
+                                            <th>Office</th>
+                                            <th>Age</th>
+                                            <th>Start date</th>
+                                            <th>Salary</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        <tr>
+                                            <td>Tiger Nixon</td>
+                                            <td>System Architect</td>
+                                            <td>Edinburgh</td>
+                                            <td>61</td>
+                                            <td>2011/04/25</td>
+                                            <td>$320,800</td>
+                                        </tr>
+                                        <tr>
+                                            <td>Garrett Winters</td>
+                                            <td>Accountant</td>
+                                            <td>Tokyo</td>
+                                            <td>63</td>
+                                            <td>2011/07/25</td>
+                                            <td>$170,750</td>
+                                        </tr>
+                                        <tr>
+                                            <td>Ashton Cox</td>
+                                            <td>Junior Technical Author</td>
+                                            <td>San Francisco</td>
+                                            <td>66</td>
+                                            <td>2009/01/12</td>
+                                            <td>$86,000</td>
+                                        </tr>
+                                        <tr>
+                                            <td>Cedric Kelly</td>
+                                            <td>Senior Javascript Developer</td>
+                                            <td>Edinburgh</td>
+                                            <td>22</td>
+                                            <td>2012/03/29</td>
+                                            <td>$433,060</td>
+                                        </tr>
+                                        <tr>
+                                            <td>Airi Satou</td>
+                                            <td>Accountant</td>
+                                            <td>Tokyo</td>
+                                            <td>33</td>
+                                            <td>2008/11/28</td>
+                                            <td>$162,700</td>
+                                        </tr>
+                                        <tr>
+                                            <td>Brielle Williamson</td>
+                                            <td>Integration Specialist</td>
+                                            <td>New York</td>
+                                            <td>61</td>
+                                            <td>2012/12/02</td>
+                                            <td>$372,000</td>
+                                        </tr>
+                                        <tr>
+                                            <td>Herrod Chandler</td>
+                                            <td>Sales Assistant</td>
+                                            <td>San Francisco</td>
+                                            <td>59</td>
+                                            <td>2012/08/06</td>
+                                            <td>$137,500</td>
+                                        </tr>
+                                        <tr>
+                                            <td>Rhona Davidson</td>
+                                            <td>Integration Specialist</td>
+                                            <td>Tokyo</td>
+                                            <td>55</td>
+                                            <td>2010/10/14</td>
+                                            <td>$327,900</td>
+                                        </tr>
+                                        <tr>
+                                            <td>Colleen Hurst</td>
+                                            <td>Javascript Developer</td>
+                                            <td>San Francisco</td>
+                                            <td>39</td>
+                                            <td>2009/09/15</td>
+                                            <td>$205,500</td>
+                                        </tr>
+                                        <tr>
+                                            <td>Sonya Frost</td>
+                                            <td>Software Engineer</td>
+                                            <td>Edinburgh</td>
+                                            <td>23</td>
+                                            <td>2008/12/13</td>
+                                            <td>$103,600</td>
+                                        </tr>
+                                        <tr>
+                                            <td>Jena Gaines</td>
+                                            <td>Office Manager</td>
+                                            <td>London</td>
+                                            <td>30</td>
+                                            <td>2008/12/19</td>
+                                            <td>$90,560</td>
+                                        </tr>
+                                        <tr>
+                                            <td>Quinn Flynn</td>
+                                            <td>Support Lead</td>
+                                            <td>Edinburgh</td>
+                                            <td>22</td>
+                                            <td>2013/03/03</td>
+                                            <td>$342,000</td>
+                                        </tr>
+                                        <tr>
+                                            <td>Charde Marshall</td>
+                                            <td>Regional Director</td>
+                                            <td>San Francisco</td>
+                                            <td>36</td>
+                                            <td>2008/10/16</td>
+                                            <td>$470,600</td>
+                                        </tr>
+                                        <tr>
+                                            <td>Haley Kennedy</td>
+                                            <td>Senior Marketing Designer</td>
+                                            <td>London</td>
+                                            <td>43</td>
+                                            <td>2012/12/18</td>
+                                            <td>$313,500</td>
+                                        </tr>
+                                        <tr>
+                                            <td>Tatyana Fitzpatrick</td>
+                                            <td>Regional Director</td>
+                                            <td>London</td>
+                                            <td>19</td>
+                                            <td>2010/03/17</td>
+                                            <td>$385,750</td>
+                                        </tr>
+                                        <tr>
+                                            <td>Michael Silva</td>
+                                            <td>Marketing Designer</td>
+                                            <td>London</td>
+                                            <td>66</td>
+                                            <td>2012/11/27</td>
+                                            <td>$198,500</td>
+                                        </tr>
+                                        <tr>
+                                            <td>Paul Byrd</td>
+                                            <td>Chief Financial Officer (CFO)</td>
+                                            <td>New York</td>
+                                            <td>64</td>
+                                            <td>2010/06/09</td>
+                                            <td>$725,000</td>
+                                        </tr>
+                                        <tr>
+                                            <td>Gloria Little</td>
+                                            <td>Systems Administrator</td>
+                                            <td>New York</td>
+                                            <td>59</td>
+                                            <td>2009/04/10</td>
+                                            <td>$237,500</td>
+                                        </tr>
+                                        <tr>
+                                            <td>Bradley Greer</td>
+                                            <td>Software Engineer</td>
+                                            <td>London</td>
+                                            <td>41</td>
+                                            <td>2012/10/13</td>
+                                            <td>$132,000</td>
+                                        </tr>
+                                        <tr>
+                                            <td>Dai Rios</td>
+                                            <td>Personnel Lead</td>
+                                            <td>Edinburgh</td>
+                                            <td>35</td>
+                                            <td>2012/09/26</td>
+                                            <td>$217,500</td>
+                                        </tr>
+                                        <tr>
+                                            <td>Jenette Caldwell</td>
+                                            <td>Development Lead</td>
+                                            <td>New York</td>
+                                            <td>30</td>
+                                            <td>2011/09/03</td>
+                                            <td>$345,000</td>
+                                        </tr>
+                                        <tr>
+                                            <td>Yuri Berry</td>
+                                            <td>Chief Marketing Officer (CMO)</td>
+                                            <td>New York</td>
+                                            <td>40</td>
+                                            <td>2009/06/25</td>
+                                            <td>$675,000</td>
+                                        </tr>
+                                        <tr>
+                                            <td>Caesar Vance</td>
+                                            <td>Pre-Sales Support</td>
+                                            <td>New York</td>
+                                            <td>21</td>
+                                            <td>2011/12/12</td>
+                                            <td>$106,450</td>
+                                        </tr>
+                                        <tr>
+                                            <td>Doris Wilder</td>
+                                            <td>Sales Assistant</td>
+                                            <td>Sidney</td>
+                                            <td>23</td>
+                                            <td>2010/09/20</td>
+                                            <td>$85,600</td>
+                                        </tr>
+                                        <tr>
+                                            <td>Angelica Ramos</td>
+                                            <td>Chief Executive Officer (CEO)</td>
+                                            <td>London</td>
+                                            <td>47</td>
+                                            <td>2009/10/09</td>
+                                            <td>$1,200,000</td>
+                                        </tr>
+                                        <tr>
+                                            <td>Gavin Joyce</td>
+                                            <td>Developer</td>
+                                            <td>Edinburgh</td>
+                                            <td>42</td>
+                                            <td>2010/12/22</td>
+                                            <td>$92,575</td>
+                                        </tr>
+                                        <tr>
+                                            <td>Jennifer Chang</td>
+                                            <td>Regional Director</td>
+                                            <td>Singapore</td>
+                                            <td>28</td>
+                                            <td>2010/11/14</td>
+                                            <td>$357,650</td>
+                                        </tr>
+                                        <tr>
+                                            <td>Brenden Wagner</td>
+                                            <td>Software Engineer</td>
+                                            <td>San Francisco</td>
+                                            <td>28</td>
+                                            <td>2011/06/07</td>
+                                            <td>$206,850</td>
+                                        </tr>
+                                        <tr>
+                                            <td>Fiona Green</td>
+                                            <td>Chief Operating Officer (COO)</td>
+                                            <td>San Francisco</td>
+                                            <td>48</td>
+                                            <td>2010/03/11</td>
+                                            <td>$850,000</td>
+                                        </tr>
+                                        <tr>
+                                            <td>Shou Itou</td>
+                                            <td>Regional Marketing</td>
+                                            <td>Tokyo</td>
+                                            <td>20</td>
+                                            <td>2011/08/14</td>
+                                            <td>$163,000</td>
+                                        </tr>
+                                    </tbody>
+                                    <tfoot>
+                                        <tr>
+                                            <th>Name</th>
+                                            <th>Position</th>
+                                            <th>Office</th>
+                                            <th>Age</th>
+                                            <th>Start date</th>
+                                            <th>Salary</th>
+                                        </tr>
+                                    </tfoot>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <!-- Header and Footer fix table end -->
+                <!-- ColReorder integration table start -->
+                <div class="col-sm-12">
+                    <div class="card">
+                        <div class="card-header">
+                            <h5>ColReorder Integration</h5>
+                        </div>
+                        <div class="card-body">
+                            <div class="dt-responsive table-responsive">
+                                <table id="col-header" class="table table-striped table-bordered nowrap">
+                                    <thead>
+                                        <tr>
+                                            <th>Name</th>
+                                            <th>Position</th>
+                                            <th>Office</th>
+                                            <th>Age</th>
+                                            <th>Start date</th>
+                                            <th>Salary</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        <tr>
+                                            <td>Tiger Nixon</td>
+                                            <td>System Architect</td>
+                                            <td>Edinburgh</td>
+                                            <td>61</td>
+                                            <td>2011/04/25</td>
+                                            <td>$320,800</td>
+                                        </tr>
+                                        <tr>
+                                            <td>Garrett Winters</td>
+                                            <td>Accountant</td>
+                                            <td>Tokyo</td>
+                                            <td>63</td>
+                                            <td>2011/07/25</td>
+                                            <td>$170,750</td>
+                                        </tr>
+                                        <tr>
+                                            <td>Ashton Cox</td>
+                                            <td>Junior Technical Author</td>
+                                            <td>San Francisco</td>
+                                            <td>66</td>
+                                            <td>2009/01/12</td>
+                                            <td>$86,000</td>
+                                        </tr>
+                                        <tr>
+                                            <td>Cedric Kelly</td>
+                                            <td>Senior Javascript Developer</td>
+                                            <td>Edinburgh</td>
+                                            <td>22</td>
+                                            <td>2012/03/29</td>
+                                            <td>$433,060</td>
+                                        </tr>
+                                        <tr>
+                                            <td>Airi Satou</td>
+                                            <td>Accountant</td>
+                                            <td>Tokyo</td>
+                                            <td>33</td>
+                                            <td>2008/11/28</td>
+                                            <td>$162,700</td>
+                                        </tr>
+                                        <tr>
+                                            <td>Brielle Williamson</td>
+                                            <td>Integration Specialist</td>
+                                            <td>New York</td>
+                                            <td>61</td>
+                                            <td>2012/12/02</td>
+                                            <td>$372,000</td>
+                                        </tr>
+                                        <tr>
+                                            <td>Herrod Chandler</td>
+                                            <td>Sales Assistant</td>
+                                            <td>San Francisco</td>
+                                            <td>59</td>
+                                            <td>2012/08/06</td>
+                                            <td>$137,500</td>
+                                        </tr>
+                                        <tr>
+                                            <td>Rhona Davidson</td>
+                                            <td>Integration Specialist</td>
+                                            <td>Tokyo</td>
+                                            <td>55</td>
+                                            <td>2010/10/14</td>
+                                            <td>$327,900</td>
+                                        </tr>
+                                        <tr>
+                                            <td>Colleen Hurst</td>
+                                            <td>Javascript Developer</td>
+                                            <td>San Francisco</td>
+                                            <td>39</td>
+                                            <td>2009/09/15</td>
+                                            <td>$205,500</td>
+                                        </tr>
+                                        <tr>
+                                            <td>Sonya Frost</td>
+                                            <td>Software Engineer</td>
+                                            <td>Edinburgh</td>
+                                            <td>23</td>
+                                            <td>2008/12/13</td>
+                                            <td>$103,600</td>
+                                        </tr>
+                                        <tr>
+                                            <td>Jena Gaines</td>
+                                            <td>Office Manager</td>
+                                            <td>London</td>
+                                            <td>30</td>
+                                            <td>2008/12/19</td>
+                                            <td>$90,560</td>
+                                        </tr>
+                                        <tr>
+                                            <td>Quinn Flynn</td>
+                                            <td>Support Lead</td>
+                                            <td>Edinburgh</td>
+                                            <td>22</td>
+                                            <td>2013/03/03</td>
+                                            <td>$342,000</td>
+                                        </tr>
+                                        <tr>
+                                            <td>Charde Marshall</td>
+                                            <td>Regional Director</td>
+                                            <td>San Francisco</td>
+                                            <td>36</td>
+                                            <td>2008/10/16</td>
+                                            <td>$470,600</td>
+                                        </tr>
+                                        <tr>
+                                            <td>Haley Kennedy</td>
+                                            <td>Senior Marketing Designer</td>
+                                            <td>London</td>
+                                            <td>43</td>
+                                            <td>2012/12/18</td>
+                                            <td>$313,500</td>
+                                        </tr>
+                                        <tr>
+                                            <td>Tatyana Fitzpatrick</td>
+                                            <td>Regional Director</td>
+                                            <td>London</td>
+                                            <td>19</td>
+                                            <td>2010/03/17</td>
+                                            <td>$385,750</td>
+                                        </tr>
+                                        <tr>
+                                            <td>Michael Silva</td>
+                                            <td>Marketing Designer</td>
+                                            <td>London</td>
+                                            <td>66</td>
+                                            <td>2012/11/27</td>
+                                            <td>$198,500</td>
+                                        </tr>
+                                        <tr>
+                                            <td>Paul Byrd</td>
+                                            <td>Chief Financial Officer (CFO)</td>
+                                            <td>New York</td>
+                                            <td>64</td>
+                                            <td>2010/06/09</td>
+                                            <td>$725,000</td>
+                                        </tr>
+                                        <tr>
+                                            <td>Gloria Little</td>
+                                            <td>Systems Administrator</td>
+                                            <td>New York</td>
+                                            <td>59</td>
+                                            <td>2009/04/10</td>
+                                            <td>$237,500</td>
+                                        </tr>
+                                        <tr>
+                                            <td>Bradley Greer</td>
+                                            <td>Software Engineer</td>
+                                            <td>London</td>
+                                            <td>41</td>
+                                            <td>2012/10/13</td>
+                                            <td>$132,000</td>
+                                        </tr>
+                                        <tr>
+                                            <td>Dai Rios</td>
+                                            <td>Personnel Lead</td>
+                                            <td>Edinburgh</td>
+                                            <td>35</td>
+                                            <td>2012/09/26</td>
+                                            <td>$217,500</td>
+                                        </tr>
+                                        <tr>
+                                            <td>Jenette Caldwell</td>
+                                            <td>Development Lead</td>
+                                            <td>New York</td>
+                                            <td>30</td>
+                                            <td>2011/09/03</td>
+                                            <td>$345,000</td>
+                                        </tr>
+                                        <tr>
+                                            <td>Yuri Berry</td>
+                                            <td>Chief Marketing Officer (CMO)</td>
+                                            <td>New York</td>
+                                            <td>40</td>
+                                            <td>2009/06/25</td>
+                                            <td>$675,000</td>
+                                        </tr>
+                                        <tr>
+                                            <td>Caesar Vance</td>
+                                            <td>Pre-Sales Support</td>
+                                            <td>New York</td>
+                                            <td>21</td>
+                                            <td>2011/12/12</td>
+                                            <td>$106,450</td>
+                                        </tr>
+                                        <tr>
+                                            <td>Doris Wilder</td>
+                                            <td>Sales Assistant</td>
+                                            <td>Sidney</td>
+                                            <td>23</td>
+                                            <td>2010/09/20</td>
+                                            <td>$85,600</td>
+                                        </tr>
+                                        <tr>
+                                            <td>Angelica Ramos</td>
+                                            <td>Chief Executive Officer (CEO)</td>
+                                            <td>London</td>
+                                            <td>47</td>
+                                            <td>2009/10/09</td>
+                                            <td>$1,200,000</td>
+                                        </tr>
+                                        <tr>
+                                            <td>Gavin Joyce</td>
+                                            <td>Developer</td>
+                                            <td>Edinburgh</td>
+                                            <td>42</td>
+                                            <td>2010/12/22</td>
+                                            <td>$92,575</td>
+                                        </tr>
+                                        <tr>
+                                            <td>Jennifer Chang</td>
+                                            <td>Regional Director</td>
+                                            <td>Singapore</td>
+                                            <td>28</td>
+                                            <td>2010/11/14</td>
+                                            <td>$357,650</td>
+                                        </tr>
+                                        <tr>
+                                            <td>Brenden Wagner</td>
+                                            <td>Software Engineer</td>
+                                            <td>San Francisco</td>
+                                            <td>28</td>
+                                            <td>2011/06/07</td>
+                                            <td>$206,850</td>
+                                        </tr>
+                                        <tr>
+                                            <td>Fiona Green</td>
+                                            <td>Chief Operating Officer (COO)</td>
+                                            <td>San Francisco</td>
+                                            <td>48</td>
+                                            <td>2010/03/11</td>
+                                            <td>$850,000</td>
+                                        </tr>
+                                        <tr>
+                                            <td>Shou Itou</td>
+                                            <td>Regional Marketing</td>
+                                            <td>Tokyo</td>
+                                            <td>20</td>
+                                            <td>2011/08/14</td>
+                                            <td>$163,000</td>
+                                        </tr>
+                                    </tbody>
+                                    <tfoot>
+                                        <tr>
+                                            <th>Name</th>
+                                            <th>Position</th>
+                                            <th>Office</th>
+                                            <th>Age</th>
+                                            <th>Start date</th>
+                                            <th>Salary</th>
+                                        </tr>
+                                    </tfoot>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <!-- ColReorder integration table end -->
+            </div>
+            <!-- [ Main Content ] end -->
+        </div>
+    </section>
+    <!-- [ Main Content ] end -->
+
+{% endblock content %}
+
+<!-- Specific Page JS goes HERE  -->
+{% block javascripts %}
+
+    <!-- datatable Js -->
+    <script src="/static/assets/js/plugins/jquery.dataTables.min.js"></script>
+    <script src="/static/assets/js/plugins/dataTables.bootstrap4.min.js"></script>
+    <script src="/static/assets/js/plugins/dataTables.colReorder.min.js"></script>
+    <script src="/static/assets/js/plugins/dataTables.fixedHeader.min.js"></script>
+    <script src="/static/assets/js/pages/data-header-custom.js"></script>
+
+{% endblock javascripts %}

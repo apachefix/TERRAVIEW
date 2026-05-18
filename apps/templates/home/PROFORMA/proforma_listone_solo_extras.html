@@ -1,0 +1,777 @@
+{% extends "layouts/base.html" %}
+
+{% block title %} Proforma - Solo Extras {% endblock %} 
+
+<!-- Specific CSS goes HERE -->
+{% block stylesheets %}
+    {% load humanize %}
+    {% load i18n %}
+    {% load l10n %}
+    {% load formats %}
+    <style>
+        #basic-btn td {
+            text-align: center;
+        }
+        /* Opcional: mejora la separación entre etapas */
+        .card .d-flex > div:not(:last-child) {
+            margin-right: 2px;
+        }
+        .extra-ingreso {
+            background-color: #d4edda !important;
+        }
+        .extra-descuento {
+            background-color: #f8d7da !important;
+        }
+    </style>
+{% endblock stylesheets %}
+
+{% block content %}	
+    <!-- [ Main Content ] start -->
+	<section class="pcoded-main-container">
+		<div class="pcoded-content">
+			<!-- [ breadcrumb ] start -->
+			<div class="page-header">
+				<div class="page-block">
+					<div class="row align-items-center">
+						<div class="col-md-12">
+							<div class="page-header-title">
+								<h5 class="m-b-10">Proforma - Solo Extras</h5>
+							</div>
+							<ul class="breadcrumb">
+								<li class="breadcrumb-item"><a href="index.html"><i class="feather icon-home"></i></a></li>
+								<li class="breadcrumb-item"><a href="#!">Proforma</a></li>
+							</ul>
+						</div>
+					</div>
+				</div>
+			</div>
+			<!-- [ breadcrumb ] end -->
+			<!-- [ Main Content ] start -->
+			<div class="row">
+				<!-- [ Invoice ] start -->
+				<div class="container" id="printTable">
+					<div>
+						<div class="card mb-4">
+							<div class="card-body">
+								<div class="d-flex justify-content-between align-items-center mt-3" style="gap: 0.5em;">
+									{% if proforma.PRO_BBORRADOR %}
+										<div style="flex:1;">
+											<div
+												style="
+													border-radius: 8px;
+													padding: 0.8em 0;
+													text-align: center;
+													font-weight: bold;
+													color: #ffffff;
+													background: #6c757d;
+													transition: background 0.3s;
+												">
+												BORRADOR
+											</div>
+										</div>
+									{% else %}
+										<div style="flex:1;">
+											<div
+												style="
+													border-radius: 8px;
+													padding: 0.8em 0;
+													text-align: center;
+													font-weight: bold;
+													color: #222;
+													background:rgb(44, 190, 105);
+													transition: background 0.3s;
+												">
+												{{ proforma.PRO_CESTADO|capfirst }}
+											</div>
+										</div>
+									{% endif %}
+								</div>
+							</div>
+							<div class="col-md-12 text-right mr-4 mb-4">
+								{% if proforma.PRO_BBORRADOR and request.user.is_superuser or request.user.userv.UX_IS_AUTORIZADOR == 1 %}
+									<a class="btn btn-success aprobar_proforma mr-2" data-href="{% url 'proforma_autorizar_ajax' proforma.pk %}">Aprobar Proforma</a>
+								{% endif %}
+								{% if request.user.is_superuser and logs_proforma %}
+									<button class="btn btn-warning mr-2" type="button" data-toggle="modal" data-target="#ModalHistorialModificarcionTarifa">Historial Modificaciones</button>
+								{% endif %}
+								<!-- Agregar este botón donde quieras que aparezca, por ejemplo después del botón de aprobar -->
+								<button class="btn btn-info mr-2" onclick="descargarPDFAvanzado()">
+									<i class="fas fa-download"></i> Descargar PDF
+								</button>
+								{% if not proforma.PRO_BBORRADOR %}
+									<button class="btn btn-info mr-2" type="button" data-toggle="modal" data-target="#ModalSubirDocumento">
+										<i class="fas fa-upload"></i> Subir Documento
+									</button>
+								{% endif %}
+								{% if documentos %}
+									<button class="btn btn-info mr-2" data-toggle="modal" data-target="#ModalListadoDocumentos">
+										<i class="fas fa-file"></i> Ver Documentos
+									</button>
+								{% endif %}
+							</div>
+							<br>
+						</div>
+						<div class="card">
+							
+							<div class="row invoice-contact">
+								<div class="col-md-8">
+									<div class="invoice-box row">
+										<div class="col-sm-12">
+											<table class="table table-responsive invoice-table table-borderless p-l-20" data-page-length="500">
+												<tbody>
+													<tr>
+														<td><a href="/" class="b-brand">
+																<img class="img-fluid" src="/static/assets/images/logo-terramar.png" style="width: 150px;" alt="Logo Terramar">
+															</a>
+														</td>
+													</tr>
+													<tr>
+														<td>{{ proforma.EP_NID.EP_CRAZONSOCIAL|default_if_none:"-" }}</td>
+													</tr>
+													<tr>
+														<td>{{ proforma.EP_NID.EP_CDIRECCION|default_if_none:"-" }}</td>
+													</tr>
+													<tr>
+														<td><a class="text-secondary" href="mailto:{{ proforma.EP_NID.EP_CEMAIL }}" target="_top">{{ proforma.EP_NID.EP_CEMAIL|default_if_none:"-" }}</a></td>
+													</tr>
+													<tr>
+														<td>{{ proforma.EP_NID.EP_CTELEFONO }}</td>
+													</tr>
+												</tbody>
+											</table>
+										</div>
+									</div>
+								</div>
+								<div class="col-md-4"></div>
+							</div>
+							
+							<div class="card-body">
+								<div class="row invoive-info">
+									<div class="col-md-4 col-xs-12 invoice-client-info">
+										<h6>Proveedor :</h6>
+										<h6 class="m-0">{{ proforma.SN_NID.SN_CRAZONSOCIAL|default_if_none:"" }}</h6>
+										<p class="m-0 m-t-10">{{ proforma.SN_NID.SN_CDIRECCION|default_if_none:"" }}</p>
+										<p class="m-0">{{ proforma.SN_NID.SN_CTELEFONO|default_if_none:"" }}</p>
+										<p><a class="text-secondary" href="mailto:{{ proforma.SN_NID.SN_CEMAIL }}" target="_top">{{ proforma.SN_NID.SN_CEMAIL|default_if_none:"" }}</a></p>
+									</div>
+									<div class="col-md-4 col-sm-6">
+										<h6>Informacion proforma :</h6>
+										<table class="table table-responsive invoice-table invoice-order table-borderless" data-page-length='300'>
+											<tbody>
+												<tr>
+													{% if proforma.pk %}
+														<th>Número Proforma: </th>
+														<td><span># {{proforma.pk}}</span></td>
+													{% endif %}
+												</tr>
+												<tr>
+													<th>Fecha emision : </th>
+													<td> {{proforma.PRO_FFECHAEMISION|date:"d/m/Y"}}</td>
+												</tr>
+												{% if not proforma.PRO_BBORRADOR %}
+													<tr>
+														<th>N° SAP : </th>
+														<td> {{proforma.PRO_DOC_NUM}}</td>
+													</tr>
+												{% endif %}
+											</tbody>
+										</table>
+									</div>
+									{% if proforma.PRO_CCOMENTARIO %}
+										<div class="col-md-6 col-sm-6">
+											<h6>Comentario :</h6>
+											<p> {{proforma.PRO_CCOMENTARIO}}</p> 
+										</div>
+									{% endif %}
+								</div>
+								
+								<!-- TABLA PRINCIPAL DE EXTRAS -->
+								<div class="row">
+									<div class="col-sm-12">
+										<h3>Extras de la Proforma</h3>
+										<div class="table-responsive">
+											<table class="table invoice-detail-table">
+												<thead>
+													<tr class="thead-default">
+														<th>ACCIONES</th>
+														<th>NÚMERO CITACIÓN</th>
+														<th>NÚMERO DOCUMENTO</th>
+														<th>FECHA CITACIÓN</th>
+														<th>TIPO EXTRA</th>
+														<th>CONDUCTOR</th>
+														<th>CAMIÓN</th>
+														<th>INGRESO/GASTO</th>
+														<th>VALOR</th>
+													</tr>
+												</thead>
+												<tbody>
+													<!-- Extras de Ingreso -->
+													{% for extra in extras_proforma %}
+														<tr {% if extra.CIE_NID.CIE_BINGRESO %}class="extra-ingreso" {% else %} class="extra-descuento" {% endif %}>
+															<td>
+																<a class="ml-2 btn btn-primary" href="{% url 'cit_listone' extra.CIE_NID.CI_NID.pk %}">
+																	<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-eye" viewBox="0 0 16 16">
+																		<path d="M16 8s-3-5.5-8-5.5S0 8 0 8s3 5.5 8 5.5S16 8 16 8zM1.173 8a13.133 13.133 0 0 1 1.66-2.043C4.12 4.668 5.88 3.5 8 3.5c2.12 0 3.879 1.168 5.168 2.457A13.133 13.133 0 0 1 14.828 8c-.058.087-.122.183-.195.288-.335.48-.83 1.12-1.465 1.755C11.879 11.332 10.119 12.5 8 12.5c-2.12 0-3.879-1.168-5.168-2.457A13.134 13.134 0 0 1 1.172 8z"/>
+																		<path d="M8 5.5a2.5 2.5 0 1 0 0 5 2.5 2.5 0 0 0 0-5zM4.5 8a3.5 3.5 0 1 1 7 0 3.5 3.5 0 0 1-7 0z"/>
+																	</svg>
+																</a>
+																{% if proforma.PRO_BBORRADOR %}
+																	<a class="ml-2 btn btn-danger delete_extra" data-href="{% url 'proforma_delete_extra' extra.pk %}">
+																		<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-trash" viewBox="0 0 16 16">
+																			<path d="M5.5 5.5A.5.5 0 0 1 6 6v6a.5.5 0 0 1-1 0V6a.5.5 0 0 1 .5-.5zm2.5 0a.5.5 0 0 1 .5.5v6a.5.5 0 0 1-1 0V6a.5.5 0 0 1 .5-.5zm3 .5a.5.5 0 0 0-1 0v6a.5.5 0 0 0 1 0V6z" />
+																			<path fill-rule="evenodd" d="M14.5 3a1 1 0 0 1-1 1H13v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V4h-.5a1 1 0 0 1-1-1V2a1 1 0 0 1 1-1H6a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1h3.5a1 1 0 0 1 1 1v1zM4.118 4 4 4.059V13a1 1 0 0 0 1 1h6a1 1 0 0 0 1-1V4.059L11.882 4H4.118zM2.5 3V2h11v1h-11z" />
+																		</svg>
+																	</a>
+																{% endif %}
+															</td>
+															<td style="text-align: center;">{{ extra.CIE_NID.CI_NID.pk }}</td>
+															<td style="text-align: center;">{{ extra.CIE_NID.CI_NID.CI_CNUMERODOCUMENTO }}</td>
+															<td>{{ extra.CIE_NID.CI_NID.CI_FFECHACITACION|date:"d/m/Y H:i" }}</td>
+															<td>{{ extra.CIE_NID.EXT_NID.EXT_CNOMBRE }}</td>
+															<td>{{ extra.CIE_NID.CI_NID.CON_NID.CON_CNOMBRE|default:"" }} {{ extra.CIE_NID.CI_NID.CON_NID.CON_CAPELLIDO|default:"" }}</td>
+															<td>{{ extra.CIE_NID.CI_NID.CA_NID.CAM_CPATENTE|default:"No definido" }}</td>
+															<td>
+																{% if extra.CIE_NID.CIE_BINGRESO %}
+																	<span class="fw-normal" style="color:green;">SI</span>
+																{% else %}
+																	<span class="fw-normal" style="color:red">NO</span>
+																{% endif %}
+															</td>
+															<td>$ {{ extra.EPR_NVALOR|custom_number_format }}</td>
+														</tr>
+													{% empty %}
+														<tr>
+															<td colspan="9" class="text-center">No hay extras registrados en esta proforma</td>
+														</tr>
+													{% endfor %}
+													{% if proforma.PRO_BBORRADOR and has_permiso_nuevo_extra %}
+														{% if extras_disponibles %}
+															<tr class="table-success">
+																<th><button type="button" class="btn btn-success" data-toggle="modal" data-target="#ModalAgregarExtra"><i class="fas fa-plus"></i></button></th>
+																<th> AGREGAR UN EXTRA</th>
+																<th></th>
+																<th></th>
+																<th></th>
+																<th></th>
+																<th></th>
+																<th></th>
+																<th></th>
+															</tr>
+														{% endif %}
+													{% endif %}
+																									
+													<!-- Fila de totales -->
+													<tr>
+														<th></th>
+														<th></th>
+														<th></th>
+														<th></th>
+														<th></th>
+														<th></th>
+														<th></th>
+														<th class="bg-info text-right">Total Extras</th>
+														<th class="bg-info text-right">$ {{total_extras|custom_number_format}}</th>
+													</tr>
+												</tbody>
+											</table>
+										</div>
+									</div>
+								</div>
+								
+								<!-- RESUMEN FINAL -->
+								<div class="row">
+									<div class="col-sm-12">
+										<table class="table table-responsive invoice-table invoice-total">
+											<tbody>
+												<tr>
+													<th>Neto: </th>
+													<td>$ {{proforma.PRO_NSUBTOTAL|custom_number_format}}</td>
+												</tr>
+												<tr>
+													<th>IVA: </th>
+													<td>$ {{proforma.PRO_NIVA|custom_number_format}}</td>
+												</tr>
+												<tr class="text-info">
+													<td>
+														<hr />
+														<h5 class="text-primary m-r-10">Total :</h5>
+													</td>
+													<td>
+														<hr />
+														<h5 class="text-primary">$ {{proforma.PRO_NTOTAL|custom_number_format}}</h5>
+													</td>
+												</tr>
+											</tbody>
+										</table>
+									</div>
+								</div>
+							</div>
+						</div>
+					</div>
+				</div>
+				<!-- [ Invoice ] end -->
+			</div>
+			<!-- [ Main Content ] end -->
+		</div>
+	</section>
+	<!-- [ Main Content ] end -->
+
+	<!-- MODALES -->
+	{% if proforma.PRO_BBORRADOR %}
+		<!-- Modal de spinner para autorización -->
+		<div id="exampleModalCenter" class="modal fade bd-example-modal-sm" tabindex="-1" role="dialog" aria-labelledby="exampleModalCenterTitle" aria-hidden="true">
+			<div class="modal-dialog modal-dialog-centered modal-sm" role="document">                
+				<div class="spinner-border text-light" role="status" id="spinner" style="height: 80px;width: 80px;top: auto;margin: auto;color:white"></div>
+				<span class="sr-only text-white">Cargando...</span>
+			</div>
+		</div>
+
+		<div class="modal fade" id="ModalAgregarExtra" tabindex="-1" role="dialog" aria-labelledby="ModalAgregarExtraLabel" aria-hidden="true">
+			<div class="modal-dialog modal-dialog-centered" role="document">
+				<div class="modal-content">
+					<div class="modal-header">
+						<h5 class="modal-title" id="ModalAgregarExtraLabel">Agregar Citación</h5>
+						<button type="button" class="close" data-dismiss="modal" aria-label="Close">
+							<span aria-hidden="true">&times;</span>
+						</button>
+					</div>
+					<div class="modal-body">
+						<form action="{% url 'proforma_add_extra' proforma.pk %}" method="POST" id="formAgregarCitacion">
+							{% csrf_token %}
+							<div class="fieldWrapper">
+								<label class="my-1 me-2">Listado de extras del proveedor:</label>
+								<br><br>
+								<select class="form-control" name="CIE_NID" id="add_citacion" style="width: 100%;" required>
+									<option value="">Seleccione un extra</option>
+									{% for object in extras_disponibles %}
+										<option value="{{object.id_extra}}">{{object.EXT_CNOMBRE}} - $ {{object.CIE_NVALOR|custom_number_format}}</option>
+									{% endfor %}
+								</select>
+							</div>
+							<hr>
+							<div class="d-flex justify-content-end">
+								<button type="submit" class="m-2 btn btn-primary" id="btn_addcitacion">Guardar</button>
+								<button type="button" class="m-2 btn btn-danger" data-dismiss="modal">Cerrar</button>
+							</div>
+						</form>
+					</div>
+				</div>
+			</div>
+		</div>
+	{% endif %}
+
+	{% if request.user.is_superuser and logs_proforma %}
+		<div class="modal fade" id="ModalHistorialModificarcionTarifa" tabindex="-1" role="dialog" aria-labelledby="ModalHistorialModificarcionLabel" aria-hidden="true">
+			<div class="modal-dialog modal-dialog-centered modal-xl modal-lg" role="document">
+				<div class="modal-content">
+					<div class="modal-header">
+						<h5 class="modal-title" id="ModalHistorialModificarcionTarifaLabel">Historial Modificaciones</h5>
+						<button type="button" class="close" data-dismiss="modal" aria-label="Close">
+							<span aria-hidden="true">&times;</span>
+						</button>
+					</div>
+					<div class="modal-body">
+						<div class="dt-responsive table-responsive">
+							<table class="table table-striped table-bordered nowrap">
+								<thead>
+									<tr>
+										<th>Usuario</th>
+										<th>Fecha</th>
+										<th>Descripcion</th>
+									</tr>
+								</thead>
+								<tbody>
+									{% for object in logs_proforma %}
+										<tr>
+											<td>{{ object.US_NID.username }}</td>
+											<td>{{ object.LOG_FFECHAREGISTRO|date:"d/m/Y H:i" }}</td>
+											<td>{{ object.LOG_CDESCRIPCION }}</td>
+										</tr>
+									{% endfor %}
+								</tbody>
+							</table>
+						</div>
+					</div>
+				</div>
+			</div>
+		</div>
+	{% endif %}
+	<div class="modal fade" id="ModalSubirDocumento" tabindex="-1" role="dialog" aria-labelledby="ModalSubirDocumentoLabel" aria-hidden="true">
+		<div class="modal-dialog modal-dialog-centered" role="document">
+			<div class="modal-content">
+				<div class="modal-header">
+					<h5 class="modal-title" id="ModalSubirDocumentoLabel">Subir Documento</h5>
+					<button type="button" class="close" data-dismiss="modal" aria-label="Close">
+						<span aria-hidden="true">&times;</span>
+					</button>
+				</div>
+				<div class="modal-body">
+					<form method="POST" action="{% url 'cargar_documento_proforma' proforma.pk %}" enctype="multipart/form-data">
+						{% csrf_token %}
+						<div class="fieldWrapper">
+							<label class="my-1 me-2" >Seleccione documento:</label>
+							<input type="file" id="file_proforma" name="file_proforma">
+						</div>							
+						<hr>
+						<div class="form-group nav justify-content-end">
+							<button class="btn btn-success"  type="submit">Guardar</button>
+							<p>&nbsp&nbsp</p>
+							<button type="button" class="btn btn-danger" data-dismiss="modal" aria-label="Close">
+								Cerrar
+							</button>
+						</div>
+					</form>
+				</div>
+			</div>
+		</div>
+	</div>
+	<div class="modal fade" id="ModalListadoDocumentos" tabindex="-1" role="dialog" aria-labelledby="ModalListadoDocumentosLabel" aria-hidden="true">
+		<div class="modal-dialog modal-dialog-centered modal-lg" role="document">
+			<div class="modal-content">
+				<div class="modal-header">
+					<h5 class="modal-title" id="ModalListadoDocumentosLabel">Listado Documentos</h5>
+					<button type="button" class="close" data-dismiss="modal" aria-label="Close">
+						<span aria-hidden="true">&times;</span>
+					</button>
+				</div>
+				<div class="modal-body">
+					<div class="dt-responsive table-responsive">
+						<table class="table table-striped table-bordered nowrap">
+							<thead>
+								<tr>
+									<th>Nombre Documento</th>
+									<th>Fecha Registro</th>
+									<th>Usuario</th>
+									<th>Acciones</th>
+								</tr>
+							</thead>
+							<tbody>
+								{% for object in documentos %}
+									<tr>
+										<td>{{ object.DP_CNOMBREDOCUMENTO }}</td>
+										<td>{{ object.DP_FFECHAREGISTRO|date:"d/m/Y H:i" }}</td>
+										<td>{{ object.US_NID.first_name }} {{object.US_NID.last_name}}</td>
+										<td>
+											<span class="fw-normal">
+												<a class="btn btn-primary mr-2" href="{% url 'download_documento_proforma' object.id %}">
+													<i class="fas fa-download"></i>
+												</a>
+												<a class="btn btn-danger mr-2" href="{% url 'documento_proforma_delete' object.id %}">
+													<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-trash" viewBox="0 0 16 16">
+														<path d="M5.5 5.5A.5.5 0 0 1 6 6v6a.5.5 0 0 1-1 0V6a.5.5 0 0 1 .5-.5zm2.5 0a.5.5 0 0 1 .5.5v6a.5.5 0 0 1-1 0V6a.5.5 0 0 1 .5-.5zm3 .5a.5.5 0 0 0-1 0v6a.5.5 0 0 0 1 0V6z" />
+														<path fill-rule="evenodd"d="M14.5 3a1 1 0 0 1-1 1H13v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V4h-.5a1 1 0 0 1-1-1V2a1 1 0 0 1 1-1H6a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1h3.5a1 1 0 0 1 1 1v1zM4.118 4 4 4.059V13a1 1 0 0 0 1 1h6a1 1 0 0 0 1-1V4.059L11.882 4H4.118zM2.5 3V2h11v1h-11z" />
+													</svg>
+												</a>
+											</span>
+										</td>
+									</tr>
+								{% endfor %}
+							</tbody>
+						</table>
+					</div>
+				</div>
+			</div>
+		</div>
+	</div>
+
+{% endblock content %}
+
+<!-- Specific Page JS goes HERE  -->
+{% block javascripts %}
+<script src="https://raw.githack.com/eKoopmans/html2pdf/master/dist/html2pdf.bundle.js"></script>
+
+<script src="/static/assets/js/plugins/jquery.dataTables.min.js"></script>
+<script src="/static/assets/js/plugins/dataTables.bootstrap4.min.js"></script>
+<script src="/static/assets/js/plugins/buttons.colVis.min.js"></script>
+<script src="/static/assets/js/plugins/buttons.print.min.js"></script>
+<script src="/static/assets/js/plugins/pdfmake.min.js"></script>
+<script src="/static/assets/js/plugins/jszip.min.js"></script>
+<script src="/static/assets/js/plugins/dataTables.buttons.min.js"></script>
+<script src="/static/assets/js/plugins/buttons.html5.min.js"></script>
+<script src="/static/assets/js/plugins/buttons.bootstrap4.min.js"></script>
+<script src="/static/assets/js/pages/data-export-custom.js"></script>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.4.0/jspdf.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.3.2/html2canvas.min.js"></script>
+
+<script>
+	if (localStorage.getItem('scrollPosition')) {
+		window.scrollTo(0, localStorage.getItem('scrollPosition'));
+		localStorage.removeItem('scrollPosition');
+	}
+
+	// Evento unificado para eliminar extras
+	$('.delete_extra').on('click', function() {
+		const url = $(this).data('href');
+		
+		// Guardar la posición actual del scroll
+		localStorage.setItem('scrollPosition', window.pageYOffset);
+		
+		Swal.fire({
+			title: '¿Estás seguro de eliminar este extra?',
+			text: 'Esta acción es irreversible',
+			icon: 'warning',
+			showCancelButton: true,
+			confirmButtonText: 'Sí, eliminar',
+			cancelButtonText: 'Cancelar',
+			confirmButtonColor: '#d33',
+			cancelButtonColor: '#3085d6'
+		}).then(function(result){
+			if (result.isConfirmed) {
+				window.location.href = url;
+			} else {
+				// Si se cancela, eliminar la posición guardada
+				localStorage.removeItem('scrollPosition');
+			}
+		});
+	});
+
+	{% if proforma.PRO_BBORRADOR %}
+		function toggleSpinner(show = true) {
+			if (show) {
+				// Verificar si ya existe el modal, si no, crearlo
+				if (!document.getElementById('exampleModalCenter')) {
+					const spinnerHTML = `
+						<div id="exampleModalCenter" class="modal fade bd-example-modal-sm" tabindex="-1" role="dialog" aria-labelledby="exampleModalCenterTitle" aria-hidden="true">
+							<div class="modal-dialog modal-dialog-centered modal-sm" role="document">                
+								<div class="spinner-border text-light" role="status" id="spinner" style="height: 80px;width: 80px;top: auto;margin: auto;color:white"></div>
+								<span class="sr-only text-white">Cargando...</span>
+							</div>
+						</div>
+					`;
+					document.body.insertAdjacentHTML('beforeend', spinnerHTML);
+				}
+				$("#exampleModalCenter").modal('show');
+			} else {
+				$("#exampleModalCenter").modal('hide');
+				$('.modal-backdrop').remove();
+				$('body').removeClass('modal-open');
+				$('body').css('overflow', '');
+				$('body').css('padding-right', '');
+			}
+		}
+
+		// Función simple para autorizar proforma con spinner básico
+		function autorizarProformaSimple(url) {
+			// Mostrar el spinner existente del template
+			toggleSpinner(true);
+			
+			// Realizar la petición AJAX
+			$.ajax({
+				url: url,
+				type: 'POST',
+				data: {
+					'csrfmiddlewaretoken': $('[name=csrfmiddlewaretoken]').val()
+				},
+				success: function(response) {
+					// Ocultar spinner
+					toggleSpinner(false);
+					
+					if (response.success) {
+						Swal.fire({
+							title: 'Éxito',
+							text: response.message,
+							icon: 'success',
+							confirmButtonText: 'OK'
+						}).then(() => {
+							window.location.reload();
+						});
+					} else {
+						Swal.fire({
+							title: 'Error',
+							text: response.error,
+							icon: 'error',
+							confirmButtonText: 'OK'
+						});
+					}
+				},
+				error: function(xhr, status, error) {
+					toggleSpinner(false);
+					Swal.fire({
+						title: 'Error',
+						text: 'Error de conexión. Por favor, intente nuevamente.',
+						icon: 'error',
+						confirmButtonText: 'OK'
+					});
+				}
+			});
+		}
+
+		// Modificar el evento existente para aprobar proforma
+		$('.aprobar_proforma').off('click').on('click', function(e) {
+			e.preventDefault();
+			const url = $(this).data('href');
+			
+			Swal.fire({
+				title: '¿Estás seguro de autorizar esta proforma?',
+				text: 'Esta acción es irreversible',
+				icon: 'warning',
+				showCancelButton: true,
+				confirmButtonText: 'Sí',
+				cancelButtonText: 'No',
+			}).then(function(result) {
+				if (result.isConfirmed) {
+					autorizarProformaSimple(url);
+				}
+			});
+		});
+	{% endif %}
+
+	function descargarPDFAvanzado() {
+		const element = document.getElementById('printTable');
+		const clonedElement = element.cloneNode(true);
+		
+		// Eliminar botones del header
+		const headerButtons = clonedElement.querySelectorAll('.col-md-12.text-right button, .col-md-12.text-right a.btn');
+		headerButtons.forEach(btn => btn.remove());
+		
+		// Ocultar columna ACCIONES con CSS
+		const tables = clonedElement.querySelectorAll('table');
+		
+		tables.forEach((table) => {
+			const thead = table.querySelector('thead');
+			if (!thead) return;
+			
+			const headersRow = thead.querySelector('tr');
+			if (!headersRow) return;
+			
+			const headers = Array.from(headersRow.querySelectorAll('th'));
+			let accionesIndex = -1;
+			
+			headers.forEach((th, index) => {
+				if (th.textContent.trim() === 'ACCIONES') {
+					accionesIndex = index;
+				}
+			});
+			
+			if (accionesIndex !== -1) {
+				// Ocultar header
+				if (headers[accionesIndex]) {
+					headers[accionesIndex].style.display = 'none';
+				}
+				
+				// Ocultar celdas del tbody
+				const tbody = table.querySelector('tbody');
+				if (tbody) {
+					const rows = tbody.querySelectorAll('tr');
+					rows.forEach((row) => {
+						const cells = Array.from(row.children);
+						if (cells[accionesIndex]) {
+							cells[accionesIndex].style.display = 'none';
+						}
+					});
+				}
+			}
+		});
+		
+		// Agregar el clon al DOM
+		clonedElement.style.position = 'absolute';
+		clonedElement.style.left = '-9999px';
+		clonedElement.style.top = '0';
+		clonedElement.style.width = '1400px';
+		clonedElement.style.minWidth = '1400px';
+		document.body.appendChild(clonedElement);
+		
+		Swal.fire({
+			title: 'Generando PDF...',
+			text: 'Por favor espere',
+			allowOutsideClick: false,
+			didOpen: () => {
+				Swal.showLoading();
+			}
+		});
+
+		setTimeout(() => {
+			html2canvas(clonedElement, {
+				scale: 1.5,
+				useCORS: true,
+				logging: false,
+				backgroundColor: '#ffffff',
+				width: 1400,
+				windowWidth: 1400,
+				allowTaint: true,
+				imageTimeout: 0
+			}).then(canvas => {
+				document.body.removeChild(clonedElement);
+				
+				const { jsPDF } = window.jspdf;
+				const pdf = new jsPDF('l', 'mm', 'a4');
+				
+				const pdfWidth = 277; // Ancho de A4 horizontal
+				const pdfHeight = 190; // Alto de A4 horizontal
+				const margin = 10;
+				const imgWidth = pdfWidth - (margin * 2);
+				const imgHeight = (canvas.height * imgWidth) / canvas.width;
+				
+				// Calcular el alto útil por página (restando márgenes)
+				const pageHeightInImg = (pdfHeight - (margin * 2)) * (canvas.height / imgHeight);
+				const totalPages = Math.ceil(canvas.height / pageHeightInImg);
+				
+				for (let page = 0; page < totalPages; page++) {
+					if (page > 0) {
+						pdf.addPage();
+					}
+					
+					// Calcular la posición de inicio en el canvas original
+					const startY = page * pageHeightInImg;
+					const remainingHeight = canvas.height - startY;
+					const currentPageHeight = Math.min(pageHeightInImg, remainingHeight);
+					
+					// Crear canvas temporal para esta página específica
+					const pageCanvas = document.createElement('canvas');
+					pageCanvas.width = canvas.width;
+					pageCanvas.height = currentPageHeight;
+					const ctx = pageCanvas.getContext('2d');
+					
+					// Dibujar solo la porción correspondiente a esta página
+					ctx.drawImage(
+						canvas,
+						0, startY,                    // Inicio en el canvas original
+						canvas.width, currentPageHeight,  // Dimensiones a copiar
+						0, 0,                         // Posición en el canvas nuevo
+						canvas.width, currentPageHeight   // Dimensiones en el canvas nuevo
+					);
+					
+					// Convertir a imagen y añadir al PDF
+					const pageImgData = pageCanvas.toDataURL('image/jpeg', 0.8);
+					const pageImgHeight = (currentPageHeight * imgWidth) / canvas.width;
+					
+					pdf.addImage(
+						pageImgData, 
+						'JPEG', 
+						margin, 
+						margin, 
+						imgWidth, 
+						pageImgHeight, 
+						undefined, 
+						'MEDIUM'
+					);
+				}
+
+				pdf.save(`Proforma_{{ proforma.pk }}_${new Date().toISOString().split('T')[0]}.pdf`);
+				
+				Swal.close();
+				Swal.fire({
+					icon: 'success',
+					title: 'PDF generado correctamente',
+					timer: 2000,
+					showConfirmButton: false
+				});
+			}).catch(error => {
+				if (document.body.contains(clonedElement)) {
+					document.body.removeChild(clonedElement);
+				}
+				
+				Swal.close();
+				Swal.fire({
+					icon: 'error',
+					title: 'Error',
+					text: 'No se pudo generar el PDF'
+				});
+				console.error('Error:', error);
+			});
+		}, 200);
+	}
+
+</script>
+{% endblock javascripts %}

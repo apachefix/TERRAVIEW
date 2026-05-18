@@ -1,0 +1,410 @@
+/* ===== CONTENEDOR PRINCIPAL DEL PLANO ===== */
+#container {
+    /* Dimensiones fijas del plano */
+    width: 1200px !important;
+    height: 520px !important;
+    
+    /* Centrado automático */
+    margin: 0 auto 20px auto;
+    
+    /* Evitar desbordamiento */
+    overflow: hidden;
+    
+    /* Estilos visuales */
+    background-color: #f5f5f5;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+    
+    /* Posición relativa para elementos absolutos internos */
+    position: relative;
+}
+
+/* Canvas de Konva */
+#container .konvajs-content {
+    width: 1200px !important;
+    height: 520px !important;
+    margin: 0;
+    padding: 0;
+}
+
+#container .konvajs-content canvas {
+    cursor: default;
+}
+
+/* ===== TOOLBAR COMPACTA ===== */
+.toolbar {
+    position: absolute;
+    top: 10px;
+    left: 10px; /* Posición izquierda como en tu CSS original */
+    background-color: #fff;
+    border: 1px solid #e0e0e0;
+    border-radius: 4px;
+    padding: 6px;
+    box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+    z-index: 1000;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    width: 47px; /* Ancho fijo compacto */
+}
+
+/* Botones de la toolbar */
+.tool-button {
+    width: 35px;
+    height: 35px;
+    border: 1px solid #e0e0e0;
+    border-radius: 4px;
+    background-color: #fff;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.3s ease;
+    color: #666;
+    position: relative;
+    flex-shrink: 0;
+}
+
+.tool-button:hover {
+    background-color: #f8f9fa;
+    border-color: #007bff;
+    color: #007bff;
+}
+
+.tool-button.active {
+    background-color: #007bff;
+    border-color: #007bff;
+    color: #fff;
+}
+
+.tool-button:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+/* Iconos de los botones */
+.tool-button i {
+    width: 18px;
+    height: 18px;
+    stroke-width: 2;
+    stroke: currentColor;
+    fill: none;
+}
+
+/* Tooltips de la toolbar */
+.tool-tip {
+    position: absolute;
+    left: 100%;
+    top: 50%;
+    transform: translateY(-50%);
+    background-color: #3b4650;
+    color: white;
+    padding: 8px 12px;
+    border-radius: 4px;
+    font-size: 12px;
+    white-space: nowrap;
+    visibility: hidden;
+    opacity: 0;
+    transition: opacity 0.3s ease;
+    pointer-events: none;
+    margin-left: 10px;
+    z-index: 1001;
+}
+
+.tool-tip:before {
+    content: '';
+    position: absolute;
+    left: -6px;
+    top: 50%;
+    transform: translateY(-50%);
+    border-width: 6px 6px 6px 0;
+    border-style: solid;
+    border-color: transparent #3b4650 transparent transparent;
+}
+
+.tool-button:hover .tool-tip {
+    visibility: visible;
+    opacity: 1;
+}
+
+/* Botón especial del total de camiones */
+.tool-button.total-camiones {
+    height: auto;
+    min-height: 45px;
+    padding: 7px 0;
+    background: #f8f9fa;
+    border: 1px solid #e9ecef;
+    flex-direction: column;
+    gap: 2px;
+    margin-top: 5px;
+    cursor: default;
+    pointer-events: none;
+}
+
+.tool-button.total-camiones i {
+    color: #495057;
+    margin-bottom: 2px;
+}
+
+.tool-button.total-camiones .total-count {
+    font-size: 12px;
+    font-weight: bold;
+    color: #495057;
+    line-height: 1;
+}
+
+/* ===== MENSAJES INFORMATIVOS ===== */
+#mensaje-informativo-edicion {
+    position: absolute;
+    top: 10px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: rgba(33, 150, 243, 0.9);
+    color: white;
+    padding: 8px 16px;
+    border-radius: 4px;
+    font-size: 12px;
+    font-weight: bold;
+    z-index: 1000;
+    pointer-events: none;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+    max-width: 90%;
+    text-align: center;
+}
+
+#instruccionesDibujo {
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    background-color: #fff;
+    color: #666;
+    padding: 15px;
+    border-radius: 4px;
+    z-index: 1000;
+    font-size: 14px;
+    box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+    border: 1px solid #e0e0e0;
+}
+
+/* Indicador de zoom */
+.zoom-indicator {
+    position: absolute;
+    bottom: 10px;
+    left: 10px;
+    background: rgba(0, 0, 0, 0.7);
+    color: white;
+    padding: 4px 8px;
+    border-radius: 4px;
+    font-size: 11px;
+    font-family: monospace;
+    z-index: 1000;
+    pointer-events: none;
+}
+
+/* ===== ESTILOS PARA ZONAS ===== */
+/* Puntos de control activos */
+.punto-control-activo {
+    cursor: move !important;
+}
+
+/* Zona seleccionada para edición */
+.zona-seleccionada {
+    filter: brightness(1.2);
+}
+
+/* Zona en modo edición */
+.zona-en-edicion {
+    stroke-width: 4 !important;
+    opacity: 0.7 !important;
+}
+
+/* Cursor durante edición */
+.edicion-cursor {
+    cursor: move !important;
+}
+
+/* ===== BOTONES DE TOOLBAR EN MODOS ESPECIALES ===== */
+.toolbar .tool-button.edicion-activa {
+    background: #ff9800;
+    color: white;
+    border-color: #ff9800;
+}
+
+.toolbar .tool-button.edicion-activa:hover {
+    background: #f57c00;
+}
+
+.toolbar .tool-button.moviendo {
+    background: #2196f3;
+    color: white;
+    border-color: #2196f3;
+}
+
+.toolbar .tool-button.eliminando {
+    background: #f44336;
+    color: white;
+    border-color: #f44336;
+}
+
+.toolbar .tool-button.guardar {
+    background: #4caf50;
+    color: white;
+    border-color: #4caf50;
+}
+
+.toolbar .tool-button.cancelar {
+    background: #f44336;
+    color: white;
+    border-color: #f44336;
+}
+
+.toolbar .tool-button.confirmar-eliminar {
+    background: #d32f2f;
+    color: white;
+    border-color: #d32f2f;
+}
+
+/* ===== TABLA DE CUPOS ===== */
+.zone-legend {
+    display: flex;
+    align-items: center;
+    margin-bottom: 8px;
+    padding: 8px;
+    background-color: #fff;
+    border-radius: 4px;
+    border: 1px solid #e0e0e0;
+}
+
+.zone-color {
+    width: 24px;
+    height: 24px;
+    margin-right: 12px;
+    border-radius: 4px;
+    border: 1px solid #e0e0e0;
+}
+
+.zone-info {
+    display: flex;
+    flex-direction: column;
+}
+
+.zone-name {
+    font-weight: 500;
+    color: #333;
+}
+
+.zone-count {
+    font-size: 0.85em;
+    color: #666;
+}
+
+/* ===== CARDS Y SECCIONES ===== */
+.info-section {
+    margin-top: 20px;
+}
+
+.card {
+    height: 91%;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+
+.card-title {
+    border-bottom: 2px solid #f0f0f0;
+    padding-bottom: 10px;
+    margin-bottom: 15px;
+}
+
+.col-sm-12 .card .card-body {
+    padding: 15px;
+    display: flex;
+    justify-content: center;
+    align-items: flex-start;
+}
+
+/* ===== ESTADO DE CARGA ===== */
+.plano-loading {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    width: 1200px;
+    height: 520px;
+    background-color: #f8f9fa;
+    border: 2px dashed #dee2e6;
+    border-radius: 4px;
+    color: #6c757d;
+    font-size: 16px;
+}
+
+.plano-loading::before {
+    content: "Cargando plano...";
+}
+
+/* ===== ANIMACIONES ===== */
+@keyframes slideInRight {
+    from {
+        transform: translateX(100%);
+        opacity: 0;
+    }
+    to {
+        transform: translateX(0);
+        opacity: 1;
+    }
+}
+
+.mensaje-exito {
+    animation: slideInRight 0.3s ease-out;
+}
+
+/* ===== RESPONSIVE DESIGN ===== */
+@media (max-width: 1220px) {
+    #container {
+        margin: 0;
+        max-width: 100%;
+    }
+    
+    .card-body {
+        overflow-x: auto;
+        padding: 10px;
+    }
+}
+
+@media (max-width: 768px) {
+    #container {
+        width: 100% !important;
+        height: 43.33vw !important; /* Mantiene proporción 1200:520 */
+        max-height: 400px;
+    }
+    
+    #container .konvajs-content {
+        width: 100% !important;
+        height: 100% !important;
+    }
+    
+    .toolbar {
+        top: 5px;
+        left: 5px;
+        padding: 4px;
+        gap: 5px;
+        width: 40px;
+    }
+    
+    .tool-button {
+        width: 30px;
+        height: 30px;
+    }
+    
+    .tool-button i {
+        width: 14px;
+        height: 14px;
+    }
+    
+    .tool-button.total-camiones {
+        min-height: 35px;
+        padding: 4px 0;
+    }
+    
+    .tool-button.total-camiones .total-count {
+        font-size: 10px;
+    }
+}

@@ -1,0 +1,171 @@
+{% extends "layouts/base.html" %}
+{% block title %} Finalizar Secuencia {% endblock %} 
+<!-- Specific CSS goes HERE -->
+{% block stylesheets %}
+    <!-- data tables css -->
+    <link rel="stylesheet" href="/static/assets/css/plugins/dataTables.bootstrap4.min.css">
+    {% load humanize %}
+    {% load i18n %}
+    {% load l10n %}
+    <style>
+        .cont-temporizador{
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            text-align: center;
+        }
+
+        .cont-temporizador .bloque{
+            margin: 0px 4px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            text-align: center;
+            justify-content: center;
+        }
+        .cont-temporizador .bloque div{
+            margin: 0px 4px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            background-color: rgb(80, 80, 80);
+            box-shadow: 0px 0px 6px 2px #727272 inset;
+            color: #ffff;
+            font-size: medium;
+            font-weight: bold;
+            border-radius: 5px;
+            width: 50px;
+            height: 40px;
+        }
+        .cont-temporizador .bloque p{
+            font-weight: bold;
+            color: rgb(80, 80, 80);
+        }
+    </style>
+{% endblock stylesheets %}
+{% block content %}	
+    <!-- [ Main Content ] start -->
+    <section class="pcoded-main-container">
+        <div class="pcoded-content">
+            <!-- [ breadcrumb ] start -->
+            <div class="page-header">
+                <div class="page-block">
+                    <div class="row align-items-center">
+                        <div class="col-md-12">
+                            <div class="page-header-title d-flex justify-content-between">
+                                <h5 class="m-b-10">Finalizar Secuencia Planificación #{{citacion.PL_NID.pk}} - cupo {{citacion.CI_NCUPO}}/{{citacion.PL_NID.PL_NCANTIDADCUPOS}}</h5>
+                                <h5> Número citación: {{citacion.id}}</h5>
+                            </div>
+                            <ul class="breadcrumb">
+                                <li class="breadcrumb-item"><a href="/"><i class="feather icon-home"></i></a></li>
+                                <li class="breadcrumb-item"><a href="/">Sistema Camiones</a></li>
+                                <li class="breadcrumb-item"><a href="{% if citacion.CI_CTIPO == 'DESPACHO' %}{% url 'cit_listall_despachos' %}{% else %}{% url 'cit_listall_recepciones' %}{% endif %}">Finalizar Secuencia</a></li>
+                                
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <!-- [ breadcrumb ] end -->
+
+            <!-- [ Main Content ] start -->
+            <div class="container-fluid row">
+                <!-- HTML5 Export Buttons table start -->
+                <div class="col-12 col-sm-12 col-md-12 col-lg-12 col-xl-8">
+                    <!-- ESTADO DE LA CITACIÓN -->
+                    <!-- FIN ESTADO DE VIAJE -->
+                    <!-- DETALLES DEL VIAJE -->
+                    <!-- FIN ESTADO DE VIAJE -->
+                    <!-- DETALLES DEL VIAJE -->
+                    <div class="card">
+                        <div class="card-header">
+                            <h5>Finalizar secuencia</h5>
+                        </div>
+                        <div class="card-body">
+                        {% if grouped_data_etapa_actual %}
+                            <form id="form-step-secuence" method="POST" action="{% url 'cit_finalizar' citacion.id %}" enctype="multipart/form-data">
+                                {% csrf_token %}
+                                {% for campo in grouped_data_etapa_actual %}
+                                    <div class="fieldWrapper">
+                                        <label>{{ campo.PLACEHOLDER }}:</label>
+                                        {% if campo.TYPE == 'texto' %}
+                                            <input id="{{ campo.ID_CAMPO }}" name="{{ campo.ID_CAMPO }}" type="text" class="form-control" value="{{ campo.DEFAULT_VALUE|default:'' }}" {% if campo.LARGO %} maxlength="{{ campo.LARGO }}" {% endif %} {% if campo.OBLIGATORIO %} required{% endif %}>
+                                        {% elif campo.TYPE == 'multilinea' %}
+                                            <textarea id="{{ campo.ID_CAMPO }}" name="{{ campo.ID_CAMPO }}" class="form-control" value="{{ campo.DEFAULT_VALUE|default:'' }}" {% if campo.LARGO %} maxlength="{{ campo.LARGO }}" {% endif %} {% if campo.OBLIGATORIO %} required{% endif %}></textarea>
+                                        {% elif campo.TYPE == 'numero' %}
+                                            <input id="{{ campo.ID_CAMPO }}" name="{{ campo.ID_CAMPO }}" type="number" class="form-control" value="{{ campo.DEFAULT_VALUE|default:'' }}" {% if campo.OBLIGATORIO %} required{% endif %} >
+                                        {% elif campo.TYPE == 'decimal' %}
+                                            <input id="{{ campo.ID_CAMPO }}" name="{{ campo.ID_CAMPO }}" type="number" step="0.01" class="form-control" value="{{ campo.DEFAULT_VALUE|default:'' }}" {% if campo.OBLIGATORIO %} required{% endif %} >
+                                        {% elif campo.TYPE == 'fecha' %}
+                                            <input id="{{ campo.ID_CAMPO }}" name="{{ campo.ID_CAMPO }}" type="date" class="form-control" value="{{ campo.DEFAULT_VALUE|default:'' }}" {% if campo.OBLIGATORIO %} required{% endif %} >
+                                        {% elif campo.TYPE == 'fecha/hora' %}
+                                            <input id="{{ campo.ID_CAMPO }}" name="{{ campo.ID_CAMPO }}" type="datetime-local" class="form-control" value="{{ campo.DEFAULT_VALUE|default:'' }}" {% if campo.OBLIGATORIO %} required{% endif %} >
+                                        {% elif campo.TYPE == 'archivo' %}
+                                            <input id="{{ campo.ID_CAMPO }}" name="{{ campo.ID_CAMPO }}" type="file" value="{{ campo.DEFAULT_VALUE }}" {% if campo.OBLIGATORIO %} required{% endif %} >
+                                        {% elif campo.TYPE == 'lista' %}
+                                            <select id="{{ campo.ID_CAMPO }}" name="{{ campo.ID_CAMPO }}" class="form-control" {% if campo.OBLIGATORIO %} required{% endif %} >
+                                                <option value="">Seleccione una opción</option>
+                                                {% for dato in campo.DATOS %}
+                                                    <option value="{{ dato.0 }}">{{ dato.1 }}</option>
+                                                {% endfor %}
+                                            </select>
+                                        {% elif campo.TYPE == 'check' %}
+                                            <div class="form-group">
+                                                <div class="switch switch-success d-inline m-r-10">
+                                                    <label>No</label>
+                                                    <input id="{{ campo.ID_CAMPO }}" name="{{ campo.ID_CAMPO }}" type="checkbox" class='form-check-input' {% if campo.OBLIGATORIO %} required{% endif %} >
+                                                    <label for="{{ campo.ID_CAMPO }}" class="cr"></label>
+                                                    <label>Si</label>
+                                                </div>
+                                            </div>
+                                        {% endif %}
+                                    </div>
+                                    <br>
+                                {% endfor %}
+                                <div class="form-group nav justify-content-end">
+
+                                    <p>&nbsp&nbsp</p>
+                                    <button class="btn btn-success" id="guardar_ruta" type="submit">Guardar</button>
+                                    <p>&nbsp&nbsp</p>
+                                    <a class="btn btn-danger mr-1"   
+                                        onclick="window.history.go(-1); return false;">Volver</a>
+                                </div>
+                            </form>
+                        {% endif %}
+                        </div>
+                        <!-- FIN DETALLES DE VIAJE -->
+                    </div>
+                </div>
+                <!-- BOTONES PARA ABRIR MODALES CON DETALLES DEL VIAJE -->
+                <!-- FIN BOTONES -->
+            </div>
+            <!-- [ Main Content ] end -->
+        </div>
+    </section>
+    <!-- [ Main Content ] end -->
+{% endblock content %}
+
+<!-- Specific Page JS goes HERE  -->
+{% block javascripts %}
+    <script src="/static/assets/js/plugins/jquery.dataTables.min.js"></script>
+    <script src="/static/assets/js/plugins/dataTables.bootstrap4.min.js"></script>
+    <script src="/static/assets/js/plugins/buttons.colVis.min.js"></script>
+    <script src="/static/assets/js/plugins/buttons.print.min.js"></script>
+    <script src="/static/assets/js/plugins/pdfmake.min.js"></script>
+    <script src="/static/assets/js/plugins/jszip.min.js"></script>
+    <script src="/static/assets/js/plugins/dataTables.buttons.min.js"></script>
+    <script src="/static/assets/js/plugins/buttons.html5.min.js"></script>
+    <script src="/static/assets/js/plugins/buttons.bootstrap4.min.js"></script>
+    <script src="/static/assets/js/pages/data-export-custom.js"></script>
+    <script src="https://cdn.lordicon.com/bhenfmcm.js"></script>
+    <!-- bootstrap-tagsinput-latest Js -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/typeahead.js/0.11.1/typeahead.bundle.min.js"></script>
+    <script src="/static/assets/js/plugins/bootstrap-tagsinput.min.js"></script>
+    <!-- bootstrap-maxlength Js -->
+    <script src="/static/assets/js/plugins/bootstrap-maxlength.js"></script>
+    <!-- form-advance custom js -->
+    <script src="/static/assets/js/pages/form-advance-custom.js"></script>
+
+{% endblock javascripts %}
+

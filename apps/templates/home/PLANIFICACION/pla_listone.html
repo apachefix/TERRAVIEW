@@ -1,0 +1,969 @@
+{% extends "layouts/base.html" %}
+
+{% block title %} Planificación #{{planificacion.pk}} {% endblock %} 
+
+<!-- Specific CSS goes HERE -->
+{% block stylesheets %}
+
+    <!-- data tables css -->
+    <link rel="stylesheet" href="/static/assets/css/plugins/dataTables.bootstrap4.min.css">
+    <link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet" />
+
+    <style>
+        #basic-btn td {
+            text-align: center;
+        }
+        #basic-btn1 td {
+            text-align: center;
+        }
+        .dropdown-menu {
+            min-width: 200px;
+        }
+        .dropdown-item {
+            white-space: normal;
+            word-wrap: break-word;
+        }
+        @keyframes pulse-ring {
+            0% {
+                transform: scale(0.33);
+            }
+            80%, 100% {
+                opacity: 0;
+            }
+        }
+
+        @keyframes pulse-dot {
+            0% {
+                transform: scale(0.8);
+            }
+            50% {
+                transform: scale(1);
+            }
+            100% {
+                transform: scale(0.8);
+            }
+        }
+
+        .pulse-button-container {
+            position: relative;
+            width: 40px;
+            height: 40px;
+            margin: 5px;
+        }
+
+        .pulse-button {
+            width: 100%;
+            height: 100%;
+            background: #007bff;
+            position: absolute;
+            top: 0;
+            left: 0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+
+        .pulse-button::before {
+            content: '';
+            position: absolute;
+            width: 300%;
+            height: 300%;
+            background-color: #007bff;
+            animation: pulse-ring 1.25s cubic-bezier(0.215, 0.61, 0.355, 1) infinite;
+        }
+
+        .pulse-button::after {
+            content: '';
+            position: absolute;
+            left: 0;
+            top: 0;
+            display: block;
+            width: 100%;
+            height: 100%;
+            background-color: #007bff;
+            box-shadow: 0 0 8px rgba(0,0,0,.3);
+            animation: pulse-dot 1.25s cubic-bezier(0.455, 0.03, 0.515, 0.955) -.4s infinite;
+        }
+
+        .pulse-button svg {
+            width: 20px;
+            height: 20px;
+            position: relative;
+            z-index: 10;
+            fill: white;
+        }
+    </style>
+    {% load humanize %}
+    {% load i18n %}
+    {% load l10n %}
+    {% load formats %}
+
+{% endblock stylesheets %}
+
+{% block content %}	
+
+	<!-- [ chat user list ] start -->
+	<!-- chatbot -->
+	<!-- [ chat user list ] end -->
+
+	<!---->
+
+    <!-- [ Main Content ] start -->
+    
+    <section class="pcoded-main-container">
+        <div class="pcoded-content">
+            <!-- [ breadcrumb ] start -->
+            <div class="page-header">
+                <div class="page-block">
+                    <div class="row align-items-center">
+                        <div class="col-md-12">
+                            <div class="page-header-title">
+                                <h5 class="m-b-10">Planificación #{{planificacion.pk}} | {{planificacion.PL_FFECHAINICIO|date:'d/m/Y'}}</h5>
+                            </div>
+                            <ul class="breadcrumb">
+                                <li class="breadcrumb-item"><a href="/"><i class="feather icon-home"></i></a></li>
+                                <li class="breadcrumb-item"><a href="/">Sistema Camiones</a></li>
+                                <li class="breadcrumb-item"><a href="{% url 'pla_listall' %}">Planificación #{{planificacion.pk}}</a></li>
+                                
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+            <!-- [ breadcrumb ] end -->
+            <!-- [ Main Content ] start -->
+            <div class="row">
+                <div class="col-md-6 col-xl-3">
+                    <div class="card bg-c-yellow order-card">
+                        <div class="card-body">
+                            <h6 class="text-white">Cupo máximo</h6>
+                            <h2 class="text-right text-white"><i class="fas fa-box-open float-left"></i><span>{{ planificacion.PL_NCANTIDADCUPOS }}</span></h2>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-6 col-xl-3">
+                    <div class="card bg-c-blue order-card">
+                        <div class="card-body">
+                            <h6 class="text-white">Cupos utilizados</h6>
+                            <h2 class="text-right text-white"><i class="fas fa-database float-left"></i><span>{{ planificacion.TOTAL_CITACIONES }}</span></h2>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-6 col-xl-3">
+                    <div class="card bg-c-green order-card">
+                        <div class="card-body">
+                            <h6 class="text-white">Cupos disponibles</h6>
+                            <h2 class="text-right text-white"><i class="fas fa-tags float-left"></i><span>{{ planificacion.TOTAL_CUPOS_DISPONIBLES }}</span></h2>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-6 col-xl-3">
+                    <div class="card bg-c-red order-card">
+                        <div class="card-body">
+                            <h6 class="text-white">Sobrecupos</h6>
+                            <h2 class="text-right text-white"><i class="fas fa-boxes float-left"></i><span>{{ planificacion.TOTAL_SOBRECUPO }}</span></h2>
+                        </div>
+                    </div>
+                </div>
+                {% for cupo in cupos_proveedor %}
+                    <div class="col-md-6 col-xl-3">
+                        <div class="card bg-c-yellow order-card">
+                            <div class="card-body">
+                                <h6 class="text-white">{{ cupo.PRO_NID.SN_CRAZONSOCIAL }}</h6>
+                                <h2 class="text-right text-white"><i class="fas fa-boxes float-left"></i><span>{{ planificacion.TOTAL_SOBRECUPO }}</span></h2>
+                            </div>
+                        </div>
+                    </div>
+                {% endfor %}
+                <div class="col-sm-12">
+                    <!-- HTML5 Export Buttons table start -->
+                    <div class="card">
+                        <div class="d-flex justify-content-between">
+                            <div class="card-header table-card-header">
+                                <h3>Citaciones</h3>
+                            </div>
+                            <div class="dropdown drp-user mr-4 mt-4">
+                                <button class="btn btn-primary dropdown-toggle" type="button" id="dropdownMenuButton" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false" style="color: #fff; background-color: #4099ff; border-color: #4099ff;">
+                                    <i class="fas fa-ellipsis-v"></i>&nbsp;&nbsp;&nbsp;
+                                    Opciones
+                                </button>
+                                <div class="dropdown-menu dropdown-menu-right profile-notification" aria-labelledby="dropdownMenuButton" style="max-height: 300px; overflow-y: auto;">
+                                    <div class="pro-body">
+                                        {% if request.user.is_superuser == 1 %}
+                                            <a href="#" data-href="{% url 'pla_filedone' planificacion.pk %}" class="dropdown-item btn btn-warning" id="pla_filed">
+                                                <i class="fas fa-folder-open"></i> &nbsp;&nbsp;&nbsp;
+                                                {% if not planificacion.PL_BARCHIVADO %}
+                                                    Archivar
+                                                {% else %}
+                                                    Restaurar
+                                                {% endif %}
+                                            </a>
+                                        {% endif %}
+                                        {% if not planificacion.PL_BARCHIVADO %}
+                                            <button class="dropdown-item btn btn-primary" type="button" data-toggle="modal" data-target="#ModalAgregarCitacionesVenta">
+                                                <i class="fas fa-map-marked-alt"></i>
+                                                &nbsp;&nbsp;&nbsp;Nuevo despacho
+                                            </button>
+                                            <button class="dropdown-item btn btn-primary" type="button" data-toggle="modal" data-target="#ModalAgregarCitacionesCompra">
+                                                <i class="fas fa-map-marked-alt"></i>
+                                                &nbsp;&nbsp;&nbsp;Nueva recepción
+                                            </button>
+                                            <a class="dropdown-item btn btn-success" href="{% url 'cit_addmasive' planificacion.pk %}">
+                                                <i class="fas fa-file-excel"></i>
+                                                &nbsp;&nbsp;&nbsp;Importar citaciones
+                                            </a>
+                                            <a class="dropdown-item btn btn-secondary" href="{% url 'cupo_addmasive' planificacion.pk %}">
+                                                <i class="feather icon-grid"></i>
+                                                &nbsp;&nbsp;&nbsp;Asignar cupos masivo
+                                            </a>
+                                            <button class="dropdown-item btn btn-secondary" type="button" data-toggle="modal" data-target="#ModalAsignaciones">
+                                                <i class="fas fa-hand-pointer"></i>
+                                                &nbsp;&nbsp;&nbsp;Asignaciones
+                                            </button>
+                                            <a class=" dropdown-item btn btn-primary" href="{% url 'download_citaciones_data' planificacion.pk %}">
+                                                <i class="fas fa-file-excel"></i>
+                                                &nbsp;&nbsp;&nbsp;Descargar reporte
+                                            </a>
+
+                                        {% endif %}
+                                    </div>
+                                </div>                            
+                            </div>
+                        </div>
+                        <div class="card-body">
+                            <ul class="nav nav-pills mb-3" id="pills-tab" role="tablist">
+                                <li class="nav-item">
+                                    <a class="nav-link active" id="pills-despachos-tab" data-toggle="pill" href="#pills-despachos" role="tab" aria-controls="pills-despachos" aria-selected="true">Despachos</a>
+                                </li>
+                                <li class="nav-item">
+									<a class="nav-link" id="pills-recepciones-tab" data-toggle="pill" href="#pills-recepciones" role="tab" aria-controls="pills-recepciones" aria-selected="false">Recepciones</a>
+                                </li>
+                            </ul>
+                            <hr>
+                            <div class="tab-content" id="pills-tabContent">
+                                <div class="tab-pane fade show active" id="pills-despachos" role="tabpanel" aria-labelledby="pills-despachos-tab">
+                                    <div class="dt-responsive table-responsive">
+                                        <table id="basic-btn" class="table table-striped table-bordered nowrap">
+                                            <thead>
+                                                <tr>
+                                                    <th>ACCIONES</th>
+                                                    <th>NUMERO CITACIÓN</th>
+                                                    <th>FECHA CITACION</th>
+                                                    <th>TIPO DOCUMENTO</th>
+                                                    <th>NUMERO DOCUMENTO</th>
+                                                    <th>TIPO FLETE</th>
+                                                    <th>SECUENCIA</th>
+                                                    <th>ETAPA</th>
+                                                    <th>PRODUCTO</th>
+                                                    <th>CLIENTE</th>
+                                                    <th>CONDUCTOR</th>
+                                                    <th>CELULAR CONDUCTOR</th>
+                                                    <th>CAMION</th>
+                                                    <th>PROVEEDOR</th>
+                                                    {% if request.user.is_superuser == True %}
+                                                        <th>TARIFA</th>
+                                                        <th>DIVISA</th>
+                                                    {% endif %}
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+                                                {% for object in despachos %}
+                                                    <tr>
+                                                        <td>
+                                                            <div class="pulse-button-container">
+                                                                {% if object.0 in citaciones_responsable and object.17 == 'EN PROCESO' %}
+                                                                    <a class="pulse-button" href="{% url 'cit_listone' object.0 %}">
+                                                                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16">
+                                                                            <path d="M16 8s-3-5.5-8-5.5S0 8 0 8s3 5.5 8 5.5S16 8 16 8zM1.173 8a13.133 13.133 0 0 1 1.66-2.043C4.12 4.668 5.88 3.5 8 3.5c2.12 0 3.879 1.168 5.168 2.457A13.133 13.133 0 0 1 14.828 8c-.058.087-.122.183-.195.288-.335.48-.83 1.12-1.465 1.755C11.879 11.332 10.119 12.5 8 12.5c-2.12 0-3.879-1.168-5.168-2.457A13.134 13.134 0 0 1 1.172 8z"/>
+                                                                            <path d="M8 5.5a2.5 2.5 0 1 0 0 5 2.5 2.5 0 0 0 0-5zM4.5 8a3.5 3.5 0 1 1 7 0 3.5 3.5 0 0 1-7 0z"/>
+                                                                        </svg>
+                                                                    </a>
+                                                                    <button type="button" class="btn btn-warning btn-sm" onclick="openEditModal({{ object.0 }})">
+                                                                        <i class="fas fa-edit"></i>
+                                                                    </button>
+                                                                {% else %}
+                                                                    <a class="btn btn-primary btn-sm" href="{% url 'cit_listone' object.0 %}">
+                                                                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-eye" viewBox="0 0 16 16">
+                                                                            <path d="M16 8s-3-5.5-8-5.5S0 8 0 8s3 5.5 8 5.5S16 8 16 8zM1.173 8a13.133 13.133 0 0 1 1.66-2.043C4.12 4.668 5.88 3.5 8 3.5c2.12 0 3.879 1.168 5.168 2.457A13.133 13.133 0 0 1 14.828 8c-.058.087-.122.183-.195.288-.335.48-.83 1.12-1.465 1.755C11.879 11.332 10.119 12.5 8 12.5c-2.12 0-3.879-1.168-5.168-2.457A13.134 13.134 0 0 1 1.172 8z"/>
+                                                                            <path d="M8 5.5a2.5 2.5 0 1 0 0 5 2.5 2.5 0 0 0 0-5zM4.5 8a3.5 3.5 0 1 1 7 0 3.5 3.5 0 0 1-7 0z"/>
+                                                                        </svg>
+                                                                    </a>
+                                                                    {% if object.17 == 'CREADO' or object.17 == 'EN PROCESO' %}
+                                                                    <button type="button" class="btn btn-warning btn-sm" onclick="openEditModal({{ object.0 }})">
+                                                                        <i class="fas fa-edit"></i>
+                                                                    </button>
+                                                                    {% endif %}
+                                                                {% endif%}
+                                                                {% if request.user.is_superuser == True %}
+                                                                    <a class="btn btn-danger btn-sm delete_citacion" data-href="{% url 'cit_delete' object.0 %}" id="delete_citacion">
+                                                                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-trash" viewBox="0 0 16 16">
+                                                                            <path d="M5.5 5.5A.5.5 0 0 1 6 6v6a.5.5 0 0 1-1 0V6a.5.5 0 0 1 .5-.5zm2.5 0a.5.5 0 0 1 .5.5v6a.5.5 0 0 1-1 0V6a.5.5 0 0 1 .5-.5zm3 .5a.5.5 0 0 0-1 0v6a.5.5 0 0 0 1 0V6z" />
+                                                                            <path fill-rule="evenodd"d="M14.5 3a1 1 0 0 1-1 1H13v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V4h-.5a1 1 0 0 1-1-1V2a1 1 0 0 1 1-1H6a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1h3.5a1 1 0 0 1 1 1v1zM4.118 4 4 4.059V13a1 1 0 0 0 1 1h6a1 1 0 0 0 1-1V4.059L11.882 4H4.118zM2.5 3V2h11v1h-11z" />
+                                                                        </svg>
+                                                                    </a>
+                                                                {% endif %}
+                                                            </div>
+                                                        </td>
+                                                        <td>{{ object.0 }}</td>
+                                                        <td>{{ object.1|date:'d/m/Y H:i' }}</td>
+                                                        <td>{{ object.13|default:"" }}</td>
+                                                        <td>{{ object.14|default:"Sin documento" }}</td>
+                                                        <td>{{ object.20|default:"" }}</td>
+                                                        <td>{{ object.2 }}</td>
+                                                        <td>{{ object.3 }}</td>
+                                                        <td>{{ object.15 }}</td>
+                                                        <td>{{ object.4 }}</td>
+                                                        <td>{{ object.5 }}</td>
+                                                        <td>{{ object.16|default:"" }}</td>
+                                                        <td>{{ object.6 }}</td>
+                                                        <td>{{ object.7 }}</td>
+                                                        {% if request.user.is_superuser == True %}
+                                                            <td>$ {{ object.8|custom_number_format }}</td>
+                                                            <td>{{ object.9 }}</td>
+                                                        {% endif %}
+                                                    </tr>
+                                                {% endfor %}
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                </div>
+                                <div class="tab-pane fade" id="pills-recepciones" role="tabpanel" aria-labelledby="pills-recepciones-tab">
+                                    <div class="dt-responsive table-responsive">
+                                        <table id="basic-btn1" class="table table-striped table-bordered nowrap">
+                                            <thead>
+                                                <tr>
+                                                    <th>ACCIONES</th>
+                                                    <th>NUMERO CITACIÓN</th>
+                                                    <th>FECHA CITACION</th>
+                                                    <th>TIPO DOCUMENTO</th>
+                                                    <th>NUMERO DOCUMENTO</th>
+                                                    <th>TIPO FLETE</th>
+                                                    <th>SECUENCIA</th>
+                                                    <th>ETAPA</th>
+                                                    <th>CONDUCTOR</th>
+                                                    <th>CELULAR CONDUCTOR</th>
+                                                    <th>CAMION</th>
+                                                    <th>PROVEEDOR</th>
+                                                    <th>PRODUCTO</th>
+                                                    {% if request.user.is_superuser == True %}
+                                                        <th>TARIFA</th>
+                                                    {% endif %}
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+                                                {% for object in recepciones %}
+                                                    <tr>
+                                                        <td>
+                                                            <div class="pulse-button-container">
+                                                                {% if object.0 in citaciones_responsable and object.12 == 'EN PROCESO' %}
+                                                                    <a class="pulse-button btn btn-primary btn-sm" href="{% url 'cit_listone' object.0 %}">
+                                                                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16">
+                                                                            <path d="M16 8s-3-5.5-8-5.5S0 8 0 8s3 5.5 8 5.5S16 8 16 8zM1.173 8a13.133 13.133 0 0 1 1.66-2.043C4.12 4.668 5.88 3.5 8 3.5c2.12 0 3.879 1.168 5.168 2.457A13.133 13.133 0 0 1 14.828 8c-.058.087-.122.183-.195.288-.335.48-.83 1.12-1.465 1.755C11.879 11.332 10.119 12.5 8 12.5c-2.12 0-3.879-1.168-5.168-2.457A13.134 13.134 0 0 1 1.172 8z"/>
+                                                                            <path d="M8 5.5a2.5 2.5 0 1 0 0 5 2.5 2.5 0 0 0 0-5zM4.5 8a3.5 3.5 0 1 1 7 0 3.5 3.5 0 0 1-7 0z"/>
+                                                                        </svg>
+                                                                    </a>
+                                                                {% else %}
+                                                                    <a class="btn btn-primary btn-sm" href="{% url 'cit_listone' object.0 %}">
+                                                                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-eye" viewBox="0 0 16 16">
+                                                                            <path d="M16 8s-3-5.5-8-5.5S0 8 0 8s3 5.5 8 5.5S16 8 16 8zM1.173 8a13.133 13.133 0 0 1 1.66-2.043C4.12 4.668 5.88 3.5 8 3.5c2.12 0 3.879 1.168 5.168 2.457A13.133 13.133 0 0 1 14.828 8c-.058.087-.122.183-.195.288-.335.48-.83 1.12-1.465 1.755C11.879 11.332 10.119 12.5 8 12.5c-2.12 0-3.879-1.168-5.168-2.457A13.134 13.134 0 0 1 1.172 8z"/>
+                                                                            <path d="M8 5.5a2.5 2.5 0 1 0 0 5 2.5 2.5 0 0 0 0-5zM4.5 8a3.5 3.5 0 1 1 7 0 3.5 3.5 0 0 1-7 0z"/>
+                                                                        </svg>
+                                                                    </a>
+                                                                {% endif %}
+                                                                {% if object.12 == 'CREADO' or object.12 == 'EN PROCESO' %}
+                                                                    <button type="button" class="btn btn-warning btn-sm" onclick="openEditModal({{ object.0 }})">
+                                                                        <i class="fas fa-edit"></i>
+                                                                    </button>
+                                                                {% endif %}
+                                                                <a class="btn btn-danger btn-sm delete_citacion" data-href="{% url 'cit_delete' object.0 %}" id="delete_citacion">
+                                                                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-trash" viewBox="0 0 16 16">
+                                                                        <path d="M5.5 5.5A.5.5 0 0 1 6 6v6a.5.5 0 0 1-1 0V6a.5.5 0 0 1 .5-.5zm2.5 0a.5.5 0 0 1 .5.5v6a.5.5 0 0 1-1 0V6a.5.5 0 0 1 .5-.5zm3 .5a.5.5 0 0 0-1 0v6a.5.5 0 0 0 1 0V6z" />
+                                                                        <path fill-rule="evenodd"d="M14.5 3a1 1 0 0 1-1 1H13v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V4h-.5a1 1 0 0 1-1-1V2a1 1 0 0 1 1-1H6a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1h3.5a1 1 0 0 1 1 1v1zM4.118 4 4 4.059V13a1 1 0 0 0 1 1h6a1 1 0 0 0 1-1V4.059L11.882 4H4.118zM2.5 3V2h11v1h-11z" />
+                                                                    </svg>
+                                                                </a>
+                                                            </div>
+                                                        </td>
+                                                        <td>{{ object.0 }}</td>
+                                                        <td>{{ object.1|date:'d/m/Y H:i' }}</td>
+                                                        <td>{{ object.2 }}</td>
+                                                        <td>{{ object.3|default:"Sin documento" }}</td>
+                                                        <td>{{ object.14|default:"" }}</td>
+                                                        <td>{{ object.4 }}</td>
+                                                        <td>{{ object.5 }}</td>
+                                                        <td>{{ object.9 }}</td>
+                                                        <td>{{ object.10|default:"" }}</td>
+                                                        <td>{{ object.8 }}</td>
+                                                        <td>{{ object.7 }}</td>
+                                                        <td>{{ object.6 }}</td>
+                                                        {% if request.user.is_superuser == True %}
+                                                            <td>$ {{ object.11|custom_number_format}}</td>
+                                                        {% endif %}
+                                                    </tr>
+                                                {% endfor %}
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <!-- [ Main Content ] end -->
+        </div>
+    </section>
+    <!-- [ Main Content ] end -->
+
+    <!-- Modal Content agregar Citaciones -->
+    <div class="modal fade " id="ModalAgregarCitacionesVenta" tabindex="-1" role="dialog" aria-labelledby="ModalAgregarCitacionesVentaLabel" aria-hidden="true" modal-backdrop-opacity=".9">
+        <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable" role="document">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="ModalAgregarCitacionesVentaLabel">Agregar citación</h5>
+                    <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                        <span aria-hidden="true">&times;</span>
+                    </button>
+                </div>
+                <div class="modal-body"> 
+                    <form method="GET" enctype="multipart/form-data" action="{% url 'cit_addvariospre' %}">    
+                        {% csrf_token %}
+                        <div class="fieldWrapper">
+                            <input type="hidden" name="PL_NID" value="{{planificacion.id}}">
+                        </div>
+                        <div class="fieldWrapper">
+                            <input type="hidden" name="is-venta" id="is-venta" value="true">
+                        </div>
+                        <div class="fieldWrapper">
+                            <label class="my-1 me-2" >¿Cuantas citaciones desea crear?:</label>
+                            <input type="number" name="cantidad_citaciones" id="cantidad_citaciones" class="form-control" required>
+                        </div>
+                        <br>
+                        <div class="d-flex justify-content-end">
+                            <button type="submit" class="m-2 btn btn-primary" id="btn_guardar">Continuar</button>
+                            <button type="button" class="m-2 btn btn-danger" data-dismiss="modal">Cerrar</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+    <!-- End of Modal Content -->
+    <!-- Modal Content agregar Citaciones -->
+    <div class="modal fade " id="ModalAgregarCitacionesCompra" tabindex="-1" role="dialog" aria-labelledby="ModalAgregarCitacionesCompraLabel" aria-hidden="true" modal-backdrop-opacity=".9">
+        <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable" role="document">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="ModalAgregarCitacionesVentaLabel">Agregar citación</h5>
+                    <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                        <span aria-hidden="true">&times;</span>
+                    </button>
+                </div>
+                <div class="modal-body"> 
+                    <form method="GET" enctype="multipart/form-data" action="{% url 'cit_addvariospre' %}">    
+                        {% csrf_token %}
+                        <div class="fieldWrapper">
+                            <input type="hidden" name="PL_NID" value="{{planificacion.id}}">
+                        </div>
+                        <div class="fieldWrapper">
+                            <label class="my-1 me-2" >¿Cuantas citaciones desea crea:</label>
+                            <input type="number" name="cantidad_citaciones" id="cantidad_citaciones" class="form-control" required>
+                        </div>
+                        <br>
+                        <div class="d-flex justify-content-end">
+                            <button type="submit" class="m-2 btn btn-primary" id="btn_guardar">Continuar</button>
+                            <button type="button" class="m-2 btn btn-danger" data-dismiss="modal">Cerrar</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+    <!-- End of Modal Content -->
+     <!-- Modal Content agregar Citaciones -->
+    <div class="modal fade " id="ModalCupoProveedor" tabindex="-1" role="dialog" aria-labelledby="ModalCupoProveedorLabel" aria-hidden="true" modal-backdrop-opacity=".9">
+        <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable" role="document">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="ModalCupoProveedorLabel">Cupos proveedor</h5>
+                    <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                        <span aria-hidden="true">&times;</span>
+                    </button>
+                </div>
+                <div class="modal-body">
+                    <div class="d-flex justify-content-end">
+                        <a class="btn btn-primary ml-2" href="{% url 'cupo_addone' planificacion.id %}">
+                            + Agregar cupo
+                        </a>
+                        <a class="btn btn-primary ml-2" href="{% url 'cupo_addmasive' planificacion.id %}">
+                            + Agregar cupos masivos
+                        </a>
+                    </div>
+                    <div class="dt-responsive table-responsive">
+                        <table id="basic-btn1" class="table table-striped table-bordered nowrap"></table>
+                            <thead>
+                                <tr>
+                                    <th>ACCIONES</th>
+                                    <th>PROVEEDOR</th>
+                                    <th>CANTIDAD TOTAL DE CUPOS</th>
+                                    <th>CANTIDAD DE CUPOS ASIGNADOS</th>
+                                    <th>CANTIDAD DE CUPOS DISPONIBLES</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for object in cupos_proveedores %}
+                                    <tr>
+                                        <td>
+                                            <a class="btn btn-primary" href="{% url 'cit_listone' object.0 %}">
+                                                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-eye" viewBox="0 0 16 16">
+                                                    <path d="M16 8s-3-5.5-8-5.5S0 8 0 8s3 5.5 8 5.5S16 8 16 8zM1.173 8a13.133 13.133 0 0 1 1.66-2.043C4.12 4.668 5.88 3.5 8 3.5c2.12 0 3.879 1.168 5.168 2.457A13.133 13.133 0 0 1 14.828 8c-.058.087-.122.183-.195.288-.335.48-.83 1.12-1.465 1.755C11.879 11.332 10.119 12.5 8 12.5c-2.12 0-3.879-1.168-5.168-2.457A13.134 13.134 0 0 1 1.172 8z"/>
+                                                    <path d="M8 5.5a2.5 2.5 0 1 0 0 5 2.5 2.5 0 0 0 0-5zM4.5 8a3.5 3.5 0 1 1 7 0 3.5 3.5 0 0 1-7 0z"/>
+                                                </svg>
+                                            </a>
+                                            <a class="btn btn-danger delete_cupo" data-href="{% url 'cit_delete' object.0 %}" id="delete_citacion">
+                                                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-trash" viewBox="0 0 16 16">
+                                                    <path d="M5.5 5.5A.5.5 0 0 1 6 6v6a.5.5 0 0 1-1 0V6a.5.5 0 0 1 .5-.5zm2.5 0a.5.5 0 0 1 .5.5v6a.5.5 0 0 1-1 0V6a.5.5 0 0 1 .5-.5zm3 .5a.5.5 0 0 0-1 0v6a.5.5 0 0 0 1 0V6z" />
+                                                    <path fill-rule="evenodd"d="M14.5 3a1 1 0 0 1-1 1H13v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V4h-.5a1 1 0 0 1-1-1V2a1 1 0 0 1 1-1H6a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1h3.5a1 1 0 0 1 1 1v1zM4.118 4 4 4.059V13a1 1 0 0 0 1 1h6a1 1 0 0 0 1-1V4.059L11.882 4H4.118zM2.5 3V2h11v1h-11z" />
+                                                </svg>
+                                            </a>
+                                        </td>
+                                        <td>{{ object.PRO_NID.SN_CRAZONSOCIAL }}</td>
+                                        <td style="text-align: center;">{{ object.CUP_NCUPOS|custom_number_format }}</td>
+                                        <td style="text-align: center;">{{ object.CUPOS_ASIGNADOS|custom_number_format }}</td>
+                                        <td style="text-align: center;">{{ object.CUPOS_DISPONIBLES|custom_number_format }}</td>
+                                    </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+   <!-- Add this modal at the end of your template -->
+<div class="modal fade" id="editCitationModal" tabindex="-1" role="dialog" aria-labelledby="editCitationModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg" role="document">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="editCitationModalLabel">Editar Citación</h5>
+                <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                    <span aria-hidden="true">&times;</span>
+                </button>
+            </div>
+            <div class="modal-body">
+                <form id="updateCitationForm">
+                    {% csrf_token %}
+                    <input type="hidden" id="citation_id" name="citation_id">
+                    <div class="form-row">
+                        <div class="form-group col-md-6">
+                            <label for="tipo_documento">Tipo de Documento</label>
+                            <select class="form-control" id="tipo_documento" name="tipo_documento"></select>
+                        </div>
+                        <div class="form-group col-md-6">
+                            <label for="numero_documento">Número de Documento</label>
+                            <input type="text" class="form-control" id="numero_documento" name="numero_documento">
+                        </div>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group col-md-6">
+                            <label for="id_proveedor">Proveedor</label>
+                            <select class="form-control" id="id_proveedor" name="id_proveedor"></select>
+                        </div>
+                        <div class="form-group col-md-6" id="cliente_field" style="display: none;">
+                            <label for="id_cliente">Cliente</label>
+                            <select class="form-control" id="id_cliente" name="id_cliente"></select>
+                        </div>
+                        <div class="form-group col-md-6" id="conductor_field">
+                            <label for="id_conductor">Conductor</label>
+                            <select class="form-control" id="id_conductor" name="id_conductor"></select>
+                        </div>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group col-md-6" id="conductor_field_despacho" style="display: none;">
+                            <label for="id_conductor_despacho">Conductor</label>
+                            <select class="form-control" id="id_conductor_despacho" name="id_conductor"></select>
+                        </div>
+                        <div class="form-group col-md-6">
+                            <label for="id_camion">Camión</label>
+                            <select class="form-control" id="id_camion" name="id_camion"></select>
+                        </div>
+                        <div class="form-group col-md-6">
+                            <label for="id_secuencia">Secuencia</label>
+                            <select class="form-control" id="id_secuencia" name="id_secuencia"></select>
+                        </div>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group col-md-6">
+                            <label for="hora_citacion">Hora de Citación</label>
+                            <input type="time" class="form-control" id="hora_citacion" name="hora_citacion">
+                        </div>
+                        <div class="form-group col-md-6">
+                            <label for="id_producto">Producto</label>
+                            <select class="form-control" id="id_producto" name="id_producto"></select>
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label for="id_tarifa">Tarifa</label>
+                        <select class="form-control" id="id_tarifa" name="id_tarifa"></select>
+                    </div>
+                    <div class="form-group">
+                        <label for="observacion">Observación</label>
+                        <textarea class="form-control" id="observacion" name="observacion"></textarea>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-dismiss="modal">Cerrar</button>
+                <button type="button" class="btn btn-primary" onclick="updateCitation()">Actualizar</button>
+            </div>
+        </div>
+    </div>
+</div>
+    <!-- End of Modal Content -->
+{% endblock content %}
+
+<!-- Specific Page JS goes HERE  -->
+{% block javascripts %}
+    <!-- datatable Js -->
+    <script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
+    <script src="/static/assets/js/plugins/jquery.dataTables.min.js"></script>
+    <script src="/static/assets/js/plugins/dataTables.bootstrap4.min.js"></script>
+    <script src="/static/assets/js/plugins/buttons.colVis.min.js"></script>
+    <script src="/static/assets/js/plugins/buttons.print.min.js"></script>
+    <script src="/static/assets/js/plugins/pdfmake.min.js"></script>
+    <script src="/static/assets/js/plugins/jszip.min.js"></script>
+    <script src="/static/assets/js/plugins/dataTables.buttons.min.js"></script>
+    <script src="/static/assets/js/plugins/buttons.html5.min.js"></script>
+    <script src="/static/assets/js/plugins/buttons.bootstrap4.min.js"></script>
+    <script src="/static/assets/js/pages/data-export-custom.js"></script>
+    <script>
+        $(document).ready(function() {
+            // Inicializar Select2 para el proveedor
+            initializeSelect2();
+        
+            // Manejar el cambio de proveedor
+            $('#id_proveedor').change(function() {
+                var proveedorId = $(this).val();
+                var citacionId = $('#citation_id').val();
+                if (proveedorId) {
+                    $.ajax({
+                        url: `/get_proveedor_data/${proveedorId}/`,
+                        type: 'GET',
+                        data: {
+                            citacion_id: citacionId
+                        },
+                        success: function(data) {
+                            $('#id_conductor').html(data.conductores);
+                            $('#id_camion').html(data.camiones);
+                            $('#id_tarifa').html(data.tarifas);
+                        },
+                        error: function(error) {
+                            console.log('Error fetching proveedor data:', error);
+                            Swal.fire({
+                                icon: 'error',
+                                title: 'Error',
+                                text: 'Error al cargar los datos del proveedor'
+                            });
+                        }
+                    });
+                } else {
+                    // Si no se selecciona proveedor, mostrar opciones genéricas
+                    $('#id_conductor').html('<option value="1">Conductor Genérico</option>');
+                    $('#id_camion').html('<option value="1">Camión Genérico</option>');
+                    $('#id_tarifa').html('<option value="">Seleccione una tarifa</option>');
+                }
+            });
+        
+            // Manejar el clic en eliminar citación
+            $('.delete_citacion').on("click", function(){
+                Swal.fire({
+                    title: '¿Está seguro que desea eliminar la citación?',
+                    text: 'Esta acción no se puede deshacer',
+                    icon: 'warning',
+                    showCancelButton: true,
+                    confirmButtonColor: '#d33',
+                    cancelButtonColor: '#3085d6',
+                    confirmButtonText: 'Eliminar',
+                    cancelButtonText: 'Cancelar',
+                }).then((result) => {
+                    if (result.isConfirmed) {
+                        window.location.href = $(this).data('href');
+                    }
+                });
+            });
+        
+            // Manejar el clic en archivar planificación
+            $('#pla_filed').on("click", function(){
+                Swal.fire({
+                    title: 'Atención',
+                    icon: "warning",
+                    text: "¿Estás seguro de archivar esta planificación?"
+                }).then((result) => {
+                    if (result.isConfirmed) {
+                        window.location.href = $(this).data('href');
+                    }
+                });
+            });
+        
+            // Manejar la animación de los botones pulsantes
+            var pulseButtons = document.querySelectorAll('.pulse-button');
+            pulseButtons.forEach(function(button) {
+                button.addEventListener('mouseenter', function() {
+                    this.style.animation = 'none';
+                    this.style.transform = 'scale(1.05)';
+                    if (this.previousElementSibling) {
+                        this.previousElementSibling.style.animation = 'none';
+                    }
+                });
+                button.addEventListener('mouseleave', function() {
+                    this.style.animation = 'pulse 1.5s infinite';
+                    this.style.transform = 'scale(1)';
+                    if (this.previousElementSibling) {
+                        this.previousElementSibling.style.animation = 'pulse-background 1.5s infinite';
+                    }
+                });
+            });
+        });
+        $(document).ready(function() {
+            var secuenciaSelect = $('#id_secuencia');
+            if (secuenciaSelect.attr('readonly')) {
+                secuenciaSelect.on('mousedown', function(e) {
+                    e.preventDefault();
+                    this.blur();
+                    window.focus();
+                });
+            }
+        });
+        function initializeSelect2() {
+            $('#id_proveedor').select2({
+                dropdownParent: $('#editCitationModal'),
+                placeholder: 'Seleccione un proveedor',
+                allowClear: true,
+                ajax: {
+                    url: '/buscar_proveedores/',
+                    dataType: 'json',
+                    delay: 250,
+                    data: function (params) {
+                        return {
+                            q: params.term,
+                            empresa_id: {{ planificacion.EP_NID.id }}
+                        };
+                    },
+                    processResults: function (data) {
+                        return {
+                            results: data.items
+                        };
+                    },
+                    cache: true
+                },
+                minimumInputLength: 2
+            });
+            
+            // Inicializar Select2 para el cliente
+            $('#id_cliente').select2({
+                dropdownParent: $('#editCitationModal'),
+                placeholder: 'Seleccione un cliente',
+                allowClear: true,
+                ajax: {
+                    url: '/buscar_clientes/',
+                    dataType: 'json',
+                    delay: 250,
+                    data: function (params) {
+                        return {
+                            q: params.term,
+                            empresa_id: {{ planificacion.EP_NID.id }}
+                        };
+                    },
+                    processResults: function (data) {
+                        return {
+                            results: data.items
+                        };
+                    },
+                    cache: true
+                },
+                minimumInputLength: 2
+            });
+        }
+        
+        function openEditModal(citationId) {
+        $.ajax({
+            url: `/get_citation_data/${citationId}/`,
+            type: 'GET',
+            success: function(data) {
+                $('#citation_id').val(citationId);
+                $('#tipo_documento').html(data.tipos_documento);
+                $('#numero_documento').val(data.numero_documento);
+
+                // Proveedor
+                var proveedorOption = new Option(data.proveedor.text, data.proveedor.id, true, true);
+                $('#id_proveedor').empty().append(proveedorOption).trigger('change');
+
+                // Cliente / conductor según tipo
+                if (data.tipo_citacion === 'DESPACHO') {
+                    $('#cliente_field').show();
+                    $('#conductor_field').hide();
+                    $('#conductor_field_despacho').show();
+
+                    if (data.cliente && data.cliente.id) {
+                        var clienteOption = new Option(data.cliente.text, data.cliente.id, true, true);
+                        $('#id_cliente').empty().append(clienteOption).trigger('change');
+                    } else {
+                        $('#id_cliente').empty().trigger('change');
+                    }
+
+                    $('#id_conductor_despacho').html(data.conductores);
+
+                    if ($('#id_conductor_despacho').hasClass('select2-hidden-accessible')) {
+                        $('#id_conductor_despacho').select2('destroy');
+                    }
+
+                    $('#id_conductor_despacho').select2({
+                        dropdownParent: $('#editCitationModal'),
+                        placeholder: 'Buscar conductor...',
+                        allowClear: true,
+                        width: '100%',
+                        language: {
+                            noResults: function() {
+                                return 'No se encontraron resultados';
+                            },
+                            searching: function() {
+                                return 'Buscando...';
+                            }
+                        }
+                    });
+                } else {
+                    $('#cliente_field').hide();
+                    $('#conductor_field').show();
+                    $('#conductor_field_despacho').hide();
+                    $('#id_cliente').empty().trigger('change');
+
+                    $('#id_conductor').html(data.conductores);
+
+                    if ($('#id_conductor').hasClass('select2-hidden-accessible')) {
+                        $('#id_conductor').select2('destroy');
+                    }
+
+                    $('#id_conductor').select2({
+                        dropdownParent: $('#editCitationModal'),
+                        placeholder: 'Buscar conductor...',
+                        allowClear: true,
+                        width: '100%',
+                        language: {
+                            noResults: function() {
+                                return 'No se encontraron resultados';
+                            },
+                            searching: function() {
+                                return 'Buscando...';
+                            }
+                        }
+                    });
+                }
+
+                // Camión
+                $('#id_camion').html(data.camiones);
+
+                if ($('#id_camion').hasClass('select2-hidden-accessible')) {
+                    $('#id_camion').select2('destroy');
+                }
+
+                $('#id_camion').select2({
+                    dropdownParent: $('#editCitationModal'),
+                    placeholder: 'Buscar camión...',
+                    allowClear: true,
+                    width: '100%',
+                    language: {
+                        noResults: function() {
+                            return 'No se encontraron resultados';
+                        },
+                        searching: function() {
+                            return 'Buscando...';
+                        }
+                    }
+                });
+
+                // Secuencia
+                $('#id_secuencia').html(data.secuencias);
+
+                if ($('#id_secuencia').hasClass('select2-hidden-accessible')) {
+                    $('#id_secuencia').select2('destroy');
+                }
+
+                $('#id_secuencia').select2({
+                    dropdownParent: $('#editCitationModal'),
+                    placeholder: 'Buscar secuencia...',
+                    allowClear: true,
+                    width: '100%',
+                    language: {
+                        noResults: function() {
+                            return 'No se encontraron resultados';
+                        },
+                        searching: function() {
+                            return 'Buscando...';
+                        }
+                    }
+                });
+
+                // Resto de campos
+                $('#hora_citacion').val(data.hora_citacion);
+                $('#id_producto').html(data.productos);
+                $('#id_tarifa').html(data.tarifas);
+                $('#observacion').val(data.observacion);
+
+                // Deshabilitar secuencia si no está en creado
+                if (data.estado !== 'CREADO') {
+                    $('#id_secuencia').prop('disabled', true);
+                } else {
+                    $('#id_secuencia').prop('disabled', false);
+                }
+
+                $('#editCitationModal').modal('show');
+            },
+            error: function(error) {
+                console.log('Error fetching citation data:', error);
+            }
+        });
+    }
+            
+        function updateCitation() {
+            // Si es despacho, copiar el valor del conductor de despacho al conductor normal para el envío
+            if ($('#conductor_field_despacho').is(':visible')) {
+                $('#id_conductor').val($('#id_conductor_despacho').val());
+            }
+            
+            let formData = $('#updateCitationForm').serialize();
+            
+            $.ajax({
+                url: `/update_citation/${$('#citation_id').val()}/`,
+                type: 'POST',
+                data: formData,
+                success: function(response) {
+                    $('#editCitationModal').modal('hide');
+                    if(response.valid) {
+                        Swal.fire({
+                            icon: 'success',
+                            title: 'Éxito',
+                            text: 'Citación actualizada correctamente'
+                        }).then(() => {
+                            location.reload();
+                        });
+                    } else {
+                        Swal.fire({
+                            icon: 'error',
+                            title: 'Error',
+                            text: response.msg
+                        });
+                    }
+                },
+                error: function(error) {
+                    console.log('Error updating citation:', error);
+                    Swal.fire({
+                        icon: 'error',
+                        title: 'Error',
+                        text: 'Hubo un problema al actualizar la citación'
+                    });
+                }
+            });
+        }
+        </script>
+{% endblock javascripts %}
+ 

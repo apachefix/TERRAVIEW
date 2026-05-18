@@ -1,0 +1,267 @@
+{% extends "layouts/base.html" %}
+
+{% block title %} Secuencias {% endblock %} 
+
+<!-- Specific CSS goes HERE -->
+{% block stylesheets %}
+
+    <!-- data tables css -->
+    <link rel="stylesheet" href="/static/assets/css/plugins/dataTables.bootstrap4.min.css">
+    {% load humanize %}
+    {% load i18n %}
+    {% load l10n %}
+{% endblock stylesheets %}
+
+{% block content %}	
+
+	<!-- [ chat user list ] start -->
+	<!-- chatbot -->
+	<!-- [ chat user list ] end -->
+
+	<!---->
+
+    <!-- [ Main Content ] start -->
+    
+    <section class="pcoded-main-container">
+        <div class="pcoded-content">
+            <!-- [ breadcrumb ] start -->
+            <div class="page-header">
+                <div class="page-block">
+                    <div class="row align-items-center">
+                        <div class="col-md-12">
+                            <div class="page-header-title">
+                                <h5 class="m-b-10">Lista de Secuencias</h5>
+                            </div>
+                            <ul class="breadcrumb">
+                                <li class="breadcrumb-item"><a href="/"><i class="feather icon-home"></i></a></li>
+                                <li class="breadcrumb-item"><a href="/">Sistema Camiones</a></li>
+                                <li class="breadcrumb-item"><a href="{% url 'sec_listall' %}">Secuencias</a></li>
+                                
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+            <!-- [ breadcrumb ] end -->
+            <!-- [ Main Content ] start -->
+            <div class="row">
+                <!-- HTML5 Export Buttons table start -->
+                <div class="col-sm-12">
+                    <div class="card">
+                        <div class="d-flex justify-content-between">
+                            <div class="card-header table-card-header">
+                                <h5>Opciones de exportación</h5>
+                            </div>
+                            <div class=" mb-2 mb-md-0" style="margin-right: 50px;margin-top: 20px;">
+                                <a href="{% url 'sec_addone' %}" class="btn  btn-primary d-inline-flex align-items-center"><i class="fas fa-user-plus"></i>
+                                    &nbsp&nbsp Nuevo
+                                </a>
+                            </div>
+                        </div>
+                        <div class="card-body">
+                            <div class="dt-responsive table-responsive">
+                                <table id="basic-btn" class="table table-striped table-bordered nowrap">
+                                    <thead>
+                                        <tr>
+                                            <th>ACCIONES</th>
+                                            <th>TIPO</th>
+                                            <th>CÓDIGO</th>
+                                            <th>NOMBRE</th>
+                                            <th>FECHA DE REGISTRO</th>
+                                            <th>HABILITADO</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {% for object in object_list %}
+                                            <tr>
+                                                <td>
+                                                    {% if request.user.is_superuser == 1 %}
+                                                        <a class="btn btn-primary" href="{% url 'sec_update' object.pk %}">
+                                                            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-pencil-square" viewBox="0 0 16 16">
+                                                                <path d="M15.502 1.94a.5.5 0 0 1 0 .706L14.459 3.69l-2-2L13.502.646a.5.5 0 0 1 .707 0l1.293 1.293zm-1.75 2.456-2-2L4.939 9.21a.5.5 0 0 0-.121.196l-.805 2.414a.25.25 0 0 0 .316.316l2.414-.805a.5.5 0 0 0 .196-.12l6.813-6.814z"/>
+                                                                <path fill-rule="evenodd" d="M1 13.5A1.5 1.5 0 0 0 2.5 15h11a1.5 1.5 0 0 0 1.5-1.5v-6a.5.5 0 0 0-1 0v6a.5.5 0 0 1-.5.5h-11a.5.5 0 0 1-.5-.5v-11a.5.5 0 0 1 .5-.5H9a.5.5 0 0 0 0-1H2.5A1.5 1.5 0 0 0 1 2.5v11z"/>
+                                                            </svg>
+                                                        </a>
+                                                        <a class="btn btn-danger delete_documento" data-href="{% url 'sec_delete' object.pk %}" id="delete_documento">
+                                                            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-trash" viewBox="0 0 16 16">
+                                                                <path d="M5.5 5.5A.5.5 0 0 1 6 6v6a.5.5 0 0 1-1 0V6a.5.5 0 0 1 .5-.5zm2.5 0a.5.5 0 0 1 .5.5v6a.5.5 0 0 1-1 0V6a.5.5 0 0 1 .5-.5zm3 .5a.5.5 0 0 0-1 0v6a.5.5 0 0 0 1 0V6z" />
+                                                                <path fill-rule="evenodd"d="M14.5 3a1 1 0 0 1-1 1H13v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V4h-.5a1 1 0 0 1-1-1V2a1 1 0 0 1 1-1H6a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1h3.5a1 1 0 0 1 1 1v1zM4.118 4 4 4.059V13a1 1 0 0 0 1 1h6a1 1 0 0 0 1-1V4.059L11.882 4H4.118zM2.5 3V2h11v1h-11z" />
+                                                            </svg>
+                                                        </a>
+
+                                                        <a class="btn btn-primary" onclick="abrirModalDuplicarSecuencia('{{ object.pk }}');" href="javascript:void(0);">
+                                                            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-file-plus" viewBox="0 0 16 16">
+                                                                <path d="M8.5 6a.5.5 0 0 0-1 0v1.5H6a.5.5 0 0 0 0 1h1.5V10a.5.5 0 0 0 1 0V8.5H10a.5.5 0 0 0 0-1H8.5z"/>
+                                                                <path d="M2 2a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2zm10-1H4a1 1 0 0 0-1 1v12a1 1 0 0 0 1 1h8a1 1 0 0 0 1-1V2a1 1 0 0 0-1-1"/>
+                                                            </svg>
+                                                        </a>
+     
+
+                                                    {% endif %}
+                                                    <a type="button" class="btn  btn-primary"  href="{% url 'get_preview_secuencia' object.pk %}">
+                                                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-file-earmark-medical" viewBox="0 0 16 16">
+                                                            <path d="M7.5 5.5a.5.5 0 0 0-1 0v.634l-.549-.317a.5.5 0 1 0-.5.866L6 7l-.549.317a.5.5 0 1 0 .5.866l.549-.317V8.5a.5.5 0 1 0 1 0v-.634l.549.317a.5.5 0 1 0 .5-.866L8 7l.549-.317a.5.5 0 1 0-.5-.866l-.549.317zm-2 4.5a.5.5 0 0 0 0 1h5a.5.5 0 0 0 0-1zm0 2a.5.5 0 0 0 0 1h5a.5.5 0 0 0 0-1z"/>
+                                                            <path d="M14 14V4.5L9.5 0H4a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2M9.5 3A1.5 1.5 0 0 0 11 4.5h2V14a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V2a1 1 0 0 1 1-1h5.5z"/>
+                                                          </svg>
+                                                    </a>
+                                                </td>
+                                                <td>{{ object.SE_CTIPO }}</td>
+                                                <td>{{ object.SE_CCODIGO }}</td>
+                                                <td>{{ object.SE_CNOMBRE }}</td>
+                                                <td>{{ object.SE_FFECHAREGISTRO|date:'d/m/Y H:i' }}</td>
+                                                    {% if object.SE_BHABILITADO %}
+                                                        <td class="text-center"><span class="fw-bold text-success">
+                                                            <svg xmlns="http://www.w3.org/2000/svg" width="25" height="25" fill="currentColor" class="bi bi-check-lg" viewBox="0 0 16 16">
+                                                            <path d="M12.736 3.97a.733.733 0 0 1 1.047 0c.286.289.29.756.01 1.05L7.88 12.01a.733.733 0 0 1-1.065.02L3.217 8.384a.757.757 0 0 1 0-1.06.733.733 0 0 1 1.047 0l3.052 3.093 5.4-6.425a.247.247 0 0 1 .02-.022Z"/>
+                                                            </svg>
+                                                            </span>
+                                                        </td>
+                                                    {% else %}
+                                                        <td class="text-center"><span class="fw-bold text-info">
+                                                            <svg xmlns="http://www.w3.org/2000/svg" width="25" height="25" fill="currentColor" class="bi bi-dash-lg" viewBox="0 0 16 16">
+                                                            <path fill-rule="evenodd" d="M2 8a.5.5 0 0 1 .5-.5h11a.5.5 0 0 1 0 1h-11A.5.5 0 0 1 2 8Z"/>
+                                                            </svg>
+                                                            </span>
+                                                        </td>
+                                                    {% endif %}
+                                            </tr>
+                                        {% endfor %}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <!-- [ Main Content ] end -->
+        </div>
+    </section>
+    <!-- [ Main Content ] end -->
+    <div class="modal fade " id="ModalDuplicarSecuencia" tabindex="-1" role="dialog" aria-labelledby="ModalDuplicarSecuenciaLabel" aria-hidden="true" data-secuencia-id="">
+        <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable" role="document">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="ModalDuplicarSecuenciaLabel">Duplicar Secuencia</h5>
+                    <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                      <span aria-hidden="true">&times;</span>
+                    </button>
+                </div>
+                <div class="modal-body">
+                    <form id="formulario_duplicar_secuencia">
+                        <div class="form-group">
+                            <label class="my-1 me-2">Codigo Secuencia:</label>
+                            <input type="text" class="form-control col-12" id="codigo_secuencia" name="codigo_secuencia">
+                        </div>
+                        <div class="form-group">
+                            <label class="my-1 me-2">Nombre Secuencia:</label>
+                            <input type="text" class="form-control col-12" id="nombre_secuencia" name="nombre_secuencia">
+                        </div>
+                    </form>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-danger" data-dismiss="modal">Cerrar</button>
+                    <button type="button" class="btn btn-primary" id="duplicar_secuencia" data-dismiss="modal" onclick="procesar_data_duplicado($('#ModalDuplicarSecuencia').data('secuencia-id'));">Duplicar</button>
+                </div>
+            </div>
+        </div>
+    </div>
+{% endblock content %}
+
+<!-- Specific Page JS goes HERE  -->
+{% block javascripts %}
+
+    <!-- datatable Js -->
+    <script src="/static/assets/js/plugins/jquery.dataTables.min.js"></script>
+    <script src="/static/assets/js/plugins/dataTables.bootstrap4.min.js"></script>
+    <script src="/static/assets/js/plugins/buttons.colVis.min.js"></script>
+    <script src="/static/assets/js/plugins/buttons.print.min.js"></script>
+    <script src="/static/assets/js/plugins/pdfmake.min.js"></script>
+    <script src="/static/assets/js/plugins/jszip.min.js"></script>
+    <script src="/static/assets/js/plugins/dataTables.buttons.min.js"></script>
+    <script src="/static/assets/js/plugins/buttons.html5.min.js"></script>
+    <script src="/static/assets/js/plugins/buttons.bootstrap4.min.js"></script>
+    <script src="/static/assets/js/pages/data-export-custom.js"></script>
+    <script>
+
+        $('.delete_documento').on("click", function(){
+            const urlToNavigate = $(this).data('href');
+            Swal.fire({
+                title: '¡Atención!',
+                icon: 'warning',
+                text: '¿Estás seguro de eliminar a este tipo de documento?',
+                showCancelButton: true,
+                confirmButtonColor: '#299B0B',
+                cancelButtonColor: '#d33',
+                confirmButtonText: 'Confirmar',
+                cancelButtonText: 'Cancelar'
+            }).then((resultado) => {
+                if(resultado.isConfirmed){
+                    window.location.href = urlToNavigate;
+                }
+            });
+        });
+        function procesar_data_duplicado(pk) {
+            const codigo_secuencia = $('#codigo_secuencia').val();
+            const nombre_secuencia = $('#nombre_secuencia').val();
+            const id_secuencia = pk;
+
+            if (!codigo_secuencia || !nombre_secuencia) {
+                Swal.fire({
+                    title: 'Error',
+                    text: 'El código y el nombre de la secuencia no pueden estar vacíos.',
+                    icon: 'error',
+                    confirmButtonText: 'OK'
+                });
+                return; // Detiene la ejecución si los campos están vacíos
+            }
+
+            $.ajax({
+                url: '/sec_duplicar/', // Asegúrate de que esta URL es la correcta en tu backend
+                type: 'POST',
+                data: {
+                    codigo_secuencia: codigo_secuencia,
+                    nombre_secuencia: nombre_secuencia,
+                    id_secuencia: id_secuencia,
+                },
+                headers: {
+                    'X-CSRFToken': '{{ csrf_token }}' // Asegúrate de que el token CSRF esté disponible en tu plantilla
+                },
+                success: function(response) {
+                    console.log('Secuencia duplicada exitosamente:', response);
+                    if (response.status === 'success') {
+                        Swal.fire({
+                            title: 'Éxito',
+                            text: 'Secuencia duplicada correctamente.',
+                            icon: 'success',
+                            confirmButtonText: 'OK'
+                        }).then((result) => {
+                            if (result.isConfirmed) {
+                                location.reload();
+                            }
+                        });
+                    } else {
+                        Swal.fire({
+                            title: 'Error',
+                            text: 'Error al duplicar la secuencia: ' + response.message,
+                            icon: 'error',
+                            confirmButtonText: 'OK'
+                        });
+                    }
+                },
+                error: function(error) {
+                    console.error('Error al enviar los datos:', error);
+                    Swal.fire({
+                        title: 'Error',
+                        text: 'Error al procesar la solicitud de duplicado.',
+                        icon: 'error',
+                        confirmButtonText: 'OK'
+                    });
+                }
+            });
+        }
+        function abrirModalDuplicarSecuencia(idSecuencia) {
+            $('#ModalDuplicarSecuencia').attr('data-secuencia-id', idSecuencia);
+            $('#ModalDuplicarSecuencia').modal('show');
+        }
+    </script>
+{% endblock javascripts %}

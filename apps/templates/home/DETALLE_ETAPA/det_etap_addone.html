@@ -1,0 +1,122 @@
+{% extends "layouts/base.html" %}
+
+{% block title %} Detalle de etapa {% endblock %} 
+
+<!-- Specific CSS goes HERE -->
+{% block stylesheets %}{% endblock stylesheets %}
+
+{% block content %}		
+    <!-- [ Main Content ] start -->
+    <section class="pcoded-main-container">
+        <div class="pcoded-content">
+            <!-- [ breadcrumb ] start -->
+            <div class="page-header">
+                <div class="page-block">
+                    <div class="row align-items-center">
+                        <div class="col-md-12">
+                            <div class="page-header-title">
+                                <h5 class="m-b-10">Detalle Etapas</h5>
+                            </div>
+                            <ul class="breadcrumb">
+                                <li class="breadcrumb-item"><a href="/"><i class="feather icon-home"></i></a></li>
+                                <li class="breadcrumb-item"><a href="{% url 'det_etap_listall' %}">Detalle Etapa</a></li>
+                                <li class="breadcrumb-item"><a href="#!">Agregar Detalle de  Etapa</a></li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <!-- [ breadcrumb ] end -->
+            <!-- [ Main Content ] start -->
+            <div class="row">
+                <!-- [ form-element ] start -->
+                <div class="col-sm-12">
+                    <div class="card">
+                        <div class="card-header">
+                            <h5>Detalle Etapas</h5>
+                        </div>
+                        <div class="card-body">
+                            <h5>Ingrese datos</h5>
+                            <hr>
+                            <div class="row">
+                                <div class="col-md-8">
+                                    <form method="POST" id="validation-form123"  enctype="multipart/form-data" > 
+                                        {% csrf_token %}
+                                        {{ form.non_field_errors }}
+                                        {{ form.EP_NID }}
+
+                                        <div class="fieldWrapper">
+                                            {{ form.ET_NID.errors }}
+                                            <label class="my-1 me-2" for="{{ form.ET_NID.id_for_label }}">Etapa:</label>
+                                            {{ form.ET_NID }}
+                                        </div>
+                                        <div class="fieldWrapper">
+                                            {{ form.CAMP_NID.errors }}
+                                            <label class="my-1 me-2" for="{{ form.CAMP_NID.id_for_label }}">Campo:</label>
+                                            {{form.CAMP_NID }}
+                                        </div>
+                                        <div class="fieldWrapper">
+                                            {{ form.DET_NPASO.errors }}
+                                            <label class="my-1 me-2" for="{{ form.DET_NPASO.id_for_label }}">Paso:</label>
+                                            {{form.DET_NPASO}}
+                                        </div>
+                                        <div class="fieldWrapper">
+                                            {{ form.DET_CETIQUETAETAPA.errors }}
+                                            <label class="my-1 me-2" for="{{ form.DET_CETIQUETAETAPA.id_for_label }}">Etiqueta Etapa:</label>
+                                            {{ form.DET_CETIQUETAETAPA }}
+                                        </div>
+
+                                        <div class="form-group">
+                                            {{ form.DET_BOBLIGATORIO.errors }}
+                                            <label class=" font-weight-bold mr-3">¿Obligatorio? </label>
+                                            <div class="switch switch-success d-inline m-r-10">
+                                                <label>No</label>
+                                                {{form.DET_BOBLIGATORIO}}
+                                                <label for="switch-s-1" class="cr"></label>
+                                            </div>
+                                            <label>Si</label>
+                                        </div>
+   
+                                        <div class="form-group">
+                                            {{ form.DET_BHABILITADO.errors }}
+                                            <label class=" font-weight-bold mr-3">¿Habilitado? </label>
+                                            <div class="switch switch-success d-inline m-r-10">
+                                                <label>No</label>
+                                                {{ form.DET_BHABILITADO }}
+                                                <label for="switch-s-2" class="cr"></label>
+                                            </div>
+                                            <label>Si</label>
+                                        </div>
+                                        {{ form.errors }}
+                                        <div class="form-group nav justify-content-end">
+                                            <button class="btn btn-success mr-4" 
+                                            type="submit">Guardar</button>
+                                            <a class="btn btn-danger mr-1"
+                                                onclick="window.history.go(-1); return false;">Volver
+                                            </a>
+                                        </div>
+                                    </form>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <!-- [ form-element ] end -->
+            </div>
+            <!-- [ Main Content ] end -->
+        </div>
+    </section>
+    <!-- [ Main Content ] end -->
+{% endblock content %}
+
+<!-- Specific Page JS goes HERE  -->
+{% block javascripts %}
+    <!-- bootstrap-tagsinput-latest Js -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/typeahead.js/0.11.1/typeahead.bundle.min.js"></script>
+    <script src="/static/assets/js/plugins/bootstrap-tagsinput.min.js"></script>
+    <!-- bootstrap-maxlength Js -->
+    <script src="/static/assets/js/plugins/bootstrap-maxlength.js"></script>
+    <!-- form-advance custom js -->
+    <script src="/static/assets/js/pages/form-advance-custom.js"></script>
+    
+{% endblock javascripts %}

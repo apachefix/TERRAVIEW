@@ -1,0 +1,66 @@
+{% extends "layouts/base-fullscreen.html" %}
+
+{% block title %} Login {% endblock %}
+
+{% block content %} 
+
+	<div class="auth-content">
+		<div class="card">
+			<div class="row align-items-center text-center">
+				<div class="col-md-12">
+
+					<div class="card-body">
+						<h4 class="mb-3 f-w-400">
+							<a target="_blank" 
+							   href="#">Bienvenido(a) </a> - Iniciar Sesión
+						</h4>
+						<span class="mb-0 text-muted">
+							{% if msg %}
+								{{ msg | safe }}
+							{% else %}
+								Ingrese sus credenciales
+							{% endif %} 
+						</span>
+						<!-- dummy spacer -->
+						<p> <br /> </p>						
+						<form role="form" method="post" action="">
+
+							{% csrf_token %}
+							
+							<div class="input-group mb-3">
+								<div class="input-group-prepend">
+									<span class="input-group-text"><i class="feather icon-user"></i></span>
+								</div>
+								{{ form.username }}
+							</div>
+							<div class="input-group mb-4">
+								<div class="input-group-prepend">
+									<span class="input-group-text"><i class="feather icon-lock"></i></span>
+								</div>
+								{{ form.password }}
+							</div>
+
+							<button type="submit" name="login" class="btn btn-block btn-primary mb-4">Iniciar Sesión</button>
+						
+						</form>
+						<p class="mb-2 text-muted">
+							<br />
+							&copy; <a target="_blank" rel="noopener" href="https://terramar-chile.com/" class="f-w-400">Terramar Chile</a>
+							- Made with ♥ by  <a target="_blank" rel="noopener" href="https://www.neuronia.cl" class="f-w-400">Neuronia</a>
+						</p>
+					</div>
+
+
+				</div>
+			</div>
+		</div>
+	</div>
+
+{% endblock content %}
+
+<!-- Specific Page JS goes HERE  -->
+{% block javascripts %}
+
+	<script src="/static/assets/js/waves.min.js"></script>
+
+{% endblock javascripts %} 

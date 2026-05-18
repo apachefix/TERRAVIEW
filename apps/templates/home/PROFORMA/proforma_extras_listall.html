@@ -1,0 +1,421 @@
+{% extends "layouts/base.html" %}
+
+{% block title %} Proformas {% endblock %} 
+
+<!-- Specific CSS goes HERE -->
+{% block stylesheets %}
+    <!-- data tables css -->
+    <link rel="stylesheet" href="/static/assets/css/plugins/dataTables.bootstrap4.min.css">
+    {% load humanize %}
+    {% load i18n %}
+    {% load l10n %}
+    {% load formats %}
+    <style>
+        #basic-btn td{
+            text-align: center;
+        }
+        .pagination-info {
+            display: flex;
+            justify-content: right;
+            align-items: center;
+            margin: 20px 0;
+        }
+        .page-size-selector {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+    </style>
+{% endblock stylesheets %}
+
+{% block content %}	
+    <!-- [ Main Content ] start -->
+    <section class="pcoded-main-container">
+        <div class="pcoded-content">
+            <!-- [ breadcrumb ] start -->
+            <div class="page-header">
+                <div class="page-block">
+                    <div class="row align-items-center">
+                        <div class="col-md-12">
+                            <div class="page-header-title">
+                                <h5 class="m-b-10">Lista de extras</h5>
+                            </div>
+                            <ul class="breadcrumb">
+                                <li class="breadcrumb-item"><a href="/"><i class="feather icon-home"></i></a></li>
+                                <li class="breadcrumb-item"><a href="/">Sistema Camiones</a></li>
+                                <li class="breadcrumb-item"><a href="#">Proformas</a></li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <!-- [ breadcrumb ] end -->
+            <div class="card">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-center mb-3 mr-5">
+                        <h5 class="mb-0">Filtros</h5>
+                        <div>
+                            <button class="btn btn-primary m-t-5" type="button" data-toggle="collapse" data-target="#collapseExample" aria-expanded="false" aria-controls="collapseExample">
+                                <i class="fas fa-filter"></i> Ocultar/Mostrar Filtros
+                            </button>
+                            {% if filtrado %}
+                                <a class="btn btn-danger m-t-5 ml-3" href="{% url 'prof_listall' %}">
+                                    <i class="fas fa-times"></i> Borrar Filtros
+                                </a>
+                            {% endif %}
+                        </div>
+                    </div>
+                    <div class="collapse {% if filtrado %} show {% endif %}" id="collapseExample">
+                        <form method="POST">
+                            {% csrf_token %}
+                            <div class="form-row mr-5">
+                                <div class="col-md-6">
+                                    <label class="form-label" for="fecha_desde">Fecha desde:</label>
+                                    <input type="date" class="form-control" id="fecha_desde" name="fecha_desde" style="width: 100%;">
+                                </div>
+                                <div class="col-md-6">
+                                    <label class="form-label" for="fecha_hasta">Fecha Hasta:</label>
+                                    <input type="date" class="form-control" id="fecha_hasta" name="fecha_hasta" style="width: 100%;">
+                                </div>
+                            </div>
+                            <div class="form-row mr-5">
+                                <div class="form-group col-md-6 mb-2">
+                                    <label class="form-label" for="cliente">Proveedor:</label>
+                                    <select class="form-control js-example-placeholder-multiple" name="proveedor" id="proveedor" style="width: 100%;">
+                                        <option value="" selected>Todos los proveedores</option>
+                                        {% for proveedor in lstProveedores %}
+                                            <option value="{{ proveedor.0 }}" {% if selectedproveedor == proveedor.0 %}selected{% endif %} >{{ proveedor.1 }}</option>
+                                        {% endfor %}
+                                    </select>
+                                </div>
+                                <div class="form-group col-md-6 mb-2">
+                                    <label class="form-label" for="cliente">Tipo citación:</label>
+                                    <select class="form-control js-example-placeholder-multiple" name="tipo_citacion" id="tipo_citacion" style="width: 100%;">
+                                        <option value="RECEPCION" {% if tipo_citacion == 'RECEPCION' %} selected {% endif %}>Recepción</option>
+                                        <option value="DESPACHO" {% if tipo_citacion == 'DESPACHO' %} selected {% endif %}>Despacho</option>
+                                    </select>
+                                </div>
+                            </div>
+                            <div class="form-row mr-5">
+                                <div class="form-group col-md-6 mb-2">
+                                    <label class="form-label" for="cliente">Empresa:</label>
+                                    <select class="form-control js-example-placeholder-multiple" name="empresa" id="empresa" style="width: 100%;">
+                                        {% for empresa in ltsEmpresas %}
+                                            <option value="{{ empresa.pk }}" {% if selectedempresa == empresa.pk %}selected{% endif %} >{{ empresa.EP_CRAZONSOCIAL }}</option>
+                                        {% endfor %}
+                                    </select>
+                                </div>
+                            </div>
+                            <div class="d-flex justify-content-end mr-5">
+                                <button type="submit" class="btn btn-primary">Aplicar filtros</button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- [ Main Content ] start -->
+            <div class="row">
+                <div class="col-sm-12">
+                    <div class="card">
+                        <!-- Información de paginación y botones -->
+                        <div class="pagination-info">
+                            <div class="d-flex justify-content-right">
+                                <button class="btn btn-primary mr-2 float-right" id="btn_Fconsolidada" onclick="proforma_consolidad()" 
+                                        data-toggle="tooltip" data-placement="bottom" 
+                                        title="Liquidar las citaciones seleccionados en UNA liquidacion.">
+                                    Proforma consolidada
+                                </button>
+                            </div>
+                        </div>
+
+                        <div class="card-body">
+                            <!-- Paginación superior -->
+                            <div class="dt-responsive table-responsive">
+                                <table id="basic-btn" class="table table-striped table-bordered nowrap">
+                                    <thead>
+                                        <tr>
+                                            <th>
+                                                <input type="checkbox" id="select-all" class="form-control">
+                                            </th>
+                                            <th>NÚMERO CITACIÓN</th>
+                                            <th>TIPO DOCUMENTO</th>
+                                            <th>NÚMERO DOCUMENTO</th>
+                                            <th>FECHA CITACIÓN</th>
+                                            <th>TIPO EXTRA</th>
+                                            <th>CONDUCTOR</th>
+                                            <th>PROVEEDOR</th>
+                                            <th>¿INGRESO?</th>
+                                            <th>VALOR</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {% for object in object_list %}
+                                            <tr>
+                                                <td>
+                                                    <input type="checkbox" class="form-control citacion-checkbox" value="{{ object.id_extra }}">
+                                                </td>
+                                                <td><span class="fw-normal"><a href="{% url 'cit_listone' object.id_citacion %}">{{ object.id_citacion }}</a></span></td>
+                                                <td><span class="fw-normal">{{ object.TIPO_DOCUMENTO }}</span></td>
+                                                <td><span class="fw-normal">{{ object.NUMERO_DOCUMENTO }}</span></td>
+                                                <td><span class="fw-normal">{{ object.CI_FFECHAREGISTRO|date:"d/m/Y" }}</span></td>
+                                                <td><span class="fw-normal">{{ object.EXT_CNOMBRE}}</span></td>
+                                                <td><span class="fw-normal">{{ object.CON_CNOMBRE|default:"" }}</span></td>
+                                                <td><span class="fw-normal">{{ object.SN_CRAZONSOCIAL }}</span></td>
+                                                <td>
+                                                    {% if object.CIE_BINGRESO %}
+                                                    <span class="fw-normal" style="color:green;">SI</span>
+                                                    {% else %}
+                                                    <span class="fw-normal" style="color:red">NO</span>
+                                                    {% endif %}
+                                                </td>
+                                                <td><span class="fw-normal">$ {{ object.CIE_NVALOR|custom_number_format }}</span></td>
+                                            </tr>
+                                        {% endfor %}
+                                    </tbody>
+                                </table>
+                            </div>
+                            <!-- Paginación inferior -->
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+{% endblock content %}
+
+{% block javascripts %}
+    <!-- datatable Js -->
+    <script src="/static/assets/js/plugins/jquery.dataTables.min.js"></script>
+    <script src="/static/assets/js/plugins/dataTables.bootstrap4.min.js"></script>
+    <script src="/static/assets/js/plugins/buttons.colVis.min.js"></script>
+    <script src="/static/assets/js/plugins/buttons.print.min.js"></script>
+    <script src="/static/assets/js/plugins/pdfmake.min.js"></script>
+    <script src="/static/assets/js/plugins/jszip.min.js"></script>
+    <script src="/static/assets/js/plugins/dataTables.buttons.min.js"></script>
+    <script src="/static/assets/js/plugins/buttons.html5.min.js"></script>
+    <script src="/static/assets/js/plugins/buttons.bootstrap4.min.js"></script>
+    <script src="/static/assets/js/pages/data-export-custom.js"></script>
+
+    <script>
+        const tipo_citacion = "{{ tipo_citacion }}";
+
+        $(document).ready(function() {
+            // Inicializar DataTable solo para funciones básicas (sin paginación)
+            setTimeout(function() {
+                // Verificar que la tabla existe antes de inicializarla
+                if ($('#basic-btn').length > 0) {
+                    $('#basic-btn').DataTable({
+                        dom: 'Bfrtip',
+                        buttons: ['copy', 'csv', 'excel', 'print'],
+                        aaSorting: [],
+                        // Agregar estas opciones para debugging
+                        destroy: true,
+                        responsive: true
+                    });
+                }
+            }, 500); // Aumentar el timeout
+
+            // Funcionalidad para seleccionar todos los checkboxes
+            $('#select-all').on('click', function() {
+                $('.citacion-checkbox').prop('checked', this.checked);
+            });
+
+            // Deseleccionar "seleccionar todo" si algún checkbox individual se deselecciona
+            $('.citacion-checkbox').on('click', function() {
+                if (!this.checked) {
+                    $('#select-all').prop('checked', false);
+                } else {
+                    // Verificar si todos están seleccionados
+                    const totalCheckboxes = $('.citacion-checkbox').length;
+                    const checkedCheckboxes = $('.citacion-checkbox:checked').length;
+                    $('#select-all').prop('checked', totalCheckboxes === checkedCheckboxes);
+                }
+            });
+        });
+
+        function proforma_consolidad(){
+            const citaciones = [];
+            let comentario = '';
+
+            // Obtener citaciones seleccionadas de la página actual
+            $('.citacion-checkbox:checked').each(function() {
+                citaciones.push($(this).val());
+            });
+
+            if(citaciones.length == 0){
+                Swal.fire({
+                    title: 'Error',
+                    text: 'No hay extras seleccionadas',
+                    icon: 'error',
+                });
+                return;
+            }
+
+            Swal.fire({
+                title: 'Proforma consolidada',
+                text: 'Ingresar un comentario(opcional)',
+                input: 'text',
+                showCancelButton: true,
+                inputPlaceholder: "Ingrese comentario",
+                icon: 'info'
+            }).then(result => {
+                if (result.value) {
+                    comentario = result.value;
+                }
+                if (result.isConfirmed) {
+                    $.ajax({
+                        url: "{% url 'proforma_extras' %}",
+                        method: 'POST',
+                        data: {
+                            extras: JSON.stringify(citaciones),
+                            comentario: comentario,
+                            tipo: tipo_citacion,
+                            'csrfmiddlewaretoken': '{{ csrf_token }}',
+                        },
+                        success: function(data){
+                            if(data.valid == true){
+                                Swal.fire({
+                                    title: 'Proforma consolidada',
+                                    text: 'Liquidación creada correctamente',
+                                    icon: 'success',
+                                }).then(result => {
+                                    if(result.isConfirmed){
+                                        window.location.href = `/proforma_listone_extras/${data.proforma}`;
+                                    }
+                                });
+                            } else {
+                                Swal.fire({
+                                    title: 'Error',
+                                    text: data.msg,
+                                    icon: 'error',
+                                }).then(result => {
+                                    if(result.isConfirmed){
+                                        window.location.reload();
+                                    }
+                                });
+                            }
+                        }
+                    });
+                }
+            });
+        }
+        
+        function proforma_unitaria(){
+            const citaciones = [];
+            let comentario = '';
+
+            $('.citacion-checkbox:checked').each(function() {
+                citaciones.push($(this).val());
+            });
+
+            if(citaciones.length == 0){
+                Swal.fire({
+                    title: 'Error',
+                    text: 'No hay citaciones seleccionadas',
+                    icon: 'error',
+                });
+                return;
+            }
+
+            Swal.fire({
+                title: 'Proforma unitaria',
+                text: 'Ingresar un comentario(opcional)',
+                input: 'text',
+                showCancelButton: true,
+                inputPlaceholder: "Ingrese comentario",
+                icon: 'info'
+            }).then(result => {
+                if (result.value) {
+                    comentario = result.value;
+                }
+                if (result.isConfirmed) {
+                    $.ajax({
+                        url: "{% url 'proforma_unitaria' %}",
+                        method: 'POST',
+                        data: {
+                            citaciones: JSON.stringify(citaciones),
+                            comentario: comentario,
+                            'csrfmiddlewaretoken': '{{ csrf_token }}',
+                        },
+                        success: function(data){
+                            if(data.valid == true){
+                                Swal.fire({
+                                    title: 'Listo',
+                                    text: 'Proformas creadas correctamente',
+                                    icon: 'success',
+                                }).then(result => {
+                                    if(result.isConfirmed){
+                                        window.location.href = `/proforma_listall_borrador`;
+                                    }
+                                });
+                            } else {
+                                Swal.fire({
+                                    title: 'Error',
+                                    text: data.msg,
+                                    icon: 'error',
+                                });
+                            }
+                        }
+                    });
+                }
+            });
+        }
+    
+        function proforma_todo(){
+            Swal.fire({
+                title: 'Liquidar Todo',
+                text: '¿Está seguro de liquidar TODAS las citaciones disponibles? Esta acción procesará los {{ total_records }} registros totales.',
+                icon: 'warning',
+                showCancelButton: true,
+                confirmButtonText: 'Sí, liquidar todo',
+                cancelButtonText: 'Cancelar'
+            }).then(result => {
+                if (result.isConfirmed) {
+                    Swal.fire({
+                        title: 'Liquidar Todo',
+                        text: 'Ingresar un comentario(opcional)',
+                        input: 'text',
+                        showCancelButton: true,
+                        inputPlaceholder: "Ingrese comentario",
+                        icon: 'info'
+                    }).then(result2 => {
+                        if (result2.isConfirmed) {
+                            const comentario = result2.value || '';
+                            
+                            $.ajax({
+                                url: "{% url 'proforma_todo' %}",
+                                method: 'POST',
+                                data: {
+                                    liquidar_todo: true,  // Flag especial para liquidar todo
+                                    comentario: comentario,
+                                    tipo: tipo_citacion,
+                                    'csrfmiddlewaretoken': '{{ csrf_token }}',
+                                },
+                                success: function(data){
+                                    if(data.valid == true){
+                                        Swal.fire({
+                                            title: 'Listo',
+                                            text: 'Todas las proformas fueron creadas correctamente',
+                                            icon: 'success',
+                                        }).then(result => {
+                                            if(result.isConfirmed){
+                                                window.location.href = `/proforma_listone/${data.proforma}`;
+                                            }
+                                        });
+                                    } else {
+                                        Swal.fire({
+                                            title: 'Error',
+                                            text: data.msg,
+                                            icon: 'error',
+                                        });
+                                    }
+                                }
+                            });
+                        }
+                    });
+                }
+            });
+        }
+    </script>
+{% endblock javascripts %}

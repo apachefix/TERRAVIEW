@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+
+    <title>
+        Sistema camiones - {% block title %}{% endblock %} | Terramar/Aceites SBH
+    </title>    
+	<!-- HTML5 Shim and Respond.js IE111 support of HTML5 elements and media queries -->
+	<!-- WARNING: Respond.js doesn't work if you view the page via file:// -->
+	<!--[if lt IE 11]>
+		<script src="https://oss.maxcdn.com/libs/html5shiv/3.7.0/html5shiv.js"></script>
+		<script src="https://oss.maxcdn.com/libs/respond.js/1.4.2/respond.min.js"></script>
+		<![endif]-->
+	<!-- Meta -->
+	<meta charset="utf-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=0, minimal-ui">
+	<meta http-equiv="X-UA-Compatible" content="IE=edge" />
+	<meta name="description" content="" />
+	<meta name="keywords" content="">
+	<meta name="author" content="Codedthemes" />
+	<!-- Favicon icon -->
+	<link rel="icon" href="/static/assets/images/favicon.ico" type="image/x-icon">
+
+	<!-- vendor css -->
+	<link rel="stylesheet" href="/static/assets/css/style.css">
+	<link type="text/css" href="/static/assets/sweetalert2/dist/sweetalert2.min.css" rel="stylesheet">
+
+    <!-- Specific CSS goes HERE -->
+    {% block stylesheets %}{% endblock stylesheets %}
+
+</head>
+<body>
+
+    <!-- [ auth-signin ] start -->
+    <div class="auth-wrapper {% block wrapper_class %}{% endblock %}">
+
+        {% block content %}{% endblock content %}
+	
+	</div>
+    <!-- [ auth-signin ] end -->
+
+	<script src="/static/assets/js/vendor-all.min.js"></script>
+	<script src="/static/assets/js/plugins/bootstrap.min.js"></script>
+	<script src="/static/assets/js/waves.min.js"></script>
+
+	<!-- Specific Page JS goes HERE  -->
+    {% block javascripts %}{% endblock javascripts %} 
+	<script src="//cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+	{% if messages%}
+        {% for m in messages %}
+            {% if m.tags == "error" %}
+                <script>
+                    Swal.fire({
+                        title: 'Error!',
+                        text: "{{m}}",
+                        icon: 'error'
+                    })
+                </script>
+            {% elif m.tags == "success" %}
+                <script>
+                    Swal.fire({
+                        title: 'Listo!',
+                        text: "{{m}}",
+                        icon: 'success'
+                    })
+                </script>
+            {% else %}
+                <script>
+                    Swal.fire({
+                        title: 'Atencion!',
+                        text: "{{m}}",
+                        icon: 'warning'
+                    })
+                </script>
+            {% endif %}>
+        {% endfor %}
+    {% endif %}
+</body>
+</html>
