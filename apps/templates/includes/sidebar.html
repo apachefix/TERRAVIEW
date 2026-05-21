@@ -1,4 +1,4 @@
-
+{% load permission_filters %}
     <!-- [ navigation menu ] start -->
 	<style>
 		/* Estilo para la barra de desplazamiento */
@@ -66,7 +66,7 @@
 						<p>
 							Planifica tus citaciones.
 						</p>
-						{% if request.user.is_superuser == 1 or request.user.userv.UX_IS_PLANIFICADOR == 1 or request.user.userv.UX_IS_RECEPCIONISTA == 1 or request.user.userv.UX_IS_CLIENTE == 1 or request.user.userv.UX_IS_PROVEEDOR == 1 or request.user.userv.UX_IS_CONDUCTOR == 1 %}
+						{% if request.user.is_superuser == 1 or request.user|es_ingreso_camion or request.user.userv.UX_IS_PLANIFICADOR == 1 or request.user.userv.UX_IS_RECEPCIONISTA == 1 or request.user.userv.UX_IS_CLIENTE == 1 or request.user.userv.UX_IS_PROVEEDOR == 1 or request.user.userv.UX_IS_CONDUCTOR == 1 %}
 							<a href="{% url 'pla_listall' %}" class="btn btn-primary btn-sm text-white m-0">
 								Click Aquí
 							</a>

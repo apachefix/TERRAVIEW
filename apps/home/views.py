@@ -9,7 +9,7 @@ from django.utils import timezone
 from django.utils.translation import gettext_lazy as _
 from django.utils.dateparse import parse_date
 from django.views.generic import FormView
-from django.contrib.auth import update_session_auth_hash, authenticate
+from django.contrib.auth import update_session_auth_hash, authenticate, logout
 from django.conf import settings
 from django.template.loader import render_to_string
 from django.db.models import Q, Subquery, OuterRef, Count
@@ -26,6 +26,11 @@ from .general_postgres import *
 from .general_hana import *
 from .general_sql_server import *
 from .general_postgres import QueryParam
+from .services.teams_service import (
+    enviar_alerta_camion_no_planificado_teams,
+    enviar_solicitud_camion_no_planificado_teams,
+    enviar_rechazo_camion_no_planificado_teams,
+)
 
 from datetime import datetime, time
 from decimal import Decimal, InvalidOperation, ROUND_HALF_UP
@@ -40,6 +45,7 @@ import openpyxl
 import pandas as pd
 import requests
 import logging
+import unicodedata
 
 try:
     from weasyprint import HTML, CSS
@@ -366,6 +372,1332 @@ def CREAR_CITACION_NO_PLANIFICADA(request, pk):
         print('ERROR CREAR_CITACION_NO_PLANIFICADA:', e)
         return JsonResponse({'success': False, 'message': str(e)})
 
+
+def NOTIFICAR_CAMION_NO_PLANIFICADO_LEGACY(request):
+    print("ENTRO A NOTIFICAR_CAMION_NO_PLANIFICADO")
+    print(request.POST)
+
+    if request.method != 'POST':
+        return JsonResponse({'success': False, 'message': 'Metodo no permitido.'}, status=405)
+
+    if not usuario_puede_operar_ingreso_camion(request.user):
+        return JsonResponse({
+            'success': False,
+            'message': 'No tiene permisos para notificar camiones no planificados.'
+        }, status=403)
+
+    Empresa = Verificar_empresa(request)
+
+    if Empresa is None:
+        return JsonResponse({'success': False, 'message': 'Debe seleccionar una empresa.'}, status=400)
+
+    empresa = EMPRESA.objects.filter(pk=Empresa).first()
+    planificacion_id = request.POST.get('planificacion_id')
+    log_estado = 'ERROR'
+    log_detalle = ''
+
+    try:
+        planificacion = PLANIFICACION.objects.get(pk=planificacion_id, EP_NID_id=Empresa)
+        planificador = User.objects.filter(username__iexact='MAESC', is_active=True).first()
+
+        if not planificador:
+            log_detalle = 'No se encontro el usuario MAESC.'
+            return JsonResponse({'success': False, 'message': log_detalle}, status=404)
+
+        if not planificador.email:
+            log_detalle = 'El usuario MAESC no tiene email configurado.'
+            return JsonResponse({'success': False, 'message': log_detalle}, status=400)
+
+        fecha_hora = timezone.localtime(timezone.now()).strftime('%d/%m/%Y %H:%M:%S')
+        empresa_nombre = empresa.EP_CRAZONSOCIAL if empresa else str(Empresa)
+        mensaje = (
+            '🚛 ALERTA CAMIÓN NO PLANIFICADO\n\n'
+            f'Guardia: {request.user.username}\n'
+            f'Planificación: {planificacion.id}\n'
+            f'Empresa: {empresa_nombre}\n'
+            f'Fecha/hora: {fecha_hora}\n\n'
+            'Acción requerida por planificación.'
+        )
+
+        notificacion = NOTIFICACION.objects.create(
+            USER_SENDER_ID=request.user,
+            USER_RECEIVER_ID=planificador,
+            EP_NID=empresa,
+            NOT_CCONTENIDO=mensaje,
+            NOT_CURL=f'/pla_listone/{planificacion.id}'
+        )
+
+        resultado_teams = enviar_alerta_camion_no_planificado_teams(planificador.email, mensaje)
+        log_estado = resultado_teams.status
+        log_detalle = resultado_teams.detail
+
+        return JsonResponse({
+            'success': True,
+            'message': 'Se notifico al planificador',
+            'teams_status': resultado_teams.status,
+            'teams_sent': resultado_teams.success,
+            'notificacion_id': notificacion.id
+        })
+
+    except PLANIFICACION.DoesNotExist:
+        log_detalle = 'No se encontro la planificacion para la empresa activa.'
+        return JsonResponse({'success': False, 'message': log_detalle}, status=404)
+    except Exception as e:
+        log_detalle = str(e)
+        return JsonResponse({'success': False, 'message': log_detalle}, status=500)
+    finally:
+        try:
+            SYSLOGGER.objects.create(
+                US_NID=request.user,
+                EP_NID=empresa,
+                LOG_FFECHAREGISTRO=timezone.now(),
+                LOG_CMODULO='PLANIFICACION',
+                LOG_COPERACION='NOTIF_NO_PLAN',
+                LOG_CDESCRIPCION=f'Intento notificacion camion no planificado: {log_estado} - {log_detalle}'[:1024],
+                LOG_CADD1=str(planificacion_id or '')[:128],
+                LOG_CADD2='MAESC'
+            )
+        except Exception as log_error:
+            print('ERROR LOG NOTIFICAR_CAMION_NO_PLANIFICADO:', log_error)
+
+
+def obtener_planificador_camion_no_planificado():
+    return User.objects.filter(username__iexact='MAESC', is_active=True).first()
+
+
+def registrar_log_camion_no_planificado(usuario, empresa, operacion, descripcion, add1='', add2=''):
+    try:
+        SYSLOGGER.objects.create(
+            US_NID=usuario,
+            EP_NID=empresa,
+            LOG_FFECHAREGISTRO=timezone.now(),
+            LOG_CMODULO='PLANIFICACION',
+            LOG_COPERACION=operacion,
+            LOG_CDESCRIPCION=descripcion[:1024],
+            LOG_CADD1=str(add1 or '')[:128],
+            LOG_CADD2=str(add2 or '')[:128]
+        )
+    except Exception as log_error:
+        print('ERROR LOG CAMION_NO_PLANIFICADO:', log_error)
+
+
+def armar_mensaje_solicitud_camion_no_planificado(request, solicitud, empresa, planificacion):
+    fecha_hora = timezone.localtime(solicitud.CNP_FFECHACREACION).strftime('%d/%m/%Y %H:%M:%S')
+    empresa_nombre = empresa.EP_CRAZONSOCIAL if empresa else ''
+    link_planificacion = request.build_absolute_uri(f'/pla_listone/{planificacion.id}')
+    link_guia = request.build_absolute_uri(solicitud.CNP_FARCHIVOGUIA.url) if solicitud.CNP_FARCHIVOGUIA else ''
+
+    return (
+        f'Guardia: {solicitud.US_GUARDIA_ID.username}\n'
+        f'Cliente: {solicitud.CLI_CNOMBRE}\n'
+        f'Insumo: {solicitud.CNP_CINSUMO}\n'
+        f'Guia: {solicitud.CNP_CNUMEROGUIA}\n'
+        f'Patente: {solicitud.CNP_CPATENTE}\n'
+        f'Empresa transporte: {solicitud.CNP_CEMPRESATRANSPORTE}\n'
+        f'Observacion: {solicitud.CNP_COBSERVACION or "Sin observacion"}\n'
+        f'Empresa: {empresa_nombre}\n'
+        f'Planificacion: {planificacion.id}\n'
+        f'Fecha/hora: {fecha_hora}\n'
+        f'Link interno: {link_planificacion}\n'
+        f'Guia escaneada: {link_guia}'
+    )
+
+
+def SOLICITAR_CAMION_NO_PLANIFICADO(request):
+    if request.method != 'POST':
+        return JsonResponse({'success': False, 'message': 'Metodo no permitido.'}, status=405)
+
+    if not usuario_puede_operar_ingreso_camion(request.user):
+        return JsonResponse({'success': False, 'message': 'No tiene permisos para solicitar camiones no planificados.'}, status=403)
+
+    Empresa = Verificar_empresa(request)
+    if Empresa is None:
+        return JsonResponse({'success': False, 'message': 'Debe seleccionar una empresa.'}, status=400)
+
+    empresa = EMPRESA.objects.filter(pk=Empresa).first()
+    planificacion_id = request.POST.get('planificacion_id')
+
+    try:
+        planificacion = PLANIFICACION.objects.get(pk=planificacion_id, EP_NID_id=Empresa)
+        planificador = obtener_planificador_camion_no_planificado()
+
+        if not planificador:
+            mensaje_error = 'No se encontro el usuario MAESC.'
+            registrar_log_camion_no_planificado(request.user, empresa, 'SOL_NO_PLAN', mensaje_error, planificacion_id)
+            return JsonResponse({'success': False, 'message': mensaje_error}, status=404)
+
+        if not planificador.email:
+            mensaje_error = 'El usuario MAESC no tiene email configurado.'
+            registrar_log_camion_no_planificado(request.user, empresa, 'SOL_NO_PLAN', mensaje_error, planificacion_id)
+            return JsonResponse({'success': False, 'message': mensaje_error}, status=400)
+
+        archivo_guia = request.FILES.get('archivo_guia')
+        if not archivo_guia:
+            return JsonResponse({'success': False, 'message': 'Debe adjuntar la guia escaneada.'}, status=400)
+
+        patente = str(request.POST.get('patente') or '').strip().upper()
+        if not patente:
+            return JsonResponse({'success': False, 'message': 'Debe ingresar la patente.'}, status=400)
+
+        campos_requeridos = {
+            'cliente': str(request.POST.get('cliente') or '').strip(),
+            'insumo': str(request.POST.get('insumo') or '').strip(),
+            'numero_guia': str(request.POST.get('numero_guia') or '').strip(),
+            'empresa_transporte': str(request.POST.get('empresa_transporte') or '').strip(),
+        }
+        if any(not valor for valor in campos_requeridos.values()):
+            return JsonResponse({'success': False, 'message': 'Debe completar cliente, insumo, numero guia y empresa transporte.'}, status=400)
+
+        solicitud_existente = CAMION_NO_PLANIFICADO.objects.filter(
+            EP_NID=empresa,
+            PL_NID=planificacion,
+            CNP_CPATENTE__iexact=patente,
+            CNP_CESTADO=CAMION_NO_PLANIFICADO.ESTADO_PENDIENTE
+        ).first()
+
+        if solicitud_existente:
+            return JsonResponse({
+                'success': False,
+                'message': f'Ya existe una solicitud pendiente para la patente {patente}.'
+            }, status=409)
+
+        cliente_codigo = str(request.POST.get('cliente') or '').strip()
+        cliente_nombre = str(request.POST.get('cliente_nombre') or cliente_codigo).strip()
+
+        solicitud = CAMION_NO_PLANIFICADO.objects.create(
+            EP_NID=empresa,
+            PL_NID=planificacion,
+            US_GUARDIA_ID=request.user,
+            CLI_CCODIGO=cliente_codigo,
+            CLI_CNOMBRE=cliente_nombre,
+            CNP_CINSUMO=campos_requeridos['insumo'],
+            CNP_CNUMEROGUIA=campos_requeridos['numero_guia'],
+            CNP_CPATENTE=patente,
+            CNP_CEMPRESATRANSPORTE=campos_requeridos['empresa_transporte'],
+            CNP_COBSERVACION=str(request.POST.get('observacion') or '').strip(),
+            CNP_FARCHIVOGUIA=archivo_guia,
+        )
+
+        mensaje = armar_mensaje_solicitud_camion_no_planificado(request, solicitud, empresa, planificacion)
+        notificacion = NOTIFICACION.objects.create(
+            USER_SENDER_ID=request.user,
+            USER_RECEIVER_ID=planificador,
+            EP_NID=empresa,
+            NOT_CCONTENIDO=f'Camion no planificado pendiente: patente {solicitud.CNP_CPATENTE}',
+            NOT_CURL=f'/pla_listone/{planificacion.id}'
+        )
+
+        resultado_teams = enviar_solicitud_camion_no_planificado_teams(planificador.email, mensaje)
+        registrar_log_camion_no_planificado(
+            request.user,
+            empresa,
+            'SOL_NO_PLAN',
+            f'Solicitud camion no planificado #{solicitud.id}: {resultado_teams.status} - {resultado_teams.detail}',
+            planificacion_id,
+            solicitud.CNP_CPATENTE
+        )
+
+        return JsonResponse({
+            'success': True,
+            'message': 'Solicitud enviada al planificador',
+            'teams_status': resultado_teams.status,
+            'teams_sent': resultado_teams.success,
+            'solicitud_id': solicitud.id,
+            'notificacion_id': notificacion.id
+        })
+
+    except PLANIFICACION.DoesNotExist:
+        mensaje_error = 'No se encontro la planificacion para la empresa activa.'
+        registrar_log_camion_no_planificado(request.user, empresa, 'SOL_NO_PLAN', mensaje_error, planificacion_id)
+        return JsonResponse({'success': False, 'message': mensaje_error}, status=404)
+    except Exception as e:
+        mensaje_error = str(e)
+        registrar_log_camion_no_planificado(request.user, empresa, 'SOL_NO_PLAN', mensaje_error, planificacion_id)
+        return JsonResponse({'success': False, 'message': mensaje_error}, status=500)
+
+
+def NOTIFICAR_CAMION_NO_PLANIFICADO(request):
+    return SOLICITAR_CAMION_NO_PLANIFICADO(request)
+
+
+def RECHAZAR_CAMION_NO_PLANIFICADO(request):
+    if request.method != 'POST':
+        return JsonResponse({'success': False, 'message': 'Metodo no permitido.'}, status=405)
+
+    if not usuario_es_planificador(request.user):
+        return JsonResponse({'success': False, 'message': 'No tiene permisos para rechazar solicitudes.'}, status=403)
+
+    Empresa = Verificar_empresa(request)
+    if Empresa is None:
+        return JsonResponse({'success': False, 'message': 'Debe seleccionar una empresa.'}, status=400)
+
+    empresa = EMPRESA.objects.filter(pk=Empresa).first()
+    planificacion_id = request.POST.get('planificacion_id')
+    patente = str(request.POST.get('patente') or '').strip().upper()
+    observacion = str(request.POST.get('observacion_rechazo') or '').strip()
+
+    if not patente:
+        return JsonResponse({'success': False, 'message': 'Debe ingresar la patente.'}, status=400)
+
+    if not observacion:
+        return JsonResponse({'success': False, 'message': 'Debe ingresar el motivo u observacion de rechazo.'}, status=400)
+
+    try:
+        planificacion = PLANIFICACION.objects.get(pk=planificacion_id, EP_NID_id=Empresa)
+        solicitud = CAMION_NO_PLANIFICADO.objects.select_related('US_GUARDIA_ID').filter(
+            EP_NID=empresa,
+            PL_NID=planificacion,
+            CNP_CPATENTE__iexact=patente,
+            CNP_CESTADO=CAMION_NO_PLANIFICADO.ESTADO_PENDIENTE
+        ).order_by('-CNP_FFECHACREACION').first()
+
+        if not solicitud:
+            return JsonResponse({'success': False, 'message': f'No existe solicitud pendiente para la patente {patente}.'}, status=404)
+
+        solicitud.CNP_CESTADO = CAMION_NO_PLANIFICADO.ESTADO_RECHAZADO
+        solicitud.US_PLANIFICADOR_ID = request.user
+        solicitud.CNP_COBSERVACION_RECHAZO = observacion
+        solicitud.CNP_FFECHARESPUESTA = timezone.now()
+        solicitud.save(update_fields=[
+            'CNP_CESTADO',
+            'US_PLANIFICADOR_ID',
+            'CNP_COBSERVACION_RECHAZO',
+            'CNP_FFECHARESPUESTA',
+        ])
+
+        mensaje = (
+            f'Planificador: {request.user.username}\n'
+            f'Patente: {solicitud.CNP_CPATENTE}\n'
+            f'Cliente: {solicitud.CLI_CNOMBRE}\n'
+            f'Insumo: {solicitud.CNP_CINSUMO}\n'
+            f'Guia: {solicitud.CNP_CNUMEROGUIA}\n'
+            f'Motivo/observacion: {observacion}\n'
+            f'Guardia notificado: {solicitud.US_GUARDIA_ID.username}\n'
+            f'Link interno: {request.build_absolute_uri(f"/pla_listone/{planificacion.id}")}'
+        )
+
+        NOTIFICACION.objects.create(
+            USER_SENDER_ID=request.user,
+            USER_RECEIVER_ID=solicitud.US_GUARDIA_ID,
+            EP_NID=empresa,
+            NOT_CCONTENIDO=f'Camion no planificado rechazado: patente {solicitud.CNP_CPATENTE}. Motivo: {observacion}',
+            NOT_CURL=f'/pla_listone/{planificacion.id}'
+        )
+
+        resultado_teams = enviar_rechazo_camion_no_planificado_teams(solicitud.US_GUARDIA_ID.email, mensaje)
+        registrar_log_camion_no_planificado(
+            request.user,
+            empresa,
+            'RECH_NO_PLAN',
+            f'Rechazo camion no planificado #{solicitud.id}: {resultado_teams.status} - {resultado_teams.detail}',
+            planificacion_id,
+            solicitud.CNP_CPATENTE
+        )
+
+        return JsonResponse({
+            'success': True,
+            'message': 'Solicitud rechazada y guardia notificado.',
+            'solicitud_id': solicitud.id,
+            'teams_status': resultado_teams.status,
+            'teams_sent': resultado_teams.success
+        })
+
+    except PLANIFICACION.DoesNotExist:
+        mensaje_error = 'No se encontro la planificacion para la empresa activa.'
+        registrar_log_camion_no_planificado(request.user, empresa, 'RECH_NO_PLAN', mensaje_error, planificacion_id, patente)
+        return JsonResponse({'success': False, 'message': mensaje_error}, status=404)
+    except Exception as e:
+        mensaje_error = str(e)
+        registrar_log_camion_no_planificado(request.user, empresa, 'RECH_NO_PLAN', mensaje_error, planificacion_id, patente)
+        return JsonResponse({'success': False, 'message': mensaje_error}, status=500)
+
+
+def PLANIFICACION_CITACION_INGRESO_CAMION(request, pk):
+    try:
+        if not usuario_es_guardia(request.user):
+            return JsonResponse({
+                'success': False,
+                'message': 'No tiene permisos para registrar ingreso de camion.'
+            }, status=403)
+
+        Empresa = Verificar_empresa(request)
+
+        if Empresa is None:
+            return JsonResponse({
+                'success': False,
+                'message': 'Debe seleccionar una empresa.'
+            }, status=400)
+
+        citacion = CITACION.objects.select_related(
+            'EP_NID',
+            'PL_NID',
+            'SC_NID',
+            'PRO_NID',
+            'CON_NID',
+            'CA_NID'
+        ).get(pk=pk, EP_NID_id=Empresa, CI_BHABILITADO=True)
+
+        etapa_actual = citacion.ETAPA_ACTUAL
+
+        if request.method == 'GET':
+            campos = obtener_campos_operacion_etapa(citacion, etapa_actual, request.user)
+            registrar_log_camion_no_planificado(
+                request.user,
+                citacion.EP_NID,
+                'OPEN_ING_CAMION',
+                f'Apertura modal ingreso camion citacion #{citacion.id} etapa {etapa_actual.ET_CCODIGO}',
+                citacion.id,
+                etapa_actual.ET_CCODIGO
+            )
+
+            return JsonResponse({
+                'success': True,
+                'citacion': {
+                    'id': citacion.id,
+                    'estado': citacion.CI_CESTADO,
+                    'cupo': citacion.CI_NCUPO,
+                    'proveedor': citacion.PRO_NID.SN_CRAZONSOCIAL if citacion.PRO_NID else '',
+                    'patente': citacion.CA_NID.CAM_CPATENTE if citacion.CA_NID else '',
+                    'conductor': f'{citacion.CON_NID.CON_CNOMBRE} {citacion.CON_NID.CON_CAPELLIDO}' if citacion.CON_NID else '',
+                },
+                'etapa': {
+                    'id': etapa_actual.id,
+                    'codigo': etapa_actual.ET_CCODIGO,
+                    'nombre': etapa_actual.ET_CNOMBRE,
+                },
+                'campos': campos
+            })
+
+        if request.method == 'POST':
+            fue_edicion = guardar_operacion_etapa(citacion, request)
+
+            return JsonResponse({
+                'success': True,
+                'message': 'Ingreso de camion actualizado correctamente.' if fue_edicion else 'Ingreso de camion registrado correctamente.',
+                'modo': 'edicion' if fue_edicion else 'creacion'
+            })
+
+        return JsonResponse({
+            'success': False,
+            'message': 'Metodo no permitido.'
+        }, status=405)
+
+    except CITACION.DoesNotExist:
+        return JsonResponse({
+            'success': False,
+            'message': 'Citacion no encontrada para la empresa activa.'
+        }, status=404)
+    except Exception as e:
+        print('ERROR PLANIFICACION_CITACION_INGRESO_CAMION:', e)
+        return JsonResponse({
+            'success': False,
+            'message': str(e)
+        }, status=400)
+
+
+def obtener_dato_operacion_por_codigo(citacion, etapa, codigo):
+    dato = DATO_OPERACION.objects.filter(
+        CI_NID=citacion,
+        SC_NID=citacion.SC_NID,
+        ET_NID=etapa,
+        CAMP_NID__CA_CCODIGO=codigo
+    ).select_related('CAMP_NID').order_by('-id').first()
+
+    if dato and dato.DO_CVALOR is not None:
+        return str(dato.DO_CVALOR).strip()
+
+    return ''
+
+
+def validar_ingreso_camion_minimo(citacion, etapa):
+    campos_requeridos = [
+        ('CI_CNUMERODOCUMENTO', 'Numero guia'),
+        ('ING_EMPRESA_TRANSPORTE', 'Empresa transporte'),
+        ('ING_NOMBRE_CONDUCTOR', 'Nombre conductor'),
+        ('ING_PATENTE', 'Patente'),
+    ]
+
+    faltantes = []
+    valores = {}
+
+    for codigo, etiqueta in campos_requeridos:
+        valor = obtener_dato_operacion_por_codigo(citacion, etapa, codigo)
+        if not valor:
+            faltantes.append(etiqueta)
+        valores[codigo] = valor
+
+    return faltantes, valores
+
+
+def obtener_usuarios_asistente_recepcion():
+    perfiles = PERFIL_USUARIO.objects.select_related('PR_NID', 'US_NID').filter(
+        PE_BHABILITADO=True,
+        PR_NID__PR_BHABILITADO=True,
+        US_NID__is_active=True
+    )
+
+    usuarios = []
+    usuarios_ids = set()
+
+    for perfil_usuario in perfiles:
+        nombre = normalizar_nombre_perfil(perfil_usuario.PR_NID.PR_CNOMBRE)
+        codigo = normalizar_nombre_perfil(perfil_usuario.PR_NID.PR_CCODIGO)
+
+        if nombre in PERFILES_ASISTENTE_RECEPCION or codigo in PERFILES_ASISTENTE_RECEPCION:
+            if perfil_usuario.US_NID_id not in usuarios_ids:
+                usuarios.append(perfil_usuario.US_NID)
+                usuarios_ids.add(perfil_usuario.US_NID_id)
+
+    return usuarios
+
+
+def obtener_usuarios_asistente_cd():
+    perfiles = PERFIL_USUARIO.objects.select_related('PR_NID', 'US_NID').filter(
+        PE_BHABILITADO=True,
+        PR_NID__PR_BHABILITADO=True,
+        US_NID__is_active=True
+    )
+
+    usuarios = []
+    usuarios_ids = set()
+
+    for perfil_usuario in perfiles:
+        nombre = normalizar_nombre_perfil(perfil_usuario.PR_NID.PR_CNOMBRE)
+        codigo = normalizar_nombre_perfil(perfil_usuario.PR_NID.PR_CCODIGO)
+
+        if nombre in PERFILES_ASISTENTE_CD or codigo in PERFILES_ASISTENTE_CD:
+            if perfil_usuario.US_NID_id not in usuarios_ids:
+                usuarios.append(perfil_usuario.US_NID)
+                usuarios_ids.add(perfil_usuario.US_NID_id)
+
+    usuarios_fallback = User.objects.filter(
+        username__in=['Asistente_C_D', 'ASISTENTE_C_D', 'Asistente CD', 'ASISTENTE CD'],
+        is_active=True
+    )
+    for usuario in usuarios_fallback:
+        if usuario.id not in usuarios_ids:
+            usuarios.append(usuario)
+            usuarios_ids.add(usuario.id)
+
+    return usuarios
+
+
+def AVANZAR_INGRESO_CAMION_ASISTENTE(request, pk):
+    if request.method != 'POST':
+        return JsonResponse({'success': False, 'message': 'Metodo no permitido.'}, status=405)
+
+    if not usuario_es_guardia(request.user):
+        return JsonResponse({'success': False, 'message': 'Solo Guardia puede enviar la citacion al asistente.'}, status=403)
+
+    Empresa = Verificar_empresa(request)
+    if Empresa is None:
+        return JsonResponse({'success': False, 'message': 'Debe seleccionar una empresa.'}, status=400)
+
+    try:
+        citacion = CITACION.objects.select_related('EP_NID', 'PL_NID', 'SC_NID').get(
+            pk=pk,
+            EP_NID_id=Empresa,
+            CI_BHABILITADO=True
+        )
+        etapa_actual = citacion.ETAPA_ACTUAL
+        detalle_actual = DETALLE_SECUENCIA.objects.filter(
+            SC_NID=citacion.SC_NID,
+            ET_NID=etapa_actual,
+            SE_BHABILITADO=True
+        ).first()
+
+        if detalle_actual and detalle_actual.SE_NPASO > 1:
+            return JsonResponse({
+                'success': False,
+                'message': 'Esta citacion ya fue enviada al Asistente de recepcion.'
+            }, status=409)
+
+        faltantes, valores = validar_ingreso_camion_minimo(citacion, etapa_actual)
+
+        if faltantes:
+            return JsonResponse({
+                'success': False,
+                'message': 'Debe completar antes de avanzar: ' + ', '.join(faltantes)
+            }, status=400)
+
+        siguiente_etapa = citacion.ETAPA_SIGUIENTE
+        if not siguiente_etapa:
+            return JsonResponse({'success': False, 'message': 'La citacion no tiene una etapa siguiente configurada.'}, status=400)
+
+        etapa_log_actual, _ = ETAPA_LOG.objects.get_or_create(
+            CI_NID=citacion,
+            EP_NID=citacion.EP_NID,
+            SC_NID=citacion.SC_NID,
+            ET_NID=etapa_actual,
+            EL_FFECHAFIN=None,
+            defaults={'EL_FFECHAINICIO': datetime.now()}
+        )
+        etapa_log_actual.EL_FFECHAFIN = datetime.now()
+        etapa_log_actual.US_FIN_ID = request.user
+        etapa_log_actual.EL_CACCION = 'ENVIA_ASISTENTE'
+        etapa_log_actual.save(update_fields=['EL_FFECHAFIN', 'US_FIN_ID', 'EL_CACCION'])
+
+        etapa_log_siguiente, _ = ETAPA_LOG.objects.get_or_create(
+            CI_NID=citacion,
+            EP_NID=citacion.EP_NID,
+            SC_NID=citacion.SC_NID,
+            ET_NID=siguiente_etapa.ET_NID,
+            EL_FFECHAFIN=None,
+            defaults={
+                'EL_FFECHAINICIO': datetime.now(),
+                'US_INICIO_ID': request.user,
+                'EL_CACCION': 'ENVIA_ASISTENTE',
+            }
+        )
+        if etapa_log_siguiente.US_INICIO_ID_id is None or etapa_log_siguiente.EL_CACCION != 'ENVIA_ASISTENTE':
+            etapa_log_siguiente.US_INICIO_ID = request.user
+            etapa_log_siguiente.EL_CACCION = 'ENVIA_ASISTENTE'
+            etapa_log_siguiente.save(update_fields=['US_INICIO_ID', 'EL_CACCION'])
+
+        if citacion.CI_CESTADO != CIT_EN_PROCESO:
+            citacion.CI_CESTADO = CIT_EN_PROCESO
+            citacion.CI_FFECHAINICIO = citacion.CI_FFECHAINICIO or datetime.now()
+            citacion.save(update_fields=['CI_CESTADO', 'CI_FFECHAINICIO'])
+
+        fecha_envio = timezone.localtime(timezone.now()).strftime('%d/%m/%Y %H:%M:%S')
+        mensaje = (
+            f'Nuevo camion pendiente de aprobacion/revision.\n'
+            f'Citacion: {citacion.id}\n'
+            f'Patente: {valores.get("ING_PATENTE", "")}\n'
+            f'Conductor: {valores.get("ING_NOMBRE_CONDUCTOR", "")}\n'
+            f'Empresa transporte: {valores.get("ING_EMPRESA_TRANSPORTE", "")}\n'
+            f'Fecha/hora envio: {fecha_envio}\n'
+            f'Guardia: {request.user.username}'
+        )
+
+        asistentes = obtener_usuarios_asistente_recepcion()
+        for asistente in asistentes:
+            NOTIFICACION.objects.create(
+                USER_SENDER_ID=request.user,
+                USER_RECEIVER_ID=asistente,
+                EP_NID=citacion.EP_NID,
+                NOT_CCONTENIDO=mensaje,
+                NOT_CURL=f'/pla_listone/{citacion.PL_NID_id}'
+            )
+
+        registrar_log_camion_no_planificado(
+            request.user,
+            citacion.EP_NID,
+            'AVANZA_AR',
+            f'Citacion #{citacion.id} enviada a asistente desde etapa {etapa_actual.ET_CCODIGO} a {siguiente_etapa.ET_NID.ET_CCODIGO}. Notificados: {len(asistentes)}',
+            citacion.id,
+            valores.get('ING_PATENTE', '')
+        )
+
+        return JsonResponse({
+            'success': True,
+            'message': 'Citacion enviada al asistente de recepcion.',
+            'notificados': len(asistentes),
+            'siguiente_etapa': siguiente_etapa.ET_NID.ET_CCODIGO
+        })
+
+    except CITACION.DoesNotExist:
+        return JsonResponse({'success': False, 'message': 'Citacion no encontrada para la empresa activa.'}, status=404)
+    except Exception as e:
+        print('ERROR AVANZAR_INGRESO_CAMION_ASISTENTE:', e)
+        return JsonResponse({'success': False, 'message': str(e)}, status=500)
+
+
+def valor_no_registrado(valor):
+    if valor is None or str(valor).strip() == '':
+        return 'No registrado'
+    return str(valor).strip()
+
+
+ESTANQUES_POR_ALMACEN = {
+    'PROSESA': [
+        'PROSE_G2',
+        'PROSE_T3',
+        'PROSE_T4',
+        'PROSE_T5',
+        'PROSEG10',
+    ],
+    'SBH': [
+        'PATIO_LF',
+        'TK01',
+        'TK02',
+        'TK03',
+        'TK04',
+        'TK05',
+        'TK06',
+        'TK07',
+        'TK08',
+        'TK09',
+        'TK10',
+        'TK11',
+        'TK12',
+        'TK13',
+        'TK14',
+        'TK15',
+        'TK16',
+        'TK17',
+        'TKMX01',
+        'TKMX02',
+        'TKMX03',
+        'TKMX04',
+        'Trasvasije',
+    ],
+}
+
+
+def normalizar_almacen_planificacion(valor):
+    almacen = normalizar_nombre_perfil(valor)
+    if almacen.startswith('PROSESA') or almacen.startswith('PROSE'):
+        return 'PROSESA'
+    if almacen.startswith('SBH'):
+        return 'SBH'
+    return ''
+
+
+def obtener_almacen_planificacion(citacion):
+    comentario = obtener_comentario_json_citacion(citacion)
+    return normalizar_almacen_planificacion(
+        comentario.get('estanque_destino')
+        or comentario.get('almacen')
+        or comentario.get('almacén')
+        or comentario.get('bodega')
+        or ''
+    )
+
+
+def obtener_campo_estanque_operacional(citacion, usuario):
+    campo, _ = CAMPO.objects.get_or_create(
+        EP_NID=citacion.EP_NID,
+        CA_CCODIGO='ETA3_ESTANQUE',
+        defaults={
+            'US_NID': usuario,
+            'CA_CTIPO': 'LISTA',
+            'CA_CETIQUETA': 'Estanque',
+            'CA_CPLACEMARK': 'Seleccione estanque',
+            'CA_BOBLIGATORIO': True,
+            'CA_BHABILITADO': True,
+            'CA_BASIGNARVALOR': False,
+        }
+    )
+
+    cambios = []
+    if not campo.CA_BHABILITADO:
+        campo.CA_BHABILITADO = True
+        cambios.append('CA_BHABILITADO')
+    if campo.CA_CTIPO != 'LISTA':
+        campo.CA_CTIPO = 'LISTA'
+        cambios.append('CA_CTIPO')
+    if not campo.CA_BOBLIGATORIO:
+        campo.CA_BOBLIGATORIO = True
+        cambios.append('CA_BOBLIGATORIO')
+    if cambios:
+        campo.save(update_fields=cambios)
+
+    return campo
+
+
+def obtener_dato_estanque_operacional(citacion):
+    return DATO_OPERACION.objects.filter(
+        CI_NID=citacion,
+        SC_NID=citacion.SC_NID,
+        CAMP_NID__CA_CCODIGO='ETA3_ESTANQUE'
+    ).select_related('US_NID', 'ET_NID').order_by('-id').first()
+
+
+def obtener_comentario_json_citacion(citacion):
+    if not citacion.CI_CCOMENTARIO:
+        return {}
+    try:
+        data = json.loads(citacion.CI_CCOMENTARIO)
+        return data if isinstance(data, dict) else {}
+    except (TypeError, ValueError):
+        return {}
+
+
+def obtener_datos_operacion_citacion(citacion):
+    datos = {}
+    documentos = []
+
+    registros = DATO_OPERACION.objects.filter(
+        CI_NID=citacion,
+        SC_NID=citacion.SC_NID
+    ).select_related('CAMP_NID', 'ET_NID').order_by('ET_NID_id', 'CAMP_NID_id', '-id')
+
+    for dato in registros:
+        campo = dato.CAMP_NID
+        codigo = campo.CA_CCODIGO or f'CAMPO_{campo.id}'
+        if codigo not in datos:
+            datos[codigo] = dato
+
+        if campo.CA_CTIPO.lower() == 'archivo':
+            documentos.append({
+                'label': campo.CA_CETIQUETA or codigo,
+                'etapa': dato.ET_NID.ET_CNOMBRE if dato.ET_NID else '',
+                'valor': dato.DO_CVALOR,
+                'download_url': reverse('cit_download_file', args=[dato.id]) if dato.DO_CVALOR else '',
+            })
+
+    return datos, documentos
+
+
+def obtener_guardias_relacionados_citacion(citacion):
+    guardias = []
+    guardias_ids = set()
+
+    for dato in DATO_OPERACION.objects.filter(CI_NID=citacion, SC_NID=citacion.SC_NID).select_related('US_NID'):
+        if dato.US_NID and usuario_es_guardia(dato.US_NID) and dato.US_NID_id not in guardias_ids:
+            guardias.append(dato.US_NID)
+            guardias_ids.add(dato.US_NID_id)
+
+    if guardias:
+        return guardias
+
+    perfiles = PERFIL_USUARIO.objects.select_related('PR_NID', 'US_NID').filter(
+        PE_BHABILITADO=True,
+        PR_NID__PR_BHABILITADO=True,
+        US_NID__is_active=True
+    )
+
+    for perfil_usuario in perfiles:
+        nombre = normalizar_nombre_perfil(perfil_usuario.PR_NID.PR_CNOMBRE)
+        codigo = normalizar_nombre_perfil(perfil_usuario.PR_NID.PR_CCODIGO)
+        if nombre in PERFILES_GUARDIA or codigo in PERFILES_GUARDIA:
+            if perfil_usuario.US_NID_id not in guardias_ids:
+                guardias.append(perfil_usuario.US_NID)
+                guardias_ids.add(perfil_usuario.US_NID_id)
+
+    return guardias
+
+
+def avanzar_citacion_a_siguiente_etapa(citacion, usuario=None, accion='AVANZA_ETAPA', observacion=''):
+    etapa_actual = citacion.ETAPA_ACTUAL
+    siguiente_etapa = citacion.ETAPA_SIGUIENTE
+
+    etapa_log_actual, _ = ETAPA_LOG.objects.get_or_create(
+        CI_NID=citacion,
+        EP_NID=citacion.EP_NID,
+        SC_NID=citacion.SC_NID,
+        ET_NID=etapa_actual,
+        EL_FFECHAFIN=None,
+        defaults={'EL_FFECHAINICIO': datetime.now()}
+    )
+    etapa_log_actual.EL_FFECHAFIN = datetime.now()
+    etapa_log_actual.US_FIN_ID = usuario
+    etapa_log_actual.EL_CACCION = accion
+    etapa_log_actual.EL_COBSERVACION = observacion
+    etapa_log_actual.save(update_fields=['EL_FFECHAFIN', 'US_FIN_ID', 'EL_CACCION', 'EL_COBSERVACION'])
+
+    if not siguiente_etapa:
+        citacion.CI_FFECHATERMINO = datetime.now()
+        citacion.CI_CESTADO = CIT_TERMINADO
+        citacion.save(update_fields=['CI_FFECHATERMINO', 'CI_CESTADO'])
+        return etapa_actual, None
+
+    etapa_log_siguiente, _ = ETAPA_LOG.objects.get_or_create(
+        CI_NID=citacion,
+        EP_NID=citacion.EP_NID,
+        SC_NID=citacion.SC_NID,
+        ET_NID=siguiente_etapa.ET_NID,
+        EL_FFECHAFIN=None,
+        defaults={
+            'EL_FFECHAINICIO': datetime.now(),
+            'US_INICIO_ID': usuario,
+            'EL_CACCION': accion,
+            'EL_COBSERVACION': observacion,
+        }
+    )
+    if etapa_log_siguiente.US_INICIO_ID_id is None or etapa_log_siguiente.EL_CACCION != accion:
+        etapa_log_siguiente.US_INICIO_ID = usuario
+        etapa_log_siguiente.EL_CACCION = accion
+        etapa_log_siguiente.EL_COBSERVACION = observacion
+        etapa_log_siguiente.save(update_fields=['US_INICIO_ID', 'EL_CACCION', 'EL_COBSERVACION'])
+
+    if citacion.CI_CESTADO != CIT_EN_PROCESO:
+        citacion.CI_CESTADO = CIT_EN_PROCESO
+        citacion.CI_FFECHAINICIO = citacion.CI_FFECHAINICIO or datetime.now()
+        citacion.save(update_fields=['CI_CESTADO', 'CI_FFECHAINICIO'])
+
+    return etapa_actual, siguiente_etapa.ET_NID
+
+
+def devolver_citacion_a_etapa_guardia(citacion, usuario=None, observacion=''):
+    etapa_actual = citacion.ETAPA_ACTUAL
+    detalle_guardia = DETALLE_SECUENCIA.objects.filter(
+        SC_NID=citacion.SC_NID,
+        SE_BHABILITADO=True
+    ).order_by('SE_NPASO').first()
+
+    if not detalle_guardia:
+        raise Exception('No existe etapa inicial configurada para la secuencia.')
+
+    ETAPA_LOG.objects.filter(
+        CI_NID=citacion,
+        EP_NID=citacion.EP_NID,
+        SC_NID=citacion.SC_NID,
+        ET_NID=etapa_actual,
+        EL_FFECHAFIN=None
+    ).update(
+        EL_FFECHAFIN=datetime.now(),
+        US_FIN_ID=usuario,
+        EL_CACCION='DEVUELVE_GUARDIA',
+        EL_COBSERVACION=observacion
+    )
+
+    ETAPA_LOG.objects.create(
+        CI_NID=citacion,
+        EP_NID=citacion.EP_NID,
+        SC_NID=citacion.SC_NID,
+        ET_NID=detalle_guardia.ET_NID,
+        EL_FFECHAINICIO=datetime.now(),
+        US_INICIO_ID=usuario,
+        EL_CACCION='DEVUELVE_GUARDIA',
+        EL_COBSERVACION=observacion
+    )
+
+    return etapa_actual, detalle_guardia.ET_NID
+
+
+def PLANIFICACION_CITACION_REVISION_ASISTENTE(request, pk):
+    if request.method != 'GET':
+        return JsonResponse({'success': False, 'message': 'Metodo no permitido.'}, status=405)
+
+    if not usuario_es_asistente_recepcion(request.user) and not usuario_es_guardia(request.user):
+        return JsonResponse({'success': False, 'message': 'No tiene permisos para revisar camiones.'}, status=403)
+
+    Empresa = Verificar_empresa(request)
+    if Empresa is None:
+        return JsonResponse({'success': False, 'message': 'Debe seleccionar una empresa.'}, status=400)
+
+    try:
+        citacion = CITACION.objects.select_related(
+            'EP_NID', 'PL_NID', 'SC_NID', 'PRO_NID', 'SN_NID', 'CON_NID', 'CA_NID'
+        ).get(pk=pk, EP_NID_id=Empresa, CI_BHABILITADO=True)
+
+        citacion_item = CITACION_ITEM.objects.filter(CI_NID=citacion).select_related('IT_NID').first()
+        comentario = obtener_comentario_json_citacion(citacion)
+        datos_operacion, documentos = obtener_datos_operacion_citacion(citacion)
+
+        def dato(codigo):
+            registro = datos_operacion.get(codigo)
+            return registro.DO_CVALOR if registro else ''
+
+        bl = dato('ING_BL') or obtener_bl_inicial_citacion(citacion) or comentario.get('bl', '')
+        detalle_actual = DETALLE_SECUENCIA.objects.filter(
+            SC_NID=citacion.SC_NID,
+            ET_NID=citacion.ETAPA_ACTUAL,
+            SE_BHABILITADO=True
+        ).first()
+        etapa_abierta = ETAPA_LOG.objects.filter(
+            CI_NID=citacion,
+            SC_NID=citacion.SC_NID,
+            ET_NID=citacion.ETAPA_ACTUAL,
+            EL_FFECHAFIN=None
+        ).exists()
+        aprobado_asistente = citacion.CI_CESTADO == CIT_TERMINADO or not etapa_abierta or bool(detalle_actual and detalle_actual.SE_NPASO > 2)
+
+        payload = {
+            'success': True,
+            'citacion_id': citacion.id,
+            'aprobado_asistente': aprobado_asistente,
+            'planificacion': {
+                'Numero planificacion': citacion.PL_NID_id,
+                'Fecha planificacion': citacion.PL_NID.PL_FFECHAINICIO.strftime('%d/%m/%Y %H:%M') if citacion.PL_NID and citacion.PL_NID.PL_FFECHAINICIO else '',
+                'Cliente': citacion.SN_NID.SN_CRAZONSOCIAL if citacion.SN_NID else comentario.get('cliente_nombre', ''),
+                'Proveedor': citacion.PRO_NID.SN_CRAZONSOCIAL if citacion.PRO_NID else '',
+                'Insumo': citacion_item.IT_NID.IT_CNOMBRE if citacion_item and citacion_item.IT_NID else comentario.get('insumo', ''),
+                'Pedido': comentario.get('pedido', ''),
+                'BL': bl,
+                'Tipo planificacion': citacion.PL_NID.PL_CTIPOCUPO if citacion.PL_NID else '',
+                'Empresa': citacion.EP_NID.EP_CRAZONSOCIAL if citacion.EP_NID else '',
+                'DocEntry SAP': comentario.get('docentry', ''),
+                'Productor': comentario.get('productor', ''),
+                'Estanque destino': comentario.get('estanque_destino', ''),
+            },
+            'citacion': {
+                'Numero citacion': citacion.id,
+                'Fecha citacion': citacion.CI_FFECHACITACION.strftime('%d/%m/%Y %H:%M') if citacion.CI_FFECHACITACION else '',
+                'Tipo documento': citacion.CI_CTIPODOCUMENTO,
+                'Numero documento': citacion.CI_CNUMERODOCUMENTO,
+                'Etapa actual': citacion.ETAPA_ACTUAL.ET_CNOMBRE if citacion.ETAPA_ACTUAL else '',
+                'Secuencia actual': citacion.SC_NID.SE_CNOMBRE if citacion.SC_NID else '',
+                'Estado': citacion.CI_CESTADO,
+                'Tipo flujo': citacion.CI_CTIPO,
+                'Empresa asociada': citacion.EP_NID.EP_CRAZONSOCIAL if citacion.EP_NID else '',
+            },
+            'guardia': {
+                'Numero guia': dato('CI_CNUMERODOCUMENTO') or citacion.CI_CNUMERODOCUMENTO,
+                'BL': bl,
+                'Empresa transporte': dato('ING_EMPRESA_TRANSPORTE'),
+                'Nombre conductor': dato('ING_NOMBRE_CONDUCTOR'),
+                'Patente': dato('ING_PATENTE'),
+                'Telefono conductor': dato('ING_TELEFONO_CONDUCTOR'),
+                'Lote-contenedor': dato('ING_LOTE_CONTENEDOR'),
+                'Observacion': dato('ING_OBSERVACION') or comentario.get('observacion', ''),
+            },
+            'documentos': documentos,
+        }
+
+        registrar_log_camion_no_planificado(
+            request.user,
+            citacion.EP_NID,
+            'REV_AR_OPEN',
+            f'Apertura revision asistente citacion #{citacion.id}',
+            citacion.id,
+            citacion.ETAPA_ACTUAL.ET_CCODIGO if citacion.ETAPA_ACTUAL else ''
+        )
+
+        return JsonResponse(payload)
+
+    except CITACION.DoesNotExist:
+        return JsonResponse({'success': False, 'message': 'Citacion no encontrada.'}, status=404)
+    except Exception as e:
+        print('ERROR PLANIFICACION_CITACION_REVISION_ASISTENTE:', e)
+        return JsonResponse({'success': False, 'message': str(e)}, status=500)
+
+
+def APROBAR_CAMION_ASISTENTE(request, pk):
+    if request.method != 'POST':
+        return JsonResponse({'success': False, 'message': 'Metodo no permitido.'}, status=405)
+
+    if not usuario_es_asistente_recepcion(request.user):
+        return JsonResponse({'success': False, 'message': 'No tiene permisos para aprobar camiones.'}, status=403)
+
+    Empresa = Verificar_empresa(request)
+    if Empresa is None:
+        return JsonResponse({'success': False, 'message': 'Debe seleccionar una empresa.'}, status=400)
+
+    try:
+        citacion = CITACION.objects.select_related('EP_NID', 'SC_NID').get(pk=pk, EP_NID_id=Empresa, CI_BHABILITADO=True)
+        detalle_actual = DETALLE_SECUENCIA.objects.filter(
+            SC_NID=citacion.SC_NID,
+            ET_NID=citacion.ETAPA_ACTUAL,
+            SE_BHABILITADO=True
+        ).first()
+        etapa_abierta = ETAPA_LOG.objects.filter(
+            CI_NID=citacion,
+            SC_NID=citacion.SC_NID,
+            ET_NID=citacion.ETAPA_ACTUAL,
+            EL_FFECHAFIN=None
+        ).exists()
+
+        if citacion.CI_CESTADO == CIT_TERMINADO or not etapa_abierta or (detalle_actual and detalle_actual.SE_NPASO > 2):
+            return JsonResponse({
+                'success': False,
+                'message': 'Esta citacion ya fue aprobada por Asistente de recepcion.'
+            }, status=409)
+
+        etapa_origen, etapa_destino = avanzar_citacion_a_siguiente_etapa(
+            citacion,
+            usuario=request.user,
+            accion='APRUEBA_ASISTENTE'
+        )
+
+        datos_operacion, _ = obtener_datos_operacion_citacion(citacion)
+
+        def valor_operacion(codigo):
+            dato = datos_operacion.get(codigo)
+            return dato.DO_CVALOR if dato else ''
+
+        almacen = obtener_almacen_planificacion(citacion)
+        fecha_aprobacion = timezone.localtime(timezone.now()).strftime('%d/%m/%Y %H:%M:%S')
+        mensaje_cd = (
+            'Citacion aprobada por Asistente de recepcion y pendiente de asignacion de estanque.\n'
+            f'Citacion: {citacion.id}\n'
+            f'Patente: {valor_operacion("ING_PATENTE")}\n'
+            f'Conductor: {valor_operacion("ING_NOMBRE_CONDUCTOR")}\n'
+            f'Empresa transporte: {valor_operacion("ING_EMPRESA_TRANSPORTE")}\n'
+            f'Almacen: {almacen or "No registrado"}\n'
+            f'Fecha/hora aprobacion: {fecha_aprobacion}\n'
+            f'Asistente recepcion: {request.user.username}'
+        )
+        asistentes_cd = obtener_usuarios_asistente_cd()
+        for asistente_cd in asistentes_cd:
+            NOTIFICACION.objects.create(
+                USER_SENDER_ID=request.user,
+                USER_RECEIVER_ID=asistente_cd,
+                EP_NID=citacion.EP_NID,
+                NOT_CCONTENIDO=mensaje_cd,
+                NOT_CURL=f'/pla_listone/{citacion.PL_NID_id}'
+            )
+
+        registrar_log_camion_no_planificado(
+            request.user,
+            citacion.EP_NID,
+            'APRUEBA_AR',
+            f'Asistente aprueba citacion #{citacion.id} desde {etapa_origen.ET_CCODIGO} a {etapa_destino.ET_CCODIGO if etapa_destino else "FIN"}. Notificados Asistente_C_D: {len(asistentes_cd)}',
+            citacion.id,
+            etapa_destino.ET_CCODIGO if etapa_destino else 'FIN'
+        )
+
+        return JsonResponse({'success': True, 'message': 'Camion aprobado correctamente.', 'notificados_cd': len(asistentes_cd)})
+
+    except CITACION.DoesNotExist:
+        return JsonResponse({'success': False, 'message': 'Citacion no encontrada.'}, status=404)
+    except Exception as e:
+        print('ERROR APROBAR_CAMION_ASISTENTE:', e)
+        return JsonResponse({'success': False, 'message': str(e)}, status=500)
+
+
+def DEVOLVER_CAMION_GUARDIA(request, pk):
+    if request.method != 'POST':
+        return JsonResponse({'success': False, 'message': 'Metodo no permitido.'}, status=405)
+
+    if not usuario_es_asistente_recepcion(request.user):
+        return JsonResponse({'success': False, 'message': 'No tiene permisos para devolver camiones.'}, status=403)
+
+    observacion = str(request.POST.get('observacion') or '').strip()
+    if not observacion:
+        return JsonResponse({'success': False, 'message': 'Debe ingresar una observacion para devolver a Guardia.'}, status=400)
+
+    Empresa = Verificar_empresa(request)
+    if Empresa is None:
+        return JsonResponse({'success': False, 'message': 'Debe seleccionar una empresa.'}, status=400)
+
+    try:
+        citacion = CITACION.objects.select_related('EP_NID', 'SC_NID', 'PL_NID').get(pk=pk, EP_NID_id=Empresa, CI_BHABILITADO=True)
+        etapa_origen, etapa_destino = devolver_citacion_a_etapa_guardia(
+            citacion,
+            usuario=request.user,
+            observacion=observacion
+        )
+        guardias = obtener_guardias_relacionados_citacion(citacion)
+
+        mensaje = (
+            f'Camion devuelto por Asistente de recepcion.\n'
+            f'Citacion: {citacion.id}\n'
+            f'Observacion: {observacion}\n'
+            f'Asistente: {request.user.username}'
+        )
+
+        for guardia in guardias:
+            NOTIFICACION.objects.create(
+                USER_SENDER_ID=request.user,
+                USER_RECEIVER_ID=guardia,
+                EP_NID=citacion.EP_NID,
+                NOT_CCONTENIDO=mensaje,
+                NOT_CURL=f'/pla_listone/{citacion.PL_NID_id}'
+            )
+
+        registrar_log_camion_no_planificado(
+            request.user,
+            citacion.EP_NID,
+            'DEV_AR_GUA',
+            f'Asistente devuelve citacion #{citacion.id} desde {etapa_origen.ET_CCODIGO} a {etapa_destino.ET_CCODIGO}. Observacion: {observacion}',
+            citacion.id,
+            etapa_destino.ET_CCODIGO
+        )
+
+        return JsonResponse({'success': True, 'message': 'Camion devuelto a Guardia.', 'notificados': len(guardias)})
+
+    except CITACION.DoesNotExist:
+        return JsonResponse({'success': False, 'message': 'Citacion no encontrada.'}, status=404)
+    except Exception as e:
+        print('ERROR DEVOLVER_CAMION_GUARDIA:', e)
+        return JsonResponse({'success': False, 'message': str(e)}, status=500)
+
+
+def PLANIFICACION_CITACION_ESTANQUE(request, pk):
+    if request.method not in ['GET', 'POST']:
+        return JsonResponse({'success': False, 'message': 'Metodo no permitido.'}, status=405)
+
+    if not usuario_es_asistente_cd(request.user) and not getattr(request.user, 'is_superuser', False):
+        return JsonResponse({'success': False, 'message': 'No tiene permisos para asignar estanque.'}, status=403)
+
+    Empresa = Verificar_empresa(request)
+    if Empresa is None:
+        return JsonResponse({'success': False, 'message': 'Debe seleccionar una empresa.'}, status=400)
+
+    try:
+        citacion = CITACION.objects.select_related(
+            'EP_NID', 'PL_NID', 'SC_NID', 'PRO_NID', 'SN_NID', 'CON_NID', 'CA_NID'
+        ).get(pk=pk, EP_NID_id=Empresa, CI_BHABILITADO=True)
+
+        detalle_actual = DETALLE_SECUENCIA.objects.filter(
+            SC_NID=citacion.SC_NID,
+            ET_NID=citacion.ETAPA_ACTUAL,
+            SE_BHABILITADO=True
+        ).first()
+        if not detalle_actual or detalle_actual.SE_NPASO <= 2:
+            return JsonResponse({'success': False, 'message': 'La citacion aun no fue aprobada por recepcion.'}, status=400)
+
+        enviado_siguiente = citacion.CI_CESTADO == CIT_TERMINADO or detalle_actual.SE_NPASO > 3 or SYSLOGGER.objects.filter(
+            LOG_COPERACION='ENVIA_CD_NEXT',
+            LOG_CADD1=str(citacion.id)
+        ).exists()
+
+        almacen = obtener_almacen_planificacion(citacion)
+        opciones_estanque = ESTANQUES_POR_ALMACEN.get(almacen, [])
+        dato_estanque = obtener_dato_estanque_operacional(citacion)
+
+        if request.method == 'POST':
+            if enviado_siguiente:
+                return JsonResponse({'success': False, 'message': 'Esta citacion ya fue enviada a la siguiente etapa.'}, status=409)
+
+            if not almacen:
+                return JsonResponse({'success': False, 'message': 'No existe almacen definido en planificacion.'}, status=400)
+
+            estanque = str(request.POST.get('estanque') or '').strip()
+            if not estanque:
+                return JsonResponse({'success': False, 'message': 'Debe seleccionar estanque.'}, status=400)
+
+            if estanque not in opciones_estanque:
+                return JsonResponse({'success': False, 'message': 'El estanque seleccionado no corresponde al almacen definido.'}, status=400)
+
+            campo_estanque = obtener_campo_estanque_operacional(citacion, request.user)
+            DATO_OPERACION.objects.update_or_create(
+                CI_NID=citacion,
+                SC_NID=citacion.SC_NID,
+                ET_NID=citacion.ETAPA_ACTUAL,
+                CAMP_NID=campo_estanque,
+                defaults={
+                    'EP_NID': citacion.EP_NID,
+                    'US_NID': request.user,
+                    'DO_CVALOR': estanque,
+                    'DO_FFECHAREGISTRO': datetime.now(),
+                }
+            )
+
+            registrar_log_camion_no_planificado(
+                request.user,
+                citacion.EP_NID,
+                'ESTANQUE_CD',
+                f'Asistente_C_D guarda estanque {estanque} para citacion #{citacion.id}',
+                citacion.id,
+                estanque
+            )
+
+            return JsonResponse({'success': True, 'message': 'Estanque guardado correctamente.', 'estanque': estanque})
+
+        citacion_item = CITACION_ITEM.objects.filter(CI_NID=citacion).select_related('IT_NID').first()
+        comentario = obtener_comentario_json_citacion(citacion)
+        datos_operacion, documentos = obtener_datos_operacion_citacion(citacion)
+        log_aprobacion = SYSLOGGER.objects.select_related('US_NID').filter(
+            LOG_COPERACION='APRUEBA_AR',
+            LOG_CADD1=str(citacion.id)
+        ).order_by('-LOG_FFECHAREGISTRO').first()
+
+        def dato(codigo):
+            registro = datos_operacion.get(codigo)
+            return registro.DO_CVALOR if registro else ''
+
+        bl = dato('ING_BL') or obtener_bl_inicial_citacion(citacion) or comentario.get('bl', '')
+        payload = {
+            'success': True,
+            'citacion_id': citacion.id,
+            'almacen': almacen,
+            'opciones_estanque': opciones_estanque,
+            'estanque_actual': dato_estanque.DO_CVALOR if dato_estanque else '',
+            'enviado_siguiente': enviado_siguiente,
+            'puede_editar': not enviado_siguiente and bool(almacen),
+            'mensaje_bloqueo': '' if almacen else 'No existe almacen definido en planificacion',
+            'planificacion': {
+                'Planificacion': citacion.PL_NID_id,
+                'Fecha planificacion': citacion.PL_NID.PL_FFECHAINICIO.strftime('%d/%m/%Y %H:%M') if citacion.PL_NID and citacion.PL_NID.PL_FFECHAINICIO else '',
+                'Cliente': citacion.SN_NID.SN_CRAZONSOCIAL if citacion.SN_NID else comentario.get('cliente_nombre', ''),
+                'Proveedor': citacion.PRO_NID.SN_CRAZONSOCIAL if citacion.PRO_NID else '',
+                'Insumo': citacion_item.IT_NID.IT_CNOMBRE if citacion_item and citacion_item.IT_NID else comentario.get('insumo', ''),
+                'Almacen definido': almacen,
+                'Tipo planificacion': citacion.PL_NID.PL_CTIPOCUPO if citacion.PL_NID else '',
+                'Fecha inicio': citacion.PL_NID.PL_FFECHAINICIO.strftime('%d/%m/%Y %H:%M') if citacion.PL_NID and citacion.PL_NID.PL_FFECHAINICIO else '',
+                'Fecha termino': citacion.PL_NID.PL_FFECHAFIN.strftime('%d/%m/%Y %H:%M') if citacion.PL_NID and citacion.PL_NID.PL_FFECHAFIN else '',
+            },
+            'citacion': {
+                'Numero citacion': citacion.id,
+                'Estado': citacion.CI_CESTADO,
+                'Etapa actual': citacion.ETAPA_ACTUAL.ET_CNOMBRE if citacion.ETAPA_ACTUAL else '',
+                'Secuencia actual': citacion.SC_NID.SE_CNOMBRE if citacion.SC_NID else '',
+                'Empresa': citacion.EP_NID.EP_CRAZONSOCIAL if citacion.EP_NID else '',
+            },
+            'guardia': {
+                'Guia': dato('CI_CNUMERODOCUMENTO') or citacion.CI_CNUMERODOCUMENTO,
+                'BL': bl,
+                'Conductor': dato('ING_NOMBRE_CONDUCTOR'),
+                'Patente': dato('ING_PATENTE'),
+                'Empresa transporte': dato('ING_EMPRESA_TRANSPORTE'),
+                'Telefono': dato('ING_TELEFONO_CONDUCTOR'),
+                'Lote-contenedor': dato('ING_LOTE_CONTENEDOR'),
+                'Documentos': 'Ver seccion documentos',
+            },
+            'aprobacion': {
+                'Usuario aprobacion': log_aprobacion.US_NID.username if log_aprobacion and log_aprobacion.US_NID else '',
+                'Fecha aprobacion': log_aprobacion.LOG_FFECHAREGISTRO.strftime('%d/%m/%Y %H:%M') if log_aprobacion and log_aprobacion.LOG_FFECHAREGISTRO else '',
+                'Observacion': 'No registrado',
+            },
+            'documentos': documentos,
+        }
+
+        registrar_log_camion_no_planificado(
+            request.user,
+            citacion.EP_NID,
+            'ESTANQUE_OPEN',
+            f'Apertura asignacion estanque citacion #{citacion.id}',
+            citacion.id,
+            almacen
+        )
+
+        return JsonResponse(payload)
+
+    except CITACION.DoesNotExist:
+        return JsonResponse({'success': False, 'message': 'Citacion no encontrada.'}, status=404)
+    except Exception as e:
+        print('ERROR PLANIFICACION_CITACION_ESTANQUE:', e)
+        return JsonResponse({'success': False, 'message': str(e)}, status=500)
+
+
+def AVANZAR_ESTANQUE_SIGUIENTE_ETAPA(request, pk):
+    if request.method != 'POST':
+        return JsonResponse({'success': False, 'message': 'Metodo no permitido.'}, status=405)
+
+    if not usuario_es_asistente_cd(request.user) and not getattr(request.user, 'is_superuser', False):
+        return JsonResponse({'success': False, 'message': 'No tiene permisos para enviar a la siguiente etapa.'}, status=403)
+
+    Empresa = Verificar_empresa(request)
+    if Empresa is None:
+        return JsonResponse({'success': False, 'message': 'Debe seleccionar una empresa.'}, status=400)
+
+    try:
+        citacion = CITACION.objects.select_related('EP_NID', 'SC_NID', 'PL_NID').get(pk=pk, EP_NID_id=Empresa, CI_BHABILITADO=True)
+        detalle_actual = DETALLE_SECUENCIA.objects.filter(
+            SC_NID=citacion.SC_NID,
+            ET_NID=citacion.ETAPA_ACTUAL,
+            SE_BHABILITADO=True
+        ).first()
+
+        if not detalle_actual or detalle_actual.SE_NPASO <= 2:
+            return JsonResponse({'success': False, 'message': 'La citacion aun no esta disponible para Asistente_C_D.'}, status=400)
+
+        if citacion.CI_CESTADO == CIT_TERMINADO or detalle_actual.SE_NPASO > 3 or SYSLOGGER.objects.filter(LOG_COPERACION='ENVIA_CD_NEXT', LOG_CADD1=str(citacion.id)).exists():
+            return JsonResponse({'success': False, 'message': 'Esta citacion ya fue enviada a la siguiente etapa.'}, status=409)
+
+        dato_estanque = obtener_dato_estanque_operacional(citacion)
+        if not dato_estanque or not str(dato_estanque.DO_CVALOR or '').strip():
+            return JsonResponse({'success': False, 'message': 'Debe guardar un estanque antes de enviar.'}, status=400)
+
+        etapa_origen, etapa_destino = avanzar_citacion_a_siguiente_etapa(
+            citacion,
+            usuario=request.user,
+            accion='ENVIA_CD_NEXT',
+            observacion=f'Estanque asignado: {dato_estanque.DO_CVALOR}'
+        )
+
+        registrar_log_camion_no_planificado(
+            request.user,
+            citacion.EP_NID,
+            'ENVIA_CD_NEXT',
+            f'Asistente_C_D envia citacion #{citacion.id} desde {etapa_origen.ET_CCODIGO} a {etapa_destino.ET_CCODIGO if etapa_destino else "FIN"} con estanque {dato_estanque.DO_CVALOR}',
+            citacion.id,
+            dato_estanque.DO_CVALOR
+        )
+
+        return JsonResponse({'success': True, 'message': 'Citacion enviada a la siguiente etapa.', 'estanque': dato_estanque.DO_CVALOR})
+
+    except CITACION.DoesNotExist:
+        return JsonResponse({'success': False, 'message': 'Citacion no encontrada.'}, status=404)
+    except Exception as e:
+        print('ERROR AVANZAR_ESTANQUE_SIGUIENTE_ETAPA:', e)
+        return JsonResponse({'success': False, 'message': str(e)}, status=500)
+
+
 ##########################################################################
 #####################  CONSULTA CLIENTES EN BD  ##########################
 ##########################################################################
@@ -396,11 +1728,470 @@ def obtener_clientes_aceite(empresa_id):
     return clientes
 
 
+PERFILES_INGRESO_CAMION = {
+    'GUARDIA',
+    'GUA',
+    'ASISTENTE DE RECEPCION',
+    'ASISTENTE RECEPCION',
+    'ASISTENTE C D',
+    'ASISTENTE CD',
+    'AR',
+}
+
+PERFILES_GUARDIA = {
+    'GUARDIA',
+    'GUA',
+}
+
+PERFILES_ASISTENTE_RECEPCION = {
+    'ASISTENTE DE RECEPCION',
+    'ASISTENTE RECEPCION',
+    'AR',
+}
+
+PERFILES_ASISTENTE_CD = {
+    'ASISTENTE C D',
+    'ASISTENTE CD',
+}
+
+USUARIOS_ASISTENTE_CD = {
+    'ASISTENTE C D',
+    'ASISTENTE CD',
+}
+
+
+PERFILES_PLANIFICADOR = {
+    'PLANIFICADOR',
+    'PLAN',
+}
+
+
+def normalizar_nombre_perfil(valor):
+    texto = str(valor or '').strip().upper()
+    texto = unicodedata.normalize('NFKD', texto)
+    texto = ''.join(caracter for caracter in texto if not unicodedata.combining(caracter))
+    return ' '.join(texto.replace('_', ' ').replace('-', ' ').split())
+
+
+def usuario_es_ingreso_camion(user):
+    if getattr(user, 'is_superuser', False):
+        return False
+
+    if normalizar_nombre_perfil(getattr(user, 'username', '')) in USUARIOS_ASISTENTE_CD:
+        return True
+
+    perfiles_usuario = PERFIL_USUARIO.objects.select_related('PR_NID').filter(
+        US_NID=user.id,
+        PE_BHABILITADO=True,
+        PR_NID__PR_BHABILITADO=True
+    )
+
+    for perfil_usuario in perfiles_usuario:
+        nombre = normalizar_nombre_perfil(perfil_usuario.PR_NID.PR_CNOMBRE)
+        codigo = normalizar_nombre_perfil(perfil_usuario.PR_NID.PR_CCODIGO)
+
+        if nombre in PERFILES_INGRESO_CAMION or codigo in PERFILES_INGRESO_CAMION:
+            return True
+
+    return False
+
+
+def usuario_es_guardia(user):
+    if getattr(user, 'is_superuser', False):
+        return False
+
+    perfiles_usuario = PERFIL_USUARIO.objects.select_related('PR_NID').filter(
+        US_NID=user.id,
+        PE_BHABILITADO=True,
+        PR_NID__PR_BHABILITADO=True
+    )
+
+    for perfil_usuario in perfiles_usuario:
+        nombre = normalizar_nombre_perfil(perfil_usuario.PR_NID.PR_CNOMBRE)
+        codigo = normalizar_nombre_perfil(perfil_usuario.PR_NID.PR_CCODIGO)
+
+        if nombre in PERFILES_GUARDIA or codigo in PERFILES_GUARDIA:
+            return True
+
+    return False
+
+
+def usuario_es_asistente_recepcion(user):
+    if getattr(user, 'is_superuser', False):
+        return False
+
+    perfiles_usuario = PERFIL_USUARIO.objects.select_related('PR_NID').filter(
+        US_NID=user.id,
+        PE_BHABILITADO=True,
+        PR_NID__PR_BHABILITADO=True
+    )
+
+    for perfil_usuario in perfiles_usuario:
+        nombre = normalizar_nombre_perfil(perfil_usuario.PR_NID.PR_CNOMBRE)
+        codigo = normalizar_nombre_perfil(perfil_usuario.PR_NID.PR_CCODIGO)
+
+        if nombre in PERFILES_ASISTENTE_RECEPCION or codigo in PERFILES_ASISTENTE_RECEPCION:
+            return True
+
+    return False
+
+
+def usuario_es_asistente_cd(user):
+    if getattr(user, 'is_superuser', False):
+        return False
+
+    if normalizar_nombre_perfil(getattr(user, 'username', '')) in USUARIOS_ASISTENTE_CD:
+        return True
+
+    perfiles_usuario = PERFIL_USUARIO.objects.select_related('PR_NID').filter(
+        US_NID=user.id,
+        PE_BHABILITADO=True,
+        PR_NID__PR_BHABILITADO=True
+    )
+
+    for perfil_usuario in perfiles_usuario:
+        nombre = normalizar_nombre_perfil(perfil_usuario.PR_NID.PR_CNOMBRE)
+        codigo = normalizar_nombre_perfil(perfil_usuario.PR_NID.PR_CCODIGO)
+
+        if nombre in PERFILES_ASISTENTE_CD or codigo in PERFILES_ASISTENTE_CD:
+            return True
+
+    return False
+
+
+def usuario_es_planificador(user):
+    if getattr(user, 'is_superuser', False):
+        return True
+
+    userv = getattr(user, 'userv', None)
+
+    if userv and getattr(userv, 'UX_IS_PLANIFICADOR', False):
+        return True
+
+    perfiles_usuario = PERFIL_USUARIO.objects.select_related('PR_NID').filter(
+        US_NID=user.id,
+        PE_BHABILITADO=True,
+        PR_NID__PR_BHABILITADO=True
+    )
+
+    for perfil_usuario in perfiles_usuario:
+        nombre = normalizar_nombre_perfil(perfil_usuario.PR_NID.PR_CNOMBRE)
+        codigo = normalizar_nombre_perfil(perfil_usuario.PR_NID.PR_CCODIGO)
+
+        if nombre in PERFILES_PLANIFICADOR or codigo in PERFILES_PLANIFICADOR:
+            return True
+
+    return False
+
+
+CAMPOS_INGRESO_CAMION_DEFAULT = [
+    {
+        'codigo': 'CI_CNUMERODOCUMENTO',
+        'etiqueta': 'Numero de guia',
+        'tipo': 'TEXTO',
+        'obligatorio': True,
+        'asignar_citacion': True,
+    },
+    {
+        'codigo': 'ING_BL',
+        'etiqueta': 'BL',
+        'tipo': 'TEXTO',
+        'obligatorio': False,
+        'asignar_citacion': False,
+    },
+    {
+        'codigo': 'ING_EMPRESA_TRANSPORTE',
+        'etiqueta': 'Empresa transporte',
+        'tipo': 'TEXTO',
+        'obligatorio': True,
+        'asignar_citacion': False,
+    },
+    {
+        'codigo': 'ING_NOMBRE_CONDUCTOR',
+        'etiqueta': 'Nombre conductor',
+        'tipo': 'TEXTO',
+        'obligatorio': True,
+        'asignar_citacion': False,
+    },
+    {
+        'codigo': 'ING_PATENTE',
+        'etiqueta': 'Patente',
+        'tipo': 'TEXTO',
+        'obligatorio': True,
+        'asignar_citacion': False,
+    },
+    {
+        'codigo': 'ING_TELEFONO_CONDUCTOR',
+        'etiqueta': 'N telefono conductor',
+        'tipo': 'TEXTO',
+        'obligatorio': False,
+        'asignar_citacion': False,
+    },
+    {
+        'codigo': 'ING_LOTE_CONTENEDOR',
+        'etiqueta': 'Lote-contenedor',
+        'tipo': 'TEXTO',
+        'obligatorio': False,
+        'asignar_citacion': False,
+    },
+    {
+        'codigo': 'ING_DOC_GUIA',
+        'etiqueta': 'Escanear guia',
+        'tipo': 'ARCHIVO',
+        'obligatorio': False,
+        'asignar_citacion': False,
+    },
+    {
+        'codigo': 'ING_DOC_TICKET_ORIGEN',
+        'etiqueta': 'Escanear ticket origen',
+        'tipo': 'ARCHIVO',
+        'obligatorio': False,
+        'asignar_citacion': False,
+    },
+    {
+        'codigo': 'ING_DOC_SERNAPESCA',
+        'etiqueta': 'Escanear Sernapesca',
+        'tipo': 'ARCHIVO',
+        'obligatorio': False,
+        'asignar_citacion': False,
+    },
+]
+
+
+def usuario_puede_operar_ingreso_camion(user):
+    return getattr(user, 'is_superuser', False) or usuario_es_ingreso_camion(user)
+
+
+def obtener_base_folder_campo(empresa_id):
+    if empresa_id == ID_TERRAMAR:
+        return CAMPO_TERRAMAR_PATH
+    if empresa_id == ID_ACEITES_SBH:
+        return CAMPO_ACEITES_PATH
+    return CAMPO_TERRAMAR_PATH
+
+
+def guardar_archivo_dato_operacion(citacion, etapa, archivo):
+    base_folder = obtener_base_folder_campo(citacion.EP_NID_id)
+    folder_path = os.path.join(base_folder, str(citacion.SC_NID.SE_CCODIGO), str(etapa.ET_CCODIGO))
+    os.makedirs(folder_path, exist_ok=True)
+
+    file_extension = archivo.name.split('.')[-1]
+    unique_filename = str(uuid.uuid4()) + '.' + file_extension
+    file_path = os.path.join(folder_path, unique_filename)
+
+    with open(file_path, 'wb+') as destination:
+        for chunk in archivo.chunks():
+            destination.write(chunk)
+
+    return file_path
+
+
+def asegurar_campos_ingreso_camion(citacion, etapa, usuario):
+    for indice, definicion in enumerate(CAMPOS_INGRESO_CAMION_DEFAULT, start=1):
+        campo = CAMPO.objects.filter(
+            EP_NID=citacion.EP_NID,
+            CA_CCODIGO=definicion['codigo']
+        ).first()
+
+        if not campo:
+            campo = CAMPO.objects.create(
+                EP_NID=citacion.EP_NID,
+                US_NID=usuario,
+                CA_CTIPO=definicion['tipo'],
+                CA_CCODIGO=definicion['codigo'],
+                CA_CETIQUETA=definicion['etiqueta'],
+                CA_CPLACEMARK=definicion['etiqueta'],
+                CA_BOBLIGATORIO=definicion['obligatorio'],
+                CA_BHABILITADO=True,
+                CA_BASIGNARVALOR=definicion['asignar_citacion'],
+            )
+
+        DETALLE_ETAPA.objects.update_or_create(
+            EP_NID=citacion.EP_NID,
+            ET_NID=etapa,
+            CAMP_NID=campo,
+            defaults={
+                'US_NID': usuario,
+                'DET_NPASO': indice,
+                'DET_BOBLIGATORIO': definicion['obligatorio'],
+                'DET_CETIQUETAETAPA': definicion['etiqueta'],
+                'DET_BHABILITADO': True,
+            }
+        )
+
+
+def obtener_bl_inicial_citacion(citacion):
+    if not citacion.CI_CCOMENTARIO:
+        return ''
+
+    try:
+        comentario = json.loads(citacion.CI_CCOMENTARIO)
+    except (TypeError, ValueError):
+        return ''
+
+    if not isinstance(comentario, dict):
+        return ''
+
+    return (
+        comentario.get('bl')
+        or comentario.get('BL')
+        or comentario.get('contenedor')
+        or comentario.get('BL / Contenedor')
+        or ''
+    )
+
+
+def obtener_campos_operacion_etapa(citacion, etapa, usuario):
+    asegurar_campos_ingreso_camion(citacion, etapa, usuario)
+
+    campos = []
+    detalles = DETALLE_ETAPA.objects.filter(
+        EP_NID=citacion.EP_NID,
+        ET_NID=etapa,
+        DET_BHABILITADO=True,
+        CAMP_NID__CA_BHABILITADO=True
+    ).select_related('CAMP_NID').order_by('DET_NPASO', 'id')
+
+    for detalle in detalles:
+        campo = detalle.CAMP_NID
+        datos = []
+        if campo.CA_CTIPO.lower() == 'lista' and campo.CA_CQUERY:
+            try:
+                datos = QueryParam(campo.CA_CQUERY)
+            except Exception as e:
+                print(f'Error al ejecutar query de campo {campo.id}: {e}')
+
+        dato_operacion = DATO_OPERACION.objects.filter(
+            CI_NID=citacion,
+            SC_NID=citacion.SC_NID,
+            ET_NID=etapa,
+            CAMP_NID=campo
+        ).order_by('-id').first()
+
+        valor_default = dato_operacion.DO_CVALOR if dato_operacion else (campo.CA_CVALORDEFAULT or '')
+        if not dato_operacion and campo.CA_CCODIGO == 'ING_BL':
+            valor_default = obtener_bl_inicial_citacion(citacion)
+
+        campos.append({
+            'id': campo.id,
+            'name': f'{etapa.ET_CCODIGO.replace(" ", "")}_{campo.id}',
+            'label': detalle.DET_CETIQUETAETAPA or campo.CA_CETIQUETA,
+            'type': campo.CA_CTIPO.lower(),
+            'default': valor_default,
+            'required': detalle.DET_BOBLIGATORIO or campo.CA_BOBLIGATORIO,
+            'maxlength': campo.CA_NLARGO,
+            'datos': datos,
+            'has_file': bool(dato_operacion and campo.CA_CTIPO.lower() == 'archivo'),
+            'download_url': reverse('cit_download_file', args=[dato_operacion.id]) if dato_operacion and campo.CA_CTIPO.lower() == 'archivo' else '',
+        })
+
+    return campos
+
+
+def guardar_operacion_etapa(citacion, request):
+    empresa = citacion.EP_NID
+    secuencia = citacion.SC_NID
+    etapa_actual = citacion.ETAPA_ACTUAL
+    tuvo_datos_previos = DATO_OPERACION.objects.filter(
+        CI_NID=citacion,
+        SC_NID=secuencia,
+        ET_NID=etapa_actual
+    ).exists()
+
+    if citacion.CI_CESTADO != CIT_EN_PROCESO:
+        citacion.CI_CESTADO = CIT_EN_PROCESO
+        citacion.CI_FFECHAINICIO = citacion.CI_FFECHAINICIO or datetime.now()
+        citacion.save(update_fields=['CI_CESTADO', 'CI_FFECHAINICIO'])
+
+    etapa_log_ingreso, _ = ETAPA_LOG.objects.get_or_create(
+        CI_NID=citacion,
+        EP_NID=empresa,
+        SC_NID=secuencia,
+        ET_NID=etapa_actual,
+        EL_FFECHAFIN=None,
+        defaults={
+            'EL_FFECHAINICIO': datetime.now(),
+            'US_INICIO_ID': request.user,
+            'EL_CACCION': 'INGRESO_CAMION',
+        }
+    )
+    if etapa_log_ingreso.US_INICIO_ID_id is None:
+        etapa_log_ingreso.US_INICIO_ID = request.user
+        etapa_log_ingreso.EL_CACCION = etapa_log_ingreso.EL_CACCION or 'INGRESO_CAMION'
+        etapa_log_ingreso.save(update_fields=['US_INICIO_ID', 'EL_CACCION'])
+
+    detalle_secuencia_actual = DETALLE_SECUENCIA.objects.filter(
+        SC_NID=secuencia,
+        ET_NID=etapa_actual,
+        SE_BHABILITADO=True
+    ).first()
+
+    if not detalle_secuencia_actual:
+        raise Exception('La etapa actual no esta habilitada en la secuencia.')
+
+    campos_etapa = obtener_campos_operacion_etapa(citacion, etapa_actual, request.user)
+
+    for campo_data in campos_etapa:
+        campo = CAMPO.objects.get(id=campo_data['id'])
+        input_name = campo_data['name']
+
+        if campo.CA_CTIPO.lower() == 'archivo':
+            archivo = request.FILES.get(input_name)
+            if not archivo:
+                if campo_data['required'] and not campo_data['has_file']:
+                    raise Exception(f'Debe cargar el archivo {campo_data["label"]}.')
+                continue
+            valor_campo = guardar_archivo_dato_operacion(citacion, etapa_actual, archivo)
+        else:
+            valor_campo = request.POST.get(input_name)
+            if campo.CA_CTIPO == 'CHECK' and valor_campo is None:
+                valor_campo = False
+            if campo_data['required'] and (valor_campo is None or str(valor_campo).strip() == ''):
+                raise Exception(f'Debe completar {campo_data["label"]}.')
+
+        if campo.CA_CCODIGO == 'CI_CNUMERODOCUMENTO':
+            citacion.CI_CNUMERODOCUMENTO = valor_campo
+            if not citacion.CI_CTIPODOCUMENTO:
+                citacion.CI_CTIPODOCUMENTO = 'GUIA'
+            citacion.save(update_fields=['CI_CNUMERODOCUMENTO', 'CI_CTIPODOCUMENTO'])
+        elif campo.CA_BASIGNARVALOR and campo.CA_CCODIGO:
+            setattr(citacion, campo.CA_CCODIGO, valor_campo)
+            citacion.save(update_fields=[campo.CA_CCODIGO])
+
+        DATO_OPERACION.objects.update_or_create(
+            CI_NID=citacion,
+            SC_NID=secuencia,
+            ET_NID=etapa_actual,
+            CAMP_NID=campo,
+            defaults={
+                'EP_NID': empresa,
+                'US_NID': request.user,
+                'DO_CVALOR': valor_campo,
+                'DO_FFECHAREGISTRO': datetime.now(),
+            }
+        )
+
+    registrar_log_camion_no_planificado(
+        request.user,
+        empresa,
+        'ING_CAMION',
+        f'{"Edicion" if tuvo_datos_previos else "Registro"} ingreso camion citacion #{citacion.id} etapa {etapa_actual.ET_CCODIGO}',
+        citacion.id,
+        etapa_actual.ET_CCODIGO
+    )
+
+    return tuvo_datos_previos
+
+
 def PLANIFICACION_ADDONE(request):
     try:
+        if usuario_es_ingreso_camion(request.user):
+            messages.error(request, 'Su perfil puede ingresar camiones, pero no crear planificaciones.')
+            return redirect('/pla_listall/')
+
         if request.user.is_superuser == False:
             usuario = request.user.id
-            if not validar_perfiles_activos(usuario, "pla_addone"):
+            if not usuario_es_planificador(request.user) and not validar_perfiles_activos(usuario, "pla_addone"):
                 messages.error(request, 'No tiene permisos para acceder a esta sección')
                 return redirect('/')
 
@@ -693,8 +2484,9 @@ def seleccionar_empresa(request):
 
         # Caso 1: usuario sin empresa asignada
         if not empresas_usuario.exists():
+            logout(request)
             messages.error(request, 'Su usuario no tiene empresa asignada.')
-            return redirect('/logout/')
+            return redirect('login')
 
         # Caso 2: usuario con una sola empresa
         # Se asigna automáticamente y entra directo al sistema
@@ -3809,11 +5601,21 @@ def PLANIFICACION_LISTALL(request):
     try:
         if request.user.is_superuser == False:                     
             usuario = request.user.id
-            if not validar_perfiles_activos(usuario, "pla_listall"):
+            if not usuario_es_ingreso_camion(request.user) and not usuario_es_planificador(request.user) and not validar_perfiles_activos(usuario, "pla_listall"):
                 messages.error(request, 'No tiene permisos para acceder a esta sección')
                 return redirect('/')
 
-        planificaciones = PLANIFICACION.objects.filter(PL_BARCHIVADO = False)
+        Empresa = Verificar_empresa(request)
+
+        if Empresa is None:
+            return redirect('/seleccionar_empresa/')
+
+        planificaciones = PLANIFICACION.objects.filter(
+            EP_NID_id=Empresa,
+            PL_BARCHIVADO=False
+        )
+
+        print(f'PLANIFICACION_LISTALL empresa activa: {Empresa} - planificaciones filtradas: {planificaciones.count()}')
 
         ctx = {
             'object_list': planificaciones
@@ -3829,7 +5631,7 @@ def PLANIFICACION_LISTONE(request, pk):
     try:
         if request.user.is_superuser == False:
             usuario = request.user.id
-            if not validar_perfiles_activos(usuario, "pla_listone"):
+            if not usuario_es_ingreso_camion(request.user) and not usuario_es_planificador(request.user) and not validar_perfiles_activos(usuario, "pla_listone"):
                 messages.error(request, 'No tiene permisos para acceder a esta sección')
                 return redirect('/')
 
@@ -3840,7 +5642,7 @@ def PLANIFICACION_LISTONE(request, pk):
 
         empresa_activa = EMPRESA.objects.filter(pk=Empresa).first()
 
-        planificacion = PLANIFICACION.objects.get(id=pk)
+        planificacion = PLANIFICACION.objects.get(id=pk, EP_NID_id=Empresa)
 
         clientes_sap = obtener_clientes_aceite(Empresa)
 
@@ -3890,6 +5692,46 @@ def PLANIFICACION_LISTONE(request, pk):
                 SE_BHABILITADO=True
             )
 
+            if usuario_es_asistente_recepcion(request.user) and detalle_secuencia.SE_NPASO <= 1:
+                continue
+
+            enviado_asistente = detalle_secuencia.SE_NPASO > 1
+            log_envio_asistente = None
+            if enviado_asistente:
+                log_envio_asistente = SYSLOGGER.objects.select_related('US_NID').filter(
+                    LOG_COPERACION='AVANZA_AR',
+                    LOG_CADD1=str(row.pk)
+                ).order_by('-LOG_FFECHAREGISTRO').first()
+
+            enviado_usuario = log_envio_asistente.US_NID.username if log_envio_asistente and log_envio_asistente.US_NID else ''
+            enviado_fecha = log_envio_asistente.LOG_FFECHAREGISTRO if log_envio_asistente else None
+            log_aprobacion_asistente = SYSLOGGER.objects.select_related('US_NID').filter(
+                LOG_COPERACION='APRUEBA_AR',
+                LOG_CADD1=str(row.pk)
+            ).order_by('-LOG_FFECHAREGISTRO').first()
+            aprobado_asistente = bool(log_aprobacion_asistente) or detalle_secuencia.SE_NPASO > 2
+            aprobado_usuario = log_aprobacion_asistente.US_NID.username if log_aprobacion_asistente and log_aprobacion_asistente.US_NID else ''
+            aprobado_fecha = log_aprobacion_asistente.LOG_FFECHAREGISTRO if log_aprobacion_asistente else None
+
+            if usuario_es_asistente_cd(request.user) and not aprobado_asistente:
+                continue
+
+            dato_estanque = obtener_dato_estanque_operacional(row)
+            log_estanque = SYSLOGGER.objects.select_related('US_NID').filter(
+                LOG_COPERACION='ESTANQUE_CD',
+                LOG_CADD1=str(row.pk)
+            ).order_by('-LOG_FFECHAREGISTRO').first()
+            log_envio_estanque = SYSLOGGER.objects.select_related('US_NID').filter(
+                LOG_COPERACION='ENVIA_CD_NEXT',
+                LOG_CADD1=str(row.pk)
+            ).order_by('-LOG_FFECHAREGISTRO').first()
+            estanque_valor = dato_estanque.DO_CVALOR if dato_estanque else ''
+            estanque_usuario = log_estanque.US_NID.username if log_estanque and log_estanque.US_NID else ''
+            estanque_fecha = log_estanque.LOG_FFECHAREGISTRO if log_estanque else None
+            estanque_enviado = bool(log_envio_estanque) or detalle_secuencia.SE_NPASO > 3 or row.CI_CESTADO == CIT_TERMINADO
+            estanque_enviado_usuario = log_envio_estanque.US_NID.username if log_envio_estanque and log_envio_estanque.US_NID else ''
+            estanque_enviado_fecha = log_envio_estanque.LOG_FFECHAREGISTRO if log_envio_estanque else None
+
             responsables_str = detalle_secuencia.USERS_RESPONSABLE_ID
 
             if responsables_str:
@@ -3923,7 +5765,19 @@ def PLANIFICACION_LISTONE(request, pk):
                     row.CI_CESTADO,
                     row.CI_NVALORTARIFA if row.CI_NVALORTARIFA else 0,
                     row.TAR_NID.TAR_CDIVISA if row.TAR_NID else '',
-                    row.CI_CTIPO_FLETE
+                    row.CI_CTIPO_FLETE,
+                    enviado_asistente,
+                    enviado_usuario,
+                    enviado_fecha,
+                    aprobado_asistente,
+                    aprobado_usuario,
+                    aprobado_fecha,
+                    estanque_valor,
+                    estanque_usuario,
+                    estanque_fecha,
+                    estanque_enviado,
+                    estanque_enviado_usuario,
+                    estanque_enviado_fecha
                 ])
 
             elif row.CI_CTIPO == CIT_RECEPCION:
@@ -3942,7 +5796,19 @@ def PLANIFICACION_LISTONE(request, pk):
                     row.CI_NVALORTARIFA if row.CI_NVALORTARIFA else 0,
                     row.CI_CESTADO,
                     row.CI_NVALORTARIFA if row.CI_NVALORTARIFA else 0,
-                    row.CI_CTIPO_FLETE
+                    row.CI_CTIPO_FLETE,
+                    enviado_asistente,
+                    enviado_usuario,
+                    enviado_fecha,
+                    aprobado_asistente,
+                    aprobado_usuario,
+                    aprobado_fecha,
+                    estanque_valor,
+                    estanque_usuario,
+                    estanque_fecha,
+                    estanque_enviado,
+                    estanque_enviado_usuario,
+                    estanque_enviado_fecha
                 ])
 
         ctx = {
@@ -3970,11 +5836,20 @@ def PLANIFICACION_FILEDONE(request, pk):
     try:
         if not request.user.is_superuser:
             usuario = request.user.id
-            if not validar_perfiles_activos(usuario, "pla_filedlistall"):
+            if not usuario_es_planificador(request.user) and not validar_perfiles_activos(usuario, "pla_filedlistall"):
                 messages.error(request, 'No tiene permisos para acceder a esta sección')
                 return redirect('/')
         
-        planificacion = PLANIFICACION.objects.get(id = pk)
+        if usuario_es_ingreso_camion(request.user):
+            messages.error(request, 'Su perfil no puede archivar planificaciones.')
+            return redirect('/pla_listall/')
+
+        Empresa = Verificar_empresa(request)
+
+        if Empresa is None:
+            return redirect('/seleccionar_empresa/')
+
+        planificacion = PLANIFICACION.objects.get(id=pk, EP_NID_id=Empresa)
         citaciones = CITACION.objects.filter(PL_NID = planificacion)
         archivo = not planificacion.PL_BARCHIVADO
         
@@ -3996,11 +5871,25 @@ def PLANIFICACION_FILEDLISTALL(request):
     try:
         if not request.user.is_superuser:
             usuario = request.user.id
-            if not validar_perfiles_activos(usuario, "pla_filedlistall"):
+            if not usuario_es_planificador(request.user) and not validar_perfiles_activos(usuario, "pla_filedlistall"):
                 messages.error(request, 'No tiene permisos para acceder a esta sección')
                 return redirect('/')
         
-        planificaciones = PLANIFICACION.objects.filter(PL_BARCHIVADO = True)
+        if usuario_es_ingreso_camion(request.user):
+            messages.error(request, 'Su perfil no puede acceder a planificaciones archivadas.')
+            return redirect('/pla_listall/')
+
+        Empresa = Verificar_empresa(request)
+
+        if Empresa is None:
+            return redirect('/seleccionar_empresa/')
+
+        planificaciones = PLANIFICACION.objects.filter(
+            EP_NID_id=Empresa,
+            PL_BARCHIVADO=True
+        )
+
+        print(f'PLANIFICACION_FILEDLISTALL empresa activa: {Empresa} - planificaciones filtradas: {planificaciones.count()}')
 
         ctx = {
             'object_list': planificaciones,
@@ -4145,15 +6034,29 @@ def ajax_archivar_planificaciones_seleccionadas(request):
     try:
         if not request.user.is_superuser:
             usuario = request.user.id
-            if not validar_perfiles_activos(usuario, "pla_filedlistall"):
+            if not usuario_es_planificador(request.user) and not validar_perfiles_activos(usuario, "pla_filedlistall"):
                 return JsonResponse({
                 'success': False,
                 'msg': 'No tienes permisos para archivar planificaciones'
             })
             
+        if usuario_es_ingreso_camion(request.user):
+            return JsonResponse({
+                'success': False,
+                'msg': 'Su perfil no puede archivar planificaciones'
+            })
+
+        Empresa = Verificar_empresa(request)
+
+        if Empresa is None:
+            return JsonResponse({
+                'success': False,
+                'msg': 'Debe seleccionar una empresa.'
+            })
+
         id_planificaciones = json.loads(request.POST.get("planificaciones"))
         for row in id_planificaciones:
-            planificacion = PLANIFICACION.objects.get(id = row)
+            planificacion = PLANIFICACION.objects.get(id=row, EP_NID_id=Empresa)
             citaciones = CITACION.objects.filter(PL_NID = planificacion)
             archivado = not planificacion.PL_BARCHIVADO
             
@@ -10164,6 +12067,39 @@ def CHECK_NOTIFICATIONS(request):
         }, status=200)
     except Exception as e:
         print(e)
+
+
+def LIMPIAR_NOTIFICACIONES(request):
+    try:
+        if request.method != 'POST':
+            return JsonResponse({
+                'success': False,
+                'message': 'Metodo no permitido.'
+            }, status=405)
+
+        notificaciones = NOTIFICACION.objects.filter(
+            USER_RECEIVER_ID=request.user,
+            NOT_BREAD=False,
+            NOT_BHABILITADO=True
+        )
+        cantidad = notificaciones.count()
+        notificaciones.update(
+            NOT_BREAD=True,
+            NOT_FFECHALEIDO=timezone.now()
+        )
+
+        return JsonResponse({
+            'success': True,
+            'message': 'Notificaciones limpiadas correctamente.',
+            'cantidad': cantidad
+        }, status=200)
+
+    except Exception as e:
+        print(e)
+        return JsonResponse({
+            'success': False,
+            'message': str(e)
+        }, status=500)
 
 ##########################################################################
 #########################   CUPOS PROVEEDOR   ############################

@@ -156,6 +156,93 @@
         let previousNotifications = JSON.parse(localStorage.getItem('previousNotifications')) || [];
         let currentUserId = localStorage.getItem('currentUserId');
 
+        function getCookie(name) {
+            let cookieValue = null;
+            if (document.cookie && document.cookie !== '') {
+                const cookies = document.cookie.split(';');
+                for (let cookie of cookies) {
+                    cookie = cookie.trim();
+                    if (cookie.substring(0, name.length + 1) === (name + '=')) {
+                        cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                        break;
+                    }
+                }
+            }
+            return cookieValue;
+        }
+
+        function resetNotificationDropdown() {
+            const notificationsContainer = document.getElementById('noti-body');
+            const emptyMessage = document.getElementById('noti-empty');
+            const dropdown = document.getElementById("notification-dropdown");
+            const icon = dropdown ? dropdown.querySelector('.notification-icon') : null;
+            const badge = document.getElementById("notification-badge");
+
+            if (notificationsContainer) {
+                notificationsContainer.innerHTML = '';
+            }
+
+            if (emptyMessage) {
+                emptyMessage.style.display = 'block';
+            }
+
+            if (badge && dropdown) {
+                dropdown.removeChild(badge);
+            }
+
+            if (icon) {
+                icon.classList.remove('pulse');
+            }
+
+            previousNotifications = [];
+            localStorage.setItem('previousNotifications', JSON.stringify(previousNotifications));
+        }
+
+        function limpiarNotificaciones() {
+            $.ajax({
+                url: "{% url 'limpiar_notificaciones' %}",
+                type: "POST",
+                headers: {
+                    'X-CSRFToken': getCookie('csrftoken')
+                },
+                success: function(response) {
+                    if (!response.success) {
+                        Swal.fire({
+                            title: 'Error',
+                            text: response.message || 'No se pudieron limpiar las notificaciones',
+                            icon: 'error'
+                        });
+                        return;
+                    }
+
+                    resetNotificationDropdown();
+                    Swal.fire({
+                        title: 'Notificaciones limpiadas correctamente',
+                        icon: 'success',
+                        timer: 1800,
+                        showConfirmButton: false
+                    });
+                },
+                error: function(xhr) {
+                    const message = xhr.responseJSON && xhr.responseJSON.message
+                        ? xhr.responseJSON.message
+                        : 'No se pudieron limpiar las notificaciones';
+
+                    Swal.fire({
+                        title: 'Error',
+                        text: message,
+                        icon: 'error'
+                    });
+                }
+            });
+        }
+
+        $(document).on('click', '#btn-limpiar-notificaciones', function(event) {
+            event.preventDefault();
+            event.stopPropagation();
+            limpiarNotificaciones();
+        });
+
         function checkNotifications() {
             let currentDate = new Date();
             $.ajax({
@@ -164,6 +251,10 @@
                 success: function(response) {
                     const notificationsContainer = document.getElementById('noti-body');
                     notificationsContainer.innerHTML = '';
+                    const emptyMessage = document.getElementById('noti-empty');
+                    if (emptyMessage) {
+                        emptyMessage.style.display = 'none';
+                    }
                     const dropdown = document.getElementById("notification-dropdown");
                     const icon = dropdown.querySelector('.notification-icon');
 
@@ -250,6 +341,9 @@
                         if (badge) {
                             dropdown.removeChild(badge);
                         }
+                        if (emptyMessage) {
+                            emptyMessage.style.display = 'block';
+                        }
                     }
                     // Save chat history including the bot response to localStorage
                     localStorage.setItem("chatHistory", chat.innerHTML);
@@ -322,10 +416,9 @@
                 }
             );
         }
-        function logout() {
+        function limpiarLogoutStorage() {
             localStorage.removeItem('currentUserId');
             localStorage.removeItem('previousNotifications');
-            document.getElementById('form-logout').submit();
         }
         getUsersMessage();
         checkNotifications();

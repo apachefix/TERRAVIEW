@@ -12,12 +12,14 @@
         </ul>
     </li>
 
-    {% if request.user|has_vista:'PLANIFICACIONES' or request.user.is_superuser == 1 %}
+    {% if request.user|has_vista:'PLANIFICACIONES' or request.user|es_planificador or request.user|es_ingreso_camion or request.user.is_superuser == 1 %}
     <li class="nav-item pcoded-hasmenu">
-        <a href="#" class="nav-link "><span class="pcoded-micon"><i class="fas fa-tasks"></i></span><span class="pcoded-mtext">Planificaciones</span></a>
+        <a href="#" class="nav-link "><span class="pcoded-micon"><i class="fas fa-tasks"></i></span><span class="pcoded-mtext">{% if request.user|es_ingreso_camion %}Ingreso de cami&oacute;n{% else %}Planificaciones{% endif %}</span></a>
         <ul class="pcoded-submenu">
-            <li><a href="{% url 'pla_listall' %}">Planificaciones</a></li>
-            <li><a href="{% url 'pla_filedlistall' %}">Planificaciones archivadas</a></li>
+            <li><a href="{% url 'pla_listall' %}">{% if request.user|es_ingreso_camion %}Ingreso de cami&oacute;n{% else %}Planificaciones{% endif %}</a></li>
+            {% if not request.user|es_ingreso_camion %}
+                <li><a href="{% url 'pla_filedlistall' %}">Planificaciones archivadas</a></li>
+            {% endif %}
         </ul>
     </li>
     {% endif %}

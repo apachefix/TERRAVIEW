@@ -926,8 +926,12 @@ class ETAPA_LOG(models.Model):
     EP_NID = models.ForeignKey(EMPRESA, verbose_name='Id empresa', on_delete=models.PROTECT)
     SC_NID = models.ForeignKey(SECUENCIA, verbose_name='Id secuencia', on_delete=models.PROTECT)
     ET_NID = models.ForeignKey(ETAPA, verbose_name='Id etapa', on_delete=models.PROTECT)
+    US_INICIO_ID = models.ForeignKey(User, verbose_name='Usuario inicio etapa', on_delete=models.PROTECT, null=True, blank=True, related_name='etapas_log_inicio')
+    US_FIN_ID = models.ForeignKey(User, verbose_name='Usuario fin etapa', on_delete=models.PROTECT, null=True, blank=True, related_name='etapas_log_fin')
     EL_FFECHAINICIO = models.DateTimeField(("Fecha de inicio"), null=True, blank=True)
     EL_FFECHAFIN = models.DateTimeField(("Fecha de fin"), null=True, blank=True)
+    EL_CACCION = models.CharField(("Accion"), max_length=128, null=True, blank=True)
+    EL_COBSERVACION = models.TextField(("Observacion"), null=True, blank=True)
 
     @property
     def TIEMPO_TRANSCURRIDO(self):
@@ -1238,6 +1242,52 @@ class NOTIFICACION(models.Model):
 
     class Meta:
         db_table = "NOTIFICACION"
+
+
+def camion_no_planificado_upload_path(instance, filename):
+    empresa_id = instance.EP_NID_id or 'sin_empresa'
+    planificacion_id = instance.PL_NID_id or 'sin_planificacion'
+    return f'camiones_no_planificados/{empresa_id}/{planificacion_id}/{filename}'
+
+
+class CAMION_NO_PLANIFICADO(models.Model):
+    ESTADO_PENDIENTE = 'PENDIENTE_REVISION'
+    ESTADO_PLANIFICADO = 'PLANIFICADO'
+    ESTADO_RECHAZADO = 'RECHAZADO'
+    ESTADO_CORRECCION = 'CORRECCION_SOLICITADA'
+
+    ESTADO_CHOICES = [
+        (ESTADO_PENDIENTE, 'Pendiente de revision'),
+        (ESTADO_PLANIFICADO, 'Planificado'),
+        (ESTADO_RECHAZADO, 'Rechazado'),
+        (ESTADO_CORRECCION, 'Correccion solicitada'),
+    ]
+
+    EP_NID = models.ForeignKey(EMPRESA, verbose_name='Id empresa', on_delete=models.PROTECT)
+    PL_NID = models.ForeignKey(PLANIFICACION, verbose_name='Id planificacion', on_delete=models.PROTECT)
+    US_GUARDIA_ID = models.ForeignKey(User, verbose_name='Usuario guardia', on_delete=models.PROTECT, related_name='camiones_no_planificados_solicitados')
+    CLI_CCODIGO = models.CharField('Codigo cliente', max_length=128, null=True, blank=True)
+    CLI_CNOMBRE = models.CharField('Cliente', max_length=256)
+    CNP_CINSUMO = models.CharField('Insumo', max_length=256)
+    CNP_CNUMEROGUIA = models.CharField('Numero guia', max_length=128)
+    CNP_CPATENTE = models.CharField('Patente', max_length=32)
+    CNP_CEMPRESATRANSPORTE = models.CharField('Empresa transporte', max_length=256)
+    CNP_COBSERVACION = models.TextField('Observacion', null=True, blank=True)
+    CNP_FARCHIVOGUIA = models.FileField('Archivo guia', upload_to=camion_no_planificado_upload_path)
+    CNP_CESTADO = models.CharField('Estado', max_length=32, choices=ESTADO_CHOICES, default=ESTADO_PENDIENTE)
+    US_PLANIFICADOR_ID = models.ForeignKey(User, verbose_name='Usuario planificador', on_delete=models.PROTECT, null=True, blank=True, related_name='camiones_no_planificados_resueltos')
+    CNP_COBSERVACION_RECHAZO = models.TextField('Observacion rechazo', null=True, blank=True)
+    CNP_FFECHACREACION = models.DateTimeField('Fecha creacion', auto_now_add=True)
+    CNP_FFECHARESPUESTA = models.DateTimeField('Fecha respuesta', null=True, blank=True)
+
+    class Meta:
+        db_table = 'CAMION_NO_PLANIFICADO'
+        indexes = [
+            models.Index(fields=['EP_NID', 'PL_NID', 'CNP_CPATENTE', 'CNP_CESTADO']),
+        ]
+
+    def __str__(self):
+        return f'{self.CNP_CPATENTE} - {self.CNP_CESTADO}'
 
 #####################################################################
 ######################### CUPOS PROVEEDOR ###########################

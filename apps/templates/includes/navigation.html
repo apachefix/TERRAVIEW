@@ -119,6 +119,12 @@
 
                         <div class="noti-head">
                             <h6 class="d-inline-block m-b-0">Notificaciones</h6>
+                            <button type="button"
+                                    class="btn btn-link btn-sm float-right p-0"
+                                    id="btn-limpiar-notificaciones"
+                                    style="color:#4099ff; font-size:12px;">
+                                Limpiar notificaciones
+                            </button>
                         </div>
 
                         <ul class="noti-body">
@@ -129,6 +135,13 @@
                             <hr>
 
                             <div id="noti-body"></div>
+                            <li id="noti-empty" class="notification" style="display:none;">
+                                <div class="media">
+                                    <div class="media-body">
+                                        <p class="m-b-0 text-muted">Sin notificaciones nuevas</p>
+                                    </div>
+                                </div>
+                            </li>
                         </ul>
 
                     </div>

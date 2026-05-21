@@ -33,6 +33,16 @@ urlpatterns = [
     #########################################
     path('crear-planificacion-citacion/', login_required(views.CREAR_PLANIFICACION_CITACION), name='crear_planificacion_citacion'),
     path('crear-citacion-no-planificada/<int:pk>/', login_required(views.CREAR_CITACION_NO_PLANIFICADA), name='crear_citacion_no_planificada'),
+    path('solicitar-camion-no-planificado/', login_required(views.SOLICITAR_CAMION_NO_PLANIFICADO), name='solicitar_camion_no_planificado'),
+    path('rechazar-camion-no-planificado/', login_required(views.RECHAZAR_CAMION_NO_PLANIFICADO), name='rechazar_camion_no_planificado'),
+    path('notificar-camion-no-planificado/', login_required(views.NOTIFICAR_CAMION_NO_PLANIFICADO), name='notificar_camion_no_planificado'),
+    path('pla-citacion-ingreso-camion/<int:pk>/', login_required(views.PLANIFICACION_CITACION_INGRESO_CAMION), name='pla_citacion_ingreso_camion'),
+    path('pla-citacion-avanzar-asistente/<int:pk>/', login_required(views.AVANZAR_INGRESO_CAMION_ASISTENTE), name='pla_citacion_avanzar_asistente'),
+    path('pla-citacion-revision-asistente/<int:pk>/', login_required(views.PLANIFICACION_CITACION_REVISION_ASISTENTE), name='pla_citacion_revision_asistente'),
+    path('pla-citacion-aprobar-asistente/<int:pk>/', login_required(views.APROBAR_CAMION_ASISTENTE), name='pla_citacion_aprobar_asistente'),
+    path('pla-citacion-devolver-guardia/<int:pk>/', login_required(views.DEVOLVER_CAMION_GUARDIA), name='pla_citacion_devolver_guardia'),
+    path('pla-citacion-estanque/<int:pk>/', login_required(views.PLANIFICACION_CITACION_ESTANQUE), name='pla_citacion_estanque'),
+    path('pla-citacion-estanque-avanzar/<int:pk>/', login_required(views.AVANZAR_ESTANQUE_SIGUIENTE_ETAPA), name='pla_citacion_estanque_avanzar'),
         #########################################
     ########         EMPRESA     NUEVO    ########
     #########################################
@@ -325,6 +335,7 @@ urlpatterns = [
     path('axonmessage/', login_required(views.AXONCHECKMESSAGE), name='axonmessage'),
     path('axongetusers/', login_required(views.AXONGETUSERS), name='axongetusers'),
     path('check_notifications/', login_required(views.CHECK_NOTIFICATIONS), name='check_notifications'),
+    path('limpiar-notificaciones/', login_required(views.LIMPIAR_NOTIFICACIONES), name='limpiar_notificaciones'),
     path('axongetcurrentuser/', login_required(views.AXONGETCURRENTUSER), name='axongetcurrentuser'),
     path('axongetunreadmessages/', login_required(views.AXONGETUNREADMESSAGES), name='axongetunreadmessages'),
     #########################################
