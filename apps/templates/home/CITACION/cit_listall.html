@@ -239,9 +239,10 @@
                                             <th>NOMBRE ETAPA</th>
                                             <th>CLIENTE</th>
                                             <th>CONDUCTOR</th>
-                                            <th>CAMION</th>
+                                            <th>PATENTE</th>
+                                            <th>TIPO EJE</th>
                                            
-                                            <th>PROVEEDOR</th>
+                                            <th>TRANSPORTISTA</th>
                                             {% if request.user.is_superuser == True %}
                                                 <th>TARIFA</th>
                                                 <th>DIVISA</th>
@@ -283,10 +284,11 @@
                                                 <td>{{ object.SC_NID.SE_CCODIGO }} - {{ object.SC_NID.SE_CNOMBRE }}</td>
                                                 <td>{{ object.ETAPA_ACTUAL.ET_CCODIGO }}</td>
                                                 <td>{{ object.SN_NID.SN_CRAZONSOCIAL|default:'-' }}</td>
-                                                <td>{{ object.CON_NID.CON_CNOMBRE|default:'' }} {{ object.CON_NID.CON_CAPELLIDO|default:'' }}</td>
-                                                <td>{{ object.CA_NID.CAM_CPATENTE|default:'-' }}</td>
+                                                <td>{{ object.operacion_conductor|default:'Sin información' }}</td>
+                                                <td>{{ object.operacion_patente|default:'Sin información' }}</td>
+                                                <td>{{ object.operacion_tipo_eje|default:'Sin información' }}</td>
                                                
-                                                <td>{{ object.PRO_NID.SN_CRAZONSOCIAL|default:'-' }}</td>
+                                                <td>{{ object.operacion_transportista|default:'Sin información' }}</td>
                                                 {% if request.user.is_superuser == True %}
                                                     <td>$ {{ object.CI_NVALORTARIFA|custom_number_format|default:'-' }}</td>
                                                     <td>{{ object.TAR_NID.TAR_CDIVISA|default:'-' }}</td>

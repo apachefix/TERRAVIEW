@@ -984,16 +984,6 @@
                             </div>
                         </div>
 
-                        <div class="col-lg-4 col-md-6">
-                            <div class="form-group">
-                                <label>Productor</label>
-                                <input type="text"
-                                       class="form-control"
-                                       id="productor"
-                                       name="productor"
-                                       readonly>
-                            </div>
-                        </div>
                     </div>
 
                     <div class="form-section-title">Datos de destino</div>
@@ -1606,7 +1596,6 @@
                 : ''
         );
         setValue('docentry', item.docentry || '');
-        setValue('productor', item.productor || '');
         setValue('proveedor_codigo', item.proveedor_codigo || '');
 
         if ($('#proveedor').length) {
@@ -1664,8 +1653,6 @@
                 bl: getValue('bl'),
                 cantidad_disponible: getValue('cantidad_disponible'),
                 docentry: getValue('docentry'),
-                productor: getValue('productor'),
-
                 estanque_destino: getValue('estanque_destino'),
                 estanque_destino_texto: getSelectedText('estanque_destino'),
 
@@ -1723,7 +1710,6 @@
             bl: getValue('despacho_patente'),
             cantidad_disponible: getValue('despacho_orden_carga'),
             docentry: '',
-            productor: '',
 
             estanque_destino: getValue('despacho_bodega'),
             estanque_destino_texto: getValue('despacho_destino'),
@@ -2096,8 +2082,7 @@
             'sap_opor_id',
             'proveedor_codigo',
             'cantidad_disponible',
-            'docentry',
-            'productor'
+            'docentry'
         ];
 
         if (limpiarPedido) {
@@ -2120,8 +2105,7 @@
             'proveedor_codigo',
             'pedido',
             'cantidad_disponible',
-            'docentry',
-            'productor'
+            'docentry'
         ];
 
         if (limpiarCodigo) {

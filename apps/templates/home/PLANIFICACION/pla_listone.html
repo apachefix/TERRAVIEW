@@ -146,6 +146,37 @@
             background: #fff;
         }
 
+        #ModalCamionNoPlanificado .modal-dialog {
+            max-height: calc(100vh - 2rem);
+        }
+
+        #ModalCamionNoPlanificado .modal-content {
+            max-height: calc(100vh - 40px);
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+
+        #ModalCamionNoPlanificado form {
+            display: flex;
+            flex-direction: column;
+            min-height: 0;
+            flex: 1 1 auto;
+        }
+
+        #ModalCamionNoPlanificado .modal-body {
+            overflow-y: auto;
+            max-height: calc(100vh - 210px);
+        }
+
+        #ModalCamionNoPlanificado .modal-footer {
+            flex-shrink: 0;
+            position: sticky;
+            bottom: 0;
+            z-index: 2;
+            background: #fff;
+        }
+
         #ModalRevisionAsistente .modal-content,
         #ModalEstanqueCamion .modal-content {
             max-height: calc(100vh - 40px);
@@ -320,7 +351,8 @@
             }
 
             #ModalSolicitudCamionNoPlanificado .modal-body,
-            #ModalRechazarCamionNoPlanificado .modal-body {
+            #ModalRechazarCamionNoPlanificado .modal-body,
+            #ModalCamionNoPlanificado .modal-body {
                 max-height: calc(100vh - 150px);
             }
         }
@@ -395,7 +427,7 @@
                     <div class="card bg-c-red order-card">
                         <div class="card-body">
                             <h6 class="text-white">Sobrecupos</h6>
-                            <h2 class="text-right text-white"><i class="fas fa-boxes float-left"></i><span>{{ planificacion.PL_NCANTIDADSOBRECUPO|default:0 }}</span></h2>
+                            <h2 class="text-right text-white"><i class="fas fa-boxes float-left"></i><span>{{ planificacion.TOTAL_SOBRECUPOS_DISPONIBLES|default:0 }}</span></h2>
                         </div>
                     </div>
                 </div>
@@ -517,8 +549,9 @@
                                                     <th>CLIENTE</th>
                                                     <th>CONDUCTOR</th>
                                                     <th>CELULAR CONDUCTOR</th>
-                                                    <th>CAMION</th>
-                                                    <th>PROVEEDOR</th>
+                                                    <th>PATENTE</th>
+                                                    <th>TIPO EJE</th>
+                                                    <th>TRANSPORTISTA</th>
                                                     {% if request.user.is_superuser == True %}
                                                         <th>TARIFA</th>
                                                         <th>DIVISA</th>
@@ -593,7 +626,7 @@
                                                                     {% elif request.user|es_ingreso_camion %}
                                                                     <button type="button" class="pulse-button border-0" onclick="openIngresoCamionModal({{ object.0 }})">
                                                                     {% else %}
-                                                                    <a class="pulse-button" href="{% url 'cit_listone' object.0 %}">
+                                                                    <a class="pulse-button" href="#" onclick="openCitationSummaryModal({{ object.0 }}); return false;">
                                                                     {% endif %}
                                                                         <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16">
                                                                             <path d="M16 8s-3-5.5-8-5.5S0 8 0 8s3 5.5 8 5.5S16 8 16 8zM1.173 8a13.133 13.133 0 0 1 1.66-2.043C4.12 4.668 5.88 3.5 8 3.5c2.12 0 3.879 1.168 5.168 2.457A13.133 13.133 0 0 1 14.828 8c-.058.087-.122.183-.195.288-.335.48-.83 1.12-1.465 1.755C11.879 11.332 10.119 12.5 8 12.5c-2.12 0-3.879-1.168-5.168-2.457A13.134 13.134 0 0 1 1.172 8z"/>
@@ -604,18 +637,13 @@
                                                                     {% else %}
                                                                     </a>
                                                                     {% endif %}
-                                                                    {% if not request.user|es_ingreso_camion %}
-                                                                        <button type="button" class="btn btn-warning btn-sm" onclick="openEditModal({{ object.0 }})">
-                                                                            <i class="fas fa-edit"></i>
-                                                                        </button>
-                                                                    {% endif %}
                                                                 {% else %}
                                                                     {% if request.user|es_asistente_recepcion %}
                                                                     <button type="button" class="btn btn-primary btn-sm" onclick="openRevisionAsistenteModal({{ object.0 }})">
                                                                     {% elif request.user|es_ingreso_camion %}
                                                                     <button type="button" class="btn btn-primary btn-sm" onclick="openIngresoCamionModal({{ object.0 }})">
                                                                     {% else %}
-                                                                    <a class="btn btn-primary btn-sm" href="{% url 'cit_listone' object.0 %}">
+                                                                    <a class="btn btn-primary btn-sm" href="#" onclick="openCitationSummaryModal({{ object.0 }}); return false;">
                                                                     {% endif %}
                                                                         <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-eye" viewBox="0 0 16 16">
                                                                             <path d="M16 8s-3-5.5-8-5.5S0 8 0 8s3 5.5 8 5.5S16 8 16 8zM1.173 8a13.133 13.133 0 0 1 1.66-2.043C4.12 4.668 5.88 3.5 8 3.5c2.12 0 3.879 1.168 5.168 2.457A13.133 13.133 0 0 1 14.828 8c-.058.087-.122.183-.195.288-.335.48-.83 1.12-1.465 1.755C11.879 11.332 10.119 12.5 8 12.5c-2.12 0-3.879-1.168-5.168-2.457A13.134 13.134 0 0 1 1.172 8z"/>
@@ -626,15 +654,11 @@
                                                                     {% else %}
                                                                     </a>
                                                                     {% endif %}
-                                                                    {% if object.17 == 'CREADO' or object.17 == 'EN PROCESO' %}
-                                                                    {% if not request.user|es_ingreso_camion %}
-                                                                        <button type="button" class="btn btn-warning btn-sm" onclick="openEditModal({{ object.0 }})">
-                                                                            <i class="fas fa-edit"></i>
-                                                                        </button>
-                                                                    {% endif %}
-                                                                    {% endif %}
                                                                 {% endif%}
-                                                                {% if request.user.is_superuser == True %}
+                                                                {% if not request.user|es_ingreso_camion %}
+                                                                    <button type="button" class="btn btn-warning btn-sm" onclick="openEditModal({{ object.0 }})" title="Editar">
+                                                                        <i class="fas fa-edit"></i>
+                                                                    </button>
                                                                     <a class="btn btn-danger btn-sm delete_citacion" data-href="{% url 'cit_delete' object.0 %}" id="delete_citacion">
                                                                         <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-trash" viewBox="0 0 16 16">
                                                                             <path d="M5.5 5.5A.5.5 0 0 1 6 6v6a.5.5 0 0 1-1 0V6a.5.5 0 0 1 .5-.5zm2.5 0a.5.5 0 0 1 .5.5v6a.5.5 0 0 1-1 0V6a.5.5 0 0 1 .5-.5zm3 .5a.5.5 0 0 0-1 0v6a.5.5 0 0 0 1 0V6z" />
@@ -645,7 +669,7 @@
                                                             </div>
                                                         </td>
                                                         <td>{{ object.0 }}</td>
-                                                        <td>{{ object.1|date:'d/m/Y H:i' }}</td>
+                                                        <td>{{ object.1|date:'d/m/Y' }}</td>
                                                         <td>{{ object.13|default:"" }}</td>
                                                         <td>{{ object.14|default:"Sin documento" }}</td>
                                                         <td>{{ object.20|default:"" }}</td>
@@ -653,10 +677,11 @@
                                                         <td>{{ object.3 }}</td>
                                                         <td>{{ object.15 }}</td>
                                                         <td>{{ object.4 }}</td>
-                                                        <td>{{ object.5 }}</td>
-                                                        <td>{{ object.16|default:"" }}</td>
-                                                        <td>{{ object.6 }}</td>
-                                                        <td>{{ object.7 }}</td>
+                                                        <td>{{ object.5|default:"Sin información" }}</td>
+                                                        <td>{{ object.16|default:"Sin información" }}</td>
+                                                        <td>{{ object.6|default:"Sin información" }}</td>
+                                                        <td>{{ object.33|default:"Sin información" }}</td>
+                                                        <td>{{ object.7|default:"Sin información" }}</td>
                                                         {% if request.user.is_superuser == True %}
                                                             <td>$ {{ object.8|custom_number_format }}</td>
                                                             <td>{{ object.9 }}</td>
@@ -684,8 +709,9 @@
                                                     <th>ETAPA</th>
                                                     <th>CONDUCTOR</th>
                                                     <th>CELULAR CONDUCTOR</th>
-                                                    <th>CAMION</th>
-                                                    <th>PROVEEDOR</th>
+                                                    <th>PATENTE</th>
+                                                    <th>TIPO EJE</th>
+                                                    <th>TRANSPORTISTA</th>
                                                     <th>PRODUCTO</th>
                                                     {% if request.user.is_superuser == True %}
                                                         <th>TARIFA</th>
@@ -760,7 +786,7 @@
                                                                     {% elif request.user|es_ingreso_camion %}
                                                                     <button type="button" class="pulse-button btn btn-primary btn-sm border-0" onclick="openIngresoCamionModal({{ object.0 }})">
                                                                     {% else %}
-                                                                    <a class="pulse-button btn btn-primary btn-sm" href="{% url 'cit_listone' object.0 %}">
+                                                                    <a class="pulse-button btn btn-primary btn-sm" href="#" onclick="openCitationSummaryModal({{ object.0 }}); return false;">
                                                                     {% endif %}
                                                                         <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16">
                                                                             <path d="M16 8s-3-5.5-8-5.5S0 8 0 8s3 5.5 8 5.5S16 8 16 8zM1.173 8a13.133 13.133 0 0 1 1.66-2.043C4.12 4.668 5.88 3.5 8 3.5c2.12 0 3.879 1.168 5.168 2.457A13.133 13.133 0 0 1 14.828 8c-.058.087-.122.183-.195.288-.335.48-.83 1.12-1.465 1.755C11.879 11.332 10.119 12.5 8 12.5c-2.12 0-3.879-1.168-5.168-2.457A13.134 13.134 0 0 1 1.172 8z"/>
@@ -777,7 +803,7 @@
                                                                     {% elif request.user|es_ingreso_camion %}
                                                                     <button type="button" class="btn btn-primary btn-sm" onclick="openIngresoCamionModal({{ object.0 }})">
                                                                     {% else %}
-                                                                    <a class="btn btn-primary btn-sm" href="{% url 'cit_listone' object.0 %}">
+                                                                    <a class="btn btn-primary btn-sm" href="#" onclick="openCitationSummaryModal({{ object.0 }}); return false;">
                                                                     {% endif %}
                                                                         <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-eye" viewBox="0 0 16 16">
                                                                             <path d="M16 8s-3-5.5-8-5.5S0 8 0 8s3 5.5 8 5.5S16 8 16 8zM1.173 8a13.133 13.133 0 0 1 1.66-2.043C4.12 4.668 5.88 3.5 8 3.5c2.12 0 3.879 1.168 5.168 2.457A13.133 13.133 0 0 1 14.828 8c-.058.087-.122.183-.195.288-.335.48-.83 1.12-1.465 1.755C11.879 11.332 10.119 12.5 8 12.5c-2.12 0-3.879-1.168-5.168-2.457A13.134 13.134 0 0 1 1.172 8z"/>
@@ -789,14 +815,10 @@
                                                                     </a>
                                                                     {% endif %}
                                                                 {% endif %}
-                                                                {% if object.12 == 'CREADO' or object.12 == 'EN PROCESO' %}
-                                                                    {% if not request.user|es_ingreso_camion %}
-                                                                        <button type="button" class="btn btn-warning btn-sm" onclick="openEditModal({{ object.0 }})">
-                                                                            <i class="fas fa-edit"></i>
-                                                                        </button>
-                                                                    {% endif %}
-                                                                {% endif %}
                                                                 {% if not request.user|es_ingreso_camion %}
+                                                                <button type="button" class="btn btn-warning btn-sm" onclick="openEditModal({{ object.0 }})" title="Editar">
+                                                                    <i class="fas fa-edit"></i>
+                                                                </button>
                                                                 <a class="btn btn-danger btn-sm delete_citacion" data-href="{% url 'cit_delete' object.0 %}" id="delete_citacion">
                                                                     <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-trash" viewBox="0 0 16 16">
                                                                         <path d="M5.5 5.5A.5.5 0 0 1 6 6v6a.5.5 0 0 1-1 0V6a.5.5 0 0 1 .5-.5zm2.5 0a.5.5 0 0 1 .5.5v6a.5.5 0 0 1-1 0V6a.5.5 0 0 1 .5-.5zm3 .5a.5.5 0 0 0-1 0v6a.5.5 0 0 0 1 0V6z" />
@@ -807,16 +829,17 @@
                                                             </div>
                                                         </td>
                                                         <td>{{ object.0 }}</td>
-                                                        <td>{{ object.1|date:'d/m/Y H:i' }}</td>
+                                                        <td>{{ object.1|date:'d/m/Y' }}</td>
                                                         <td>{{ object.2 }}</td>
                                                         <td>{{ object.3|default:"Sin documento" }}</td>
                                                         <td>{{ object.14|default:"" }}</td>
                                                         <td>{{ object.4 }}</td>
                                                         <td>{{ object.5 }}</td>
-                                                        <td>{{ object.9 }}</td>
-                                                        <td>{{ object.10|default:"" }}</td>
-                                                        <td>{{ object.8 }}</td>
-                                                        <td>{{ object.7 }}</td>
+                                                        <td>{{ object.9|default:"Sin información" }}</td>
+                                                        <td>{{ object.10|default:"Sin información" }}</td>
+                                                        <td>{{ object.8|default:"Sin información" }}</td>
+                                                        <td>{{ object.27|default:"Sin información" }}</td>
+                                                        <td>{{ object.7|default:"Sin información" }}</td>
                                                         <td>{{ object.6 }}</td>
                                                         {% if request.user.is_superuser == True %}
                                                             <td>$ {{ object.11|custom_number_format}}</td>
@@ -968,11 +991,10 @@
                             <div class="col-lg-4 col-md-6">
                                 <div class="form-group">
                                     <label>Inf 24 hrs</label>
-                                    <select class="form-control" id="no_plan_inf_24hrs" name="inf_24hrs" required>
-                                        <option value="">Seleccione</option>
-                                        <option value="Si">SI­</option>
-                                        <option value="No">No</option>
+                                    <select class="form-control" id="no_plan_inf_24hrs" name="inf_24hrs" required disabled>
+                                        <option value="No" selected>No</option>
                                     </select>
+                                    <input type="hidden" name="inf_24hrs" value="No">
                                 </div>
                             </div>
                             <div class="col-lg-4 col-md-6">
@@ -1059,18 +1081,19 @@
                             </div>
                             <div class="col-lg-4 col-md-6">
                                 <div class="form-group">
-                                    <label>Productor</label>
-                                    <input type="text" class="form-control" id="no_plan_productor" name="productor" readonly>
+                                    <label>Planta destino</label>
+                                    <select class="form-control" id="no_plan_almacen_destino" name="almacen_destino" required>
+                                        <option value="">Seleccione planta</option>
+                                        <option value="PROCESA">PROCESA</option>
+                                        <option value="SBH">SBH</option>
+                                    </select>
                                 </div>
                             </div>
                             <div class="col-lg-4 col-md-6">
                                 <div class="form-group">
                                     <label>Estanque destino</label>
-                                    <select class="form-control" id="no_plan_estanque_destino" name="estanque_destino" required>
+                                    <select class="form-control" id="no_plan_estanque_destino" name="estanque_destino" required disabled>
                                         <option value="">Seleccione estanque</option>
-                                        <option value="PROSESA_T3">PROSESA_T3</option>
-                                        <option value="PROSESA_T5">PROSESA_T5</option>
-                                        <option value="TK10">TK10</option>
                                     </select>
                                 </div>
                             </div>
@@ -1258,9 +1281,32 @@
             </div>
         </div>
     </div>
+<div class="modal fade" id="citationSummaryModal" tabindex="-1" role="dialog" aria-labelledby="citationSummaryModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-xl modal-dialog-scrollable" role="document">
+        <div class="modal-content">
+            <div class="modal-header">
+                <div>
+                    <h5 class="modal-title" id="citationSummaryModalLabel">Resumen de citacion</h5>
+                    <small id="citationSummarySubtitle" class="text-muted"></small>
+                </div>
+                <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                    <span aria-hidden="true">&times;</span>
+                </button>
+            </div>
+            <div class="modal-body">
+                <div id="citationSummaryAlert" class="alert alert-info" style="display:none;"></div>
+                <div id="citationSummaryContent"></div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-dismiss="modal">Cerrar</button>
+            </div>
+        </div>
+    </div>
+</div>
+
    <!-- Add this modal at the end of your template -->
 <div class="modal fade" id="editCitationModal" tabindex="-1" role="dialog" aria-labelledby="editCitationModalLabel" aria-hidden="true">
-    <div class="modal-dialog modal-lg" role="document">
+    <div class="modal-dialog modal-xl modal-dialog-scrollable" role="document">
         <div class="modal-content">
             <div class="modal-header">
                 <h5 class="modal-title" id="editCitationModalLabel">Editar Citación</h5>
@@ -1272,60 +1318,111 @@
                 <form id="updateCitationForm">
                     {% csrf_token %}
                     <input type="hidden" id="citation_id" name="citation_id">
+                    <input type="hidden" id="edit_origen" name="origen">
+                    <input type="hidden" id="edit_sap_opor_id" name="sap_opor_id">
+                    <input type="hidden" id="edit_proveedor_codigo" name="proveedor_codigo">
+
                     <div class="form-row">
-                        <div class="form-group col-md-6">
-                            <label for="tipo_documento">Tipo de Documento</label>
+                        <div class="form-group col-md-4">
+                            <label for="edit_fecha_llegada">Fecha llegada</label>
+                            <input type="date" class="form-control" id="edit_fecha_llegada" name="fecha_llegada">
+                        </div>
+                        <div class="form-group col-md-4">
+                            <label for="edit_tipo_operacion">Tipo operacion</label>
+                            <select class="form-control" id="edit_tipo_operacion" name="tipo_operacion">
+                                <option value="RECEPCION">RECEPCION</option>
+                                <option value="DESPACHO">DESPACHO</option>
+                            </select>
+                        </div>
+                        <div class="form-group col-md-4">
+                            <label for="id_secuencia">Secuencia operacional</label>
+                            <select class="form-control" id="id_secuencia" name="id_secuencia"></select>
+                        </div>
+                    </div>
+
+                    <div class="form-row">
+                        <div class="form-group col-md-4">
+                            <label for="edit_tipo_carga">Tipo</label>
+                            <select class="form-control" id="edit_tipo_carga" name="tipo_carga">
+                                <option value="">Seleccione tipo</option>
+                                <option value="Contenedor">Contenedor</option>
+                                <option value="Cisterna">Cisterna</option>
+                            </select>
+                        </div>
+                        <div class="form-group col-md-4">
+                            <label for="tipo_documento">Tipo de documento</label>
                             <select class="form-control" id="tipo_documento" name="tipo_documento"></select>
                         </div>
-                        <div class="form-group col-md-6">
-                            <label for="numero_documento">Número de Documento</label>
+                        <div class="form-group col-md-4">
+                            <label for="numero_documento">Numero de documento</label>
                             <input type="text" class="form-control" id="numero_documento" name="numero_documento">
                         </div>
                     </div>
+
                     <div class="form-row">
+                        <div class="form-group col-md-4">
+                            <label for="edit_inf_24hrs">Inf 24 hrs</label>
+                            <select class="form-control" id="edit_inf_24hrs" name="inf_24hrs">
+                                <option value="">Seleccione</option>
+                                <option value="No">No</option>
+                                <option value="Si">Si</option>
+                            </select>
+                        </div>
+                        <div class="form-group col-md-4">
+                            <label for="edit_codigo">Codigo SAP</label>
+                            <input type="text" class="form-control" id="edit_codigo" name="codigo">
+                        </div>
+                        <div class="form-group col-md-4">
+                            <label for="edit_pedido">Pedido SAP</label>
+                            <input type="text" class="form-control" id="edit_pedido" name="pedido">
+                        </div>
+                    </div>
+
+                    <div class="form-row">
+                        <div class="form-group col-md-6">
+                            <label for="edit_insumo">Insumo / Producto</label>
+                            <input type="text" class="form-control" id="edit_insumo" name="insumo">
+                        </div>
                         <div class="form-group col-md-6">
                             <label for="id_proveedor">Proveedor</label>
                             <select class="form-control" id="id_proveedor" name="id_proveedor"></select>
                         </div>
-                        <div class="form-group col-md-6" id="cliente_field" style="display: none;">
-                            <label for="id_cliente">Cliente</label>
-                            <select class="form-control" id="id_cliente" name="id_cliente"></select>
-                        </div>
-                        <div class="form-group col-md-6" id="conductor_field">
-                            <label for="id_conductor">Conductor</label>
-                            <select class="form-control" id="id_conductor" name="id_conductor"></select>
-                        </div>
                     </div>
-                    <div class="form-row">
-                        <div class="form-group col-md-6" id="conductor_field_despacho" style="display: none;">
-                            <label for="id_conductor_despacho">Conductor</label>
-                            <select class="form-control" id="id_conductor_despacho" name="id_conductor"></select>
-                        </div>
-                        <div class="form-group col-md-6">
-                            <label for="id_camion">Camión</label>
-                            <select class="form-control" id="id_camion" name="id_camion"></select>
-                        </div>
-                        <div class="form-group col-md-6">
-                            <label for="id_secuencia">Secuencia</label>
-                            <select class="form-control" id="id_secuencia" name="id_secuencia"></select>
-                        </div>
-                    </div>
+
                     <div class="form-row">
                         <div class="form-group col-md-6">
-                            <label for="hora_citacion">Hora de Citación</label>
-                            <input type="time" class="form-control" id="hora_citacion" name="hora_citacion">
+                            <label for="edit_bl">BL / Contenedor</label>
+                            <input type="text" class="form-control" id="edit_bl" name="bl">
+                        </div>
+                        <div class="form-group col-md-3">
+                            <label for="edit_cantidad_disponible">Cantidad disponible</label>
+                            <input type="text" class="form-control" id="edit_cantidad_disponible" name="cantidad_disponible">
+                        </div>
+                        <div class="form-group col-md-3">
+                            <label for="edit_docentry">DocEntry SAP</label>
+                            <input type="text" class="form-control" id="edit_docentry" name="docentry">
+                        </div>
+                    </div>
+
+                    <div class="form-row">
+                        <div class="form-group col-md-6">
+                            <label for="edit_almacen_destino">Planta destino</label>
+                            <select class="form-control" id="edit_almacen_destino" name="almacen_destino">
+                                <option value="">Seleccione planta</option>
+                                <option value="PROCESA">PROCESA</option>
+                                <option value="SBH">SBH</option>
+                            </select>
                         </div>
                         <div class="form-group col-md-6">
-                            <label for="id_producto">Producto</label>
-                            <select class="form-control" id="id_producto" name="id_producto"></select>
+                            <label for="edit_estanque_destino">Estanque destino</label>
+                            <select class="form-control" id="edit_estanque_destino" name="estanque_destino">
+                                <option value="">Seleccione estanque</option>
+                            </select>
                         </div>
                     </div>
+
                     <div class="form-group">
-                        <label for="id_tarifa">Tarifa</label>
-                        <select class="form-control" id="id_tarifa" name="id_tarifa"></select>
-                    </div>
-                    <div class="form-group">
-                        <label for="observacion">Observación</label>
+                        <label for="observacion">Observacion</label>
                         <textarea class="form-control" id="observacion" name="observacion"></textarea>
                     </div>
                 </form>
@@ -1443,10 +1540,70 @@
     <script src="/static/assets/js/plugins/buttons.bootstrap4.min.js"></script>
     <script src="/static/assets/js/pages/data-export-custom.js"></script>
     <script>
+        const estanquesNoPlanificados = {{ estanques_por_almacen_json|safe }};
+
+        function renderNoPlanEstanques(almacen, seleccionado) {
+            const almacenKey = (almacen || '').toString().trim().toUpperCase();
+            const estanques = estanquesNoPlanificados[almacenKey] || [];
+            const selectEstanque = $('#no_plan_estanque_destino');
+
+            if (selectEstanque.data('select2')) {
+                selectEstanque.select2('destroy');
+            }
+
+            selectEstanque.empty();
+            selectEstanque.append(new Option('Seleccione estanque', ''));
+
+            estanques.forEach(function (estanque) {
+                selectEstanque.append(new Option(estanque, estanque));
+            });
+
+            const valorSeleccionado = estanques.includes(seleccionado) ? seleccionado : '';
+            selectEstanque.prop('disabled', estanques.length === 0);
+            selectEstanque.val(valorSeleccionado);
+            selectEstanque.select2({
+                dropdownParent: $('#ModalCamionNoPlanificado'),
+                allowClear: true,
+                width: '100%',
+                placeholder: 'Seleccione estanque'
+            });
+        }
+
+        function renderEditEstanques(almacen, seleccionado) {
+            const almacenKey = (almacen || '').toString().trim().toUpperCase();
+            const estanques = estanquesNoPlanificados[almacenKey] || [];
+            const selectEstanque = $('#edit_estanque_destino');
+
+            if (selectEstanque.data('select2')) {
+                selectEstanque.select2('destroy');
+            }
+
+            selectEstanque.empty();
+            selectEstanque.append(new Option('Seleccione estanque', ''));
+
+            estanques.forEach(function (estanque) {
+                selectEstanque.append(new Option(estanque, estanque));
+            });
+
+            const valorSeleccionado = estanques.includes(seleccionado) ? seleccionado : '';
+            selectEstanque.prop('disabled', estanques.length === 0);
+            selectEstanque.val(valorSeleccionado);
+            selectEstanque.select2({
+                dropdownParent: $('#editCitationModal'),
+                allowClear: true,
+                width: '100%',
+                placeholder: 'Seleccione estanque'
+            });
+        }
+
         $(document).ready(function() {
             // Inicializar Select2 para el proveedor
             initializeSelect2();
             initializeCamionNoPlanificado();
+            renderEditEstanques('', '');
+            $('#edit_almacen_destino').on('change', function () {
+                renderEditEstanques($(this).val(), '');
+            });
         
             // Manejar el cambio de proveedor
             $('#id_proveedor').change(function() {
@@ -1599,8 +1756,7 @@
                 '#no_plan_proveedor',
                 '#no_plan_secuencia_id',
                 '#no_plan_tipo_carga',
-                '#no_plan_inf_24hrs',
-                '#no_plan_estanque_destino'
+                '#no_plan_almacen_destino'
             ];
 
             selectIds.forEach(function (selector) {
@@ -1617,6 +1773,12 @@
                 $('#no_plan_proveedor_codigo').val($(this).val() || '');
             });
 
+            $('#no_plan_inf_24hrs').val('No').prop('disabled', true);
+
+            $('#no_plan_almacen_destino').on('change', function () {
+                renderNoPlanEstanques($(this).val(), '');
+            });
+
             $('#no_plan_codigo').on('keypress', function (e) {
                 if (e.key === 'Enter') {
                     e.preventDefault();
@@ -1630,6 +1792,8 @@
                     buscarNoPlanificadoPorPedido();
                 }
             });
+
+            renderNoPlanEstanques('', '');
         }
 
         function setNoPlanValue(id, value) {
@@ -1644,8 +1808,7 @@
                 'no_plan_sap_opor_id',
                 'no_plan_proveedor_codigo',
                 'no_plan_cantidad_disponible',
-                'no_plan_docentry',
-                'no_plan_productor'
+                'no_plan_docentry'
             ];
 
             if (limpiarPedido) {
@@ -1666,8 +1829,7 @@
                 'no_plan_proveedor_codigo',
                 'no_plan_pedido',
                 'no_plan_cantidad_disponible',
-                'no_plan_docentry',
-                'no_plan_productor'
+                'no_plan_docentry'
             ];
 
             if (limpiarCodigo) {
@@ -1746,7 +1908,6 @@
                     setNoPlanValue('no_plan_pedido', item.pedido || pedido);
                     setNoPlanValue('no_plan_cantidad_disponible', item.cantidad_disponible !== null && item.cantidad_disponible !== undefined ? item.cantidad_disponible : '');
                     setNoPlanValue('no_plan_docentry', item.docentry || '');
-                    setNoPlanValue('no_plan_productor', item.productor || '');
                     setNoPlanValue('no_plan_proveedor_codigo', item.proveedor_codigo || '');
                     $('#no_plan_proveedor').val(item.proveedor_codigo || '').trigger('change');
                 },
@@ -2163,6 +2324,7 @@
 
         let revisionAsistenteCitacionId = null;
         let estanqueCamionCitacionId = null;
+        const usuarioPuedeAprobarRevision = {% if request.user|es_asistente_recepcion %}true{% else %}false{% endif %};
 
         function revisionValue(value) {
             return value === null || value === undefined || String(value).trim() === ''
@@ -2184,6 +2346,28 @@
                 <div class="revision-section">
                     <h6>${escapeHtml(title)}</h6>
                     <div class="revision-grid">${items}</div>
+                </div>
+            `;
+        }
+
+        function renderRevisionValidacionFields(data, editable) {
+            const disabled = editable ? '' : 'disabled';
+            const bl = escapeHtml((data && data.bl) || '');
+            const lote = escapeHtml((data && data.lote_contenedor) || '');
+
+            return `
+                <div class="revision-section">
+                    <h6>Validacion Asistente Recepcion</h6>
+                    <div class="form-row">
+                        <div class="form-group col-md-6">
+                            <label for="revision_bl">BL</label>
+                            <input type="text" class="form-control" id="revision_bl" value="${bl}" ${disabled}>
+                        </div>
+                        <div class="form-group col-md-6">
+                            <label for="revision_lote_contenedor">Lote / Contenedor</label>
+                            <input type="text" class="form-control" id="revision_lote_contenedor" value="${lote}" ${disabled}>
+                        </div>
+                    </div>
                 </div>
             `;
         }
@@ -2248,14 +2432,16 @@
                         return;
                     }
 
-                    const accionesHabilitadas = !response.aprobado_asistente;
+                    const accionesHabilitadas = usuarioPuedeAprobarRevision && !response.aprobado_asistente;
                     $('#btn_revision_devolver').toggle(accionesHabilitadas).prop('disabled', false);
                     $('#btn_revision_aprobar').toggle(accionesHabilitadas).prop('disabled', false);
                     $('#revision_asistente_subtitulo').text(`Citacion #${response.citacion_id}`);
                     $('#revision_asistente_contenido').html(
                         renderRevisionSection('Datos planificacion', response.planificacion) +
                         renderRevisionSection('Datos citacion', response.citacion) +
+                        renderRevisionSection('Datos operacionales', response.datos_operacionales) +
                         renderRevisionSection('Datos ingresados por Guardia', response.guardia) +
+                        renderRevisionValidacionFields(response.campos_validacion, accionesHabilitadas) +
                         renderRevisionDocumentos(response.documentos)
                     );
                 },
@@ -2289,6 +2475,10 @@
                 $.ajax({
                     url: `/pla-citacion-aprobar-asistente/${revisionAsistenteCitacionId}/`,
                     type: 'POST',
+                    data: {
+                        bl: $('#revision_bl').val() || '',
+                        lote_contenedor: $('#revision_lote_contenedor').val() || ''
+                    },
                     headers: {
                         'X-CSRFToken': getCookie('csrftoken')
                     },
@@ -2533,148 +2723,132 @@
             });
         }
          
-        function openEditModal(citationId) {
-        $.ajax({
-            url: `/get_citation_data/${citationId}/`,
-            type: 'GET',
-            success: function(data) {
-                $('#citation_id').val(citationId);
-                $('#tipo_documento').html(data.tipos_documento);
-                $('#numero_documento').val(data.numero_documento);
-
-                // Proveedor
-                var proveedorOption = new Option(data.proveedor.text, data.proveedor.id, true, true);
-                $('#id_proveedor').empty().append(proveedorOption).trigger('change');
-
-                // Cliente / conductor según tipo
-                if (data.tipo_citacion === 'DESPACHO') {
-                    $('#cliente_field').show();
-                    $('#conductor_field').hide();
-                    $('#conductor_field_despacho').show();
-
-                    if (data.cliente && data.cliente.id) {
-                        var clienteOption = new Option(data.cliente.text, data.cliente.id, true, true);
-                        $('#id_cliente').empty().append(clienteOption).trigger('change');
-                    } else {
-                        $('#id_cliente').empty().trigger('change');
-                    }
-
-                    $('#id_conductor_despacho').html(data.conductores);
-
-                    if ($('#id_conductor_despacho').hasClass('select2-hidden-accessible')) {
-                        $('#id_conductor_despacho').select2('destroy');
-                    }
-
-                    $('#id_conductor_despacho').select2({
-                        dropdownParent: $('#editCitationModal'),
-                        placeholder: 'Buscar conductor...',
-                        allowClear: true,
-                        width: '100%',
-                        language: {
-                            noResults: function() {
-                                return 'No se encontraron resultados';
-                            },
-                            searching: function() {
-                                return 'Buscando...';
-                            }
-                        }
-                    });
-                } else {
-                    $('#cliente_field').hide();
-                    $('#conductor_field').show();
-                    $('#conductor_field_despacho').hide();
-                    $('#id_cliente').empty().trigger('change');
-
-                    $('#id_conductor').html(data.conductores);
-
-                    if ($('#id_conductor').hasClass('select2-hidden-accessible')) {
-                        $('#id_conductor').select2('destroy');
-                    }
-
-                    $('#id_conductor').select2({
-                        dropdownParent: $('#editCitationModal'),
-                        placeholder: 'Buscar conductor...',
-                        allowClear: true,
-                        width: '100%',
-                        language: {
-                            noResults: function() {
-                                return 'No se encontraron resultados';
-                            },
-                            searching: function() {
-                                return 'Buscando...';
-                            }
-                        }
-                    });
-                }
-
-                // Camión
-                $('#id_camion').html(data.camiones);
-
-                if ($('#id_camion').hasClass('select2-hidden-accessible')) {
-                    $('#id_camion').select2('destroy');
-                }
-
-                $('#id_camion').select2({
-                    dropdownParent: $('#editCitationModal'),
-                    placeholder: 'Buscar camión...',
-                    allowClear: true,
-                    width: '100%',
-                    language: {
-                        noResults: function() {
-                            return 'No se encontraron resultados';
-                        },
-                        searching: function() {
-                            return 'Buscando...';
-                        }
-                    }
-                });
-
-                // Secuencia
-                $('#id_secuencia').html(data.secuencias);
-
-                if ($('#id_secuencia').hasClass('select2-hidden-accessible')) {
-                    $('#id_secuencia').select2('destroy');
-                }
-
-                $('#id_secuencia').select2({
-                    dropdownParent: $('#editCitationModal'),
-                    placeholder: 'Buscar secuencia...',
-                    allowClear: true,
-                    width: '100%',
-                    language: {
-                        noResults: function() {
-                            return 'No se encontraron resultados';
-                        },
-                        searching: function() {
-                            return 'Buscando...';
-                        }
-                    }
-                });
-
-                // Resto de campos
-                $('#hora_citacion').val(data.hora_citacion);
-                $('#id_producto').html(data.productos);
-                $('#id_tarifa').html(data.tarifas);
-                $('#observacion').val(data.observacion);
-
-                // Deshabilitar secuencia si no está en creado
-                if (data.estado !== 'CREADO') {
-                    $('#id_secuencia').prop('disabled', true);
-                } else {
-                    $('#id_secuencia').prop('disabled', false);
-                }
-
-                $('#editCitationModal').modal('show');
-            },
-            error: function(error) {
-                console.log('Error fetching citation data:', error);
+        function renderCitationSummaryTable(title, rows) {
+            if (!rows || rows.length === 0) {
+                return '';
             }
-        });
-    }
+
+            const body = rows.map(function (row) {
+                const value = row.value === null || row.value === undefined || row.value === '' ? 'No registrado' : row.value;
+                return `
+                    <tr>
+                        <th style="width: 32%;">${escapeHtml(row.label)}</th>
+                        <td>${escapeHtml(value)}</td>
+                    </tr>
+                `;
+            }).join('');
+
+            return `
+                <h6 class="mt-3 mb-2">${escapeHtml(title)}</h6>
+                <div class="table-responsive">
+                    <table class="table table-sm table-bordered mb-3">
+                        <tbody>${body}</tbody>
+                    </table>
+                </div>
+            `;
+        }
+
+        function openCitationSummaryModal(citationId) {
+            $('#citationSummarySubtitle').text(`Citacion #${citationId}`);
+            $('#citationSummaryContent').html('<div class="text-center p-3">Cargando...</div>');
+            $('#citationSummaryAlert').hide().text('');
+            $('#citationSummaryModal').modal('show');
+
+            $.ajax({
+                url: `/pla-citacion-resumen/${citationId}/`,
+                type: 'GET',
+                success: function (response) {
+                    if (!response.success) {
+                        $('#citationSummaryContent').empty();
+                        $('#citationSummaryAlert').show().text(response.message || 'No fue posible cargar el resumen.');
+                        return;
+                    }
+
+                    const data = response.data || {};
+                    $('#citationSummaryContent').html(
+                        renderCitationSummaryTable('Planificacion', data.planificacion) +
+                        renderCitationSummaryTable('Citacion', data.citacion) +
+                        renderCitationSummaryTable('Datos operacionales', data.datos_operacionales)
+                    );
+                },
+                error: function (xhr) {
+                    const message = xhr.responseJSON && xhr.responseJSON.message
+                        ? xhr.responseJSON.message
+                        : 'No fue posible cargar el resumen.';
+                    $('#citationSummaryContent').empty();
+                    $('#citationSummaryAlert').show().text(message);
+                }
+            });
+        }
+
+        function openEditModal(citationId) {
+            $.ajax({
+                url: `/get_citation_data/${citationId}/`,
+                type: 'GET',
+                success: function(data) {
+                    const detalle = data.detalle_operacional || {};
+
+                    $('#citation_id').val(citationId);
+                    $('#tipo_documento').html(data.tipos_documento);
+                    $('#numero_documento').val(data.numero_documento || '');
+                    $('#edit_fecha_llegada').val(data.fecha_llegada || '');
+                    $('#edit_tipo_operacion').val(data.tipo_operacion || 'RECEPCION');
+                    $('#edit_tipo_carga').val(data.tipo_carga || '');
+
+                    $('#edit_origen').val(detalle.origen || 'planificacion');
+                    $('#edit_sap_opor_id').val(detalle.sap_opor_id || '');
+                    $('#edit_proveedor_codigo').val(detalle.proveedor_codigo || '');
+                    $('#edit_inf_24hrs').val(detalle.inf_24hrs || '');
+                    $('#edit_codigo').val(detalle.codigo || '');
+                    $('#edit_pedido').val(detalle.pedido || '');
+                    $('#edit_insumo').val(detalle.insumo || '');
+                    $('#edit_bl').val(detalle.bl || '');
+                    $('#edit_cantidad_disponible').val(detalle.cantidad_disponible || '');
+                    $('#edit_docentry').val(detalle.docentry || '');
+                    $('#edit_almacen_destino').val(detalle.almacen_destino || '');
+                    renderEditEstanques(detalle.almacen_destino || '', detalle.estanque_destino || '');
+                    $('#observacion').val(detalle.observacion || data.observacion || '');
+
+                    $('#id_proveedor').empty();
+                    if (data.proveedor && data.proveedor.id) {
+                        const proveedorOption = new Option(data.proveedor.text, data.proveedor.id, true, true);
+                        $('#id_proveedor').append(proveedorOption);
+                    }
+                    $('#id_proveedor').trigger('change');
+
+                    $('#id_secuencia').html(data.secuencias);
+                    if ($('#id_secuencia').hasClass('select2-hidden-accessible')) {
+                        $('#id_secuencia').select2('destroy');
+                    }
+                    $('#id_secuencia').select2({
+                        dropdownParent: $('#editCitationModal'),
+                        placeholder: 'Buscar secuencia...',
+                        allowClear: true,
+                        width: '100%',
+                        language: {
+                            noResults: function() {
+                                return 'No se encontraron resultados';
+                            },
+                            searching: function() {
+                                return 'Buscando...';
+                            }
+                        }
+                    });
+                    $('#id_secuencia').prop('disabled', data.estado !== 'CREADO');
+
+                    $('#editCitationModal').modal('show');
+                },
+                error: function(error) {
+                    console.log('Error fetching citation data:', error);
+                    const message = error.responseJSON && error.responseJSON.error ? error.responseJSON.error : 'No fue posible cargar los datos de la citacion.';
+                    Swal.fire({ icon: 'error', title: 'Error', text: message });
+                }
+            });
+        }
             
         function updateCitation() {
             // Si es despacho, copiar el valor del conductor de despacho al conductor normal para el envío
-            if ($('#conductor_field_despacho').is(':visible')) {
+            if ($('#conductor_field_despacho').length && $('#conductor_field_despacho').is(':visible')) {
                 $('#id_conductor').val($('#id_conductor_despacho').val());
             }
             

@@ -71,8 +71,16 @@ def CREAR_PLANIFICACION_CITACION(request):
         usuario = request.user
 
         citaciones_json = request.POST.get('citaciones_json', '[]')
-        es_sobrecupo = request.POST.get('es_sobrecupo', 'No').strip()
-        cantidad_sobrecupo_raw = request.POST.get('cantidad_sobrecupo', '0')
+        es_sobrecupo = (
+            request.POST.get('es_sobrecupo')
+            or request.POST.get('es_sobrecupo_planificacion')
+            or 'No'
+        ).strip()
+        cantidad_sobrecupo_raw = (
+            request.POST.get('cantidad_sobrecupo')
+            or request.POST.get('cantidad_sobrecupo_planificacion')
+            or '0'
+        )
 
         try:
             citaciones_data = json.loads(citaciones_json)
@@ -94,17 +102,15 @@ def CREAR_PLANIFICACION_CITACION(request):
             return JsonResponse({'success': False, 'message': 'Debe seleccionar tipo de operación.'})
 
         cantidad_repetir = len(citaciones_data)
-        pl_sobrecupo = True if es_sobrecupo == 'Si' else False
         try:
             cantidad_sobrecupo = int(cantidad_sobrecupo_raw)
         except (TypeError, ValueError):
             cantidad_sobrecupo = 0
 
-        if not pl_sobrecupo:
-            cantidad_sobrecupo = 0
-
         if cantidad_sobrecupo < 0:
             cantidad_sobrecupo = 0
+
+        pl_sobrecupo = es_sobrecupo.lower() in ['si', 'sí', 'true', '1', 'on'] or cantidad_sobrecupo > 0
 
         fecha_llegada_obj = datetime.strptime(fecha_llegada, '%Y-%m-%d')
         fecha_termino_obj = fecha_llegada_obj.replace(hour=23, minute=59, second=0)
@@ -202,8 +208,6 @@ def CREAR_PLANIFICACION_CITACION(request):
                 SN_BHABILITADO=True
             ).first()
 
-            comentario = json.dumps(item, ensure_ascii=False)
-
             citacion = CITACION.objects.create(
                 US_NID=usuario,
                 EP_NID_id=Empresa,
@@ -217,7 +221,7 @@ def CREAR_PLANIFICACION_CITACION(request):
                 CI_CTIPO=item.get('tipo_operacion', tipo_operacion),
                 CI_CTIPO_FLETE=item.get('tipo_carga', ''),
                 CI_CESTADO='Insumo Programado',
-                CI_CCOMENTARIO=comentario,
+                CI_CCOMENTARIO=item.get('observacion', ''),
                 CI_BHABILITADO=True,
                 CI_BARCHIVADO=False,
                 CI_BSOBRECUPO=False,
@@ -231,6 +235,13 @@ def CREAR_PLANIFICACION_CITACION(request):
                 CI_NID=citacion,
                 EP_NID_id=Empresa,
                 IT_NID_id=26
+            )
+
+            guardar_detalle_operacional_citacion(
+                citacion,
+                item,
+                usuario=usuario,
+                origen_default='planificacion'
             )
 
             citaciones_creadas.append(citacion.id)
@@ -284,6 +295,14 @@ def CREAR_CITACION_NO_PLANIFICADA(request, pk):
         sobrecupos_disponibles = planificacion.PL_NCANTIDADSOBRECUPO or 0
 
         if sobrecupos_disponibles <= 0:
+            registrar_log_camion_no_planificado(
+                request.user,
+                planificacion.EP_NID,
+                'SIN_SOBRECUPO',
+                f'Intento de agregar camion no planificado en planificacion #{planificacion.id} sin sobrecupos disponibles',
+                planificacion.id,
+                '0'
+            )
             return JsonResponse({
                 'success': False,
                 'message': 'No quedan sobrecupos disponibles para esta planificaciÃ³n.'
@@ -311,7 +330,29 @@ def CREAR_CITACION_NO_PLANIFICADA(request, pk):
         fecha_citacion = datetime.strptime(fecha_llegada, '%Y-%m-%d')
         numero_cupo = CITACION.objects.filter(PL_NID=planificacion).count() + 1
 
-        comentario_data = {
+        almacen_destino = request.POST.get('almacen_destino', '').strip()
+        estanque_destino = request.POST.get('estanque_destino', '').strip()
+        opciones_estanque = obtener_estanques_por_almacen(almacen_destino)
+
+        if not normalizar_almacen_planificacion(almacen_destino):
+            return JsonResponse({
+                'success': False,
+                'message': 'Debe seleccionar una planta destino valida.'
+            })
+
+        if not estanque_destino:
+            return JsonResponse({
+                'success': False,
+                'message': 'Debe seleccionar un estanque destino.'
+            })
+
+        if estanque_destino not in opciones_estanque:
+            return JsonResponse({
+                'success': False,
+                'message': 'El estanque seleccionado no corresponde a la planta destino.'
+            })
+
+        detalle_operacional_data = {
             'origen': 'camion_no_planificado',
             'inf_24hrs': request.POST.get('inf_24hrs', ''),
             'codigo': request.POST.get('codigo', ''),
@@ -322,8 +363,8 @@ def CREAR_CITACION_NO_PLANIFICADA(request, pk):
             'bl': request.POST.get('bl', ''),
             'cantidad_disponible': request.POST.get('cantidad_disponible', ''),
             'docentry': request.POST.get('docentry', ''),
-            'productor': request.POST.get('productor', ''),
-            'estanque_destino': request.POST.get('estanque_destino', ''),
+            'almacen_destino': almacen_destino,
+            'estanque_destino': estanque_destino,
             'observacion': request.POST.get('observacion', ''),
         }
 
@@ -340,7 +381,7 @@ def CREAR_CITACION_NO_PLANIFICADA(request, pk):
             CI_CTIPO=tipo_operacion,
             CI_CTIPO_FLETE=request.POST.get('tipo_carga', ''),
             CI_CESTADO='Insumo Programado',
-            CI_CCOMENTARIO=json.dumps(comentario_data, ensure_ascii=False),
+            CI_CCOMENTARIO=detalle_operacional_data.get('observacion', ''),
             CI_BHABILITADO=True,
             CI_BARCHIVADO=False,
             CI_BSOBRECUPO=True,
@@ -354,6 +395,13 @@ def CREAR_CITACION_NO_PLANIFICADA(request, pk):
             CI_NID=citacion,
             EP_NID_id=Empresa,
             IT_NID_id=26
+        )
+
+        guardar_detalle_operacional_citacion(
+            citacion,
+            detalle_operacional_data,
+            usuario=request.user,
+            origen_default='camion_no_planificado'
         )
 
         planificacion.PL_NSOBRECUPO = True
@@ -741,6 +789,7 @@ def PLANIFICACION_CITACION_INGRESO_CAMION(request, pk):
 
         if request.method == 'GET':
             campos = obtener_campos_operacion_etapa(citacion, etapa_actual, request.user)
+            valores_ingreso = obtener_valores_ingreso_camion(citacion)
             registrar_log_camion_no_planificado(
                 request.user,
                 citacion.EP_NID,
@@ -756,9 +805,11 @@ def PLANIFICACION_CITACION_INGRESO_CAMION(request, pk):
                     'id': citacion.id,
                     'estado': citacion.CI_CESTADO,
                     'cupo': citacion.CI_NCUPO,
-                    'proveedor': citacion.PRO_NID.SN_CRAZONSOCIAL if citacion.PRO_NID else '',
-                    'patente': citacion.CA_NID.CAM_CPATENTE if citacion.CA_NID else '',
-                    'conductor': f'{citacion.CON_NID.CON_CNOMBRE} {citacion.CON_NID.CON_CAPELLIDO}' if citacion.CON_NID else '',
+                    'transportista': valores_ingreso.get('transportista') or '',
+                    'patente': valores_ingreso.get('patente') or '',
+                    'cantidad_ejes': valores_ingreso.get('cantidad_ejes') or '',
+                    'conductor': valores_ingreso.get('conductor') or '',
+                    'celular_conductor': valores_ingreso.get('celular_conductor') or '',
                 },
                 'etapa': {
                     'id': etapa_actual.id,
@@ -964,7 +1015,9 @@ def AVANZAR_INGRESO_CAMION_ASISTENTE(request, pk):
             f'Nuevo camion pendiente de aprobacion/revision.\n'
             f'Citacion: {citacion.id}\n'
             f'Patente: {valores.get("ING_PATENTE", "")}\n'
+            f'Cantidad de ejes: {valores.get("ING_CANTIDAD_EJES", "")}\n'
             f'Conductor: {valores.get("ING_NOMBRE_CONDUCTOR", "")}\n'
+            f'Celular conductor: {valores.get("ING_TELEFONO_CONDUCTOR", "")}\n'
             f'Empresa transporte: {valores.get("ING_EMPRESA_TRANSPORTE", "")}\n'
             f'Fecha/hora envio: {fecha_envio}\n'
             f'Guardia: {request.user.username}'
@@ -1047,17 +1100,38 @@ ESTANQUES_POR_ALMACEN = {
 
 def normalizar_almacen_planificacion(valor):
     almacen = normalizar_nombre_perfil(valor)
-    if almacen.startswith('PROSESA') or almacen.startswith('PROSE'):
+    if almacen.startswith('PROCESA') or almacen.startswith('PROSESA') or almacen.startswith('PROSE'):
         return 'PROSESA'
     if almacen.startswith('SBH'):
         return 'SBH'
     return ''
 
 
+def obtener_estanques_por_almacen(almacen):
+    almacen_normalizado = normalizar_almacen_planificacion(almacen)
+    return ESTANQUES_POR_ALMACEN.get(almacen_normalizado, [])
+
+
+def obtener_estanques_modal_camion_no_planificado():
+    return {
+        'PROCESA': ESTANQUES_POR_ALMACEN['PROSESA'],
+        'SBH': ESTANQUES_POR_ALMACEN['SBH'],
+    }
+
+
 def obtener_almacen_planificacion(citacion):
+    detalle = obtener_detalle_operacional_citacion(citacion)
+    if detalle:
+        return normalizar_almacen_planificacion(
+            detalle.CDO_CALMACEN_DESTINO
+            or detalle.CDO_CESTANQUE_DESTINO
+            or ''
+        )
+
     comentario = obtener_comentario_json_citacion(citacion)
     return normalizar_almacen_planificacion(
-        comentario.get('estanque_destino')
+        comentario.get('almacen_destino')
+        or comentario.get('estanque_destino')
         or comentario.get('almacen')
         or comentario.get('almacén')
         or comentario.get('bodega')
@@ -1114,6 +1188,166 @@ def obtener_comentario_json_citacion(citacion):
         return {}
 
 
+def decimal_or_none(value):
+    if value in [None, '']:
+        return None
+    try:
+        return Decimal(str(value).replace(',', '.'))
+    except (InvalidOperation, ValueError):
+        return None
+
+
+def guardar_detalle_operacional_citacion(citacion, data, usuario=None, origen_default='planificacion'):
+    detalle, _ = CITACION_DETALLE_OPERACIONAL.objects.update_or_create(
+        CI_NID=citacion,
+        defaults={
+            'EP_NID': citacion.EP_NID,
+            'US_NID': usuario or citacion.US_NID,
+            'CDO_CORIGEN': data.get('origen') or origen_default,
+            'CDO_CINF_24HRS': data.get('inf_24hrs') or '',
+            'CDO_CCODIGO_SAP': data.get('codigo') or data.get('codigo_sap') or '',
+            'CDO_CINSUMO': data.get('insumo') or '',
+            'CDO_CPEDIDO_SAP': data.get('pedido') or data.get('pedido_sap') or '',
+            'CDO_CSAP_OPOR_ID': data.get('sap_opor_id') or '',
+            'CDO_CPROVEEDOR_CODIGO': data.get('proveedor_codigo') or '',
+            'CDO_CBL_CONTENEDOR': data.get('bl') or data.get('bl_contenedor') or '',
+            'CDO_NCANTIDAD_DISPONIBLE': decimal_or_none(data.get('cantidad_disponible')),
+            'CDO_CDOCENTRY': data.get('docentry') or '',
+            'CDO_CPRODUCTOR': '',
+            'CDO_CALMACEN_DESTINO': data.get('almacen_destino') or data.get('estanque_destino') or '',
+            'CDO_CESTANQUE_DESTINO': data.get('estanque_destino') or '',
+            'CDO_COBSERVACION': data.get('observacion') or '',
+        }
+    )
+    return detalle
+
+
+def obtener_detalle_operacional_citacion(citacion):
+    detalle = getattr(citacion, 'detalle_operacional', None)
+    if detalle:
+        return detalle
+
+    data = obtener_comentario_json_citacion(citacion)
+    if not data:
+        return None
+
+    return guardar_detalle_operacional_citacion(
+        citacion,
+        data,
+        usuario=citacion.US_NID,
+        origen_default=data.get('origen') or 'planificacion'
+    )
+
+
+def detalle_operacional_dict(citacion):
+    detalle = obtener_detalle_operacional_citacion(citacion)
+    if not detalle:
+        return {}
+    return {
+        'origen': detalle.CDO_CORIGEN,
+        'inf_24hrs': detalle.CDO_CINF_24HRS,
+        'codigo': detalle.CDO_CCODIGO_SAP,
+        'insumo': detalle.CDO_CINSUMO,
+        'pedido': detalle.CDO_CPEDIDO_SAP,
+        'sap_opor_id': detalle.CDO_CSAP_OPOR_ID,
+        'proveedor_codigo': detalle.CDO_CPROVEEDOR_CODIGO,
+        'bl': detalle.CDO_CBL_CONTENEDOR,
+        'cantidad_disponible': detalle.CDO_NCANTIDAD_DISPONIBLE,
+        'docentry': detalle.CDO_CDOCENTRY,
+        'almacen_destino': detalle.CDO_CALMACEN_DESTINO,
+        'estanque_destino': detalle.CDO_CESTANQUE_DESTINO,
+        'observacion': detalle.CDO_COBSERVACION,
+    }
+
+
+def PLANIFICACION_CITACION_RESUMEN(request, pk):
+    try:
+        Empresa = Verificar_empresa(request)
+
+        if Empresa is None:
+            return JsonResponse({'success': False, 'message': 'Debe seleccionar una empresa.'}, status=400)
+
+        if not request.user.is_superuser:
+            usuario = request.user.id
+            if not usuario_es_planificador(request.user) and not validar_perfiles_activos(usuario, "pla_listone"):
+                return JsonResponse({'success': False, 'message': 'No tiene permisos para ver esta citacion.'}, status=403)
+
+        citacion = CITACION.objects.select_related(
+            'PL_NID',
+            'EP_NID',
+            'SN_NID',
+            'PRO_NID',
+            'CON_NID',
+            'CA_NID',
+            'SC_NID',
+            'TAR_NID',
+            'RUT_NID'
+        ).get(id=pk, EP_NID_id=Empresa, CI_BHABILITADO=True)
+
+        citacion_item = CITACION_ITEM.objects.select_related('IT_NID').filter(CI_NID=citacion).first()
+        detalle_operacional = detalle_operacional_dict(citacion)
+        valores_ingreso = obtener_valores_ingreso_camion(citacion)
+        dato_estanque = obtener_dato_estanque_operacional(citacion)
+        etapa_actual = citacion.ETAPA_ACTUAL
+
+        def fmt_fecha(valor, formato='%d/%m/%Y %H:%M'):
+            return valor.strftime(formato) if valor else ''
+
+        def socio_texto(socio):
+            return f'{socio.SN_CRAZONSOCIAL} ({socio.SN_CRUT})' if socio else ''
+
+        def conductor_texto(conductor):
+            return f'{conductor.CON_CNOMBRE} {conductor.CON_CAPELLIDO}' if conductor else 'Conductor Generico'
+
+        def camion_texto(camion):
+            return camion.CAM_CPATENTE if camion else 'Camion Generico'
+
+        data = {
+            'planificacion': [
+                {'label': 'Planificacion', 'value': f'#{citacion.PL_NID_id}'},
+                {'label': 'Tipo planificacion', 'value': citacion.PL_NID.PL_CTIPOCUPO},
+                {'label': 'Fecha ingreso', 'value': fmt_fecha(citacion.PL_NID.PL_FFECHAINICIO, '%d/%m/%Y')},
+                {'label': 'Cupos planificados', 'value': citacion.PL_NID.PL_NCANTIDADCUPOS},
+                {'label': 'Sobrecupos disponibles', 'value': citacion.PL_NID.TOTAL_SOBRECUPOS_DISPONIBLES},
+            ],
+            'citacion': [
+                {'label': 'Numero citacion', 'value': citacion.id},
+                {'label': 'Fecha citacion', 'value': fmt_fecha(citacion.CI_FFECHACITACION, '%d/%m/%Y')},
+                {'label': 'Tipo citacion', 'value': citacion.CI_CTIPO},
+                {'label': 'Estado', 'value': citacion.CI_CESTADO},
+                {'label': 'Secuencia', 'value': citacion.SC_NID.SE_CNOMBRE if citacion.SC_NID else ''},
+                {'label': 'Etapa actual', 'value': etapa_actual.ET_CNOMBRE if etapa_actual else ''},
+                {'label': 'Tipo documento', 'value': citacion.CI_CTIPODOCUMENTO},
+                {'label': 'Numero documento', 'value': citacion.CI_CNUMERODOCUMENTO},
+                {'label': 'Tipo flete', 'value': citacion.CI_CTIPO_FLETE},
+                {'label': 'Producto', 'value': citacion_item.IT_NID.IT_CNOMBRE if citacion_item and citacion_item.IT_NID else ''},
+                {'label': 'Cliente', 'value': socio_texto(citacion.SN_NID)},
+                {'label': 'Transportista', 'value': texto_sin_informacion(valores_ingreso.get('transportista'))},
+                {'label': 'Conductor', 'value': texto_sin_informacion(valores_ingreso.get('conductor'))},
+                {'label': 'Telefono conductor', 'value': texto_sin_informacion(valores_ingreso.get('celular_conductor'))},
+                {'label': 'Patente', 'value': texto_sin_informacion(valores_ingreso.get('patente'))},
+                {'label': 'Tipo eje', 'value': texto_sin_informacion(valores_ingreso.get('cantidad_ejes'))},
+                {'label': 'Tarifa', 'value': citacion.CI_NVALORTARIFA},
+                {'label': 'Divisa', 'value': citacion.TAR_NID.TAR_CDIVISA if citacion.TAR_NID else ''},
+                {'label': 'Sobrecupo', 'value': 'Si' if citacion.CI_BSOBRECUPO else 'No'},
+                {'label': 'Estanque operacional', 'value': dato_estanque.DO_CVALOR if dato_estanque else ''},
+                {'label': 'Observacion', 'value': citacion.CI_CCOMENTARIO},
+            ],
+            'datos_operacionales': [
+                {'label': str(k).replace('_', ' ').title(), 'value': v}
+                for k, v in detalle_operacional.items()
+                if v not in [None, '']
+            ],
+        }
+
+        return JsonResponse({'success': True, 'data': data})
+    except CITACION.DoesNotExist:
+        return JsonResponse({'success': False, 'message': 'No se encontro la citacion.'}, status=404)
+    except Exception as e:
+        print('ERROR PLANIFICACION_CITACION_RESUMEN:', e)
+        return JsonResponse({'success': False, 'message': str(e)}, status=500)
+
+
 def obtener_datos_operacion_citacion(citacion):
     datos = {}
     documentos = []
@@ -1126,7 +1360,7 @@ def obtener_datos_operacion_citacion(citacion):
     for dato in registros:
         campo = dato.CAMP_NID
         codigo = campo.CA_CCODIGO or f'CAMPO_{campo.id}'
-        if codigo not in datos:
+        if codigo not in datos or dato.id > datos[codigo].id:
             datos[codigo] = dato
 
         if campo.CA_CTIPO.lower() == 'archivo':
@@ -1138,6 +1372,115 @@ def obtener_datos_operacion_citacion(citacion):
             })
 
     return datos, documentos
+
+
+def guardar_dato_operacion_codigo(citacion, codigo, valor, usuario, etiqueta=None, etapa=None):
+    valor = '' if valor is None else str(valor).strip()
+    campo = CAMPO.objects.filter(
+        EP_NID=citacion.EP_NID,
+        CA_CCODIGO=codigo,
+        CA_BHABILITADO=True
+    ).first()
+
+    if not campo:
+        campo = CAMPO.objects.create(
+            EP_NID=citacion.EP_NID,
+            US_NID=usuario,
+            CA_CTIPO='TEXTO',
+            CA_CCODIGO=codigo,
+            CA_CETIQUETA=etiqueta or codigo,
+            CA_CPLACEMARK=etiqueta or codigo,
+            CA_BOBLIGATORIO=False,
+            CA_BHABILITADO=True,
+            CA_BASIGNARVALOR=False,
+        )
+
+    dato = DATO_OPERACION.objects.filter(
+        CI_NID=citacion,
+        SC_NID=citacion.SC_NID,
+        CAMP_NID=campo
+    ).order_by('-id').first()
+
+    if dato:
+        dato.DO_CVALOR = valor
+        dato.US_NID = usuario
+        dato.DO_FFECHAREGISTRO = timezone.now()
+        dato.save(update_fields=['DO_CVALOR', 'US_NID', 'DO_FFECHAREGISTRO'])
+        return dato
+
+    return DATO_OPERACION.objects.create(
+        CI_NID=citacion,
+        SC_NID=citacion.SC_NID,
+        ET_NID=etapa or citacion.ETAPA_ACTUAL,
+        CAMP_NID=campo,
+        EP_NID=citacion.EP_NID,
+        US_NID=usuario,
+        DO_CVALOR=valor,
+        DO_FFECHAREGISTRO=timezone.now(),
+    )
+
+
+def obtener_valores_ingreso_camion(citacion):
+    datos_operacion, _ = obtener_datos_operacion_citacion(citacion)
+
+    def valor(codigo):
+        dato = datos_operacion.get(codigo)
+        if not dato or dato.DO_CVALOR in [None, '']:
+            return ''
+        return str(dato.DO_CVALOR)
+
+    conductor = valor('ING_NOMBRE_CONDUCTOR')
+    if not conductor and citacion.CON_NID:
+        conductor = f'{citacion.CON_NID.CON_CNOMBRE} {citacion.CON_NID.CON_CAPELLIDO}'.strip()
+
+    celular = valor('ING_TELEFONO_CONDUCTOR')
+    if not celular and citacion.CON_NID:
+        celular = citacion.CON_NID.CON_CTELEFONO or ''
+
+    patente = valor('ING_PATENTE')
+    if not patente and citacion.CA_NID:
+        patente = citacion.CA_NID.CAM_CPATENTE or ''
+
+    return {
+        'transportista': valor('ING_EMPRESA_TRANSPORTE'),
+        'conductor': conductor,
+        'celular_conductor': celular,
+        'patente': patente,
+        'cantidad_ejes': valor('ING_CANTIDAD_EJES'),
+        'bl': valor('ING_BL') or obtener_bl_inicial_citacion(citacion),
+    }
+
+
+def texto_sin_informacion(valor):
+    return valor if valor not in [None, ''] else 'Sin información'
+
+
+def texto_camion_operacional(valores_ingreso):
+    patente = texto_sin_informacion(valores_ingreso.get('patente'))
+    ejes = valores_ingreso.get('cantidad_ejes') or ''
+    return f'{patente} ({ejes})' if ejes else patente
+
+
+def enriquecer_citaciones_con_ingreso_camion(citaciones):
+    for citacion in citaciones:
+        valores_ingreso = obtener_valores_ingreso_camion(citacion)
+        citacion.operacion_transportista = texto_sin_informacion(valores_ingreso.get('transportista'))
+        citacion.operacion_conductor = texto_sin_informacion(valores_ingreso.get('conductor'))
+        citacion.operacion_celular_conductor = texto_sin_informacion(valores_ingreso.get('celular_conductor'))
+        citacion.operacion_patente = texto_sin_informacion(valores_ingreso.get('patente'))
+        citacion.operacion_tipo_eje = texto_sin_informacion(valores_ingreso.get('cantidad_ejes'))
+    return citaciones
+
+
+def obtener_secuencias_asignadas_usuario(user):
+    usuario_secuencia_model = globals().get('USUARIO_SECUENCIA')
+    if not usuario_secuencia_model:
+        return SECUENCIA.objects.none().values_list('id', flat=True)
+
+    return usuario_secuencia_model.objects.filter(
+        US_NID_id=user.id,
+        US_BHABILITADO=True
+    ).values_list('SC_NID_id', flat=True)
 
 
 def obtener_guardias_relacionados_citacion(citacion):
@@ -1274,14 +1617,19 @@ def PLANIFICACION_CITACION_REVISION_ASISTENTE(request, pk):
         ).get(pk=pk, EP_NID_id=Empresa, CI_BHABILITADO=True)
 
         citacion_item = CITACION_ITEM.objects.filter(CI_NID=citacion).select_related('IT_NID').first()
-        comentario = obtener_comentario_json_citacion(citacion)
+        detalle_operacional = detalle_operacional_dict(citacion)
         datos_operacion, documentos = obtener_datos_operacion_citacion(citacion)
+        valores_ingreso = obtener_valores_ingreso_camion(citacion)
 
         def dato(codigo):
             registro = datos_operacion.get(codigo)
             return registro.DO_CVALOR if registro else ''
 
-        bl = dato('ING_BL') or obtener_bl_inicial_citacion(citacion) or comentario.get('bl', '')
+        def valor_detalle(campo):
+            valor = detalle_operacional.get(campo, '')
+            return '' if valor is None else valor
+
+        bl = dato('ING_BL') or obtener_bl_inicial_citacion(citacion) or detalle_operacional.get('bl', '')
         detalle_actual = DETALLE_SECUENCIA.objects.filter(
             SC_NID=citacion.SC_NID,
             ET_NID=citacion.ETAPA_ACTUAL,
@@ -1302,16 +1650,15 @@ def PLANIFICACION_CITACION_REVISION_ASISTENTE(request, pk):
             'planificacion': {
                 'Numero planificacion': citacion.PL_NID_id,
                 'Fecha planificacion': citacion.PL_NID.PL_FFECHAINICIO.strftime('%d/%m/%Y %H:%M') if citacion.PL_NID and citacion.PL_NID.PL_FFECHAINICIO else '',
-                'Cliente': citacion.SN_NID.SN_CRAZONSOCIAL if citacion.SN_NID else comentario.get('cliente_nombre', ''),
-                'Proveedor': citacion.PRO_NID.SN_CRAZONSOCIAL if citacion.PRO_NID else '',
-                'Insumo': citacion_item.IT_NID.IT_CNOMBRE if citacion_item and citacion_item.IT_NID else comentario.get('insumo', ''),
-                'Pedido': comentario.get('pedido', ''),
+                'Cliente': citacion.SN_NID.SN_CRAZONSOCIAL if citacion.SN_NID else '',
+                'Transportista': texto_sin_informacion(valores_ingreso.get('transportista')),
+                'Insumo': citacion_item.IT_NID.IT_CNOMBRE if citacion_item and citacion_item.IT_NID else detalle_operacional.get('insumo', ''),
+                'Pedido': detalle_operacional.get('pedido', ''),
                 'BL': bl,
                 'Tipo planificacion': citacion.PL_NID.PL_CTIPOCUPO if citacion.PL_NID else '',
                 'Empresa': citacion.EP_NID.EP_CRAZONSOCIAL if citacion.EP_NID else '',
-                'DocEntry SAP': comentario.get('docentry', ''),
-                'Productor': comentario.get('productor', ''),
-                'Estanque destino': comentario.get('estanque_destino', ''),
+                'DocEntry SAP': detalle_operacional.get('docentry', ''),
+                'Estanque destino': detalle_operacional.get('estanque_destino', ''),
             },
             'citacion': {
                 'Numero citacion': citacion.id,
@@ -1327,12 +1674,32 @@ def PLANIFICACION_CITACION_REVISION_ASISTENTE(request, pk):
             'guardia': {
                 'Numero guia': dato('CI_CNUMERODOCUMENTO') or citacion.CI_CNUMERODOCUMENTO,
                 'BL': bl,
-                'Empresa transporte': dato('ING_EMPRESA_TRANSPORTE'),
-                'Nombre conductor': dato('ING_NOMBRE_CONDUCTOR'),
-                'Patente': dato('ING_PATENTE'),
-                'Telefono conductor': dato('ING_TELEFONO_CONDUCTOR'),
+                'Empresa transporte': texto_sin_informacion(valores_ingreso.get('transportista')),
+                'Nombre conductor': texto_sin_informacion(valores_ingreso.get('conductor')),
+                'Patente': texto_sin_informacion(valores_ingreso.get('patente')),
+                'Tipo eje': texto_sin_informacion(valores_ingreso.get('cantidad_ejes')),
+                'Telefono conductor': texto_sin_informacion(valores_ingreso.get('celular_conductor')),
                 'Lote-contenedor': dato('ING_LOTE_CONTENEDOR'),
-                'Observacion': dato('ING_OBSERVACION') or comentario.get('observacion', ''),
+                'Observacion': dato('ING_OBSERVACION') or valor_detalle('observacion') or citacion.CI_CCOMENTARIO or '',
+            },
+            'campos_validacion': {
+                'bl': bl,
+                'lote_contenedor': dato('ING_LOTE_CONTENEDOR'),
+            },
+            'datos_operacionales': {
+                'Origen': valor_detalle('origen'),
+                'Inf 24 hrs': valor_detalle('inf_24hrs'),
+                'Codigo SAP': valor_detalle('codigo'),
+                'Insumo': valor_detalle('insumo'),
+                'Pedido SAP': valor_detalle('pedido'),
+                'SAP OPOR ID': valor_detalle('sap_opor_id'),
+                'Proveedor codigo': valor_detalle('proveedor_codigo'),
+                'BL / Contenedor': valor_detalle('bl'),
+                'Cantidad disponible': valor_detalle('cantidad_disponible'),
+                'DocEntry SAP': valor_detalle('docentry'),
+                'Planta destino': valor_detalle('almacen_destino'),
+                'Estanque destino': valor_detalle('estanque_destino'),
+                'Observacion planificacion': valor_detalle('observacion'),
             },
             'documentos': documentos,
         }
@@ -1386,6 +1753,33 @@ def APROBAR_CAMION_ASISTENTE(request, pk):
                 'message': 'Esta citacion ya fue aprobada por Asistente de recepcion.'
             }, status=409)
 
+        bl_validado = str(request.POST.get('bl') or '').strip()
+        lote_contenedor_validado = str(request.POST.get('lote_contenedor') or '').strip()
+
+        if bl_validado:
+            guardar_dato_operacion_codigo(
+                citacion,
+                'ING_BL',
+                bl_validado,
+                request.user,
+                etiqueta='BL',
+                etapa=citacion.ETAPA_ACTUAL
+            )
+            detalle = obtener_detalle_operacional_citacion(citacion)
+            if detalle:
+                detalle.CDO_CBL_CONTENEDOR = bl_validado
+                detalle.save(update_fields=['CDO_CBL_CONTENEDOR'])
+
+        if lote_contenedor_validado:
+            guardar_dato_operacion_codigo(
+                citacion,
+                'ING_LOTE_CONTENEDOR',
+                lote_contenedor_validado,
+                request.user,
+                etiqueta='Lote / Contenedor',
+                etapa=citacion.ETAPA_ACTUAL
+            )
+
         etapa_origen, etapa_destino = avanzar_citacion_a_siguiente_etapa(
             citacion,
             usuario=request.user,
@@ -1406,6 +1800,8 @@ def APROBAR_CAMION_ASISTENTE(request, pk):
             f'Patente: {valor_operacion("ING_PATENTE")}\n'
             f'Conductor: {valor_operacion("ING_NOMBRE_CONDUCTOR")}\n'
             f'Empresa transporte: {valor_operacion("ING_EMPRESA_TRANSPORTE")}\n'
+            f'BL: {valor_operacion("ING_BL")}\n'
+            f'Lote / Contenedor: {valor_operacion("ING_LOTE_CONTENEDOR")}\n'
             f'Almacen: {almacen or "No registrado"}\n'
             f'Fecha/hora aprobacion: {fecha_aprobacion}\n'
             f'Asistente recepcion: {request.user.username}'
@@ -1569,8 +1965,9 @@ def PLANIFICACION_CITACION_ESTANQUE(request, pk):
             return JsonResponse({'success': True, 'message': 'Estanque guardado correctamente.', 'estanque': estanque})
 
         citacion_item = CITACION_ITEM.objects.filter(CI_NID=citacion).select_related('IT_NID').first()
-        comentario = obtener_comentario_json_citacion(citacion)
+        detalle_operacional = detalle_operacional_dict(citacion)
         datos_operacion, documentos = obtener_datos_operacion_citacion(citacion)
+        valores_ingreso = obtener_valores_ingreso_camion(citacion)
         log_aprobacion = SYSLOGGER.objects.select_related('US_NID').filter(
             LOG_COPERACION='APRUEBA_AR',
             LOG_CADD1=str(citacion.id)
@@ -1580,7 +1977,7 @@ def PLANIFICACION_CITACION_ESTANQUE(request, pk):
             registro = datos_operacion.get(codigo)
             return registro.DO_CVALOR if registro else ''
 
-        bl = dato('ING_BL') or obtener_bl_inicial_citacion(citacion) or comentario.get('bl', '')
+        bl = dato('ING_BL') or obtener_bl_inicial_citacion(citacion) or detalle_operacional.get('bl', '')
         payload = {
             'success': True,
             'citacion_id': citacion.id,
@@ -1593,9 +1990,9 @@ def PLANIFICACION_CITACION_ESTANQUE(request, pk):
             'planificacion': {
                 'Planificacion': citacion.PL_NID_id,
                 'Fecha planificacion': citacion.PL_NID.PL_FFECHAINICIO.strftime('%d/%m/%Y %H:%M') if citacion.PL_NID and citacion.PL_NID.PL_FFECHAINICIO else '',
-                'Cliente': citacion.SN_NID.SN_CRAZONSOCIAL if citacion.SN_NID else comentario.get('cliente_nombre', ''),
-                'Proveedor': citacion.PRO_NID.SN_CRAZONSOCIAL if citacion.PRO_NID else '',
-                'Insumo': citacion_item.IT_NID.IT_CNOMBRE if citacion_item and citacion_item.IT_NID else comentario.get('insumo', ''),
+                'Cliente': citacion.SN_NID.SN_CRAZONSOCIAL if citacion.SN_NID else '',
+                'Transportista': texto_sin_informacion(valores_ingreso.get('transportista')),
+                'Insumo': citacion_item.IT_NID.IT_CNOMBRE if citacion_item and citacion_item.IT_NID else detalle_operacional.get('insumo', ''),
                 'Almacen definido': almacen,
                 'Tipo planificacion': citacion.PL_NID.PL_CTIPOCUPO if citacion.PL_NID else '',
                 'Fecha inicio': citacion.PL_NID.PL_FFECHAINICIO.strftime('%d/%m/%Y %H:%M') if citacion.PL_NID and citacion.PL_NID.PL_FFECHAINICIO else '',
@@ -1611,10 +2008,11 @@ def PLANIFICACION_CITACION_ESTANQUE(request, pk):
             'guardia': {
                 'Guia': dato('CI_CNUMERODOCUMENTO') or citacion.CI_CNUMERODOCUMENTO,
                 'BL': bl,
-                'Conductor': dato('ING_NOMBRE_CONDUCTOR'),
-                'Patente': dato('ING_PATENTE'),
-                'Empresa transporte': dato('ING_EMPRESA_TRANSPORTE'),
-                'Telefono': dato('ING_TELEFONO_CONDUCTOR'),
+                'Conductor': texto_sin_informacion(valores_ingreso.get('conductor')),
+                'Patente': texto_sin_informacion(valores_ingreso.get('patente')),
+                'Tipo eje': texto_sin_informacion(valores_ingreso.get('cantidad_ejes')),
+                'Empresa transporte': texto_sin_informacion(valores_ingreso.get('transportista')),
+                'Telefono': texto_sin_informacion(valores_ingreso.get('celular_conductor')),
                 'Lote-contenedor': dato('ING_LOTE_CONTENEDOR'),
                 'Documentos': 'Ver seccion documentos',
             },
@@ -1921,8 +2319,25 @@ CAMPOS_INGRESO_CAMION_DEFAULT = [
         'asignar_citacion': False,
     },
     {
+        'codigo': 'ING_CANTIDAD_EJES',
+        'etiqueta': 'Cantidad de ejes',
+        'tipo': 'LISTA',
+        'obligatorio': True,
+        'asignar_citacion': False,
+        'opciones': [
+            ('2 ejes', '2 ejes'),
+            ('3 ejes', '3 ejes'),
+            ('4 ejes', '4 ejes'),
+            ('5 ejes', '5 ejes'),
+            ('6 ejes', '6 ejes'),
+            ('7 ejes', '7 ejes'),
+            ('8 ejes', '8 ejes'),
+            ('Bitren / configuracion especial', 'Bitren / configuracion especial'),
+        ],
+    },
+    {
         'codigo': 'ING_TELEFONO_CONDUCTOR',
-        'etiqueta': 'N telefono conductor',
+        'etiqueta': 'Celular conductor',
         'tipo': 'TEXTO',
         'obligatorio': False,
         'asignar_citacion': False,
@@ -2005,6 +2420,22 @@ def asegurar_campos_ingreso_camion(citacion, etapa, usuario):
                 CA_BHABILITADO=True,
                 CA_BASIGNARVALOR=definicion['asignar_citacion'],
             )
+        elif definicion['codigo'] in ['ING_CANTIDAD_EJES', 'ING_TELEFONO_CONDUCTOR']:
+            campos_actualizados = []
+            if campo.CA_CTIPO != definicion['tipo']:
+                campo.CA_CTIPO = definicion['tipo']
+                campos_actualizados.append('CA_CTIPO')
+            if campo.CA_CETIQUETA != definicion['etiqueta']:
+                campo.CA_CETIQUETA = definicion['etiqueta']
+                campos_actualizados.append('CA_CETIQUETA')
+            if campo.CA_CPLACEMARK != definicion['etiqueta']:
+                campo.CA_CPLACEMARK = definicion['etiqueta']
+                campos_actualizados.append('CA_CPLACEMARK')
+            if not campo.CA_BOBLIGATORIO:
+                campo.CA_BOBLIGATORIO = True
+                campos_actualizados.append('CA_BOBLIGATORIO')
+            if campos_actualizados:
+                campo.save(update_fields=campos_actualizados)
 
         DETALLE_ETAPA.objects.update_or_create(
             EP_NID=citacion.EP_NID,
@@ -2021,15 +2452,15 @@ def asegurar_campos_ingreso_camion(citacion, etapa, usuario):
 
 
 def obtener_bl_inicial_citacion(citacion):
+    detalle = obtener_detalle_operacional_citacion(citacion)
+    if detalle:
+        return detalle.CDO_CBL_CONTENEDOR or ''
+
     if not citacion.CI_CCOMENTARIO:
         return ''
 
-    try:
-        comentario = json.loads(citacion.CI_CCOMENTARIO)
-    except (TypeError, ValueError):
-        return ''
-
-    if not isinstance(comentario, dict):
+    comentario = obtener_comentario_json_citacion(citacion)
+    if not comentario:
         return ''
 
     return (
@@ -2060,6 +2491,11 @@ def obtener_campos_operacion_etapa(citacion, etapa, usuario):
                 datos = QueryParam(campo.CA_CQUERY)
             except Exception as e:
                 print(f'Error al ejecutar query de campo {campo.id}: {e}')
+        if campo.CA_CCODIGO == 'ING_CANTIDAD_EJES':
+            datos = next(
+                (definicion.get('opciones', []) for definicion in CAMPOS_INGRESO_CAMION_DEFAULT if definicion['codigo'] == 'ING_CANTIDAD_EJES'),
+                []
+            )
 
         dato_operacion = DATO_OPERACION.objects.filter(
             CI_NID=citacion,
@@ -2362,7 +2798,6 @@ def BUSCAR_OPOR_POR_PEDIDO(request):
             'docentry': item.SOP_DOCENTRY or '',
             'proveedor_codigo': item.SOP_CARDCODE or '',
             'proveedor_nombre': item.SOP_CARDNAME or '',
-            'productor': item.SOP_PRODUCTOR or '',
             'empresa_id': item.EP_NID_id,
         }
 
@@ -5742,6 +6177,12 @@ def PLANIFICACION_LISTONE(request, pk):
                         citaciones_responsable.append(row.pk)
 
             citacion_item = CITACION_ITEM.objects.get(CI_NID=row)
+            valores_ingreso = obtener_valores_ingreso_camion(row)
+            conductor_operacional = texto_sin_informacion(valores_ingreso.get('conductor'))
+            celular_operacional = texto_sin_informacion(valores_ingreso.get('celular_conductor'))
+            patente_operacional = texto_sin_informacion(valores_ingreso.get('patente'))
+            tipo_eje_operacional = texto_sin_informacion(valores_ingreso.get('cantidad_ejes'))
+            transportista_operacional = texto_sin_informacion(valores_ingreso.get('transportista'))
 
             if row.CI_CTIPO == CIT_DESPACHO:
                 despachos.append([
@@ -5750,9 +6191,9 @@ def PLANIFICACION_LISTONE(request, pk):
                     secuencia.SE_CNOMBRE,
                     etapa.ET_CNOMBRE,
                     row.SN_NID.SN_CRAZONSOCIAL if row.SN_NID else '',
-                    'Conductor Genérico' if not row.CON_NID else row.CON_NID.CON_CNOMBRE + ' ' + row.CON_NID.CON_CAPELLIDO,
-                    'Camión Genérico' if not row.CA_NID else row.CA_NID.CAM_CPATENTE,
-                    row.PRO_NID.SN_CRAZONSOCIAL if row.PRO_NID else '',
+                    conductor_operacional,
+                    patente_operacional,
+                    transportista_operacional,
                     row.CI_NVALORTARIFA if row.CI_NVALORTARIFA else 0,
                     row.TAR_NID.TAR_CDIVISA if row.TAR_NID else '',
                     row.CI_BAVISADO,
@@ -5761,7 +6202,7 @@ def PLANIFICACION_LISTONE(request, pk):
                     row.CI_CTIPODOCUMENTO,
                     row.CI_CNUMERODOCUMENTO if row.CI_CNUMERODOCUMENTO else row.valor_campo_38,
                     citacion_item.IT_NID.IT_CNOMBRE,
-                    row.CON_NID.CON_CTELEFONO if row.CON_NID else '',
+                    celular_operacional,
                     row.CI_CESTADO,
                     row.CI_NVALORTARIFA if row.CI_NVALORTARIFA else 0,
                     row.TAR_NID.TAR_CDIVISA if row.TAR_NID else '',
@@ -5777,7 +6218,8 @@ def PLANIFICACION_LISTONE(request, pk):
                     estanque_fecha,
                     estanque_enviado,
                     estanque_enviado_usuario,
-                    estanque_enviado_fecha
+                    estanque_enviado_fecha,
+                    tipo_eje_operacional
                 ])
 
             elif row.CI_CTIPO == CIT_RECEPCION:
@@ -5789,10 +6231,10 @@ def PLANIFICACION_LISTONE(request, pk):
                     secuencia.SE_CNOMBRE,
                     etapa.ET_CNOMBRE,
                     citacion_item.IT_NID.IT_CNOMBRE,
-                    row.PRO_NID.SN_CRAZONSOCIAL if row.PRO_NID else '',
-                    'Camión Genérico' if not row.CA_NID else row.CA_NID.CAM_CPATENTE,
-                    'Conductor Genérico' if not row.CON_NID else row.CON_NID.CON_CNOMBRE + ' ' + row.CON_NID.CON_CAPELLIDO,
-                    row.CON_NID.CON_CTELEFONO if row.CON_NID else '',
+                    transportista_operacional,
+                    patente_operacional,
+                    conductor_operacional,
+                    celular_operacional,
                     row.CI_NVALORTARIFA if row.CI_NVALORTARIFA else 0,
                     row.CI_CESTADO,
                     row.CI_NVALORTARIFA if row.CI_NVALORTARIFA else 0,
@@ -5808,7 +6250,8 @@ def PLANIFICACION_LISTONE(request, pk):
                     estanque_fecha,
                     estanque_enviado,
                     estanque_enviado_usuario,
-                    estanque_enviado_fecha
+                    estanque_enviado_fecha,
+                    tipo_eje_operacional
                 ])
 
         ctx = {
@@ -5823,6 +6266,7 @@ def PLANIFICACION_LISTONE(request, pk):
             'clientes_sap': clientes_sap,
             'proveedores_sap': proveedores_sap,
             'secuencias': secuencias,
+            'estanques_por_almacen_json': json.dumps(obtener_estanques_modal_camion_no_planificado()),
         }
 
         return render(request, 'home/PLANIFICACION/pla_listone.html', ctx)
@@ -6095,7 +6539,7 @@ def download_citaciones_data(request, pk):
         data = []
         columnas = ['Número citación', 'Secuencia', 'Etapa', 'Zona', 'Campo', 'Valor', 'Estado']
         resumen_data = []
-        resumen_columnas = ['Número citación', 'Secuencia', 'Etapa', 'Zona', 'Camión', 'Usuario', 'Fecha inicio', 'Fecha fin', 'Tiempo transcurrido', 'Tiempo maximo', 'Estado']
+        resumen_columnas = ['Número citación', 'Secuencia', 'Etapa', 'Zona', 'Patente', 'Tipo eje', 'Transportista', 'Celular conductor', 'Usuario', 'Fecha inicio', 'Fecha fin', 'Tiempo transcurrido', 'Tiempo maximo', 'Estado']
 
         for citacion in citaciones:
             secuencia = citacion.SC_NID
@@ -6153,7 +6597,8 @@ def download_citaciones_data(request, pk):
                         etapa_fin = None
 
                     tiempo_maximo = etapa_log.ET_NID.ET_TTIEMPOMAXIMO
-                    patente_camion = citacion.CA_NID.CAM_CPATENTE if citacion.CA_NID else "Sin camión"
+                    valores_ingreso = obtener_valores_ingreso_camion(citacion)
+                    patente_camion = texto_sin_informacion(valores_ingreso.get('patente'))
                     # Solo mostrar RECHAZADO en la última etapa
                     estado = "RECHAZADO" if (citacion.CI_CESTADO == "RECHAZADO" and index == total_etapas - 1) else ""
                     resumen_data.append([
@@ -6162,6 +6607,9 @@ def download_citaciones_data(request, pk):
                         etapa.ET_CNOMBRE,
                         zona,
                         patente_camion,
+                        texto_sin_informacion(valores_ingreso.get('cantidad_ejes')),
+                        texto_sin_informacion(valores_ingreso.get('transportista')),
+                        texto_sin_informacion(valores_ingreso.get('celular_conductor')),
                         nombre_usuario,
                         etapa_inicio,
                         etapa_fin, 
@@ -6185,7 +6633,7 @@ def download_citaciones_data(request, pk):
             resumen_worksheet.append(resumen_columnas)
             
             # Agregar filtros a las columnas del resumen
-            resumen_worksheet.auto_filter.ref = f"A1:K{len(resumen_data) + 1}"
+            resumen_worksheet.auto_filter.ref = f"A1:N{len(resumen_data) + 1}"
             
             for row in resumen_data:
                 resumen_worksheet.append(row)
@@ -7056,10 +7504,7 @@ def CITACION_LISTALL_DESPACHOS(request):
 
         Empresa = Verificar_empresa(request)
 
-        asignadas = USUARIO_SECUENCIA.objects.filter(
-            US_NID_id=request.user.id,
-            US_BHABILITADO=True
-        ).values_list('SC_NID_id', flat=True)
+        asignadas = obtener_secuencias_asignadas_usuario(request.user)
 
         if asignadas.exists():
             secuencias = SECUENCIA.objects.filter(
@@ -7130,6 +7575,8 @@ def CITACION_LISTALL_DESPACHOS(request):
         except EmptyPage:
             object_list = paginator.page(paginator.num_pages)
 
+        enriquecer_citaciones_con_ingreso_camion(object_list)
+
         filtrado = 1 if (fecha_desde or fecha_hasta or secuencia_id or proveedor) else 0
 
         ltsProveedores = SOCIONEGOCIO.objects.filter(
@@ -7173,10 +7620,7 @@ def CITACION_LISTALL_RECEPCIONES(request):
 
         Empresa = Verificar_empresa(request)
 
-        asignadas = USUARIO_SECUENCIA.objects.filter(
-            US_NID_id=request.user.id,
-            US_BHABILITADO=True
-        ).values_list('SC_NID_id', flat=True)
+        asignadas = obtener_secuencias_asignadas_usuario(request.user)
 
         if asignadas.exists():
             secuencias = SECUENCIA.objects.filter(
@@ -7244,6 +7688,8 @@ def CITACION_LISTALL_RECEPCIONES(request):
         except EmptyPage:
             object_list = paginator.page(paginator.num_pages)
 
+        enriquecer_citaciones_con_ingreso_camion(object_list)
+
         filtrado = 1 if (
             fecha_desde or 
             fecha_hasta or 
@@ -7294,10 +7740,7 @@ def export_citaciones_despachos_excel(request):
 
         Empresa = Verificar_empresa(request)
 
-        asignadas = USUARIO_SECUENCIA.objects.filter(
-            US_NID_id=request.user.id,
-            US_BHABILITADO=True
-        ).values_list('SC_NID_id', flat=True)
+        asignadas = obtener_secuencias_asignadas_usuario(request.user)
 
         fecha_desde = request.GET.get('fecha_desde')
         fecha_hasta = request.GET.get('fecha_hasta')
@@ -7344,7 +7787,7 @@ def export_citaciones_despachos_excel(request):
         columnas = [
             'ID', 'Planificacion', 'Tipo de Documento', 'Número Documento',
             'Número Cupo', 'Fecha Citación', 'Nombre Secuencia',
-            'Nombre Etapa', 'Cliente', 'Conductor', 'Camión', 'Proveedor'
+            'Nombre Etapa', 'Cliente', 'Conductor', 'Celular Conductor', 'Patente', 'Tipo eje', 'Transportista'
         ]
 
         for col, header in enumerate(columnas, 1):
@@ -7360,9 +7803,12 @@ def export_citaciones_despachos_excel(request):
             worksheet.cell(row=row, column=7, value=citacion.SC_NID.SE_CCODIGO + ' - ' + citacion.SC_NID.SE_CNOMBRE if citacion.SC_NID else '')
             worksheet.cell(row=row, column=8, value=citacion.ETAPA_ACTUAL.ET_CCODIGO if citacion.ETAPA_ACTUAL else '')
             worksheet.cell(row=row, column=9, value=citacion.SN_NID.SN_CRAZONSOCIAL if citacion.SN_NID else '')
-            worksheet.cell(row=row, column=10, value=(citacion.CON_NID.CON_CNOMBRE + ' ' + citacion.CON_NID.CON_CAPELLIDO) if citacion.CON_NID else '')
-            worksheet.cell(row=row, column=11, value=citacion.CA_NID.CAM_CPATENTE if citacion.CA_NID else '')
-            worksheet.cell(row=row, column=12, value=citacion.CON_NID.SN_NID.SN_CRAZONSOCIAL if citacion.CON_NID and citacion.CON_NID.SN_NID else '')
+            valores_ingreso = obtener_valores_ingreso_camion(citacion)
+            worksheet.cell(row=row, column=10, value=texto_sin_informacion(valores_ingreso.get('conductor')))
+            worksheet.cell(row=row, column=11, value=texto_sin_informacion(valores_ingreso.get('celular_conductor')))
+            worksheet.cell(row=row, column=12, value=texto_sin_informacion(valores_ingreso.get('patente')))
+            worksheet.cell(row=row, column=13, value=texto_sin_informacion(valores_ingreso.get('cantidad_ejes')))
+            worksheet.cell(row=row, column=14, value=texto_sin_informacion(valores_ingreso.get('transportista')))
 
         for column in worksheet.columns:
             max_length = 0
@@ -7395,10 +7841,7 @@ def export_citaciones_recepciones_excel(request):
 
         Empresa = Verificar_empresa(request)
 
-        asignadas = USUARIO_SECUENCIA.objects.filter(
-            US_NID_id=request.user.id,
-            US_BHABILITADO=True
-        ).values_list('SC_NID_id', flat=True)
+        asignadas = obtener_secuencias_asignadas_usuario(request.user)
 
         fecha_desde = request.GET.get('fecha_desde')
         fecha_hasta = request.GET.get('fecha_hasta')
@@ -7438,7 +7881,7 @@ def export_citaciones_recepciones_excel(request):
         columnas = [
             'ID', 'Planificacion', 'Tipo de Documento', 'Número Documento',
             'Número Cupo', 'Fecha Citación', 'Nombre Secuencia',
-            'Nombre Etapa', 'Cliente', 'Conductor', 'Camión', 'Proveedor'
+            'Nombre Etapa', 'Cliente', 'Conductor', 'Celular Conductor', 'Patente', 'Tipo eje', 'Transportista'
         ]
 
         for col, header in enumerate(columnas, 1):
@@ -7454,9 +7897,12 @@ def export_citaciones_recepciones_excel(request):
             worksheet.cell(row=row, column=7, value=citacion.SC_NID.SE_CCODIGO + ' - ' + citacion.SC_NID.SE_CNOMBRE if citacion.SC_NID else '')
             worksheet.cell(row=row, column=8, value=citacion.ETAPA_ACTUAL.ET_CCODIGO if citacion.ETAPA_ACTUAL else '')
             worksheet.cell(row=row, column=9, value=citacion.SN_NID.SN_CRAZONSOCIAL if citacion.SN_NID else '')
-            worksheet.cell(row=row, column=10, value=(citacion.CON_NID.CON_CNOMBRE + ' ' + citacion.CON_NID.CON_CAPELLIDO) if citacion.CON_NID else '')
-            worksheet.cell(row=row, column=11, value=citacion.CA_NID.CAM_CPATENTE if citacion.CA_NID else '')
-            worksheet.cell(row=row, column=12, value=citacion.CON_NID.SN_NID.SN_CRAZONSOCIAL if citacion.CON_NID and citacion.CON_NID.SN_NID else '')
+            valores_ingreso = obtener_valores_ingreso_camion(citacion)
+            worksheet.cell(row=row, column=10, value=texto_sin_informacion(valores_ingreso.get('conductor')))
+            worksheet.cell(row=row, column=11, value=texto_sin_informacion(valores_ingreso.get('celular_conductor')))
+            worksheet.cell(row=row, column=12, value=texto_sin_informacion(valores_ingreso.get('patente')))
+            worksheet.cell(row=row, column=13, value=texto_sin_informacion(valores_ingreso.get('cantidad_ejes')))
+            worksheet.cell(row=row, column=14, value=texto_sin_informacion(valores_ingreso.get('transportista')))
 
         for column in worksheet.columns:
             max_length = 0
@@ -7483,7 +7929,7 @@ def CITACION_LISTONE(request, pk):
     try:
         if request.user.is_superuser == False:                     
             usuario = request.user.id
-            if not validar_perfiles_activos(usuario, "cit_listone"):
+            if not usuario_es_planificador(request.user) and not validar_perfiles_activos(usuario, "cit_listone"):
                 messages.error(request, 'No tiene permisos para acceder a esta sección')
                 return redirect('/')
         
@@ -8064,8 +8510,10 @@ def buscar_clientes(request):
 def get_citation_data(request, pk):
     try:
         citacion = CITACION.objects.get(id=pk)
+        if not request.user.is_superuser and not usuario_es_planificador(request.user) and not validar_perfiles_activos(request.user.id, "pla_listone"):
+            return JsonResponse({'error': 'No tiene permisos para editar esta citacion.'}, status=403)
         empresa = citacion.EP_NID
-        citacion_item = CITACION_ITEM.objects.get(CI_NID=citacion)
+        citacion_item = CITACION_ITEM.objects.filter(CI_NID=citacion).select_related('IT_NID').first()
 
         # Obtener la lista de documentos
         ltsDocumento = LISTADO_DOCUMENTO.objects.filter(EP_NID=empresa, LIS_BHABILITADO=True, LIS_CGRUPO='Citacion')
@@ -8087,8 +8535,8 @@ def get_citation_data(request, pk):
             }),
             'numero_documento': citacion.CI_CNUMERODOCUMENTO,
             'proveedor': {
-                'id': citacion.PRO_NID.id,
-                'text': f"{citacion.PRO_NID.SN_CRAZONSOCIAL} ({citacion.PRO_NID.SN_CRUT})"
+                'id': citacion.PRO_NID.id if citacion.PRO_NID else '',
+                'text': f"{citacion.PRO_NID.SN_CRAZONSOCIAL} ({citacion.PRO_NID.SN_CRUT})" if citacion.PRO_NID else ''
             },
             'cliente': {
                 'id': citacion.SN_NID.id if citacion.SN_NID else None,
@@ -8105,12 +8553,16 @@ def get_citation_data(request, pk):
             }),
             'secuencias': render_to_string('home/partials/select_options.html', {
                 'options': [{'id': sec.id, 'name': sec.SE_CNOMBRE} for sec in ltsSecuencias],
-                'selected': citacion.SC_NID.id
+                'selected': citacion.SC_NID.id if citacion.SC_NID else ''
             }),
-            'hora_citacion': citacion.CI_FFECHACITACION.strftime('%H:%M'),
+            'hora_citacion': citacion.CI_FFECHACITACION.strftime('%H:%M') if citacion.CI_FFECHACITACION else '',
+            'fecha_llegada': citacion.CI_FFECHACITACION.strftime('%Y-%m-%d') if citacion.CI_FFECHACITACION else '',
+            'tipo_operacion': citacion.CI_CTIPO,
+            'tipo_carga': citacion.CI_CTIPO_FLETE or '',
+            'detalle_operacional': detalle_operacional_dict(citacion),
             'productos': render_to_string('home/partials/select_options.html', {
                 'options': [{'id': item.id, 'name': item.IT_CNOMBRE} for item in ltsItems],
-                'selected': citacion_item.IT_NID.id
+                'selected': citacion_item.IT_NID.id if citacion_item and citacion_item.IT_NID else ''
             }),
             'tarifas': render_to_string('home/partials/select_options.html', {
                 'options': [{'id': tar.id, 'name': f"{tar.TAR_CNOMBRETARIFA} - {tar.TAR_NVALOR:,.0f}"} for tar in ltsTarifas],
@@ -8170,11 +8622,17 @@ def update_citation(request, pk):
     if request.method == 'POST':
         try:
             citacion = CITACION.objects.get(id=pk)
+            if not request.user.is_superuser and not usuario_es_planificador(request.user) and not validar_perfiles_activos(request.user.id, "pla_listone"):
+                return JsonResponse({'valid': False, 'msg': 'No tiene permisos para editar esta citacion.'}, status=403)
             
             # Update citation fields
             citacion.CI_CTIPODOCUMENTO = request.POST.get('tipo_documento')
             citacion.CI_CNUMERODOCUMENTO = request.POST.get('numero_documento')
-            citacion.PRO_NID = SOCIONEGOCIO.objects.get(id=request.POST.get('id_proveedor'))
+            if request.POST.get('tipo_operacion'):
+                citacion.CI_CTIPO = request.POST.get('tipo_operacion')
+            citacion.CI_CTIPO_FLETE = request.POST.get('tipo_carga') or citacion.CI_CTIPO_FLETE
+            proveedor_id = request.POST.get('id_proveedor')
+            citacion.PRO_NID = SOCIONEGOCIO.objects.get(id=proveedor_id) if proveedor_id else None
             
             # Actualizar cliente solo si es un despacho
             if citacion.CI_CTIPO == CIT_DESPACHO:
@@ -8187,17 +8645,19 @@ def update_citation(request, pk):
                 else:
                     citacion.SN_NID = None
             
-            conductor_id = int(request.POST.get('id_conductor'))
-            if conductor_id == 1:
-                citacion.CON_NID = None
-            else:
-                citacion.CON_NID = CONDUCTOR.objects.get(id=conductor_id)
+            if 'id_conductor' in request.POST:
+                conductor_id = request.POST.get('id_conductor')
+                if not conductor_id or int(conductor_id) == 1:
+                    citacion.CON_NID = None
+                else:
+                    citacion.CON_NID = CONDUCTOR.objects.get(id=int(conductor_id))
             
-            camion_id = int(request.POST.get('id_camion'))
-            if camion_id == 1:
-                citacion.CA_NID = None
-            else:
-                citacion.CA_NID = CAMION.objects.get(id=camion_id)
+            if 'id_camion' in request.POST:
+                camion_id = request.POST.get('id_camion')
+                if not camion_id or int(camion_id) == 1:
+                    citacion.CA_NID = None
+                else:
+                    citacion.CA_NID = CAMION.objects.get(id=int(camion_id))
 
             # Verificar si existe la secuencia antes de asignarla
             secuencia_id = request.POST.get('id_secuencia')
@@ -8208,27 +8668,67 @@ def update_citation(request, pk):
                 except SECUENCIA.DoesNotExist:
                     return JsonResponse({'valid': False, 'msg': 'La secuencia seleccionada no existe'})
             
-            # Update citation time
-            fecha_citacion = citacion.CI_FFECHACITACION.date()
-            hora_citacion = datetime.strptime(request.POST.get('hora_citacion'), '%H:%M').time()
-            citacion.CI_FFECHACITACION = datetime.combine(fecha_citacion, hora_citacion)
-            
+            fecha_llegada_raw = request.POST.get('fecha_llegada')
+            if fecha_llegada_raw:
+                fecha_llegada = datetime.strptime(fecha_llegada_raw, '%Y-%m-%d').date()
+                fecha_citacion = datetime.combine(fecha_llegada, time(0, 0))
+                if timezone.is_naive(fecha_citacion):
+                    fecha_citacion = timezone.make_aware(fecha_citacion, timezone.get_current_timezone())
+                citacion.CI_FFECHACITACION = fecha_citacion
+
             # Actualizar tarifa y su valor
-            tarifa_id = request.POST.get('id_tarifa')
-            if tarifa_id:
-                try:
-                    tarifa = TARIFA_GLOBAL.objects.get(id=tarifa_id)
-                    citacion.TAR_NID = tarifa
-                    citacion.CI_NVALORTARIFA = tarifa.TAR_NVALOR
-                except TARIFA_GLOBAL.DoesNotExist:
+            if 'id_tarifa' in request.POST:
+                tarifa_id = request.POST.get('id_tarifa')
+                if tarifa_id:
+                    try:
+                        tarifa = TARIFA_GLOBAL.objects.get(id=tarifa_id)
+                        citacion.TAR_NID = tarifa
+                        citacion.CI_NVALORTARIFA = tarifa.TAR_NVALOR
+                    except TARIFA_GLOBAL.DoesNotExist:
+                        citacion.TAR_NID = None
+                        citacion.CI_NVALORTARIFA = None
+                else:
                     citacion.TAR_NID = None
                     citacion.CI_NVALORTARIFA = None
-            else:
-                citacion.TAR_NID = None
-                citacion.CI_NVALORTARIFA = None
 
-            citacion.CI_CCOMENTARIO = request.POST.get('observacion')
+            observacion = request.POST.get('observacion')
+            citacion.CI_CCOMENTARIO = observacion
             citacion.save()
+            detalle = obtener_detalle_operacional_citacion(citacion)
+            if detalle:
+                detalle.CDO_COBSERVACION = observacion
+                detalle.save(update_fields=['CDO_COBSERVACION'])
+
+            detalle_data = {
+                'origen': request.POST.get('origen'),
+                'inf_24hrs': request.POST.get('inf_24hrs'),
+                'codigo': request.POST.get('codigo'),
+                'insumo': request.POST.get('insumo'),
+                'pedido': request.POST.get('pedido'),
+                'sap_opor_id': request.POST.get('sap_opor_id'),
+                'proveedor_codigo': request.POST.get('proveedor_codigo'),
+                'bl': request.POST.get('bl'),
+                'cantidad_disponible': request.POST.get('cantidad_disponible'),
+                'docentry': request.POST.get('docentry'),
+                'almacen_destino': request.POST.get('almacen_destino'),
+                'estanque_destino': request.POST.get('estanque_destino'),
+                'observacion': observacion,
+            }
+            if 'almacen_destino' in request.POST or 'estanque_destino' in request.POST:
+                almacen_destino = detalle_data.get('almacen_destino') or ''
+                estanque_destino = detalle_data.get('estanque_destino') or ''
+                if almacen_destino and not normalizar_almacen_planificacion(almacen_destino):
+                    return JsonResponse({'valid': False, 'msg': 'Debe seleccionar una planta destino valida.'})
+                if almacen_destino and estanque_destino and estanque_destino not in obtener_estanques_por_almacen(almacen_destino):
+                    return JsonResponse({'valid': False, 'msg': 'El estanque seleccionado no corresponde a la planta destino.'})
+
+            if any(value not in [None, ''] for value in detalle_data.values()):
+                guardar_detalle_operacional_citacion(
+                    citacion,
+                    detalle_data,
+                    usuario=request.user,
+                    origen_default='planificacion'
+                )
             
             # Update or create CITACION_ITEM
             producto_id = request.POST.get('id_producto')
@@ -8247,13 +8747,18 @@ def CITACION_DELETE(request, pk):
     try:
         citacion = CITACION.objects.get(id = pk)
         proforma = CITACION_PROFORMA.objects.filter(CI_NID = citacion)
+        referer = request.META.get('HTTP_REFERER', '')
+        planificacion_path = f'/pla_listone/{citacion.PL_NID_id}' if citacion.PL_NID_id else ''
+        redirect_path = planificacion_path if planificacion_path and planificacion_path in referer else None
         if proforma:
             messages.error(request, 'No se puede eliminar la citación porque está asociada a una proforma.')
+            if redirect_path:
+                return redirect(redirect_path)
             return redirect(f'/cit_listall_despachos/')
         citacion.CI_BHABILITADO = False
         citacion.save()
         messages.success(request, 'Citación eliminada correctamente.')
-        path = '/cit_listall_despachos/' if citacion.CI_CTIPO == CIT_DESPACHO else '/cit_listall_recepciones/'
+        path = redirect_path or ('/cit_listall_despachos/' if citacion.CI_CTIPO == CIT_DESPACHO else '/cit_listall_recepciones/')
         return redirect(path)
     except Exception as e:
         print(e)

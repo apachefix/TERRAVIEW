@@ -327,6 +327,26 @@ class PLANIFICACION(models.Model):
 
         return 0
 
+    @property
+    def TOTAL_SOBRECUPOS_USADOS(self):
+        return CITACION.objects.filter(
+            PL_NID_id=self.pk,
+            CI_BHABILITADO=True,
+            CI_BSOBRECUPO=True
+        ).count()
+
+    @property
+    def TOTAL_SOBRECUPOS_CONFIGURADOS(self):
+        return (self.PL_NCANTIDADSOBRECUPO or 0) + self.TOTAL_SOBRECUPOS_USADOS
+
+    @property
+    def TOTAL_SOBRECUPOS_DISPONIBLES(self):
+        return max(self.PL_NCANTIDADSOBRECUPO or 0, 0)
+
+    @property
+    def TIENE_SOBRECUPOS(self):
+        return self.PL_NSOBRECUPO or self.TOTAL_SOBRECUPOS_CONFIGURADOS > 0
+
 ###################################################################################################
 ################################## MODELO DE ETAPA 2 ##############################################
 ###################################################################################################
@@ -813,7 +833,37 @@ class CITACION(models.Model):
                 return False
             return True
         return True
-        
+
+
+class CITACION_DETALLE_OPERACIONAL(models.Model):
+    CI_NID = models.OneToOneField(CITACION, verbose_name='Id citacion', on_delete=models.CASCADE, related_name='detalle_operacional')
+    EP_NID = models.ForeignKey(EMPRESA, verbose_name='Id empresa', on_delete=models.PROTECT)
+    US_NID = models.ForeignKey(User, verbose_name='Usuario creacion', on_delete=models.PROTECT, null=True, blank=True)
+    CDO_CORIGEN = models.CharField('Origen', max_length=64, null=True, blank=True)
+    CDO_CINF_24HRS = models.CharField('Inf 24 hrs', max_length=16, null=True, blank=True)
+    CDO_CCODIGO_SAP = models.CharField('Codigo SAP', max_length=128, null=True, blank=True)
+    CDO_CINSUMO = models.CharField('Insumo producto', max_length=256, null=True, blank=True)
+    CDO_CPEDIDO_SAP = models.CharField('Pedido SAP', max_length=128, null=True, blank=True)
+    CDO_CSAP_OPOR_ID = models.CharField('SAP OPOR id', max_length=128, null=True, blank=True)
+    CDO_CPROVEEDOR_CODIGO = models.CharField('Codigo proveedor', max_length=128, null=True, blank=True)
+    CDO_CBL_CONTENEDOR = models.CharField('BL contenedor', max_length=128, null=True, blank=True)
+    CDO_NCANTIDAD_DISPONIBLE = models.DecimalField('Cantidad disponible', max_digits=18, decimal_places=5, null=True, blank=True)
+    CDO_CDOCENTRY = models.CharField('DocEntry', max_length=128, null=True, blank=True)
+    CDO_CPRODUCTOR = models.CharField('Productor', max_length=256, null=True, blank=True)
+    CDO_CALMACEN_DESTINO = models.CharField('Almacen destino', max_length=128, null=True, blank=True)
+    CDO_CESTANQUE_DESTINO = models.CharField('Estanque destino', max_length=128, null=True, blank=True)
+    CDO_COBSERVACION = models.TextField('Observacion', null=True, blank=True)
+    CDO_FFECHACREACION = models.DateTimeField('Fecha creacion', auto_now_add=True)
+
+    class Meta:
+        db_table = 'CITACION_DETALLE_OPERACIONAL'
+        indexes = [
+            models.Index(fields=['EP_NID', 'CDO_CORIGEN'], name='CITACION_DE_EP_NID__cd1c92_idx'),
+            models.Index(fields=['CDO_CCODIGO_SAP'], name='CITACION_DE_CDO_CCO_20d02e_idx'),
+            models.Index(fields=['CDO_CPEDIDO_SAP'], name='CITACION_DE_CDO_CPE_bf9dd2_idx'),
+            models.Index(fields=['CDO_CDOCENTRY'], name='CITACION_DE_CDO_CDO_14ae9a_idx'),
+        ]
+
     
 class ITEM(models.Model):
     EP_NID = models.ForeignKey(EMPRESA, verbose_name='Id emrpesa', on_delete=models.PROTECT)
