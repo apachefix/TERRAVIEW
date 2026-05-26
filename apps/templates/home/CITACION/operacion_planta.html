@@ -1,0 +1,160 @@
+{% extends "layouts/base.html" %}
+{% load static %}
+
+{% block title %} Operacion Planta {% endblock %}
+
+{% block content %}
+<div class="pcoded-main-container">
+    <div class="pcoded-content">
+        <div class="page-header">
+            <div class="page-block">
+                <div class="row align-items-center">
+                    <div class="col-md-12">
+                        <div class="page-header-title">
+                            <h5 class="m-b-10">Operacion Planta</h5>
+                        </div>
+                        <ul class="breadcrumb">
+                            <li class="breadcrumb-item"><a href="{% url 'home' %}"><i class="feather icon-home"></i></a></li>
+                            <li class="breadcrumb-item"><a href="{% if citacion.CI_CTIPO == 'DESPACHO' %}{% url 'cit_listall_despachos' %}{% else %}{% url 'cit_listall_recepciones' %}{% endif %}">Operacion</a></li>
+                            <li class="breadcrumb-item">Citacion #{{ citacion.id }}</li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="row">
+            <div class="col-12">
+                <div class="card">
+                    <div class="card-body">
+                        <div class="d-flex flex-wrap justify-content-between align-items-start mb-3">
+                            <div>
+                                <h4 class="mb-1">Citacion #{{ citacion.id }}</h4>
+                                <div class="text-muted">{{ nombre_flujo }}</div>
+                            </div>
+                            <span class="badge badge-success mt-1">Habilitada para operacion</span>
+                        </div>
+                        <div class="row">
+                            <div class="col-md-3"><strong>Patente</strong><br>{{ patente }}</div>
+                            <div class="col-md-3"><strong>Conductor</strong><br>{{ conductor }}</div>
+                            <div class="col-md-3"><strong>Transportista</strong><br>{{ transportista }}</div>
+                            <div class="col-md-3"><strong>Tipo</strong><br>{{ citacion.CI_CTIPO }}</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-12">
+                <div class="card">
+                    <div class="card-body">
+                        <ul class="nav nav-pills mb-3" id="operacion-tabs" role="tablist">
+                            {% for paso in pasos %}
+                            <li class="nav-item">
+                                <a class="nav-link {% if paso.activo %}active{% endif %}" id="tab-{{ forloop.counter }}" data-toggle="pill" href="#paso-{{ forloop.counter }}" role="tab">
+                                    {{ paso.orden }}. {{ paso.nombre }}
+                                </a>
+                            </li>
+                            {% endfor %}
+                        </ul>
+
+                        <div class="tab-content">
+                            {% for paso in pasos %}
+                            <div class="tab-pane fade {% if paso.activo %}show active{% endif %}" id="paso-{{ forloop.counter }}" role="tabpanel">
+                                <div class="border rounded p-3">
+                                    <div class="d-flex flex-wrap justify-content-between align-items-center mb-2">
+                                        <div>
+                                            <h5 class="mb-1">{{ paso.nombre }}</h5>
+                                            <div class="text-muted">Responsable: {{ paso.responsable }}</div>
+                                        </div>
+                                        <span class="badge {% if paso.estado == 'COMPLETADO' %}badge-success{% else %}badge-secondary{% endif %}">{{ paso.estado }}</span>
+                                    </div>
+
+                                    {% if paso.solo_lectura_msg %}
+                                    <div class="alert alert-info">{{ paso.solo_lectura_msg }}</div>
+                                    {% endif %}
+
+                                    <div class="mb-3">
+                                        <strong>Ultimo registro</strong><br>
+                                        {% if paso.fecha %}
+                                            {{ paso.fecha|date:'d/m/Y H:i' }} por {{ paso.usuario }}
+                                        {% else %}
+                                            Sin registro
+                                        {% endif %}
+                                    </div>
+
+                                    <div class="form-group">
+                                        <label>Observacion</label>
+                                        <textarea class="form-control operacion-observacion" data-paso="{{ paso.nombre }}" rows="4" {% if not paso.puede_editar %}readonly{% endif %}>{{ paso.observacion }}</textarea>
+                                    </div>
+
+                                    {% if paso.puede_editar %}
+                                    <button type="button" class="btn btn-primary btn-guardar-operacion" data-paso="{{ paso.nombre }}">
+                                        <i class="fas fa-save"></i> Guardar paso
+                                    </button>
+                                    {% endif %}
+                                </div>
+                            </div>
+                            {% endfor %}
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock content %}
+
+{% block javascripts %}
+<script>
+    function getCookie(name) {
+        let cookieValue = null;
+        if (document.cookie && document.cookie !== '') {
+            const cookies = document.cookie.split(';');
+            for (let cookie of cookies) {
+                cookie = cookie.trim();
+                if (cookie.substring(0, name.length + 1) === (name + '=')) {
+                    cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                    break;
+                }
+            }
+        }
+        return cookieValue;
+    }
+
+    $(document).on('click', '.btn-guardar-operacion', function () {
+        const paso = $(this).data('paso');
+        const textarea = $(`.operacion-observacion[data-paso="${paso}"]`);
+        const boton = $(this);
+
+        $.ajax({
+            url: "{% url 'operacion_planta_guardar_paso' citacion.id %}",
+            type: 'POST',
+            data: {
+                paso: paso,
+                observacion: textarea.val() || ''
+            },
+            headers: {
+                'X-CSRFToken': getCookie('csrftoken')
+            },
+            beforeSend: function () {
+                boton.prop('disabled', true);
+            },
+            success: function (response) {
+                if (!response.success) {
+                    boton.prop('disabled', false);
+                    Swal.fire({ icon: 'error', title: 'Error', text: response.message || 'No fue posible guardar.' });
+                    return;
+                }
+                Swal.fire({ icon: 'success', title: 'Guardado', text: response.message || 'Paso registrado.' }).then(function () {
+                    location.reload();
+                });
+            },
+            error: function (xhr) {
+                boton.prop('disabled', false);
+                const message = xhr.responseJSON && xhr.responseJSON.message ? xhr.responseJSON.message : 'No fue posible guardar.';
+                Swal.fire({ icon: 'error', title: 'Error', text: message });
+            }
+        });
+    });
+</script>
+{% endblock javascripts %}

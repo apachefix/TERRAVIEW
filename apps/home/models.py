@@ -1127,6 +1127,74 @@ class DATO_OPERACION(models.Model):
     class Meta:
         db_table = "DATO_OPERACION"
 
+
+class ESTANQUE_RESERVA(models.Model):
+    ESTADO_OCUPADO = 'OCUPADO'
+    ESTADO_LIBERADO = 'LIBERADO'
+    ESTADOS = (
+        (ESTADO_OCUPADO, 'Ocupado'),
+        (ESTADO_LIBERADO, 'Liberado'),
+    )
+
+    US_NID = models.ForeignKey(User, verbose_name='Usuario asignacion', on_delete=models.PROTECT)
+    US_LIBERA_NID = models.ForeignKey(
+        User,
+        verbose_name='Usuario liberacion',
+        on_delete=models.PROTECT,
+        null=True,
+        blank=True,
+        related_name='estanques_liberados'
+    )
+    EP_NID = models.ForeignKey(EMPRESA, verbose_name='Empresa', on_delete=models.PROTECT)
+    PL_NID = models.ForeignKey('PLANIFICACION', verbose_name='Planificacion', on_delete=models.PROTECT)
+    CI_NID = models.ForeignKey(CITACION, verbose_name='Citacion', on_delete=models.PROTECT)
+    ER_CALMACEN = models.CharField('Almacen', max_length=128)
+    ER_CESTANQUE = models.CharField('Estanque', max_length=128)
+    ER_CPATENTE = models.CharField('Patente', max_length=128, null=True, blank=True)
+    ER_CESTADO = models.CharField('Estado reserva', max_length=32, choices=ESTADOS, default=ESTADO_OCUPADO)
+    ER_FFECHA_ASIGNACION = models.DateTimeField('Fecha asignacion', default=timezone.now)
+    ER_FFECHA_LIBERACION = models.DateTimeField('Fecha liberacion', null=True, blank=True)
+    ER_COBSERVACION = models.TextField('Observacion', null=True, blank=True)
+
+    class Meta:
+        db_table = "ESTANQUE_RESERVA"
+        constraints = [
+            models.UniqueConstraint(
+                fields=['EP_NID', 'ER_CALMACEN', 'ER_CESTANQUE'],
+                condition=models.Q(ER_CESTADO='OCUPADO'),
+                name='unique_estanque_ocupado_empresa_almacen'
+            )
+        ]
+
+    def __str__(self):
+        return f'{self.ER_CALMACEN} - {self.ER_CESTANQUE} ({self.ER_CESTADO})'
+
+
+class OPERACION_PLANTA_LOG(models.Model):
+    ESTADO_PENDIENTE = 'PENDIENTE'
+    ESTADO_COMPLETADO = 'COMPLETADO'
+    ESTADOS = (
+        (ESTADO_PENDIENTE, 'Pendiente'),
+        (ESTADO_COMPLETADO, 'Completado'),
+    )
+
+    US_NID = models.ForeignKey(User, verbose_name='Usuario', on_delete=models.PROTECT)
+    EP_NID = models.ForeignKey(EMPRESA, verbose_name='Empresa', on_delete=models.PROTECT)
+    PL_NID = models.ForeignKey('PLANIFICACION', verbose_name='Planificacion', on_delete=models.PROTECT)
+    CI_NID = models.ForeignKey(CITACION, verbose_name='Citacion', on_delete=models.PROTECT)
+    OPL_CPASO = models.CharField('Paso operacional', max_length=128)
+    OPL_CPERFIL_RESPONSABLE = models.CharField('Perfil responsable', max_length=128)
+    OPL_CESTADO = models.CharField('Estado', max_length=32, choices=ESTADOS, default=ESTADO_COMPLETADO)
+    OPL_COBSERVACION = models.TextField('Observacion', null=True, blank=True)
+    OPL_FFECHAREGISTRO = models.DateTimeField('Fecha registro', default=timezone.now)
+
+    class Meta:
+        db_table = "OPERACION_PLANTA_LOG"
+
+    def __str__(self):
+        return f'{self.CI_NID_id} - {self.OPL_CPASO} - {self.OPL_CESTADO}'
+
+
 #####################################################################
 ########################## PERFILAMIENTO ############################
 #####################################################################

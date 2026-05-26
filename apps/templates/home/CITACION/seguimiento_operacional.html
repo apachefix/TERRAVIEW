@@ -1,0 +1,333 @@
+{% extends "layouts/base.html" %}
+
+{% block title %} Seguimiento Operacional {% endblock %}
+
+{% block stylesheets %}
+<style>
+    .tracking-table th,
+    .tracking-table td {
+        vertical-align: middle;
+    }
+
+    .progress-steps {
+        display: flex;
+        align-items: flex-start;
+        min-width: 520px;
+    }
+
+    .progress-step {
+        position: relative;
+        flex: 1 1 0;
+        text-align: center;
+        color: #9aa3af;
+        font-size: 11px;
+        line-height: 1.2;
+        padding-top: 24px;
+    }
+
+    .progress-step::before {
+        content: "";
+        position: absolute;
+        top: 9px;
+        left: 0;
+        right: 0;
+        height: 2px;
+        background: #d7dce3;
+    }
+
+    .progress-step:first-child::before {
+        left: 50%;
+    }
+
+    .progress-step:last-child::before {
+        right: 50%;
+    }
+
+    .progress-dot {
+        position: absolute;
+        top: 0;
+        left: 50%;
+        z-index: 2;
+        width: 20px;
+        height: 20px;
+        transform: translateX(-50%);
+        border-radius: 50%;
+        border: 2px solid #b6bfca;
+        background: #fff;
+        color: #7d8793;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 10px;
+    }
+
+    .progress-step.completed {
+        color: #1f7a3f;
+    }
+
+    .progress-step.completed::before {
+        background: #36b65f;
+    }
+
+    .progress-step.completed .progress-dot {
+        border-color: #36b65f;
+        background: #36b65f;
+        color: #fff;
+    }
+
+    .progress-step.active {
+        color: #0057d9;
+        font-weight: 700;
+    }
+
+    .progress-step.active .progress-dot {
+        border-color: #0057d9;
+        background: #0057d9;
+        color: #fff;
+        box-shadow: 0 0 0 4px rgba(0, 87, 217, 0.14);
+    }
+
+    .progress-step.pending .progress-dot {
+        background: #f5f6f8;
+    }
+
+    .tracking-state {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        padding: 6px 10px;
+        border-radius: 6px;
+        background: #eaf2ff;
+        color: #0057d9;
+        font-weight: 700;
+        white-space: nowrap;
+    }
+
+    .plant-live-time {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        padding: 6px 10px;
+        border-radius: 6px;
+        background: #eaf2ff;
+        color: #0057d9;
+        font-weight: 800;
+        white-space: nowrap;
+    }
+
+    .detail-history {
+        max-height: 320px;
+        overflow-y: auto;
+    }
+</style>
+{% endblock stylesheets %}
+
+{% block content %}
+<div class="pcoded-main-container">
+    <div class="pcoded-content">
+        <div class="page-header">
+            <div class="page-block">
+                <div class="row align-items-center">
+                    <div class="col-md-12">
+                        <div class="page-header-title">
+                            <h5 class="m-b-10">Seguimiento Operacional</h5>
+                        </div>
+                        <ul class="breadcrumb">
+                            <li class="breadcrumb-item"><a href="{% url 'home' %}"><i class="feather icon-home"></i></a></li>
+                            <li class="breadcrumb-item">Camiones en planta</li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="card">
+            <div class="card-body">
+                <div class="d-flex flex-wrap justify-content-between align-items-center mb-3">
+                    <div>
+                        <h4 class="mb-1">Camiones en planta</h4>
+                        <div class="text-muted">Seguimiento de citaciones autorizadas por Guardia_Porteria</div>
+                    </div>
+                    <span class="badge badge-primary">{{ camiones|length }} activos</span>
+                </div>
+
+                <div class="table-responsive">
+                    <table class="table table-hover tracking-table">
+                        <thead>
+                            <tr>
+                                <th>Patente</th>
+                                <th>Nombre conductor</th>
+                                <th>Nombre producto</th>
+                                <th>Estado del proceso</th>
+                                <th>Progreso operacional</th>
+                                <th>Tiempo en planta</th>
+                                <th>Tiempo por etapa</th>
+                                <th>Accion</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for camion in camiones %}
+                            <tr>
+                                <td><strong>{{ camion.patente }}</strong></td>
+                                <td>{{ camion.conductor }}</td>
+                                <td>{{ camion.producto }}</td>
+                                <td><span class="tracking-state"><i class="fas fa-route"></i>{{ camion.estado_actual }}</span></td>
+                                <td>
+                                    <div class="progress-steps">
+                                        {% for paso in camion.pasos %}
+                                        <div class="progress-step {{ paso.estado }}">
+                                            <span class="progress-dot">
+                                                {% if paso.estado == 'completed' %}<i class="fas fa-check"></i>{% elif paso.estado == 'active' %}<i class="fas fa-truck"></i>{% else %}{{ forloop.counter }}{% endif %}
+                                            </span>
+                                            <span>{{ paso.nombre }}</span>
+                                        </div>
+                                        {% endfor %}
+                                    </div>
+                                </td>
+                                <td>
+                                    <span class="plant-live-time" data-start="{{ camion.ingreso_autorizado_iso }}">
+                                        <i class="fas fa-clock"></i>{{ camion.tiempo_planta }}
+                                    </span>
+                                </td>
+                                <td>
+                                    <span class="plant-live-time" data-start="{{ camion.inicio_etapa_actual_iso }}">
+                                        <i class="fas fa-stopwatch"></i>{{ camion.tiempo_etapa }}
+                                    </span>
+                                </td>
+                                <td>
+                                    <button type="button" class="btn btn-outline-primary btn-sm btn-detalle-seguimiento" data-detalle='{{ camion.detalle_json|escape }}'>
+                                        Ver detalle
+                                    </button>
+                                </td>
+                            </tr>
+                            {% empty %}
+                            <tr>
+                                <td colspan="8" class="text-center text-muted py-4">No hay camiones activos dentro de planta.</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="modal fade" id="ModalDetalleSeguimiento" tabindex="-1" role="dialog" aria-labelledby="ModalDetalleSeguimientoLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-scrollable" role="document">
+        <div class="modal-content">
+            <div class="modal-header">
+                <div>
+                    <h5 class="modal-title" id="ModalDetalleSeguimientoLabel">Detalle del camion</h5>
+                    <small id="detalle_seguimiento_subtitulo" class="text-muted"></small>
+                </div>
+                <button type="button" class="close" data-dismiss="modal" aria-label="Cerrar">
+                    <span aria-hidden="true">&times;</span>
+                </button>
+            </div>
+            <div class="modal-body" id="detalle_seguimiento_body"></div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-dismiss="modal">Cerrar</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock content %}
+
+{% block javascripts %}
+<script>
+    function escapeHtml(value) {
+        return String(value === null || value === undefined ? '' : value)
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;')
+            .replace(/'/g, '&#039;');
+    }
+
+    function formatLivePlantTime(startValue) {
+        if (!startValue) {
+            return 'No disponible';
+        }
+
+        const startDate = new Date(startValue);
+        if (Number.isNaN(startDate.getTime())) {
+            return 'No disponible';
+        }
+
+        const diffMs = Math.max(Date.now() - startDate.getTime(), 0);
+        const totalSeconds = Math.floor(diffMs / 1000);
+        const hours = Math.floor(totalSeconds / 3600);
+        const minutes = Math.floor((totalSeconds % 3600) / 60);
+        const seconds = totalSeconds % 60;
+        return `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
+    }
+
+    function updateLivePlantTimes() {
+        $('.plant-live-time').each(function () {
+            const startValue = $(this).data('start');
+            $(this).html(`<i class="fas fa-clock"></i>${formatLivePlantTime(startValue)}`);
+        });
+    }
+
+    updateLivePlantTimes();
+    setInterval(updateLivePlantTimes, 1000);
+
+    $(document).on('click', '.btn-detalle-seguimiento', function () {
+        let detalle = $(this).data('detalle') || {};
+        if (typeof detalle === 'string') {
+            try {
+                detalle = JSON.parse(detalle);
+            } catch (error) {
+                detalle = {};
+            }
+        }
+        const historial = detalle.historial || [];
+        $('#detalle_seguimiento_subtitulo').text(detalle.patente || '');
+
+        const historialHtml = historial.length
+            ? historial.map(function (item) {
+                return `
+                    <tr>
+                        <td>${escapeHtml(item.paso)}</td>
+                        <td>${escapeHtml(item.usuario)}</td>
+                        <td>${escapeHtml(item.responsable)}</td>
+                        <td>${escapeHtml(item.fecha)}</td>
+                        <td>${escapeHtml(item.estado)}</td>
+                    </tr>
+                `;
+            }).join('')
+            : '<tr><td colspan="5" class="text-center text-muted">Sin etapas completadas.</td></tr>';
+
+        $('#detalle_seguimiento_body').html(`
+            <div class="row mb-3">
+                <div class="col-md-4"><strong>Patente</strong><br>${escapeHtml(detalle.patente)}</div>
+                <div class="col-md-4"><strong>Conductor</strong><br>${escapeHtml(detalle.conductor)}</div>
+                <div class="col-md-4"><strong>Producto</strong><br>${escapeHtml(detalle.producto)}</div>
+            </div>
+            <div class="row mb-3">
+                <div class="col-md-4"><strong>Secuencia operacional</strong><br>${escapeHtml(detalle.secuencia)}</div>
+                <div class="col-md-4"><strong>Ingreso autorizado</strong><br>${escapeHtml(detalle.ingreso_autorizado)}</div>
+                <div class="col-md-4"><strong>Tiempo total en planta</strong><br>${escapeHtml(detalle.tiempo_planta)}</div>
+            </div>
+            <div class="mb-3"><strong>Etapa actual</strong><br><span class="tracking-state">${escapeHtml(detalle.etapa_actual)}</span></div>
+            <h6>Historial de etapas completadas</h6>
+            <div class="table-responsive detail-history">
+                <table class="table table-sm table-bordered">
+                    <thead>
+                        <tr>
+                            <th>Etapa</th>
+                            <th>Usuario</th>
+                            <th>Responsable</th>
+                            <th>Fecha/hora</th>
+                            <th>Estado</th>
+                        </tr>
+                    </thead>
+                    <tbody>${historialHtml}</tbody>
+                </table>
+            </div>
+        `);
+        $('#ModalDetalleSeguimiento').modal('show');
+    });
+</script>
+{% endblock javascripts %}

@@ -560,10 +560,39 @@
                                             </thead>
                                             <tbody>
                                                 {% for object in despachos %}
-                                                    <tr id="citacion-row-{{ object.0 }}" class="{% if object.30 %}citacion-enviada-siguiente{% elif object.27 %}citacion-estanque-asignado{% elif object.24 %}citacion-aprobada-asistente{% elif object.21 %}citacion-enviada-asistente{% endif %}">
+                                                    <tr id="citacion-row-{{ object.0 }}" class="{% if object.37 %}citacion-enviada-siguiente{% elif object.34 %}citacion-enviada-siguiente{% elif object.30 %}citacion-enviada-siguiente{% elif object.27 %}citacion-estanque-asignado{% elif object.24 %}citacion-aprobada-asistente{% elif object.21 %}citacion-enviada-asistente{% endif %}">
                                                         <td>
-                                                            <div class="pulse-button-container {% if request.user|es_guardia and object.21 %}acciones-enviada{% elif request.user|es_asistente_recepcion and object.24 %}acciones-enviada{% elif request.user|es_asistente_recepcion and object.21 %}acciones-enviada{% elif request.user|es_asistente_cd and object.30 %}acciones-enviada{% elif request.user|es_asistente_cd %}acciones-enviada{% endif %}">
-                                                                {% if request.user|es_guardia and object.21 %}
+                                                            <div class="pulse-button-container {% if request.user|es_guardia and object.34 %}acciones-enviada{% elif request.user|es_guardia and object.21 %}acciones-enviada{% elif request.user|es_asistente_recepcion and object.24 %}acciones-enviada{% elif request.user|es_asistente_recepcion and object.21 %}acciones-enviada{% elif request.user|es_asistente_cd and object.30 %}acciones-enviada{% elif request.user|es_asistente_cd %}acciones-enviada{% endif %}">
+                                                                {% if request.user|es_guardia_porteria and object.37 %}
+                                                                    <button type="button" class="btn btn-outline-primary btn-sm" onclick="openRevisionAsistenteModal({{ object.0 }})" title="Ver autorizacion ingreso a planta">
+                                                                        <i class="fas fa-eye"></i>
+                                                                    </button>
+                                                                    <div class="estado-envio-asistente">
+                                                                        <span class="badge badge-success">Ingreso a planta autorizado</span>
+                                                                        <div>Fecha: {% if object.39 %}{{ object.39|date:'d/m/Y H:i' }}{% else %}No registrada{% endif %}</div>
+                                                                        <div>Usuario: {{ object.38|default:'No registrado' }}</div>
+                                                                        <div>Etapa: {{ object.3 }}</div>
+                                                                    </div>
+                                                                {% elif request.user|es_guardia_porteria and object.34 %}
+                                                                    <button type="button" class="btn btn-primary btn-sm" onclick="openRevisionAsistenteModal({{ object.0 }})" title="Autorizar ingreso a planta">
+                                                                        <i class="fas fa-eye"></i>
+                                                                    </button>
+                                                                    <div class="estado-envio-asistente">
+                                                                        <span class="badge badge-warning">Pendiente autorizacion ingreso a planta</span>
+                                                                        <div>Patente: {{ object.16|default:'No registrada' }}</div>
+                                                                        <div>Fecha: {% if object.36 %}{{ object.36|date:'d/m/Y H:i' }}{% else %}No registrada{% endif %}</div>
+                                                                    </div>
+                                                                {% elif request.user|es_guardia and object.34 %}
+                                                                    <button type="button" class="btn btn-outline-primary btn-sm" onclick="openRevisionAsistenteModal({{ object.0 }})" title="Ver resumen enviado a Guardia_Porteria">
+                                                                        <i class="fas fa-eye"></i>
+                                                                    </button>
+                                                                    <div class="estado-envio-asistente">
+                                                                        <span class="badge badge-primary">Enviado a Guardia_Porteria</span>
+                                                                        <div>Fecha: {% if object.36 %}{{ object.36|date:'d/m/Y H:i' }}{% else %}No registrada{% endif %}</div>
+                                                                        <div>Usuario: {{ object.35|default:'No registrado' }}</div>
+                                                                        <div>Etapa: {{ object.3 }}</div>
+                                                                    </div>
+                                                                {% elif request.user|es_guardia and object.21 %}
                                                                     <button type="button" class="btn btn-outline-primary btn-sm" onclick="openRevisionAsistenteModal({{ object.0 }})" title="Ver resumen enviado">
                                                                         <i class="fas fa-eye"></i>
                                                                     </button>
@@ -720,10 +749,39 @@
                                             </thead>
                                             <tbody>
                                                 {% for object in recepciones %}
-                                                    <tr id="citacion-row-{{ object.0 }}" class="{% if object.24 %}citacion-enviada-siguiente{% elif object.21 %}citacion-estanque-asignado{% elif object.18 %}citacion-aprobada-asistente{% elif object.15 %}citacion-enviada-asistente{% endif %}">
+                                                    <tr id="citacion-row-{{ object.0 }}" class="{% if object.31 %}citacion-enviada-siguiente{% elif object.28 %}citacion-enviada-siguiente{% elif object.24 %}citacion-enviada-siguiente{% elif object.21 %}citacion-estanque-asignado{% elif object.18 %}citacion-aprobada-asistente{% elif object.15 %}citacion-enviada-asistente{% endif %}">
                                                         <td>
-                                                            <div class="pulse-button-container {% if request.user|es_guardia and object.15 %}acciones-enviada{% elif request.user|es_asistente_recepcion and object.18 %}acciones-enviada{% elif request.user|es_asistente_recepcion and object.15 %}acciones-enviada{% elif request.user|es_asistente_cd and object.24 %}acciones-enviada{% elif request.user|es_asistente_cd %}acciones-enviada{% endif %}">
-                                                                {% if request.user|es_guardia and object.15 %}
+                                                            <div class="pulse-button-container {% if request.user|es_guardia and object.28 %}acciones-enviada{% elif request.user|es_guardia and object.15 %}acciones-enviada{% elif request.user|es_asistente_recepcion and object.18 %}acciones-enviada{% elif request.user|es_asistente_recepcion and object.15 %}acciones-enviada{% elif request.user|es_asistente_cd and object.24 %}acciones-enviada{% elif request.user|es_asistente_cd %}acciones-enviada{% endif %}">
+                                                                {% if request.user|es_guardia_porteria and object.31 %}
+                                                                    <button type="button" class="btn btn-outline-primary btn-sm" onclick="openRevisionAsistenteModal({{ object.0 }})" title="Ver autorizacion ingreso a planta">
+                                                                        <i class="fas fa-eye"></i>
+                                                                    </button>
+                                                                    <div class="estado-envio-asistente">
+                                                                        <span class="badge badge-success">Ingreso a planta autorizado</span>
+                                                                        <div>Fecha: {% if object.33 %}{{ object.33|date:'d/m/Y H:i' }}{% else %}No registrada{% endif %}</div>
+                                                                        <div>Usuario: {{ object.32|default:'No registrado' }}</div>
+                                                                        <div>Etapa: {{ object.5 }}</div>
+                                                                    </div>
+                                                                {% elif request.user|es_guardia_porteria and object.28 %}
+                                                                    <button type="button" class="btn btn-primary btn-sm" onclick="openRevisionAsistenteModal({{ object.0 }})" title="Autorizar ingreso a planta">
+                                                                        <i class="fas fa-eye"></i>
+                                                                    </button>
+                                                                    <div class="estado-envio-asistente">
+                                                                        <span class="badge badge-warning">Pendiente autorizacion ingreso a planta</span>
+                                                                        <div>Patente: {{ object.8|default:'No registrada' }}</div>
+                                                                        <div>Fecha: {% if object.30 %}{{ object.30|date:'d/m/Y H:i' }}{% else %}No registrada{% endif %}</div>
+                                                                    </div>
+                                                                {% elif request.user|es_guardia and object.28 %}
+                                                                    <button type="button" class="btn btn-outline-primary btn-sm" onclick="openRevisionAsistenteModal({{ object.0 }})" title="Ver resumen enviado a Guardia_Porteria">
+                                                                        <i class="fas fa-eye"></i>
+                                                                    </button>
+                                                                    <div class="estado-envio-asistente">
+                                                                        <span class="badge badge-primary">Enviado a Guardia_Porteria</span>
+                                                                        <div>Fecha: {% if object.30 %}{{ object.30|date:'d/m/Y H:i' }}{% else %}No registrada{% endif %}</div>
+                                                                        <div>Usuario: {{ object.29|default:'No registrado' }}</div>
+                                                                        <div>Etapa: {{ object.5 }}</div>
+                                                                    </div>
+                                                                {% elif request.user|es_guardia and object.15 %}
                                                                     <button type="button" class="btn btn-outline-primary btn-sm" onclick="openRevisionAsistenteModal({{ object.0 }})" title="Ver resumen enviado">
                                                                         <i class="fas fa-eye"></i>
                                                                     </button>
@@ -1484,6 +1542,9 @@
                 {% if request.user|es_asistente_recepcion %}
                 <button type="button" class="btn btn-warning" id="btn_revision_devolver" onclick="devolverRevisionAsistente()">Rechazar / Devolver a Guardia</button>
                 <button type="button" class="btn btn-success" id="btn_revision_aprobar" onclick="aprobarRevisionAsistente()">Aprobar</button>
+                {% endif %}
+                {% if request.user|es_guardia %}
+                <button type="button" class="btn btn-success" id="btn_revision_guardia_porteria" onclick="enviarRevisionGuardiaPorteria()" style="display:none;">{% if request.user|es_guardia_porteria %}Autorizo ingreso a planta{% else %}Enviar siguiente etapa{% endif %}</button>
                 {% endif %}
             </div>
         </div>
@@ -2325,6 +2386,8 @@
         let revisionAsistenteCitacionId = null;
         let estanqueCamionCitacionId = null;
         const usuarioPuedeAprobarRevision = {% if request.user|es_asistente_recepcion %}true{% else %}false{% endif %};
+        const usuarioEsGuardiaPorteria = {% if request.user|es_guardia_porteria %}true{% else %}false{% endif %};
+        const usuarioPuedeEnviarGuardiaPorteria = {% if request.user|es_guardia %}true{% else %}false{% endif %};
 
         function revisionValue(value) {
             return value === null || value === undefined || String(value).trim() === ''
@@ -2420,6 +2483,7 @@
             $('#revision_asistente_contenido').html('<div class="text-center p-3">Cargando...</div>');
             $('#revision_asistente_alert').hide().text('');
             $('#revision_asistente_subtitulo').text('');
+            $('#btn_revision_guardia_porteria').hide().prop('disabled', true);
             $('#ModalRevisionAsistente').modal('show');
 
             $.ajax({
@@ -2433,14 +2497,21 @@
                     }
 
                     const accionesHabilitadas = usuarioPuedeAprobarRevision && !response.aprobado_asistente;
+                    const accionesGuardiaPorteria = usuarioPuedeEnviarGuardiaPorteria && (!!response.guardia_puede_enviar_porteria || !!response.guardia_porteria_puede_autorizar);
                     $('#btn_revision_devolver').toggle(accionesHabilitadas).prop('disabled', false);
                     $('#btn_revision_aprobar').toggle(accionesHabilitadas).prop('disabled', false);
+                    $('#btn_revision_guardia_porteria')
+                        .text(usuarioEsGuardiaPorteria ? 'Autorizo ingreso a planta' : 'Enviar siguiente etapa')
+                        .toggle(accionesGuardiaPorteria)
+                        .prop('disabled', false);
                     $('#revision_asistente_subtitulo').text(`Citacion #${response.citacion_id}`);
                     $('#revision_asistente_contenido').html(
                         renderRevisionSection('Datos planificacion', response.planificacion) +
                         renderRevisionSection('Datos citacion', response.citacion) +
                         renderRevisionSection('Datos operacionales', response.datos_operacionales) +
                         renderRevisionSection('Datos ingresados por Guardia', response.guardia) +
+                        renderRevisionSection('Datos Asistente_C_D', response.asistente_cd) +
+                        renderRevisionSection('Datos Guardia_Porteria', response.guardia_porteria) +
                         renderRevisionValidacionFields(response.campos_validacion, accionesHabilitadas) +
                         renderRevisionDocumentos(response.documentos)
                     );
@@ -2572,10 +2643,65 @@
             });
         }
 
+        function enviarRevisionGuardiaPorteria() {
+            if (!revisionAsistenteCitacionId) {
+                return;
+            }
+
+            Swal.fire({
+                icon: 'question',
+                title: usuarioEsGuardiaPorteria ? 'Autorizar ingreso a planta' : 'Enviar siguiente etapa',
+                text: usuarioEsGuardiaPorteria ? 'El camion quedara autorizado para ingresar a planta.' : 'La tarea sera enviada a Guardia_Porteria.',
+                showCancelButton: true,
+                confirmButtonText: usuarioEsGuardiaPorteria ? 'Autorizar' : 'Enviar',
+                cancelButtonText: 'Cancelar'
+            }).then(function (result) {
+                if (!result.isConfirmed) {
+                    return;
+                }
+
+                $.ajax({
+                    url: `/pla-citacion-enviar-guardia-porteria/${revisionAsistenteCitacionId}/`,
+                    type: 'POST',
+                    headers: {
+                        'X-CSRFToken': getCookie('csrftoken')
+                    },
+                    beforeSend: function () {
+                        $('#btn_revision_guardia_porteria').prop('disabled', true);
+                    },
+                    success: function (response) {
+                        if (!response.success) {
+                            $('#btn_revision_guardia_porteria').prop('disabled', false);
+                            Swal.fire({ icon: 'error', title: 'Error', text: response.message || 'No fue posible enviar.' });
+                            return;
+                        }
+
+                        if (typeof window.dismissActivePlantNotification === 'function') {
+                            window.dismissActivePlantNotification();
+                        }
+
+                        $('#ModalRevisionAsistente').modal('hide');
+                        Swal.fire({ icon: 'success', title: usuarioEsGuardiaPorteria ? 'Autorizado' : 'Enviado', text: response.message || (usuarioEsGuardiaPorteria ? 'Ingreso a planta autorizado.' : 'Citacion enviada a Guardia_Porteria.') }).then(function () {
+                            location.reload();
+                        });
+                    },
+                    error: function (xhr) {
+                        $('#btn_revision_guardia_porteria').prop('disabled', false);
+                        const message = xhr.responseJSON && xhr.responseJSON.message ? xhr.responseJSON.message : 'No fue posible enviar.';
+                        Swal.fire({ icon: 'error', title: 'Error', text: message });
+                    }
+                });
+            });
+        }
+
         function renderEstanqueOptions(opciones, seleccionado) {
             const options = [`<option value="">Seleccione estanque</option>`].concat((opciones || []).map(function (opcion) {
-                const selected = String(opcion) === String(seleccionado || '') ? 'selected' : '';
-                return `<option value="${escapeHtml(opcion)}" ${selected}>${escapeHtml(opcion)}</option>`;
+                const valor = typeof opcion === 'object' ? (opcion.valor || '') : opcion;
+                const texto = typeof opcion === 'object' ? (opcion.texto || valor) : opcion;
+                const disponible = typeof opcion === 'object' ? opcion.disponible !== false : true;
+                const selected = String(valor) === String(seleccionado || '') ? 'selected' : '';
+                const disabled = disponible ? '' : 'disabled';
+                return `<option value="${escapeHtml(valor)}" ${selected} ${disabled}>${escapeHtml(texto)}</option>`;
             }));
             $('#estanque_operacional').html(options.join(''));
         }
@@ -2615,10 +2741,20 @@
                         $('#estanque_camion_bloqueo').show().text(response.mensaje_bloqueo);
                     }
 
+                    const opcionesOcupadas = (response.opciones_estanque || []).filter(function (opcion) {
+                        return typeof opcion === 'object' && opcion.ocupado;
+                    });
+                    if (opcionesOcupadas.length > 0) {
+                        const ocupados = opcionesOcupadas.map(function (opcion) {
+                            return `${opcion.valor}: ocupado por patente ${opcion.patente_ocupante || 'No registrada'}`;
+                        }).join(' | ');
+                        $('#estanque_camion_bloqueo').show().text(ocupados);
+                    }
+
                     const puedeEditar = !!response.puede_editar;
                     $('#estanque_operacional').prop('disabled', !puedeEditar);
                     $('#btn_guardar_estanque').prop('disabled', !puedeEditar).toggle(!response.enviado_siguiente);
-                    $('#btn_enviar_estanque').prop('disabled', !puedeEditar || !response.estanque_actual).toggle(!response.enviado_siguiente);
+                    $('#btn_enviar_estanque').prop('disabled', !puedeEditar || !response.estanque_actual || response.estanque_actual_disponible === false).toggle(!response.enviado_siguiente);
 
                     if (response.enviado_siguiente) {
                         $('#estanque_camion_alert').show().text('Proceso enviado a siguiente etapa.');

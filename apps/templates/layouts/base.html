@@ -1,3 +1,4 @@
+{% load permission_filters %}
 <!DOCTYPE html>
 <html lang="en">
 
@@ -78,6 +79,62 @@
                 box-shadow: 0 0 0 0 rgba(255, 83, 112, 0);
             }
         }
+
+        .guardia-plant-alert {
+            position: fixed;
+            left: 50%;
+            bottom: 34px;
+            z-index: 99999;
+            width: min(440px, calc(100vw - 32px));
+            transform: translate(-50%, 130%);
+            opacity: 0;
+            pointer-events: none;
+            transition: transform 0.35s ease, opacity 0.35s ease;
+        }
+
+        .guardia-plant-alert.show {
+            transform: translate(-50%, 0);
+            opacity: 1;
+            pointer-events: auto;
+        }
+
+        .guardia-plant-alert-card {
+            overflow: hidden;
+            border-radius: 8px;
+            background: linear-gradient(135deg, #0057d9 0%, #0185ff 100%);
+            color: #fff;
+            box-shadow: 0 18px 44px rgba(0, 48, 120, 0.36);
+            border: 1px solid rgba(255, 255, 255, 0.24);
+        }
+
+        .guardia-plant-alert-body {
+            padding: 22px 24px 18px;
+        }
+
+        .guardia-plant-alert-title {
+            margin: 0 0 8px;
+            font-size: 20px;
+            font-weight: 700;
+            line-height: 1.2;
+        }
+
+        .guardia-plant-alert-message {
+            margin: 0;
+            font-size: 16px;
+            line-height: 1.4;
+        }
+
+        .guardia-plant-alert-actions {
+            display: flex;
+            justify-content: flex-end;
+            gap: 10px;
+            padding: 0 24px 22px;
+        }
+
+        .guardia-plant-alert-actions .btn {
+            min-width: 106px;
+            font-weight: 600;
+        }
     </style>
 </head>
 <body class="">
@@ -152,9 +209,27 @@
             {% endif %}
         {% endfor %}
     {% endif %}
+    <div id="guardiaPlantAlert" class="guardia-plant-alert" aria-live="assertive" aria-hidden="true">
+        <div class="guardia-plant-alert-card">
+            <div class="guardia-plant-alert-body">
+                <h3 id="guardiaPlantAlertTitle" class="guardia-plant-alert-title">Nuevo ingreso a planta</h3>
+                <p id="guardiaPlantAlertMessage" class="guardia-plant-alert-message"></p>
+            </div>
+            <div class="guardia-plant-alert-actions">
+                <button type="button" class="btn btn-light btn-sm" id="guardiaPlantAlertReview">Ver revisión</button>
+                <button type="button" class="btn btn-outline-light btn-sm" id="guardiaPlantAlertClose">Cerrar</button>
+            </div>
+        </div>
+    </div>
     <script>
         let previousNotifications = JSON.parse(localStorage.getItem('previousNotifications')) || [];
         let currentUserId = localStorage.getItem('currentUserId');
+        const notificationUserIsGuardia = {% if request.user|es_guardia %}true{% else %}false{% endif %};
+        const notificationUserIsGuardiaPorteria = {% if request.user|es_guardia_porteria %}true{% else %}false{% endif %};
+        const dismissedPlantNotificationIds = new Set();
+        let guardiaPlantAlertTimer = null;
+        let activePlantNotification = null;
+        let reviewingPlantNotificationId = null;
 
         function getCookie(name) {
             let cookieValue = null;
@@ -197,6 +272,133 @@
             previousNotifications = [];
             localStorage.setItem('previousNotifications', JSON.stringify(previousNotifications));
         }
+
+        function parsePlantNotification(notification) {
+            if (!notification || !notificationUserIsGuardia) {
+                return null;
+            }
+
+            const id = notification[0];
+            if (dismissedPlantNotificationIds.has(id) || reviewingPlantNotificationId === id) {
+                return null;
+            }
+
+            const content = (notification[1] || '').toString();
+            const contentNormalized = content.toLowerCase();
+            const isGuardiaMessage = !notificationUserIsGuardiaPorteria && contentNormalized.indexOf('debe ingresar a planta') !== -1;
+            const isGuardiaPorteriaMessage = notificationUserIsGuardiaPorteria && contentNormalized.indexOf('autorizado ingreso a planta') !== -1;
+            const isPlantMessage = isGuardiaMessage || isGuardiaPorteriaMessage;
+            if (!isPlantMessage) {
+                return null;
+            }
+
+            const url = (notification[2] || '').toString();
+            const citacionMatch = url.match(/[?&]citacion=(\d+)/);
+            const patenteMatch = content.match(/Patente:?\s*([^\n]+?)\s+(?:debe ingresar a Planta|autorizado ingreso a planta)/i);
+            const patente = patenteMatch ? patenteMatch[1].trim() : '';
+            const message = notificationUserIsGuardiaPorteria
+                ? `Patente: ${patente || 'No registrada'} autorizado ingreso a planta`
+                : content.split('\n').find(function(line) {
+                    return line.indexOf('debe ingresar a Planta') !== -1 || line.indexOf('autorizado ingreso a planta') !== -1;
+                }) || content;
+
+            return {
+                id: id,
+                message: message,
+                url: url,
+                citacionId: citacionMatch ? citacionMatch[1] : null,
+                isGuardiaPorteria: notificationUserIsGuardiaPorteria
+            };
+        }
+
+        function hideGuardiaPlantAlert() {
+            const alertBox = document.getElementById('guardiaPlantAlert');
+            if (!alertBox) {
+                return;
+            }
+
+            alertBox.classList.remove('show');
+            alertBox.setAttribute('aria-hidden', 'true');
+            if (guardiaPlantAlertTimer) {
+                clearTimeout(guardiaPlantAlertTimer);
+                guardiaPlantAlertTimer = null;
+            }
+        }
+
+        function showGuardiaPlantAlert(notificationData) {
+            if (!notificationData) {
+                return;
+            }
+
+            activePlantNotification = notificationData;
+            const alertBox = document.getElementById('guardiaPlantAlert');
+            const title = document.getElementById('guardiaPlantAlertTitle');
+            const message = document.getElementById('guardiaPlantAlertMessage');
+            const reviewButton = document.getElementById('guardiaPlantAlertReview');
+            if (!alertBox || !message) {
+                return;
+            }
+
+            if (title) {
+                title.textContent = notificationData.isGuardiaPorteria ? 'Ingreso autorizado' : 'Nuevo ingreso a planta';
+            }
+            if (reviewButton) {
+                reviewButton.textContent = notificationData.isGuardiaPorteria ? 'Ver autorización' : 'Ver revisión';
+            }
+            message.textContent = notificationData.message;
+            alertBox.classList.add('show');
+            alertBox.setAttribute('aria-hidden', 'false');
+
+            if (guardiaPlantAlertTimer) {
+                clearTimeout(guardiaPlantAlertTimer);
+            }
+            guardiaPlantAlertTimer = setTimeout(function() {
+                if (activePlantNotification) {
+                    dismissedPlantNotificationIds.add(activePlantNotification.id);
+                }
+                hideGuardiaPlantAlert();
+            }, 15000);
+        }
+
+        $(document).on('click', '#guardiaPlantAlertClose', function() {
+            if (activePlantNotification) {
+                dismissedPlantNotificationIds.add(activePlantNotification.id);
+            }
+            hideGuardiaPlantAlert();
+        });
+
+        window.dismissActivePlantNotification = function() {
+            if (activePlantNotification) {
+                dismissedPlantNotificationIds.add(activePlantNotification.id);
+            }
+            reviewingPlantNotificationId = null;
+            hideGuardiaPlantAlert();
+        };
+
+        $(document).on('click', '#guardiaPlantAlertReview', function() {
+            if (!activePlantNotification) {
+                hideGuardiaPlantAlert();
+                return;
+            }
+
+            const citacionId = activePlantNotification.citacionId;
+            const notificationUrl = activePlantNotification.url;
+            reviewingPlantNotificationId = activePlantNotification.id;
+            hideGuardiaPlantAlert();
+
+            if (citacionId && typeof window.openRevisionAsistenteModal === 'function') {
+                window.openRevisionAsistenteModal(citacionId);
+                return;
+            }
+
+            if (notificationUrl) {
+                window.location.href = notificationUrl;
+            }
+        });
+
+        $(document).on('hidden.bs.modal', '#ModalRevisionAsistente', function() {
+            reviewingPlantNotificationId = null;
+        });
 
         function limpiarNotificaciones() {
             $.ajax({
@@ -268,6 +470,13 @@
                     const newNotifications = currentNotifications.filter(notification => 
                         !previousNotifications.some(prevNotification => prevNotification[0] === notification[0])
                     );
+                    const plantNotification = currentNotifications
+                        .map(parsePlantNotification)
+                        .filter(Boolean)[0];
+
+                    if (plantNotification) {
+                        showGuardiaPlantAlert(plantNotification);
+                    }
 
                     if (newNotifications.length > 0) {
                         showSweetAlert(newNotifications);
@@ -393,21 +602,32 @@
             });
         }
         function showSweetAlert(newNotifications) {
+            const notificationMessages = newNotifications.map(function(notification) {
+                const content = (notification[1] || '').toString();
+                const plantaLine = content.split('\n').find(function(line) {
+                    return line.indexOf('debe ingresar a Planta') !== -1;
+                });
+                return plantaLine || 'Tienes nuevas notificaciones. Debes revisarlas';
+            });
+
+            const message = notificationMessages.length === 1
+                ? notificationMessages[0]
+                : notificationMessages.join('<br>');
             $.notify({
-                    message: '¡Tienes nuevas notificaciones! Debes revisarla'
+                    message: message
                 }, {
                     type: 'inverse',
-                    allow_dismiss: false,
+                    allow_dismiss: true,
                     label: 'Cancel',
                     className: 'btn-xs btn-inverse',
                     placement: {
                         from: 'bottom',
                         align: 'right'
                     },
-                    delay: 2500,
+                    delay: 5000,
                     animate: {
-                        enter: 'animated fadeInRight',
-                        exit: 'animated fadeOutRight'
+                        enter: 'animated fadeInUp',
+                        exit: 'animated fadeOutDown'
                     },
                     offset: {
                         x: 30,

@@ -6,6 +6,7 @@ register = template.Library()
 
 PERFILES_INGRESO_CAMION = {
     'GUARDIA',
+    'GUARDIA PORTERIA',
     'GUA',
     'ASISTENTE DE RECEPCION',
     'ASISTENTE RECEPCION',
@@ -17,6 +18,7 @@ PERFILES_INGRESO_CAMION = {
 PERFILES_GUARDIA = {
     'GUARDIA',
     'GUA',
+    'GUARDIA PORTERIA',
 }
 
 PERFILES_ASISTENTE_RECEPCION = {
@@ -35,9 +37,26 @@ USUARIOS_ASISTENTE_CD = {
     'ASISTENTE CD',
 }
 
+USUARIOS_GUARDIA_PORTERIA = {
+    'GUARDIA PORTERIA',
+}
+
 PERFILES_PLANIFICADOR = {
     'PLANIFICADOR',
     'PLAN',
+}
+
+PERFILES_OPERACION_PLANTA = {
+    'OPERADOR ROMANA',
+    'ASISTENTE C D',
+    'ASISTENTE CD',
+    'ASISTENTE DE RECEPCION',
+    'ASISTENTE RECEPCION',
+    'CALIDAD',
+    'SALA CONTROL',
+    'GUARDIA PORTERIA',
+    'GUARDIA',
+    'GUA',
 }
 
 
@@ -121,7 +140,12 @@ def es_ingreso_camion(user):
     if getattr(user, 'is_superuser', False):
         return False
 
-    if _normalizar_texto(getattr(user, 'username', '')) in USUARIOS_ASISTENTE_CD:
+    username_normalizado = _normalizar_texto(getattr(user, 'username', ''))
+
+    if username_normalizado in USUARIOS_ASISTENTE_CD:
+        return True
+
+    if username_normalizado in USUARIOS_GUARDIA_PORTERIA:
         return True
 
     perfiles_usuario = PERFIL_USUARIO.objects.select_related('PR_NID').filter(
@@ -145,6 +169,11 @@ def es_guardia(user):
     if getattr(user, 'is_superuser', False):
         return False
 
+    username_normalizado = _normalizar_texto(getattr(user, 'username', ''))
+
+    if username_normalizado in PERFILES_GUARDIA or username_normalizado in USUARIOS_GUARDIA_PORTERIA:
+        return True
+
     perfiles_usuario = PERFIL_USUARIO.objects.select_related('PR_NID').filter(
         US_NID=user.id,
         PE_BHABILITADO=True,
@@ -156,6 +185,32 @@ def es_guardia(user):
         codigo = _normalizar_texto(perfil_usuario.PR_NID.PR_CCODIGO)
 
         if nombre in PERFILES_GUARDIA or codigo in PERFILES_GUARDIA:
+            return True
+
+    return False
+
+
+@register.filter(name='es_guardia_porteria')
+def es_guardia_porteria(user):
+    if getattr(user, 'is_superuser', False):
+        return False
+
+    username_normalizado = _normalizar_texto(getattr(user, 'username', ''))
+
+    if username_normalizado in USUARIOS_GUARDIA_PORTERIA:
+        return True
+
+    perfiles_usuario = PERFIL_USUARIO.objects.select_related('PR_NID').filter(
+        US_NID=user.id,
+        PE_BHABILITADO=True,
+        PR_NID__PR_BHABILITADO=True
+    )
+
+    for perfil_usuario in perfiles_usuario:
+        nombre = _normalizar_texto(perfil_usuario.PR_NID.PR_CNOMBRE)
+        codigo = _normalizar_texto(perfil_usuario.PR_NID.PR_CCODIGO)
+
+        if nombre in USUARIOS_GUARDIA_PORTERIA or codigo in USUARIOS_GUARDIA_PORTERIA:
             return True
 
     return False
@@ -255,3 +310,32 @@ def puede_gestionar_planificaciones(user):
         getattr(userv, 'UX_IS_ADMINISTRADOR_SECUENCIA', False),
         getattr(userv, 'UX_IS_OPERADOR', False),
     ])
+
+
+@register.filter(name='es_operacion_planta')
+def es_operacion_planta(user):
+    if getattr(user, 'is_superuser', False):
+        return True
+
+    username_normalizado = _normalizar_texto(getattr(user, 'username', ''))
+    if username_normalizado in PERFILES_OPERACION_PLANTA:
+        return True
+
+    perfiles_usuario = PERFIL_USUARIO.objects.select_related('PR_NID').filter(
+        US_NID=user.id,
+        PE_BHABILITADO=True,
+        PR_NID__PR_BHABILITADO=True
+    )
+
+    for perfil_usuario in perfiles_usuario:
+        nombre = _normalizar_texto(perfil_usuario.PR_NID.PR_CNOMBRE)
+        codigo = _normalizar_texto(perfil_usuario.PR_NID.PR_CCODIGO)
+        if nombre in PERFILES_OPERACION_PLANTA or codigo in PERFILES_OPERACION_PLANTA:
+            return True
+
+    return False
+
+
+@register.filter(name='es_seguimiento_operacional')
+def es_seguimiento_operacional(user):
+    return es_operacion_planta(user)

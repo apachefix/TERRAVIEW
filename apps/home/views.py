@@ -14,7 +14,7 @@ from django.conf import settings
 from django.template.loader import render_to_string
 from django.db.models import Q, Subquery, OuterRef, Count
 from django.core.cache import cache
-from django.db import connection
+from django.db import connection, transaction
 from django.db.models import Min
 
 
@@ -1178,6 +1178,105 @@ def obtener_dato_estanque_operacional(citacion):
     ).select_related('US_NID', 'ET_NID').order_by('-id').first()
 
 
+def normalizar_texto_reserva(valor):
+    return ' '.join(str(valor or '').strip().upper().split())
+
+
+def obtener_reserva_estanque_ocupada(citacion, almacen, estanque, excluir_citacion=True):
+    queryset = ESTANQUE_RESERVA.objects.select_related('CI_NID').filter(
+        EP_NID=citacion.EP_NID,
+        ER_CALMACEN=normalizar_texto_reserva(almacen),
+        ER_CESTANQUE=normalizar_texto_reserva(estanque),
+        ER_CESTADO=ESTANQUE_RESERVA.ESTADO_OCUPADO
+    )
+
+    if excluir_citacion:
+        queryset = queryset.exclude(CI_NID=citacion)
+
+    return queryset.order_by('-ER_FFECHA_ASIGNACION').first()
+
+
+def obtener_reserva_ocupada_citacion(citacion):
+    return ESTANQUE_RESERVA.objects.filter(
+        CI_NID=citacion,
+        ER_CESTADO=ESTANQUE_RESERVA.ESTADO_OCUPADO
+    ).order_by('-ER_FFECHA_ASIGNACION').first()
+
+
+def reservar_estanque_citacion(citacion, almacen, estanque, usuario, patente=None):
+    almacen_normalizado = normalizar_texto_reserva(almacen)
+    estanque_normalizado = normalizar_texto_reserva(estanque)
+    reserva_ocupada = obtener_reserva_estanque_ocupada(
+        citacion,
+        almacen_normalizado,
+        estanque_normalizado,
+        excluir_citacion=True
+    )
+
+    if reserva_ocupada:
+        return None, reserva_ocupada
+
+    reserva_citacion = obtener_reserva_ocupada_citacion(citacion)
+    defaults = {
+        'US_NID': usuario,
+        'EP_NID': citacion.EP_NID,
+        'PL_NID': citacion.PL_NID,
+        'CI_NID': citacion,
+        'ER_CALMACEN': almacen_normalizado,
+        'ER_CESTANQUE': estanque_normalizado,
+        'ER_CPATENTE': patente or '',
+        'ER_CESTADO': ESTANQUE_RESERVA.ESTADO_OCUPADO,
+        'ER_FFECHA_ASIGNACION': timezone.now(),
+        'ER_FFECHA_LIBERACION': None,
+        'US_LIBERA_NID': None,
+        'ER_COBSERVACION': 'Reserva creada por Asistente_C_D',
+    }
+
+    if reserva_citacion:
+        for campo, valor in defaults.items():
+            setattr(reserva_citacion, campo, valor)
+        reserva_citacion.save()
+        return reserva_citacion, None
+
+    return ESTANQUE_RESERVA.objects.create(**defaults), None
+
+
+def construir_opciones_estanque_reserva(citacion, almacen, opciones_estanque, estanque_actual=''):
+    opciones = []
+    almacen_normalizado = normalizar_texto_reserva(almacen)
+    reservas = ESTANQUE_RESERVA.objects.select_related('CI_NID').filter(
+        EP_NID=citacion.EP_NID,
+        ER_CALMACEN=almacen_normalizado,
+        ER_CESTADO=ESTANQUE_RESERVA.ESTADO_OCUPADO,
+        ER_CESTANQUE__in=[normalizar_texto_reserva(estanque) for estanque in opciones_estanque]
+    )
+    reservas_por_estanque = {
+        normalizar_texto_reserva(reserva.ER_CESTANQUE): reserva
+        for reserva in reservas
+    }
+    estanque_actual_normalizado = normalizar_texto_reserva(estanque_actual)
+
+    for estanque in opciones_estanque:
+        estanque_normalizado = normalizar_texto_reserva(estanque)
+        reserva = reservas_por_estanque.get(estanque_normalizado)
+        ocupado_por_otra = bool(reserva and reserva.CI_NID_id != citacion.id)
+        texto = estanque
+        if ocupado_por_otra:
+            texto = f'{estanque} - Ocupado por patente {reserva.ER_CPATENTE or "No registrada"}'
+
+        opciones.append({
+            'valor': estanque,
+            'texto': texto,
+            'disponible': not ocupado_por_otra,
+            'ocupado': ocupado_por_otra,
+            'patente_ocupante': reserva.ER_CPATENTE if ocupado_por_otra else '',
+            'citacion_ocupante': reserva.CI_NID_id if ocupado_por_otra else None,
+            'seleccionado': estanque_normalizado == estanque_actual_normalizado,
+        })
+
+    return opciones
+
+
 def obtener_comentario_json_citacion(citacion):
     if not citacion.CI_CCOMENTARIO:
         return {}
@@ -1486,9 +1585,15 @@ def obtener_secuencias_asignadas_usuario(user):
 def obtener_guardias_relacionados_citacion(citacion):
     guardias = []
     guardias_ids = set()
+    perfiles_guardia_operativa = {'GUARDIA', 'GUA'}
 
     for dato in DATO_OPERACION.objects.filter(CI_NID=citacion, SC_NID=citacion.SC_NID).select_related('US_NID'):
-        if dato.US_NID and usuario_es_guardia(dato.US_NID) and dato.US_NID_id not in guardias_ids:
+        if (
+            dato.US_NID
+            and usuario_es_guardia(dato.US_NID)
+            and not usuario_es_guardia_porteria(dato.US_NID)
+            and dato.US_NID_id not in guardias_ids
+        ):
             guardias.append(dato.US_NID)
             guardias_ids.add(dato.US_NID_id)
 
@@ -1504,12 +1609,51 @@ def obtener_guardias_relacionados_citacion(citacion):
     for perfil_usuario in perfiles:
         nombre = normalizar_nombre_perfil(perfil_usuario.PR_NID.PR_CNOMBRE)
         codigo = normalizar_nombre_perfil(perfil_usuario.PR_NID.PR_CCODIGO)
-        if nombre in PERFILES_GUARDIA or codigo in PERFILES_GUARDIA:
+        if nombre in perfiles_guardia_operativa or codigo in perfiles_guardia_operativa:
             if perfil_usuario.US_NID_id not in guardias_ids:
                 guardias.append(perfil_usuario.US_NID)
                 guardias_ids.add(perfil_usuario.US_NID_id)
 
+    usuarios_fallback = User.objects.filter(
+        username__in=['Guardia', 'GUARDIA'],
+        is_active=True
+    )
+    for usuario in usuarios_fallback:
+        if usuario.id not in guardias_ids:
+            guardias.append(usuario)
+            guardias_ids.add(usuario.id)
+
     return guardias
+
+
+def obtener_usuarios_guardia_porteria():
+    perfiles = PERFIL_USUARIO.objects.select_related('PR_NID', 'US_NID').filter(
+        PE_BHABILITADO=True,
+        PR_NID__PR_BHABILITADO=True,
+        US_NID__is_active=True
+    )
+
+    usuarios = []
+    usuarios_ids = set()
+
+    for perfil_usuario in perfiles:
+        nombre = normalizar_nombre_perfil(perfil_usuario.PR_NID.PR_CNOMBRE)
+        codigo = normalizar_nombre_perfil(perfil_usuario.PR_NID.PR_CCODIGO)
+        if nombre in PERFILES_GUARDIA_PORTERIA or codigo in PERFILES_GUARDIA_PORTERIA:
+            if perfil_usuario.US_NID_id not in usuarios_ids:
+                usuarios.append(perfil_usuario.US_NID)
+                usuarios_ids.add(perfil_usuario.US_NID_id)
+
+    usuarios_fallback = User.objects.filter(
+        username__in=['Guardia_porteria', 'GUARDIA_PORTERIA', 'Guardia Porteria', 'GUARDIA PORTERIA'],
+        is_active=True
+    )
+    for usuario in usuarios_fallback:
+        if usuario.id not in usuarios_ids:
+            usuarios.append(usuario)
+            usuarios_ids.add(usuario.id)
+
+    return usuarios
 
 
 def avanzar_citacion_a_siguiente_etapa(citacion, usuario=None, accion='AVANZA_ETAPA', observacion=''):
@@ -1630,6 +1774,19 @@ def PLANIFICACION_CITACION_REVISION_ASISTENTE(request, pk):
             return '' if valor is None else valor
 
         bl = dato('ING_BL') or obtener_bl_inicial_citacion(citacion) or detalle_operacional.get('bl', '')
+        dato_estanque = obtener_dato_estanque_operacional(citacion)
+        log_envio_estanque = SYSLOGGER.objects.select_related('US_NID').filter(
+            LOG_COPERACION='ENVIA_CD_NEXT',
+            LOG_CADD1=str(citacion.id)
+        ).order_by('-LOG_FFECHAREGISTRO').first()
+        log_guardia_porteria = SYSLOGGER.objects.select_related('US_NID').filter(
+            LOG_COPERACION='ENVIA_GUARDIA_PORTERIA',
+            LOG_CADD1=str(citacion.id)
+        ).order_by('-LOG_FFECHAREGISTRO').first()
+        log_autoriza_planta = SYSLOGGER.objects.select_related('US_NID').filter(
+            LOG_COPERACION='AUTORIZA_INGRESO_PLANTA',
+            LOG_CADD1=str(citacion.id)
+        ).order_by('-LOG_FFECHAREGISTRO').first()
         detalle_actual = DETALLE_SECUENCIA.objects.filter(
             SC_NID=citacion.SC_NID,
             ET_NID=citacion.ETAPA_ACTUAL,
@@ -1647,6 +1804,10 @@ def PLANIFICACION_CITACION_REVISION_ASISTENTE(request, pk):
             'success': True,
             'citacion_id': citacion.id,
             'aprobado_asistente': aprobado_asistente,
+            'guardia_puede_enviar_porteria': usuario_es_guardia(request.user) and not usuario_es_guardia_porteria(request.user) and bool(log_envio_estanque) and not bool(log_guardia_porteria),
+            'guardia_porteria_puede_autorizar': usuario_es_guardia_porteria(request.user) and bool(log_guardia_porteria) and not bool(log_autoriza_planta),
+            'guardia_porteria_enviado': bool(log_guardia_porteria),
+            'guardia_porteria_autorizado': bool(log_autoriza_planta),
             'planificacion': {
                 'Numero planificacion': citacion.PL_NID_id,
                 'Fecha planificacion': citacion.PL_NID.PL_FFECHAINICIO.strftime('%d/%m/%Y %H:%M') if citacion.PL_NID and citacion.PL_NID.PL_FFECHAINICIO else '',
@@ -1681,6 +1842,19 @@ def PLANIFICACION_CITACION_REVISION_ASISTENTE(request, pk):
                 'Telefono conductor': texto_sin_informacion(valores_ingreso.get('celular_conductor')),
                 'Lote-contenedor': dato('ING_LOTE_CONTENEDOR'),
                 'Observacion': dato('ING_OBSERVACION') or valor_detalle('observacion') or citacion.CI_CCOMENTARIO or '',
+            },
+            'asistente_cd': {
+                'Estanque asignado': dato_estanque.DO_CVALOR if dato_estanque else '',
+                'Usuario responsable': log_envio_estanque.US_NID.username if log_envio_estanque and log_envio_estanque.US_NID else (dato_estanque.US_NID.username if dato_estanque and dato_estanque.US_NID else ''),
+                'Fecha/hora envio': log_envio_estanque.LOG_FFECHAREGISTRO.strftime('%d/%m/%Y %H:%M') if log_envio_estanque and log_envio_estanque.LOG_FFECHAREGISTRO else '',
+                'Estado avance': 'Enviado a Guardia' if log_envio_estanque else 'Pendiente envio a Guardia',
+            },
+            'guardia_porteria': {
+                'Estado avance': 'Ingreso a planta autorizado' if log_autoriza_planta else ('Pendiente autorizacion ingreso a planta' if log_guardia_porteria else 'Pendiente envio a Guardia_Porteria'),
+                'Usuario Guardia': log_guardia_porteria.US_NID.username if log_guardia_porteria and log_guardia_porteria.US_NID else '',
+                'Fecha/hora envio': log_guardia_porteria.LOG_FFECHAREGISTRO.strftime('%d/%m/%Y %H:%M') if log_guardia_porteria and log_guardia_porteria.LOG_FFECHAREGISTRO else '',
+                'Usuario Guardia_Porteria': log_autoriza_planta.US_NID.username if log_autoriza_planta and log_autoriza_planta.US_NID else '',
+                'Fecha/hora autorizacion': log_autoriza_planta.LOG_FFECHAREGISTRO.strftime('%d/%m/%Y %H:%M') if log_autoriza_planta and log_autoriza_planta.LOG_FFECHAREGISTRO else '',
             },
             'campos_validacion': {
                 'bl': bl,
@@ -1892,6 +2066,144 @@ def DEVOLVER_CAMION_GUARDIA(request, pk):
         return JsonResponse({'success': False, 'message': str(e)}, status=500)
 
 
+def ENVIAR_GUARDIA_PORTERIA(request, pk):
+    if request.method != 'POST':
+        return JsonResponse({'success': False, 'message': 'Metodo no permitido.'}, status=405)
+
+    if not usuario_es_guardia(request.user):
+        return JsonResponse({'success': False, 'message': 'Solo Guardia puede operar esta revision.'}, status=403)
+
+    Empresa = Verificar_empresa(request)
+    if Empresa is None:
+        return JsonResponse({'success': False, 'message': 'Debe seleccionar una empresa.'}, status=400)
+
+    try:
+        citacion = CITACION.objects.select_related('EP_NID', 'SC_NID', 'PL_NID', 'SN_NID').get(
+            pk=pk,
+            EP_NID_id=Empresa,
+            CI_BHABILITADO=True
+        )
+
+        valores_ingreso = obtener_valores_ingreso_camion(citacion)
+        patente = texto_sin_informacion(valores_ingreso.get('patente'))
+
+        if usuario_es_guardia_porteria(request.user):
+            if not SYSLOGGER.objects.filter(LOG_COPERACION='ENVIA_GUARDIA_PORTERIA', LOG_CADD1=str(citacion.id)).exists():
+                return JsonResponse({'success': False, 'message': 'La citacion aun no fue enviada a Guardia_Porteria.'}, status=400)
+
+            if SYSLOGGER.objects.filter(LOG_COPERACION='AUTORIZA_INGRESO_PLANTA', LOG_CADD1=str(citacion.id)).exists():
+                return JsonResponse({'success': False, 'message': 'El ingreso a planta ya fue autorizado.'}, status=409)
+
+            fecha_autorizacion = timezone.localtime(timezone.now()).strftime('%d/%m/%Y %H:%M:%S')
+
+            NOTIFICACION.objects.filter(
+                USER_RECEIVER_ID=request.user,
+                NOT_BREAD=False,
+                NOT_BHABILITADO=True,
+                NOT_CCONTENIDO__icontains='autorizado ingreso a planta',
+                NOT_CURL__endswith=f'citacion={citacion.id}'
+            ).update(
+                NOT_BREAD=True,
+                NOT_FFECHALEIDO=timezone.now()
+            )
+
+            registrar_log_camion_no_planificado(
+                request.user,
+                citacion.EP_NID,
+                'AUTORIZA_INGRESO_PLANTA',
+                (
+                    f'Guardia_Porteria autoriza ingreso a planta de citacion #{citacion.id}.\n'
+                    f'Patente: {patente}\n'
+                    f'Usuario Guardia_Porteria: {request.user.username}\n'
+                    f'Fecha/hora autorizacion: {fecha_autorizacion}'
+                ),
+                citacion.id,
+                patente
+            )
+
+            OPERACION_PLANTA_LOG.objects.create(
+                US_NID=request.user,
+                EP_NID=citacion.EP_NID,
+                PL_NID=citacion.PL_NID,
+                CI_NID=citacion,
+                OPL_CPASO='Habilitar Operacion Planta',
+                OPL_CPERFIL_RESPONSABLE='GUARDIA PORTERIA',
+                OPL_CESTADO=OPERACION_PLANTA_LOG.ESTADO_COMPLETADO,
+                OPL_COBSERVACION=f'Patente {patente} autorizada para operacion en planta'
+            )
+
+            return JsonResponse({
+                'success': True,
+                'message': 'Ingreso a planta autorizado.'
+            })
+
+        if SYSLOGGER.objects.filter(LOG_COPERACION='ENVIA_GUARDIA_PORTERIA', LOG_CADD1=str(citacion.id)).exists():
+            return JsonResponse({'success': False, 'message': 'Esta citacion ya fue enviada a Guardia_Porteria.'}, status=409)
+
+        if not SYSLOGGER.objects.filter(LOG_COPERACION='ENVIA_CD_NEXT', LOG_CADD1=str(citacion.id)).exists():
+            return JsonResponse({'success': False, 'message': 'La citacion aun no fue enviada por Asistente_C_D.'}, status=400)
+
+        fecha_envio = timezone.localtime(timezone.now()).strftime('%d/%m/%Y %H:%M:%S')
+
+        etapa_origen, etapa_destino = avanzar_citacion_a_siguiente_etapa(
+            citacion,
+            usuario=request.user,
+            accion='ENVIA_GUARDIA_PORTERIA',
+            observacion=f'Guardia envia a Guardia_Porteria para autorizacion final. Patente: {patente}'
+        )
+
+        NOTIFICACION.objects.filter(
+            USER_RECEIVER_ID=request.user,
+            NOT_BREAD=False,
+            NOT_BHABILITADO=True,
+            NOT_CCONTENIDO__icontains='debe ingresar a Planta',
+            NOT_CURL__endswith=f'citacion={citacion.id}'
+        ).update(
+            NOT_BREAD=True,
+            NOT_FFECHALEIDO=timezone.now()
+        )
+
+        mensaje_porteria = f'Patente: {patente} autorizado ingreso a planta'
+        guardias_porteria = obtener_usuarios_guardia_porteria()
+        for guardia_porteria in guardias_porteria:
+            NOTIFICACION.objects.create(
+                USER_SENDER_ID=request.user,
+                USER_RECEIVER_ID=guardia_porteria,
+                EP_NID=citacion.EP_NID,
+                NOT_CCONTENIDO=mensaje_porteria,
+                NOT_CURL=f'/pla_listone/{citacion.PL_NID_id}?citacion={citacion.id}'
+            )
+
+        registrar_log_camion_no_planificado(
+            request.user,
+            citacion.EP_NID,
+            'ENVIA_GUARDIA_PORTERIA',
+            (
+                f'Guardia envia citacion #{citacion.id} a Guardia_Porteria.\n'
+                f'Patente: {patente}\n'
+                f'Usuario Guardia: {request.user.username}\n'
+                f'Fecha/hora envio: {fecha_envio}\n'
+                f'Etapa origen: {etapa_origen.ET_CCODIGO if etapa_origen else ""}\n'
+                f'Etapa destino: {etapa_destino.ET_CCODIGO if etapa_destino else "FIN"}\n'
+                f'Guardias porteria notificados: {len(guardias_porteria)}'
+            ),
+            citacion.id,
+            patente
+        )
+
+        return JsonResponse({
+            'success': True,
+            'message': 'Citacion enviada a Guardia_Porteria.',
+            'notificados_guardia_porteria': len(guardias_porteria)
+        })
+
+    except CITACION.DoesNotExist:
+        return JsonResponse({'success': False, 'message': 'Citacion no encontrada.'}, status=404)
+    except Exception as e:
+        print('ERROR ENVIAR_GUARDIA_PORTERIA:', e)
+        return JsonResponse({'success': False, 'message': str(e)}, status=500)
+
+
 def PLANIFICACION_CITACION_ESTANQUE(request, pk):
     if request.method not in ['GET', 'POST']:
         return JsonResponse({'success': False, 'message': 'Metodo no permitido.'}, status=405)
@@ -1924,6 +2236,8 @@ def PLANIFICACION_CITACION_ESTANQUE(request, pk):
         almacen = obtener_almacen_planificacion(citacion)
         opciones_estanque = ESTANQUES_POR_ALMACEN.get(almacen, [])
         dato_estanque = obtener_dato_estanque_operacional(citacion)
+        valores_ingreso = obtener_valores_ingreso_camion(citacion)
+        patente = texto_sin_informacion(valores_ingreso.get('patente'))
 
         if request.method == 'POST':
             if enviado_siguiente:
@@ -1939,35 +2253,60 @@ def PLANIFICACION_CITACION_ESTANQUE(request, pk):
             if estanque not in opciones_estanque:
                 return JsonResponse({'success': False, 'message': 'El estanque seleccionado no corresponde al almacen definido.'}, status=400)
 
-            campo_estanque = obtener_campo_estanque_operacional(citacion, request.user)
-            DATO_OPERACION.objects.update_or_create(
-                CI_NID=citacion,
-                SC_NID=citacion.SC_NID,
-                ET_NID=citacion.ETAPA_ACTUAL,
-                CAMP_NID=campo_estanque,
-                defaults={
-                    'EP_NID': citacion.EP_NID,
-                    'US_NID': request.user,
-                    'DO_CVALOR': estanque,
-                    'DO_FFECHAREGISTRO': datetime.now(),
-                }
-            )
+            with transaction.atomic():
+                reserva, reserva_ocupada = reservar_estanque_citacion(
+                    citacion,
+                    almacen,
+                    estanque,
+                    request.user,
+                    patente=patente
+                )
+                if reserva_ocupada:
+                    return JsonResponse({
+                        'success': False,
+                        'message': 'El estanque seleccionado ya está ocupado por otra citación activa.',
+                        'ocupado_por_patente': reserva_ocupada.ER_CPATENTE,
+                        'ocupado_por_citacion': reserva_ocupada.CI_NID_id,
+                    }, status=409)
+
+                campo_estanque = obtener_campo_estanque_operacional(citacion, request.user)
+                DATO_OPERACION.objects.update_or_create(
+                    CI_NID=citacion,
+                    SC_NID=citacion.SC_NID,
+                    ET_NID=citacion.ETAPA_ACTUAL,
+                    CAMP_NID=campo_estanque,
+                    defaults={
+                        'EP_NID': citacion.EP_NID,
+                        'US_NID': request.user,
+                        'DO_CVALOR': estanque,
+                        'DO_FFECHAREGISTRO': datetime.now(),
+                    }
+                )
 
             registrar_log_camion_no_planificado(
                 request.user,
                 citacion.EP_NID,
                 'ESTANQUE_CD',
-                f'Asistente_C_D guarda estanque {estanque} para citacion #{citacion.id}',
+                (
+                    f'Asistente_C_D reserva estanque {estanque} para citacion #{citacion.id}.\n'
+                    f'Patente: {patente}\n'
+                    f'Almacen: {almacen}\n'
+                    f'Estado reserva: {ESTANQUE_RESERVA.ESTADO_OCUPADO}'
+                ),
                 citacion.id,
                 estanque
             )
 
-            return JsonResponse({'success': True, 'message': 'Estanque guardado correctamente.', 'estanque': estanque})
+            return JsonResponse({
+                'success': True,
+                'message': 'Estanque guardado y reservado correctamente.',
+                'estanque': estanque,
+                'reserva_estado': ESTANQUE_RESERVA.ESTADO_OCUPADO
+            })
 
         citacion_item = CITACION_ITEM.objects.filter(CI_NID=citacion).select_related('IT_NID').first()
         detalle_operacional = detalle_operacional_dict(citacion)
         datos_operacion, documentos = obtener_datos_operacion_citacion(citacion)
-        valores_ingreso = obtener_valores_ingreso_camion(citacion)
         log_aprobacion = SYSLOGGER.objects.select_related('US_NID').filter(
             LOG_COPERACION='APRUEBA_AR',
             LOG_CADD1=str(citacion.id)
@@ -1978,12 +2317,26 @@ def PLANIFICACION_CITACION_ESTANQUE(request, pk):
             return registro.DO_CVALOR if registro else ''
 
         bl = dato('ING_BL') or obtener_bl_inicial_citacion(citacion) or detalle_operacional.get('bl', '')
+        reserva_actual = obtener_reserva_ocupada_citacion(citacion)
+        estanque_actual = dato_estanque.DO_CVALOR if dato_estanque else (reserva_actual.ER_CESTANQUE if reserva_actual else '')
+        opciones_estanque_reserva = construir_opciones_estanque_reserva(
+            citacion,
+            almacen,
+            opciones_estanque,
+            estanque_actual
+        )
+        estanque_actual_disponible = True
+        for opcion_estanque in opciones_estanque_reserva:
+            if opcion_estanque['seleccionado']:
+                estanque_actual_disponible = opcion_estanque['disponible']
+                break
         payload = {
             'success': True,
             'citacion_id': citacion.id,
             'almacen': almacen,
-            'opciones_estanque': opciones_estanque,
-            'estanque_actual': dato_estanque.DO_CVALOR if dato_estanque else '',
+            'opciones_estanque': opciones_estanque_reserva,
+            'estanque_actual': estanque_actual,
+            'estanque_actual_disponible': estanque_actual_disponible,
             'enviado_siguiente': enviado_siguiente,
             'puede_editar': not enviado_siguiente and bool(almacen),
             'mensaje_bloqueo': '' if almacen else 'No existe almacen definido en planificacion',
@@ -2071,23 +2424,95 @@ def AVANZAR_ESTANQUE_SIGUIENTE_ETAPA(request, pk):
         if not dato_estanque or not str(dato_estanque.DO_CVALOR or '').strip():
             return JsonResponse({'success': False, 'message': 'Debe guardar un estanque antes de enviar.'}, status=400)
 
+        datos_operacion, _ = obtener_datos_operacion_citacion(citacion)
+        valores_ingreso = obtener_valores_ingreso_camion(citacion)
+
+        def valor_operacion(codigo):
+            dato = datos_operacion.get(codigo)
+            return dato.DO_CVALOR if dato else ''
+
+        patente = texto_sin_informacion(valores_ingreso.get('patente'))
+        almacen = obtener_almacen_planificacion(citacion)
+        estanque_asignado = str(dato_estanque.DO_CVALOR or '').strip()
+        opciones_estanque = ESTANQUES_POR_ALMACEN.get(almacen, [])
+        if not almacen:
+            return JsonResponse({'success': False, 'message': 'No existe almacen definido en planificacion.'}, status=400)
+
+        if estanque_asignado not in opciones_estanque:
+            return JsonResponse({'success': False, 'message': 'El estanque asignado no corresponde al almacen definido.'}, status=400)
+
+        with transaction.atomic():
+            reserva, reserva_ocupada = reservar_estanque_citacion(
+                citacion,
+                almacen,
+                estanque_asignado,
+                request.user,
+                patente=patente
+            )
+            if reserva_ocupada:
+                return JsonResponse({
+                    'success': False,
+                    'message': 'El estanque seleccionado ya está ocupado por otra citación activa.',
+                    'ocupado_por_patente': reserva_ocupada.ER_CPATENTE,
+                    'ocupado_por_citacion': reserva_ocupada.CI_NID_id,
+                }, status=409)
+
+        detalle_operacional = detalle_operacional_dict(citacion)
+        fecha_envio = timezone.localtime(timezone.now()).strftime('%d/%m/%Y %H:%M:%S')
+
         etapa_origen, etapa_destino = avanzar_citacion_a_siguiente_etapa(
             citacion,
             usuario=request.user,
             accion='ENVIA_CD_NEXT',
-            observacion=f'Estanque asignado: {dato_estanque.DO_CVALOR}'
+            observacion=f'Estanque asignado: {estanque_asignado}'
+        )
+
+        mensaje_guardia = f'Patente: {patente} debe ingresar a Planta'
+        guardias = obtener_guardias_relacionados_citacion(citacion)
+        for guardia in guardias:
+            NOTIFICACION.objects.create(
+                USER_SENDER_ID=request.user,
+                USER_RECEIVER_ID=guardia,
+                EP_NID=citacion.EP_NID,
+                NOT_CCONTENIDO=mensaje_guardia,
+                NOT_CURL=f'/pla_listone/{citacion.PL_NID_id}?citacion={citacion.id}'
+            )
+
+        detalle_envio = (
+            f'Asistente_C_D envia citacion #{citacion.id} desde {etapa_origen.ET_CCODIGO} '
+            f'a {etapa_destino.ET_CCODIGO if etapa_destino else "FIN"}.\n'
+            f'Patente: {patente}\n'
+            f'Cliente: {citacion.SN_NID.SN_CRAZONSOCIAL if citacion.SN_NID else ""}\n'
+            f'Insumo: {detalle_operacional.get("insumo", "")}\n'
+            f'Numero guia/documento: {valor_operacion("CI_CNUMERODOCUMENTO") or citacion.CI_CNUMERODOCUMENTO or ""}\n'
+            f'BL: {valor_operacion("ING_BL") or detalle_operacional.get("bl", "")}\n'
+            f'Lote/contenedor: {valor_operacion("ING_LOTE_CONTENEDOR")}\n'
+            f'Almacen: {almacen or "No registrado"}\n'
+            f'Estanque: {estanque_asignado}\n'
+            f'Estado reserva estanque: {ESTANQUE_RESERVA.ESTADO_OCUPADO}\n'
+            f'Observacion: {valor_operacion("ING_OBSERVACION") or detalle_operacional.get("observacion", "") or ""}\n'
+            f'Usuario responsable: {request.user.username}\n'
+            f'Fecha/hora envio: {fecha_envio}\n'
+            f'Estado avance: Enviado a Guardia\n'
+            f'Guardias notificados: {len(guardias)}'
         )
 
         registrar_log_camion_no_planificado(
             request.user,
             citacion.EP_NID,
             'ENVIA_CD_NEXT',
-            f'Asistente_C_D envia citacion #{citacion.id} desde {etapa_origen.ET_CCODIGO} a {etapa_destino.ET_CCODIGO if etapa_destino else "FIN"} con estanque {dato_estanque.DO_CVALOR}',
+            detalle_envio,
             citacion.id,
-            dato_estanque.DO_CVALOR
+            estanque_asignado
         )
 
-        return JsonResponse({'success': True, 'message': 'Citacion enviada a la siguiente etapa.', 'estanque': dato_estanque.DO_CVALOR})
+        return JsonResponse({
+            'success': True,
+            'message': 'Citacion enviada a Guardia.',
+            'estanque': estanque_asignado,
+            'reserva_estado': ESTANQUE_RESERVA.ESTADO_OCUPADO,
+            'notificados_guardia': len(guardias)
+        })
 
     except CITACION.DoesNotExist:
         return JsonResponse({'success': False, 'message': 'Citacion no encontrada.'}, status=404)
@@ -2128,6 +2553,7 @@ def obtener_clientes_aceite(empresa_id):
 
 PERFILES_INGRESO_CAMION = {
     'GUARDIA',
+    'GUARDIA PORTERIA',
     'GUA',
     'ASISTENTE DE RECEPCION',
     'ASISTENTE RECEPCION',
@@ -2139,6 +2565,11 @@ PERFILES_INGRESO_CAMION = {
 PERFILES_GUARDIA = {
     'GUARDIA',
     'GUA',
+    'GUARDIA PORTERIA',
+}
+
+PERFILES_GUARDIA_PORTERIA = {
+    'GUARDIA PORTERIA',
 }
 
 PERFILES_ASISTENTE_RECEPCION = {
@@ -2157,10 +2588,96 @@ USUARIOS_ASISTENTE_CD = {
     'ASISTENTE CD',
 }
 
+USUARIOS_GUARDIA_PORTERIA = {
+    'GUARDIA PORTERIA',
+}
+
 
 PERFILES_PLANIFICADOR = {
     'PLANIFICADOR',
     'PLAN',
+}
+
+PERFILES_OPERACION_PLANTA = {
+    'OPERADOR ROMANA',
+    'ASISTENTE C D',
+    'ASISTENTE CD',
+    'ASISTENTE DE RECEPCION',
+    'ASISTENTE RECEPCION',
+    'CALIDAD',
+    'SALA CONTROL',
+    'GUARDIA PORTERIA',
+    'GUARDIA',
+    'GUA',
+}
+
+FLUJOS_OPERACION_PLANTA = {
+    'RECEPCION BODEGA EXTERNA': [
+        ('Pesaje Entrada', ['OPERADOR ROMANA']),
+        ('Toma de muestra', ['ASISTENTE C D']),
+        ('Analisis y calidad', ['CALIDAD']),
+        ('Resultado Calidad', ['ASISTENTE C D']),
+        ('Ciclo Descarga', ['GUARDIA PORTERIA']),
+        ('Pesaje Salida', ['OPERADOR ROMANA']),
+        ('Autorizar Salida', ['ASISTENTE DE RECEPCION']),
+        ('Confirmar Salida', ['GUARDIA PORTERIA']),
+    ],
+    'RECEPCION CONTENEDOR A PISO': [
+        ('Pesaje Entrada', ['OPERADOR ROMANA']),
+        ('Ciclo Descarga', ['ASISTENTE C D']),
+        ('Pesaje Salida', ['OPERADOR ROMANA']),
+        ('Autorizar Salida', ['ASISTENTE DE RECEPCION']),
+        ('Confirmar Salida', ['GUARDIA PORTERIA']),
+    ],
+    'RECEPCION CONTENEDOR DE PISO A ESTANQUE': [
+        ('Pesaje Entrada', ['OPERADOR ROMANA']),
+        ('Toma de muestra', ['ASISTENTE C D']),
+        ('Analisis y calidad', ['CALIDAD']),
+        ('Resultado Calidad', ['ASISTENTE C D']),
+        ('Ciclo Descarga', ['ASISTENTE C D']),
+        ('Pesaje Salida', ['OPERADOR ROMANA']),
+        ('Autorizar Salida', ['ASISTENTE DE RECEPCION']),
+        ('Confirmar Salida', ['GUARDIA PORTERIA']),
+    ],
+    'RECEPCION ESTANQUES SBH ALMACENAJE': [
+        ('Pesaje Entrada', ['OPERADOR ROMANA']),
+        ('Toma de muestra', ['ASISTENTE C D']),
+        ('Analisis y calidad', ['CALIDAD']),
+        ('Resultado Calidad', ['ASISTENTE C D']),
+        ('Ciclo Descarga', ['ASISTENTE C D']),
+        ('Pesaje Salida', ['OPERADOR ROMANA']),
+        ('Autorizar Salida', ['ASISTENTE DE RECEPCION']),
+        ('Confirmar Salida', ['GUARDIA PORTERIA']),
+    ],
+    'RETIRO CONTENEDOR CISTERNA VACIO': [
+        ('Ciclo Descarga', ['GUARDIA', 'ASISTENTE C D']),
+        ('Pesaje Salida', ['OPERADOR ROMANA']),
+        ('Autorizar Salida', ['ASISTENTE DE RECEPCION']),
+        ('Confirmar Salida', ['GUARDIA PORTERIA']),
+    ],
+}
+
+MAPEO_ETAPA_TECNICA_BOTON_OPERACIONAL = {
+    'ABRE CICLO ROMANA': 'Pesaje Entrada',
+    'VERIFICACION INGRESO PLANTA': 'Pesaje Entrada',
+    'VERIFICACION INGRESO': 'Pesaje Entrada',
+    'PESAJE ROMANA': 'Pesaje Entrada',
+    'PESAJE ENTRADA': 'Pesaje Entrada',
+    'ESPERA TOMA DE MUESTRA': 'Toma de muestra',
+    'TOMA DE MUESTRA': 'Toma de muestra',
+    'ANALISIS Y CALIDAD': 'Analisis y calidad',
+    'ANALISIS CALIDAD': 'Analisis y calidad',
+    'RESULTADO CALIDAD': 'Resultado Calidad',
+    'ENVIO DESCARGA ESTANQUE EXTERNO': 'Ciclo Descarga',
+    'DESCARGA ESTANQUES EXTERNO': 'Ciclo Descarga',
+    'DESCARGA ESTANQUE EXTERNO': 'Ciclo Descarga',
+    'DESCARGA': 'Ciclo Descarga',
+    'CICLO DESCARGA': 'Ciclo Descarga',
+    'CIERRA CICLO ROMANA': 'Pesaje Salida',
+    'PESAJE SALIDA': 'Pesaje Salida',
+    'AUTORIZACION SALIDA': 'Autorizar Salida',
+    'AUTORIZAR SALIDA': 'Autorizar Salida',
+    'CONFIRMAR SALIDA': 'Confirmar Salida',
 }
 
 
@@ -2175,7 +2692,12 @@ def usuario_es_ingreso_camion(user):
     if getattr(user, 'is_superuser', False):
         return False
 
-    if normalizar_nombre_perfil(getattr(user, 'username', '')) in USUARIOS_ASISTENTE_CD:
+    username_normalizado = normalizar_nombre_perfil(getattr(user, 'username', ''))
+
+    if username_normalizado in USUARIOS_ASISTENTE_CD:
+        return True
+
+    if username_normalizado in USUARIOS_GUARDIA_PORTERIA:
         return True
 
     perfiles_usuario = PERFIL_USUARIO.objects.select_related('PR_NID').filter(
@@ -2198,6 +2720,11 @@ def usuario_es_guardia(user):
     if getattr(user, 'is_superuser', False):
         return False
 
+    username_normalizado = normalizar_nombre_perfil(getattr(user, 'username', ''))
+
+    if username_normalizado in PERFILES_GUARDIA or username_normalizado in USUARIOS_GUARDIA_PORTERIA:
+        return True
+
     perfiles_usuario = PERFIL_USUARIO.objects.select_related('PR_NID').filter(
         US_NID=user.id,
         PE_BHABILITADO=True,
@@ -2212,6 +2739,26 @@ def usuario_es_guardia(user):
             return True
 
     return False
+
+
+def usuario_es_guardia_porteria(user):
+    if getattr(user, 'is_superuser', False):
+        return False
+
+    perfiles_usuario = PERFIL_USUARIO.objects.select_related('PR_NID').filter(
+        US_NID=user.id,
+        PE_BHABILITADO=True,
+        PR_NID__PR_BHABILITADO=True
+    )
+
+    for perfil_usuario in perfiles_usuario:
+        nombre = normalizar_nombre_perfil(perfil_usuario.PR_NID.PR_CNOMBRE)
+        codigo = normalizar_nombre_perfil(perfil_usuario.PR_NID.PR_CCODIGO)
+
+        if nombre in PERFILES_GUARDIA_PORTERIA or codigo in PERFILES_GUARDIA_PORTERIA:
+            return True
+
+    return normalizar_nombre_perfil(getattr(user, 'username', '')) in PERFILES_GUARDIA_PORTERIA
 
 
 def usuario_es_asistente_recepcion(user):
@@ -2280,6 +2827,133 @@ def usuario_es_planificador(user):
             return True
 
     return False
+
+
+def perfiles_normalizados_usuario(user):
+    perfiles = set()
+    username = normalizar_nombre_perfil(getattr(user, 'username', ''))
+    if username:
+        perfiles.add(username)
+
+    for perfil_usuario in PERFIL_USUARIO.objects.select_related('PR_NID').filter(
+        US_NID=user.id,
+        PE_BHABILITADO=True,
+        PR_NID__PR_BHABILITADO=True
+    ):
+        perfiles.add(normalizar_nombre_perfil(perfil_usuario.PR_NID.PR_CNOMBRE))
+        perfiles.add(normalizar_nombre_perfil(perfil_usuario.PR_NID.PR_CCODIGO))
+
+    if usuario_es_asistente_cd(user):
+        perfiles.update({'ASISTENTE C D', 'ASISTENTE CD'})
+    if usuario_es_asistente_recepcion(user):
+        perfiles.update({'ASISTENTE DE RECEPCION', 'ASISTENTE RECEPCION'})
+    if usuario_es_guardia_porteria(user):
+        perfiles.add('GUARDIA PORTERIA')
+    elif usuario_es_guardia(user):
+        perfiles.update({'GUARDIA', 'GUA'})
+
+    return perfiles
+
+
+def usuario_es_operacion_planta(user):
+    if getattr(user, 'is_superuser', False):
+        return True
+    return bool(perfiles_normalizados_usuario(user) & PERFILES_OPERACION_PLANTA)
+
+
+def usuario_puede_paso_operacion(user, responsables):
+    if getattr(user, 'is_superuser', False):
+        return True
+    responsables_normalizados = {normalizar_nombre_perfil(responsable) for responsable in responsables}
+    return bool(perfiles_normalizados_usuario(user) & responsables_normalizados)
+
+
+def citacion_habilitada_operacion(citacion):
+    return SYSLOGGER.objects.filter(
+        LOG_COPERACION='AUTORIZA_INGRESO_PLANTA',
+        LOG_CADD1=str(citacion.id)
+    ).exists()
+
+
+def normalizar_nombre_flujo_operacion(valor):
+    texto = normalizar_nombre_perfil(valor)
+    return ' '.join(texto.replace('(', ' ').replace(')', ' ').split())
+
+
+def normalizar_etapa_tecnica_operacion(valor):
+    texto = normalizar_nombre_perfil(valor)
+    return ' '.join(
+        texto.replace('(', ' ')
+        .replace(')', ' ')
+        .replace('_', ' ')
+        .replace('-', ' ')
+        .split()
+    )
+
+
+def obtener_boton_operacional_desde_etapa_tecnica(citacion):
+    etapa = citacion.ETAPA_ACTUAL
+    if not etapa:
+        return None
+
+    candidatos = [
+        normalizar_etapa_tecnica_operacion(etapa.ET_CNOMBRE),
+        normalizar_etapa_tecnica_operacion(etapa.ET_CCODIGO),
+    ]
+
+    for candidato in candidatos:
+        if candidato in MAPEO_ETAPA_TECNICA_BOTON_OPERACIONAL:
+            return MAPEO_ETAPA_TECNICA_BOTON_OPERACIONAL[candidato]
+
+    for candidato in candidatos:
+        for etapa_tecnica, boton_visible in MAPEO_ETAPA_TECNICA_BOTON_OPERACIONAL.items():
+            if etapa_tecnica in candidato:
+                return boton_visible
+
+    return None
+
+
+def obtener_pasos_operacion_citacion(citacion):
+    secuencia_nombre = normalizar_nombre_flujo_operacion(citacion.SC_NID.SE_CNOMBRE if citacion.SC_NID else '')
+    secuencia_codigo = normalizar_nombre_flujo_operacion(citacion.SC_NID.SE_CCODIGO if citacion.SC_NID else '')
+
+    for nombre_flujo, pasos in FLUJOS_OPERACION_PLANTA.items():
+        flujo_normalizado = normalizar_nombre_flujo_operacion(nombre_flujo)
+        if flujo_normalizado in secuencia_nombre or flujo_normalizado in secuencia_codigo:
+            return nombre_flujo, pasos
+
+    flujo_default = 'RECEPCION BODEGA EXTERNA' if citacion.CI_CTIPO == CIT_RECEPCION else 'RETIRO CONTENEDOR CISTERNA VACIO'
+    return flujo_default, FLUJOS_OPERACION_PLANTA[flujo_default]
+
+
+def resolver_estado_operacional_visible(citacion, pasos_config, pasos_completados=None):
+    pasos_completados = pasos_completados or set()
+    nombres_pasos = [paso for paso, _ in pasos_config]
+    boton_desde_etapa_tecnica = obtener_boton_operacional_desde_etapa_tecnica(citacion)
+
+    if boton_desde_etapa_tecnica in nombres_pasos and 'Confirmar Salida' not in pasos_completados:
+        return boton_desde_etapa_tecnica
+
+    return next((paso for paso in nombres_pasos if paso not in pasos_completados), nombres_pasos[-1] if nombres_pasos else 'Sin flujo')
+
+
+def construir_estado_pasos_operacion(nombres_pasos, paso_actual, pasos_completados):
+    pasos = []
+    paso_actual_index = nombres_pasos.index(paso_actual) if paso_actual in nombres_pasos else -1
+
+    for index, paso in enumerate(nombres_pasos):
+        if paso == paso_actual:
+            estado = 'active'
+        elif paso in pasos_completados or (paso_actual_index >= 0 and index < paso_actual_index):
+            estado = 'completed'
+        else:
+            estado = 'pending'
+        pasos.append({
+            'nombre': paso,
+            'estado': estado,
+        })
+
+    return pasos
 
 
 CAMPOS_INGRESO_CAMION_DEFAULT = [
@@ -6166,6 +6840,20 @@ def PLANIFICACION_LISTONE(request, pk):
             estanque_enviado = bool(log_envio_estanque) or detalle_secuencia.SE_NPASO > 3 or row.CI_CESTADO == CIT_TERMINADO
             estanque_enviado_usuario = log_envio_estanque.US_NID.username if log_envio_estanque and log_envio_estanque.US_NID else ''
             estanque_enviado_fecha = log_envio_estanque.LOG_FFECHAREGISTRO if log_envio_estanque else None
+            log_guardia_porteria = SYSLOGGER.objects.select_related('US_NID').filter(
+                LOG_COPERACION='ENVIA_GUARDIA_PORTERIA',
+                LOG_CADD1=str(row.pk)
+            ).order_by('-LOG_FFECHAREGISTRO').first()
+            guardia_porteria_enviado = bool(log_guardia_porteria)
+            guardia_porteria_usuario = log_guardia_porteria.US_NID.username if log_guardia_porteria and log_guardia_porteria.US_NID else ''
+            guardia_porteria_fecha = log_guardia_porteria.LOG_FFECHAREGISTRO if log_guardia_porteria else None
+            log_autoriza_planta = SYSLOGGER.objects.select_related('US_NID').filter(
+                LOG_COPERACION='AUTORIZA_INGRESO_PLANTA',
+                LOG_CADD1=str(row.pk)
+            ).order_by('-LOG_FFECHAREGISTRO').first()
+            planta_autorizada = bool(log_autoriza_planta)
+            planta_autorizada_usuario = log_autoriza_planta.US_NID.username if log_autoriza_planta and log_autoriza_planta.US_NID else ''
+            planta_autorizada_fecha = log_autoriza_planta.LOG_FFECHAREGISTRO if log_autoriza_planta else None
 
             responsables_str = detalle_secuencia.USERS_RESPONSABLE_ID
 
@@ -6219,7 +6907,13 @@ def PLANIFICACION_LISTONE(request, pk):
                     estanque_enviado,
                     estanque_enviado_usuario,
                     estanque_enviado_fecha,
-                    tipo_eje_operacional
+                    tipo_eje_operacional,
+                    guardia_porteria_enviado,
+                    guardia_porteria_usuario,
+                    guardia_porteria_fecha,
+                    planta_autorizada,
+                    planta_autorizada_usuario,
+                    planta_autorizada_fecha
                 ])
 
             elif row.CI_CTIPO == CIT_RECEPCION:
@@ -6251,7 +6945,13 @@ def PLANIFICACION_LISTONE(request, pk):
                     estanque_enviado,
                     estanque_enviado_usuario,
                     estanque_enviado_fecha,
-                    tipo_eje_operacional
+                    tipo_eje_operacional,
+                    guardia_porteria_enviado,
+                    guardia_porteria_usuario,
+                    guardia_porteria_fecha,
+                    planta_autorizada,
+                    planta_autorizada_usuario,
+                    planta_autorizada_fecha
                 ])
 
         ctx = {
@@ -7494,9 +8194,10 @@ def download_excel_plantilla_extra_planificacion(request):
 
 def CITACION_LISTALL_DESPACHOS(request):
     try:
+        acceso_operacion = usuario_es_operacion_planta(request.user)
         if request.user.is_superuser == False:                     
             usuario = request.user.id
-            if not validar_perfiles_activos(usuario, "cit_listall"):
+            if not validar_perfiles_activos(usuario, "cit_listall") and not acceso_operacion:
                 messages.error(request, 'No tiene permisos para acceder a esta sección')
                 return redirect('/')
         else:
@@ -7546,6 +8247,12 @@ def CITACION_LISTALL_DESPACHOS(request):
             )
         )
 
+        if acceso_operacion and not request.user.is_superuser:
+            citaciones_operacion = SYSLOGGER.objects.filter(
+                LOG_COPERACION='AUTORIZA_INGRESO_PLANTA'
+            ).values_list('LOG_CADD1', flat=True)
+            queryset = queryset.filter(id__in=[int(cid) for cid in citaciones_operacion if str(cid).isdigit()])
+
         if asignadas.exists():
             queryset = queryset.filter(SC_NID_id__in=asignadas)
 
@@ -7576,6 +8283,17 @@ def CITACION_LISTALL_DESPACHOS(request):
             object_list = paginator.page(paginator.num_pages)
 
         enriquecer_citaciones_con_ingreso_camion(object_list)
+        for citacion in object_list:
+            citacion.operacion_planta_habilitada = citacion_habilitada_operacion(citacion)
+            if citacion.operacion_planta_habilitada:
+                _, pasos_config = obtener_pasos_operacion_citacion(citacion)
+                logs_completados = set(OPERACION_PLANTA_LOG.objects.filter(
+                    CI_NID=citacion,
+                    OPL_CESTADO=OPERACION_PLANTA_LOG.ESTADO_COMPLETADO
+                ).values_list('OPL_CPASO', flat=True))
+                citacion.operacion_estado_visible = resolver_estado_operacional_visible(citacion, pasos_config, logs_completados)
+            else:
+                citacion.operacion_estado_visible = citacion.ETAPA_ACTUAL.ET_CCODIGO if citacion.ETAPA_ACTUAL else ''
 
         filtrado = 1 if (fecha_desde or fecha_hasta or secuencia_id or proveedor) else 0
 
@@ -7592,7 +8310,8 @@ def CITACION_LISTALL_DESPACHOS(request):
             'fecha_desde': fecha_desde,
             'fecha_hasta': fecha_hasta,
             'ltsProveedores': ltsProveedores,
-            'permiso_borrar': permiso_borrar
+            'permiso_borrar': permiso_borrar,
+            'acceso_operacion_planta': acceso_operacion,
         }
 
         query_params = request.GET.copy()
@@ -7610,9 +8329,10 @@ def CITACION_LISTALL_DESPACHOS(request):
     
 def CITACION_LISTALL_RECEPCIONES(request):
     try:
+        acceso_operacion = usuario_es_operacion_planta(request.user)
         if request.user.is_superuser == False:                     
             usuario = request.user.id
-            if not validar_perfiles_activos(usuario, "cit_listall"):
+            if not validar_perfiles_activos(usuario, "cit_listall") and not acceso_operacion:
                 messages.error(request, 'No tiene permisos para acceder a esta sección')
                 return redirect('/')
         else:
@@ -7650,6 +8370,12 @@ def CITACION_LISTALL_RECEPCIONES(request):
             CI_CTIPO=CIT_RECEPCION,
             CI_BHABILITADO=True
         )
+
+        if acceso_operacion and not request.user.is_superuser:
+            citaciones_operacion = SYSLOGGER.objects.filter(
+                LOG_COPERACION='AUTORIZA_INGRESO_PLANTA'
+            ).values_list('LOG_CADD1', flat=True)
+            queryset = queryset.filter(id__in=[int(cid) for cid in citaciones_operacion if str(cid).isdigit()])
 
         # FILTRAR SOLO SECUENCIAS ASIGNADAS
         if asignadas.exists():
@@ -7689,6 +8415,17 @@ def CITACION_LISTALL_RECEPCIONES(request):
             object_list = paginator.page(paginator.num_pages)
 
         enriquecer_citaciones_con_ingreso_camion(object_list)
+        for citacion in object_list:
+            citacion.operacion_planta_habilitada = citacion_habilitada_operacion(citacion)
+            if citacion.operacion_planta_habilitada:
+                _, pasos_config = obtener_pasos_operacion_citacion(citacion)
+                logs_completados = set(OPERACION_PLANTA_LOG.objects.filter(
+                    CI_NID=citacion,
+                    OPL_CESTADO=OPERACION_PLANTA_LOG.ESTADO_COMPLETADO
+                ).values_list('OPL_CPASO', flat=True))
+                citacion.operacion_estado_visible = resolver_estado_operacional_visible(citacion, pasos_config, logs_completados)
+            else:
+                citacion.operacion_estado_visible = citacion.ETAPA_ACTUAL.ET_CCODIGO if citacion.ETAPA_ACTUAL else ''
 
         filtrado = 1 if (
             fecha_desde or 
@@ -7709,7 +8446,8 @@ def CITACION_LISTALL_RECEPCIONES(request):
             'fecha_desde': fecha_desde,
             'fecha_hasta': fecha_hasta,
             'secuencia_id': secuencia_id,
-            'ltsProveedores': ltsProveedores
+            'ltsProveedores': ltsProveedores,
+            'acceso_operacion_planta': acceso_operacion,
         }
 
         query_params = request.GET.copy()
@@ -7729,6 +8467,253 @@ def CITACION_LISTALL_RECEPCIONES(request):
         print(e)
         messages.error(request, f'Error, {str(e)}')
         return redirect('/')  
+
+
+def OPERACION_PLANTA_CITACION(request, pk):
+    if not usuario_es_operacion_planta(request.user):
+        messages.error(request, 'No tiene permisos para acceder a Operacion Planta')
+        return redirect('/')
+
+    Empresa = Verificar_empresa(request)
+    if Empresa is None:
+        messages.error(request, 'Debe seleccionar una empresa.')
+        return redirect('/')
+
+    citacion = get_object_or_404(
+        CITACION.objects.select_related('EP_NID', 'PL_NID', 'SC_NID', 'SN_NID', 'CA_NID'),
+        pk=pk,
+        EP_NID_id=Empresa,
+        CI_BHABILITADO=True
+    )
+
+    if not citacion_habilitada_operacion(citacion):
+        messages.error(request, 'La citacion aun no fue autorizada por Guardia_Porteria para operar en planta.')
+        return redirect('/cit_listall_despachos/' if citacion.CI_CTIPO == CIT_DESPACHO else '/cit_listall_recepciones/')
+
+    nombre_flujo, pasos_config = obtener_pasos_operacion_citacion(citacion)
+    logs = OPERACION_PLANTA_LOG.objects.select_related('US_NID').filter(
+        CI_NID=citacion
+    ).order_by('-OPL_FFECHAREGISTRO')
+    pasos_completados = {
+        log.OPL_CPASO
+        for log in logs
+        if log.OPL_CESTADO == OPERACION_PLANTA_LOG.ESTADO_COMPLETADO
+    }
+    paso_actual_visible = resolver_estado_operacional_visible(citacion, pasos_config, pasos_completados)
+    ultimo_log_por_paso = {}
+    for log in logs:
+        if log.OPL_CPASO not in ultimo_log_por_paso:
+            ultimo_log_por_paso[log.OPL_CPASO] = log
+
+    pasos = []
+    for indice, (nombre_paso, responsables) in enumerate(pasos_config, start=1):
+        log_paso = ultimo_log_por_paso.get(nombre_paso)
+        puede_editar = usuario_puede_paso_operacion(request.user, responsables)
+        pasos.append({
+            'orden': indice,
+            'nombre': nombre_paso,
+            'responsable': ' / '.join(responsables),
+            'activo': nombre_paso == paso_actual_visible,
+            'puede_editar': puede_editar,
+            'solo_lectura_msg': '' if puede_editar else f'Solo lectura: este paso corresponde a {" / ".join(responsables)}',
+            'estado': log_paso.OPL_CESTADO if log_paso else 'PENDIENTE',
+            'observacion': log_paso.OPL_COBSERVACION if log_paso else '',
+            'usuario': log_paso.US_NID.username if log_paso and log_paso.US_NID else '',
+            'fecha': log_paso.OPL_FFECHAREGISTRO if log_paso else None,
+        })
+
+    valores_ingreso = obtener_valores_ingreso_camion(citacion)
+    ctx = {
+        'citacion': citacion,
+        'nombre_flujo': nombre_flujo,
+        'pasos': pasos,
+        'patente': texto_sin_informacion(valores_ingreso.get('patente')),
+        'conductor': texto_sin_informacion(valores_ingreso.get('conductor')),
+        'transportista': texto_sin_informacion(valores_ingreso.get('transportista')),
+    }
+    return render(request, 'home/CITACION/operacion_planta.html', ctx)
+
+
+def OPERACION_PLANTA_GUARDAR_PASO(request, pk):
+    if request.method != 'POST':
+        return JsonResponse({'success': False, 'message': 'Metodo no permitido.'}, status=405)
+
+    if not usuario_es_operacion_planta(request.user):
+        return JsonResponse({'success': False, 'message': 'No tiene permisos para Operacion Planta.'}, status=403)
+
+    Empresa = Verificar_empresa(request)
+    if Empresa is None:
+        return JsonResponse({'success': False, 'message': 'Debe seleccionar una empresa.'}, status=400)
+
+    try:
+        citacion = CITACION.objects.select_related('EP_NID', 'PL_NID', 'SC_NID').get(
+            pk=pk,
+            EP_NID_id=Empresa,
+            CI_BHABILITADO=True
+        )
+    except CITACION.DoesNotExist:
+        return JsonResponse({'success': False, 'message': 'Citacion no encontrada.'}, status=404)
+
+    if not citacion_habilitada_operacion(citacion):
+        return JsonResponse({'success': False, 'message': 'La citacion aun no esta habilitada para Operacion Planta.'}, status=400)
+
+    paso = str(request.POST.get('paso') or '').strip()
+    observacion = str(request.POST.get('observacion') or '').strip()
+    _, pasos_config = obtener_pasos_operacion_citacion(citacion)
+    responsables_paso = None
+    for nombre_paso, responsables in pasos_config:
+        if nombre_paso == paso:
+            responsables_paso = responsables
+            break
+
+    if not responsables_paso:
+        return JsonResponse({'success': False, 'message': 'Paso operacional no valido.'}, status=400)
+
+    if not usuario_puede_paso_operacion(request.user, responsables_paso):
+        return JsonResponse({
+            'success': False,
+            'message': f'Solo lectura: este paso corresponde a {" / ".join(responsables_paso)}'
+        }, status=403)
+
+    log = OPERACION_PLANTA_LOG.objects.create(
+        US_NID=request.user,
+        EP_NID=citacion.EP_NID,
+        PL_NID=citacion.PL_NID,
+        CI_NID=citacion,
+        OPL_CPASO=paso,
+        OPL_CPERFIL_RESPONSABLE=' / '.join(responsables_paso),
+        OPL_CESTADO=OPERACION_PLANTA_LOG.ESTADO_COMPLETADO,
+        OPL_COBSERVACION=observacion
+    )
+
+    return JsonResponse({
+        'success': True,
+        'message': 'Paso operacional registrado.',
+        'paso': paso,
+        'usuario': request.user.username,
+        'fecha': timezone.localtime(log.OPL_FFECHAREGISTRO).strftime('%d/%m/%Y %H:%M')
+    })
+
+
+def formatear_duracion_planta(fecha_inicio):
+    if not fecha_inicio:
+        return 'No disponible'
+
+    delta = timezone.now() - fecha_inicio
+    total_minutos = max(int(delta.total_seconds() // 60), 0)
+    horas = total_minutos // 60
+    minutos = total_minutos % 60
+
+    if horas:
+        return f'{horas}h {minutos}m'
+    return f'{minutos}m'
+
+
+def SEGUIMIENTO_OPERACIONAL(request):
+    Empresa = Verificar_empresa(request)
+    if Empresa is None:
+        messages.error(request, 'Debe seleccionar una empresa.')
+        return redirect('/')
+
+    logs_autorizacion = SYSLOGGER.objects.select_related('US_NID').filter(
+        EP_NID_id=Empresa,
+        LOG_COPERACION='AUTORIZA_INGRESO_PLANTA'
+    ).order_by('-LOG_FFECHAREGISTRO')
+
+    autorizacion_por_citacion = {}
+    for log in logs_autorizacion:
+        citacion_id = str(log.LOG_CADD1 or '').strip()
+        if citacion_id.isdigit() and citacion_id not in autorizacion_por_citacion:
+            autorizacion_por_citacion[citacion_id] = log
+
+    citacion_ids = [int(citacion_id) for citacion_id in autorizacion_por_citacion.keys()]
+    citaciones = CITACION.objects.select_related(
+        'EP_NID', 'PL_NID', 'SC_NID', 'SN_NID', 'CA_NID'
+    ).filter(
+        id__in=citacion_ids,
+        EP_NID_id=Empresa,
+        CI_BHABILITADO=True
+    ).order_by('-id')
+
+    citacion_items = {
+        item.CI_NID_id: item
+        for item in CITACION_ITEM.objects.select_related('IT_NID').filter(CI_NID_id__in=citacion_ids)
+    }
+
+    rows = []
+    for citacion in citaciones:
+        logs_pasos = list(OPERACION_PLANTA_LOG.objects.select_related('US_NID').filter(
+            CI_NID=citacion
+        ).order_by('OPL_FFECHAREGISTRO'))
+        completados = {log.OPL_CPASO for log in logs_pasos if log.OPL_CESTADO == OPERACION_PLANTA_LOG.ESTADO_COMPLETADO}
+
+        if 'Confirmar Salida' in completados:
+            continue
+
+        nombre_flujo, pasos_config = obtener_pasos_operacion_citacion(citacion)
+        nombres_pasos = [paso for paso, _ in pasos_config]
+        etapa_actual = resolver_estado_operacional_visible(citacion, pasos_config, completados)
+        ultimo_log = logs_pasos[-1] if logs_pasos else None
+        log_autorizacion = autorizacion_por_citacion.get(str(citacion.id))
+        logs_operacionales_completados = [
+            log for log in logs_pasos
+            if log.OPL_CPASO in nombres_pasos and log.OPL_CESTADO == OPERACION_PLANTA_LOG.ESTADO_COMPLETADO
+        ]
+        inicio_etapa_actual = (
+            logs_operacionales_completados[-1].OPL_FFECHAREGISTRO
+            if logs_operacionales_completados
+            else (log_autorizacion.LOG_FFECHAREGISTRO if log_autorizacion else None)
+        )
+        valores_ingreso = obtener_valores_ingreso_camion(citacion)
+        item = citacion_items.get(citacion.id)
+
+        pasos = construir_estado_pasos_operacion(nombres_pasos, etapa_actual, completados)
+
+        historial = []
+        for log in logs_pasos:
+            if log.OPL_CPASO == 'Habilitar Operacion Planta':
+                continue
+            historial.append({
+                'paso': log.OPL_CPASO,
+                'usuario': log.US_NID.username if log.US_NID else '',
+                'responsable': log.OPL_CPERFIL_RESPONSABLE,
+                'fecha': timezone.localtime(log.OPL_FFECHAREGISTRO).strftime('%d/%m/%Y %H:%M') if log.OPL_FFECHAREGISTRO else '',
+                'estado': log.OPL_CESTADO,
+                'observacion': log.OPL_COBSERVACION or '',
+            })
+
+        rows.append({
+            'citacion': citacion,
+            'patente': texto_sin_informacion(valores_ingreso.get('patente')),
+            'conductor': texto_sin_informacion(valores_ingreso.get('conductor')),
+            'producto': item.IT_NID.IT_CNOMBRE if item and item.IT_NID else 'Sin producto',
+            'estado_actual': etapa_actual,
+            'pasos': pasos,
+            'tiempo_planta': formatear_duracion_planta(log_autorizacion.LOG_FFECHAREGISTRO if log_autorizacion else None),
+            'ingreso_autorizado_iso': log_autorizacion.LOG_FFECHAREGISTRO.isoformat() if log_autorizacion and log_autorizacion.LOG_FFECHAREGISTRO else '',
+            'inicio_etapa_actual_iso': inicio_etapa_actual.isoformat() if inicio_etapa_actual else '',
+            'tiempo_etapa': formatear_duracion_planta(inicio_etapa_actual),
+            'ingreso_autorizado': timezone.localtime(log_autorizacion.LOG_FFECHAREGISTRO).strftime('%d/%m/%Y %H:%M') if log_autorizacion and log_autorizacion.LOG_FFECHAREGISTRO else '',
+            'ultima_actualizacion': timezone.localtime((ultimo_log.OPL_FFECHAREGISTRO if ultimo_log else log_autorizacion.LOG_FFECHAREGISTRO)).strftime('%d/%m/%Y %H:%M') if (ultimo_log or log_autorizacion) else '',
+            'nombre_flujo': nombre_flujo,
+            'historial': historial,
+            'detalle_json': json.dumps({
+                'patente': texto_sin_informacion(valores_ingreso.get('patente')),
+                'conductor': texto_sin_informacion(valores_ingreso.get('conductor')),
+                'producto': item.IT_NID.IT_CNOMBRE if item and item.IT_NID else 'Sin producto',
+                'secuencia': nombre_flujo,
+                'ingreso_autorizado': timezone.localtime(log_autorizacion.LOG_FFECHAREGISTRO).strftime('%d/%m/%Y %H:%M') if log_autorizacion and log_autorizacion.LOG_FFECHAREGISTRO else '',
+                'tiempo_planta': formatear_duracion_planta(log_autorizacion.LOG_FFECHAREGISTRO if log_autorizacion else None),
+                'etapa_actual': etapa_actual,
+                'historial': historial,
+            })
+        })
+
+    return render(request, 'home/CITACION/seguimiento_operacional.html', {
+        'camiones': rows,
+    })
+
+
 def export_citaciones_despachos_excel(request):
 
     try:
@@ -12563,8 +13548,74 @@ def AXONGETCURRENTUSER(request):
 ##########################   NOTIFICACIONES   ############################
 ##########################################################################
 
+def asegurar_notificaciones_guardia_porteria_pendientes(user):
+    if not usuario_es_guardia_porteria(user):
+        return
+
+    logs_envio = SYSLOGGER.objects.filter(
+        LOG_COPERACION='ENVIA_GUARDIA_PORTERIA'
+    ).exclude(
+        LOG_CADD1__isnull=True
+    ).order_by('-LOG_FFECHAREGISTRO')[:50]
+
+    for log_envio in logs_envio:
+        citacion_id = str(log_envio.LOG_CADD1 or '').strip()
+        if not citacion_id.isdigit():
+            continue
+
+        if SYSLOGGER.objects.filter(
+            LOG_COPERACION='AUTORIZA_INGRESO_PLANTA',
+            LOG_CADD1=citacion_id
+        ).exists():
+            continue
+
+        try:
+            citacion = CITACION.objects.select_related('EP_NID', 'PL_NID').get(
+                pk=int(citacion_id),
+                CI_BHABILITADO=True
+            )
+        except CITACION.DoesNotExist:
+            continue
+
+        notificacion_url = f'/pla_listone/{citacion.PL_NID_id}?citacion={citacion.id}'
+        if NOTIFICACION.objects.filter(
+            USER_RECEIVER_ID=user,
+            NOT_CURL=notificacion_url,
+            NOT_CCONTENIDO__icontains='autorizado ingreso a planta',
+            NOT_BHABILITADO=True
+        ).exists():
+            continue
+
+        valores_ingreso = obtener_valores_ingreso_camion(citacion)
+        patente = texto_sin_informacion(valores_ingreso.get('patente'))
+        NOTIFICACION.objects.create(
+            USER_SENDER_ID=log_envio.US_NID,
+            USER_RECEIVER_ID=user,
+            EP_NID=citacion.EP_NID,
+            NOT_CCONTENIDO=f'Patente: {patente} autorizado ingreso a planta',
+            NOT_CURL=notificacion_url
+        )
+
+
+def cerrar_notificaciones_guardia_porteria_incorrectas(user):
+    if not usuario_es_guardia_porteria(user):
+        return
+
+    NOTIFICACION.objects.filter(
+        USER_RECEIVER_ID=user,
+        NOT_BREAD=False,
+        NOT_BHABILITADO=True,
+        NOT_CCONTENIDO__icontains='debe ingresar a Planta'
+    ).update(
+        NOT_BREAD=True,
+        NOT_FFECHALEIDO=timezone.now()
+    )
+
+
 def CHECK_NOTIFICATIONS(request):
     try:
+        cerrar_notificaciones_guardia_porteria_incorrectas(request.user)
+        asegurar_notificaciones_guardia_porteria_pendientes(request.user)
         notificaciones = get_notificaciones(request.user.id)
         return JsonResponse({
             'notificaciones': notificaciones,

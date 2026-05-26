@@ -86,32 +86,40 @@
     {% endif %}
     
     
-    {% if request.user|has_vista:'CITACION' or request.user.is_superuser == 1 %}
+    {% if request.user|has_vista:'CITACION' or request.user|es_operacion_planta or request.user.is_superuser == 1 %}
     <li class="nav-item pcoded-hasmenu">
-        <a href="#" class="nav-link "><span class="pcoded-micon"><i class="fas fa-map-marked-alt"></i></span><span class="pcoded-mtext">Citaciones</span></a>
+        <a href="#" class="nav-link "><span class="pcoded-micon"><i class="fas fa-industry"></i></span><span class="pcoded-mtext">Operaci&oacute;n Planta</span></a>
         <ul class="pcoded-submenu">
             <li class="nav-item pcoded-hasmenu">
-                <a href="#" class="nav-link">Despachos</a>
+                <a href="#" class="nav-link">Despacho</a>
                 <ul class="pcoded-submenu">
                     <li><a href="{% url 'cit_listall_despachos' %}">Citaciones</a></li> <!--Si-->
+                    {% if not request.user|es_operacion_planta or request.user.is_superuser == 1 %}
                     <li><a href="{% url 'ext_listall' %}?tipo_citacion=DESPACHO">Extras</a></li> <!--Si-->
                     <li><a href="{% url 'ext_listall_del' %}?tipo_citacion=DESPACHO">Extras eliminados</a></li> <!--No-->
+                    {% endif %}
                 </ul>
             </li>
             
-            {% if request.user|has_vista:'RECEPCIONISTA' or request.user.is_superuser == 1 %}
+            {% if request.user|has_vista:'RECEPCIONISTA' or request.user|es_operacion_planta or request.user.is_superuser == 1 %}
             <li class="nav-item pcoded-hasmenu">
-                <a href="#" class="nav-link">Recepciones</a>
+                <a href="#" class="nav-link">Recepci&oacute;n</a>
                 <ul class="pcoded-submenu">
                     <li><a href="{% url 'cit_listall_recepciones' %}">Citaciones</a></li>
+                    {% if not request.user|es_operacion_planta or request.user.is_superuser == 1 %}
                     <li><a href="{% url 'ext_listall' %}?tipo_citacion=RECEPCION">Extras</a></li>
                     <li><a href="{% url 'ext_listall_del' %}?tipo_citacion=RECEPCION">Extras eliminados</a></li>
+                    {% endif %}
                 </ul>
             </li>
             {% endif %}
         </ul>
     </li>
     {% endif %}
+
+    <li class="nav-item">
+        <a href="{% url 'seguimiento_operacional' %}" class="nav-link "><span class="pcoded-micon"><i class="fas fa-route"></i></span><span class="pcoded-mtext">Seguimiento Operacional</span></a>
+    </li>
     
     {% if request.user|has_vista:'PROFORMAS' or request.user.is_superuser == 1 %}
     <li class="nav-item pcoded-hasmenu">
