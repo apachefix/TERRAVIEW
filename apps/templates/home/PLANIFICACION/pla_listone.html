@@ -386,9 +386,9 @@
 
     .acciones-pendiente-envio {
         display: grid;
-        grid-template-columns: 36px 36px 185px;
+        grid-template-columns: 36px 36px 36px 185px;
         align-items: center;
-        width: 270px;
+        width: 312px;
         column-gap: 6px;
     }
 
@@ -400,8 +400,12 @@
         grid-column: 2;
     }
 
-    .acciones-pendiente-envio .estado-envio-asistente {
+    .acciones-pendiente-envio > button:nth-of-type(3) {
         grid-column: 3;
+    }
+
+    .acciones-pendiente-envio .estado-envio-asistente {
+        grid-column: 4;
         margin-top: 0;
     }
 
@@ -695,8 +699,24 @@
                                                                         <div>Patente: {{ object.16|default:'No registrada' }}</div>
                                                                         <div>Fecha: {% if object.36 %}{{ object.36|date:'d/m/Y H:i' }}{% else %}No registrada{% endif %}</div>
                                                                     </div>
+                                                                {% elif request.user|es_guardia and object.40 %}
+                                                                    <button type="button" class="btn btn-primary btn-sm" onclick="openCitationSummaryModal({{ object.0 }})" title="Ver ingreso guardado">
+                                                                        <i class="fas fa-eye"></i>
+                                                                    </button>
+                                                                    <button type="button" class="btn btn-warning btn-sm ml-1" onclick="openIngresoCamionModal({{ object.0 }})" title="Ingresar datos de camión">
+                                                                        <i class="fas fa-clipboard-list"></i>
+                                                                    </button>
+                                                                    <button type="button" class="btn btn-success btn-sm ml-1 btn-enviar-asistente" data-accion="enviar" onclick="avanzarIngresoCamionAsistente({{ object.0 }})" title="Enviar a Asistente Recepción">
+                                                                        <i class="fas fa-arrow-right"></i>
+                                                                    </button>
+                                                                    <div class="estado-envio-asistente estado-pendiente-envio">
+                                                                        <span class="badge badge-warning">Enviar a Asistente Recepción</span>
+                                                                        <div>Ingreso: {% if object.42 %}{{ object.42|date:'d/m/Y H:i' }}{% else %}No registrada{% endif %}</div>
+                                                                        <div>Usuario: {{ object.41|default:'Guardia' }}</div>
+                                                                        <div>Presione la flecha</div>
+                                                                    </div>
                                                                 {% elif request.user|es_guardia and object.34 %}
-                                                                    <button type="button" class="btn btn-outline-primary btn-sm" onclick="openRevisionAsistenteModal({{ object.0 }})" title="Ver resumen enviado a Guardia_Porteria">
+                                                                    <button type="button" class="btn btn-outline-primary btn-sm" onclick="openCitationSummaryModal({{ object.0 }})" title="Ver resumen enviado a Guardia_Porteria">
                                                                         <i class="fas fa-eye"></i>
                                                                     </button>
                                                                     <div class="estado-envio-asistente">
@@ -706,7 +726,7 @@
                                                                         <div>Etapa: {{ object.3 }}</div>
                                                                     </div>
                                                                 {% elif request.user|es_guardia and object.21 %}
-                                                                    <button type="button" class="btn btn-outline-primary btn-sm" onclick="openRevisionAsistenteModal({{ object.0 }})" title="Ver resumen enviado">
+                                                                    <button type="button" class="btn btn-outline-primary btn-sm" onclick="openCitationSummaryModal({{ object.0 }})" title="Ver resumen enviado">
                                                                         <i class="fas fa-eye"></i>
                                                                     </button>
                                                                     <div class="estado-envio-asistente">
@@ -716,20 +736,15 @@
                                                                         <div>Etapa: {{ object.3 }}</div>
                                                                     </div>
                                                                 {% elif request.user|es_guardia %}
-                                                                    <button type="button" class="btn btn-primary btn-sm" onclick="openIngresoCamionModal({{ object.0 }})" title="Ver / editar ingreso">
+                                                                    <button type="button" class="btn btn-primary btn-sm" onclick="openCitationSummaryModal({{ object.0 }})" title="Ver ingreso guardado">
                                                                         <i class="fas fa-eye"></i>
+                                                                    </button>
+                                                                    <button type="button" class="btn btn-warning btn-sm ml-1" onclick="openIngresoCamionModal({{ object.0 }})" title="Ingresar datos de camión">
+                                                                        <i class="fas fa-clipboard-list"></i>
                                                                     </button>
                                                                     <button type="button" class="btn btn-success btn-sm ml-1 btn-enviar-asistente" data-accion="enviar" onclick="avanzarIngresoCamionAsistente({{ object.0 }})" title="Enviar a Asistente Recepción">
                                                                         <i class="fas fa-arrow-right"></i>
                                                                     </button>
-                                                                    {% if object.40 %}
-                                                                        <div class="estado-envio-asistente estado-pendiente-envio">
-                                                                            <span class="badge badge-warning">Enviar a Asistente Recepción</span>
-                                                                            <div>Ingreso: {% if object.42 %}{{ object.42|date:'d/m/Y H:i' }}{% else %}No registrada{% endif %}</div>
-                                                                            <div>Usuario: {{ object.41|default:'Guardia' }}</div>
-                                                                            <div>Presione la flecha</div>
-                                                                        </div>
-                                                                    {% endif %}
                                                                 {% elif request.user|es_asistente_recepcion and object.24 %}
                                                                     <button type="button" class="btn btn-outline-primary btn-sm" onclick="openRevisionAsistenteModal({{ object.0 }})" title="Ver resumen aprobado">
                                                                         <i class="fas fa-eye"></i>
@@ -892,8 +907,24 @@
                                                                         <div>Patente: {{ object.8|default:'No registrada' }}</div>
                                                                         <div>Fecha: {% if object.30 %}{{ object.30|date:'d/m/Y H:i' }}{% else %}No registrada{% endif %}</div>
                                                                     </div>
+                                                                {% elif request.user|es_guardia and object.34 %}
+                                                                    <button type="button" class="btn btn-primary btn-sm" onclick="openCitationSummaryModal({{ object.0 }})" title="Ver ingreso guardado">
+                                                                        <i class="fas fa-eye"></i>
+                                                                    </button>
+                                                                    <button type="button" class="btn btn-warning btn-sm ml-1" onclick="openIngresoCamionModal({{ object.0 }})" title="Ingresar datos de camión">
+                                                                        <i class="fas fa-clipboard-list"></i>
+                                                                    </button>
+                                                                    <button type="button" class="btn btn-success btn-sm ml-1 btn-enviar-asistente" data-accion="enviar" onclick="avanzarIngresoCamionAsistente({{ object.0 }})" title="Enviar a Asistente Recepción">
+                                                                        <i class="fas fa-arrow-right"></i>
+                                                                    </button>
+                                                                    <div class="estado-envio-asistente estado-pendiente-envio">
+                                                                        <span class="badge badge-warning">Enviar a Asistente Recepción</span>
+                                                                        <div>Ingreso: {% if object.36 %}{{ object.36|date:'d/m/Y H:i' }}{% else %}No registrada{% endif %}</div>
+                                                                        <div>Usuario: {{ object.35|default:'Guardia' }}</div>
+                                                                        <div>Presione la flecha</div>
+                                                                    </div>
                                                                 {% elif request.user|es_guardia and object.28 %}
-                                                                    <button type="button" class="btn btn-outline-primary btn-sm" onclick="openRevisionAsistenteModal({{ object.0 }})" title="Ver resumen enviado a Guardia_Porteria">
+                                                                    <button type="button" class="btn btn-outline-primary btn-sm" onclick="openCitationSummaryModal({{ object.0 }})" title="Ver resumen enviado a Guardia_Porteria">
                                                                         <i class="fas fa-eye"></i>
                                                                     </button>
                                                                     <div class="estado-envio-asistente">
@@ -903,7 +934,7 @@
                                                                         <div>Etapa: {{ object.5 }}</div>
                                                                     </div>
                                                                 {% elif request.user|es_guardia and object.15 %}
-                                                                    <button type="button" class="btn btn-outline-primary btn-sm" onclick="openRevisionAsistenteModal({{ object.0 }})" title="Ver resumen enviado">
+                                                                    <button type="button" class="btn btn-outline-primary btn-sm" onclick="openCitationSummaryModal({{ object.0 }})" title="Ver resumen enviado">
                                                                         <i class="fas fa-eye"></i>
                                                                     </button>
                                                                     <div class="estado-envio-asistente">
@@ -913,20 +944,15 @@
                                                                         <div>Etapa: {{ object.5 }}</div>
                                                                     </div>
                                                                 {% elif request.user|es_guardia %}
-                                                                    <button type="button" class="btn btn-primary btn-sm" onclick="openIngresoCamionModal({{ object.0 }})" title="Ver / editar ingreso">
+                                                                    <button type="button" class="btn btn-primary btn-sm" onclick="openCitationSummaryModal({{ object.0 }})" title="Ver ingreso guardado">
                                                                         <i class="fas fa-eye"></i>
+                                                                    </button>
+                                                                    <button type="button" class="btn btn-warning btn-sm ml-1" onclick="openIngresoCamionModal({{ object.0 }})" title="Ingresar datos de camión">
+                                                                        <i class="fas fa-clipboard-list"></i>
                                                                     </button>
                                                                     <button type="button" class="btn btn-success btn-sm ml-1 btn-enviar-asistente" data-accion="enviar" onclick="avanzarIngresoCamionAsistente({{ object.0 }})" title="Enviar a Asistente Recepción">
                                                                         <i class="fas fa-arrow-right"></i>
                                                                     </button>
-                                                                    {% if object.34 %}
-                                                                        <div class="estado-envio-asistente estado-pendiente-envio">
-                                                                            <span class="badge badge-warning">Enviar a Asistente Recepción</span>
-                                                                            <div>Ingreso: {% if object.36 %}{{ object.36|date:'d/m/Y H:i' }}{% else %}No registrada{% endif %}</div>
-                                                                            <div>Usuario: {{ object.35|default:'Guardia' }}</div>
-                                                                            <div>Presione la flecha</div>
-                                                                        </div>
-                                                                    {% endif %}
                                                                 {% elif request.user|es_asistente_recepcion and object.18 %}
                                                                     <button type="button" class="btn btn-outline-primary btn-sm" onclick="openRevisionAsistenteModal({{ object.0 }})" title="Ver resumen aprobado">
                                                                         <i class="fas fa-eye"></i>
@@ -1298,6 +1324,7 @@
                                         <option value="">Seleccione planta</option>
                                         <option value="PROCESA">PROCESA</option>
                                         <option value="SBH">SBH</option>
+                                        <option value="Trasvasije">Trasvasije</option>
                                     </select>
                                 </div>
                             </div>
@@ -1623,6 +1650,7 @@
                                 <option value="">Seleccione planta</option>
                                 <option value="PROCESA">PROCESA</option>
                                 <option value="SBH">SBH</option>
+                                <option value="Trasvasije">Trasvasije</option>
                             </select>
                         </div>
                         <div class="form-group col-md-6">
@@ -1729,6 +1757,10 @@
                 <div class="revision-section">
                     <h6>Asignación de estanque</h6>
                     <div id="estanque_camion_bloqueo" class="alert alert-warning" style="display:none;"></div>
+                    <div class="form-group">
+                        <label for="estanque_almacen_planificacion">Almacén definido por planificación</label>
+                        <input type="text" class="form-control" id="estanque_almacen_planificacion" readonly>
+                    </div>
                     <div class="form-group mb-0">
                         <label for="estanque_operacional">Estanque</label>
                         <select class="form-control" id="estanque_operacional"></select>
@@ -1762,7 +1794,11 @@
     <script src="/static/assets/js/pages/data-export-custom.js"></script>
     <script>
     let ingresoCamionCitacionId = null;
+    let revisionAsistenteCitacionId = null;
+    let estanqueCamionCitacionId = null;
+    let revisionRutasTransportista = [];
     let ingresoCamionCamposPorCodigo = {};
+    const ESTANQUES_POR_ALMACEN_OPERACIONAL = {{ estanques_por_almacen_json|default:"{}"|safe }};
     const DEBUG_INGRESO_CAMION = true;
 
     function logIngresoCamion() {
@@ -1788,6 +1824,441 @@
 
     function normalizarIdHtml(value) {
         return String(value ?? '').replace(/[^a-zA-Z0-9_-]/g, '_');
+    }
+
+    function renderCitationSummarySection(title, items) {
+        const rows = (items || []).filter(function (item) {
+            return item && item.value !== null && item.value !== undefined && String(item.value).trim() !== '';
+        });
+
+        if (!rows.length) {
+            return '';
+        }
+
+        return `
+            <div class="mb-4">
+                <h6 class="font-weight-bold mb-3">${escapeHtml(title)}</h6>
+                <div class="row">
+                    ${rows.map(function (item) {
+                        return `
+                            <div class="col-md-4 mb-3">
+                                <div class="text-muted small text-uppercase">${escapeHtml(item.label)}</div>
+                                <div>${escapeHtml(item.value)}</div>
+                            </div>
+                        `;
+                    }).join('')}
+                </div>
+            </div>
+        `;
+    }
+
+    function renderCitationSummaryDocuments(documentos) {
+        const items = documentos || [];
+        if (!items.length) {
+            return '';
+        }
+
+        return `
+            <div class="mb-4">
+                <h6 class="font-weight-bold mb-3">Documentos</h6>
+                <div class="list-group">
+                    ${items.map(function (doc) {
+                        const nombre = doc.nombre_archivo || doc.valor || 'Documento';
+                        const link = doc.download_url
+                            ? `<a class="btn btn-sm btn-outline-primary" href="${escapeHtml(doc.download_url)}" target="_blank" rel="noopener">Ver</a>`
+                            : '';
+                        return `
+                            <div class="list-group-item d-flex justify-content-between align-items-center">
+                                <div>
+                                    <div>${escapeHtml(doc.label || 'Documento')}</div>
+                                    <small class="text-muted">${escapeHtml(nombre)}</small>
+                                </div>
+                                ${link}
+                            </div>
+                        `;
+                    }).join('')}
+                </div>
+            </div>
+        `;
+    }
+
+    function openCitationSummaryModal(citacionId) {
+        $('#citationSummarySubtitle').text(`Citación #${citacionId}`);
+        $('#citationSummaryAlert').hide().text('');
+        $('#citationSummaryContent').html('<div class="text-center p-3">Cargando...</div>');
+        $('#citationSummaryModal').modal('show');
+
+        $.ajax({
+            url: `/pla-citacion-resumen/${citacionId}/`,
+            type: 'GET',
+            success: function (response) {
+                if (!response.success) {
+                    $('#citationSummaryContent').empty();
+                    $('#citationSummaryAlert').show().text(response.message || 'No fue posible cargar el resumen.');
+                    return;
+                }
+
+                const data = response.data || {};
+                const html = [
+                    renderCitationSummarySection('Datos planificación', data.planificacion),
+                    renderCitationSummarySection('Datos citación', data.citacion),
+                    renderCitationSummarySection('Ingreso de camión', data.ingreso_camion),
+                    renderCitationSummarySection('Datos operacionales', data.datos_operacionales),
+                    renderCitationSummaryDocuments(data.documentos)
+                ].join('');
+
+                $('#citationSummaryContent').html(html || '<div class="text-muted">Sin información registrada.</div>');
+            },
+            error: function (xhr) {
+                const message = xhr.responseJSON && xhr.responseJSON.message
+                    ? xhr.responseJSON.message
+                    : 'Ocurrió un error al cargar el resumen.';
+                $('#citationSummaryContent').empty();
+                $('#citationSummaryAlert').show().text(message);
+            }
+        });
+    }
+
+    function renderRevisionSection(title, data) {
+        const entries = Object.entries(data || {}).filter(function ([, value]) {
+            if (value && typeof value === 'object' && value.type === 'select') {
+                return false;
+            }
+            return value !== null && value !== undefined && String(value).trim() !== '';
+        });
+
+        if (!entries.length) {
+            return '';
+        }
+
+        return `
+            <div class="revision-section">
+                <h6>${escapeHtml(title)}</h6>
+                <div class="revision-grid">
+                    ${entries.map(function ([label, value]) {
+                        return `
+                            <div>
+                                <div class="revision-item-label">${escapeHtml(label)}</div>
+                                <div class="revision-item-value">${escapeHtml(value)}</div>
+                            </div>
+                        `;
+                    }).join('')}
+                </div>
+            </div>
+        `;
+    }
+
+    function renderRevisionDocuments(documentos) {
+        const items = documentos || [];
+        if (!items.length) {
+            return '';
+        }
+
+        return `
+            <div class="revision-section">
+                <h6>Documentos</h6>
+                <div class="list-group">
+                    ${items.map(function (doc) {
+                        const nombre = doc.nombre_archivo || doc.valor || 'Documento';
+                        const link = doc.download_url
+                            ? `<a class="btn btn-sm btn-outline-primary" href="${escapeHtml(doc.download_url)}" target="_blank" rel="noopener">Ver</a>`
+                            : '';
+                        return `
+                            <div class="list-group-item d-flex justify-content-between align-items-center">
+                                <div>
+                                    <div>${escapeHtml(doc.label || doc.tipo || 'Documento')}</div>
+                                    <small class="text-muted">${escapeHtml(nombre)}</small>
+                                </div>
+                                ${link}
+                            </div>
+                        `;
+                    }).join('')}
+                </div>
+            </div>
+        `;
+    }
+
+    function renderRevisionRutaTransportistaCampo(options, message) {
+        const rutas = options || [];
+        const selected = rutas.find(function (ruta) { return ruta.selected; }) || null;
+        const selectedText = selected ? selected.text : '';
+        const selectedRutaId = selected ? selected.ruta_id : '';
+        const selectedTarifaId = selected ? selected.tarifa_id : '';
+        const aviso = message
+            ? `<div class="alert alert-warning mb-0 mt-2">${escapeHtml(message)}</div>`
+            : '';
+
+        return `
+            <div class="form-group col-md-6 mb-0" id="revision_ruta_transportista_field">
+                <label for="revision_ruta_texto">Ruta del transportista</label>
+                <input type="text"
+                       class="form-control revision-ruta-input"
+                       id="revision_ruta_texto"
+                       name="revision_ruta_texto"
+                       list="revision_ruta_list"
+                       autocomplete="off"
+                       value="${escapeHtml(selectedText)}"
+                       placeholder="Seleccione o escriba ruta tarifa">
+                <datalist id="revision_ruta_list"></datalist>
+                <input type="hidden" id="revision_ruta_id" name="revision_ruta_id" value="${escapeHtml(selectedRutaId)}">
+                <input type="hidden" id="revision_tarifa_id" name="revision_tarifa_id" value="${escapeHtml(selectedTarifaId)}">
+                ${aviso}
+            </div>
+        `;
+    }
+
+    function poblarRevisionRutaDatalist(options) {
+        const lista = document.getElementById('revision_ruta_list');
+        if (!lista) {
+            return;
+        }
+
+        lista.innerHTML = '';
+        (options || []).forEach(function (item) {
+            const option = document.createElement('option');
+            option.value = item.text || '';
+            option.dataset.rutaId = item.ruta_id || '';
+            option.dataset.tarifaId = item.tarifa_id || item.id || '';
+            lista.appendChild(option);
+        });
+    }
+
+    function setRevisionRutasTransportista(options, message) {
+        revisionRutasTransportista = options || [];
+        $('#revision_ruta_transportista_field').replaceWith(
+            renderRevisionRutaTransportistaCampo(revisionRutasTransportista, message || '')
+        );
+        poblarRevisionRutaDatalist(revisionRutasTransportista);
+    }
+
+    function cargarRutasTransportistaRevision(citacionId, fallbackOptions, fallbackMessage) {
+        setRevisionRutasTransportista(fallbackOptions || [], fallbackMessage || '');
+
+        $.ajax({
+            url: '/ajax-rutas-transportista-revision/',
+            type: 'GET',
+            data: { citacion_id: citacionId },
+            success: function (response) {
+                const options = response.results || [];
+                const message = options.length ? '' : (response.message || 'El transportista no tiene rutas configuradas.');
+                setRevisionRutasTransportista(options, message);
+            },
+            error: function (xhr) {
+                const response = xhr.responseJSON || {};
+                const message = response.message || 'No fue posible cargar las rutas del transportista.';
+                setRevisionRutasTransportista([], message);
+            }
+        });
+    }
+
+    function sincronizarRutaTransportistaRevision() {
+        const texto = normalizarTexto($('#revision_ruta_texto').val());
+        const opciones = Array.from(document.querySelectorAll('#revision_ruta_list option'));
+        const seleccionada = opciones.find(function (option) {
+            return normalizarTexto(option.value) === texto;
+        });
+
+        $('#revision_ruta_id').val(seleccionada ? seleccionada.dataset.rutaId || '' : '');
+        $('#revision_tarifa_id').val(seleccionada ? seleccionada.dataset.tarifaId || '' : '');
+    }
+
+    function renderRevisionValidacion(data) {
+        const campos = data.campos_validacion || {};
+        const rutas = (data.rutas_transportista && data.rutas_transportista.options) || [];
+        const rutaMensaje = data.rutas_transportista ? data.rutas_transportista.message : '';
+
+        return `
+            <div class="revision-section">
+                <h6>Validación Asistente Recepción</h6>
+                <div class="row">
+                    <div class="form-group col-md-6">
+                        <label for="revision_bl">BL</label>
+                        <input type="text" class="form-control" id="revision_bl" value="${escapeHtml(campos.bl || '')}">
+                    </div>
+                    <div class="form-group col-md-6">
+                        <label for="revision_lote_contenedor">Lote / Contenedor</label>
+                        <input type="text" class="form-control" id="revision_lote_contenedor" value="${escapeHtml(campos.lote_contenedor || '')}">
+                    </div>
+                    ${renderRevisionRutaTransportistaCampo(rutas, rutaMensaje)}
+                    <div class="form-group col-md-6 mb-0">
+                        <label for="revision_observacion">Observación devolución</label>
+                        <textarea class="form-control" id="revision_observacion" rows="3"></textarea>
+                    </div>
+                </div>
+            </div>
+        `;
+    }
+
+    function openRevisionAsistenteModal(citacionId) {
+        revisionAsistenteCitacionId = citacionId;
+        $('#revision_asistente_subtitulo').text(`Citación #${citacionId}`);
+        $('#revision_asistente_alert').hide().text('');
+        $('#revision_asistente_contenido').html('<div class="text-center p-3">Cargando...</div>');
+        $('#btn_revision_aprobar, #btn_revision_devolver').prop('disabled', true).show();
+        $('#btn_revision_guardia_porteria').hide();
+        $('#ModalRevisionAsistente').modal('show');
+
+        $.ajax({
+            url: `/pla-citacion-revision-asistente/${citacionId}/`,
+            type: 'GET',
+            success: function (response) {
+                if (!response.success) {
+                    $('#revision_asistente_contenido').empty();
+                    $('#revision_asistente_alert').show().text(response.message || 'No fue posible cargar la revisión.');
+                    return;
+                }
+
+                const html = [
+                    renderRevisionSection('Datos planificación', response.planificacion),
+                    renderRevisionSection('Datos citación', response.citacion),
+                    renderRevisionSection('Datos ingresados por Guardia', response.guardia),
+                    renderRevisionSection('Datos operacionales', response.datos_operacionales),
+                    renderRevisionSection('Asistente C_D', response.asistente_cd),
+                    renderRevisionSection('Guardia Portería', response.guardia_porteria),
+                    renderRevisionDocuments(response.documentos),
+                    renderRevisionValidacion(response)
+                ].join('');
+
+                $('#revision_asistente_contenido').html(html || '<div class="text-muted">Sin información registrada.</div>');
+                cargarRutasTransportistaRevision(
+                    citacionId,
+                    (response.rutas_transportista && response.rutas_transportista.options) || [],
+                    response.rutas_transportista ? response.rutas_transportista.message : ''
+                );
+                $('#btn_revision_aprobar, #btn_revision_devolver').prop('disabled', !!response.aprobado_asistente);
+
+                if (response.aprobado_asistente) {
+                    $('#revision_asistente_alert').show().text('Esta citación ya fue aprobada por Asistente Recepción.');
+                }
+
+                if (response.guardia_puede_enviar_porteria || response.guardia_porteria_puede_autorizar) {
+                    $('#btn_revision_guardia_porteria').show();
+                }
+            },
+            error: function (xhr) {
+                const message = xhr.responseJSON && xhr.responseJSON.message
+                    ? xhr.responseJSON.message
+                    : 'Ocurrió un error al cargar la revisión.';
+                $('#revision_asistente_contenido').empty();
+                $('#revision_asistente_alert').show().text(message);
+            }
+        });
+    }
+
+    function aprobarRevisionAsistente() {
+        if (!revisionAsistenteCitacionId) {
+            return;
+        }
+
+        sincronizarRutaTransportistaRevision();
+        const rutaTexto = normalizarTexto($('#revision_ruta_texto').val());
+        const rutaId = $('#revision_ruta_id').val();
+        const tarifaId = $('#revision_tarifa_id').val();
+
+        if (!rutaTexto || !tarifaId) {
+            Swal.fire({
+                icon: 'warning',
+                title: 'Ruta requerida',
+                text: 'Debe seleccionar una ruta del transportista antes de aprobar.'
+            });
+            return;
+        }
+
+        $.ajax({
+            url: `/pla-citacion-aprobar-asistente/${revisionAsistenteCitacionId}/`,
+            type: 'POST',
+            data: {
+                bl: $('#revision_bl').val(),
+                lote_contenedor: $('#revision_lote_contenedor').val(),
+                ruta_id: rutaId,
+                tarifa_id: tarifaId
+            },
+            headers: {
+                'X-CSRFToken': '{{ csrf_token }}'
+            },
+            success: function (response) {
+                Swal.fire({
+                    icon: 'success',
+                    title: 'Aprobado',
+                    text: response.message || 'Camión aprobado correctamente.'
+                }).then(function () {
+                    location.reload();
+                });
+            },
+            error: function (xhr) {
+                const message = xhr.responseJSON && xhr.responseJSON.message
+                    ? xhr.responseJSON.message
+                    : 'No fue posible aprobar la citación.';
+                Swal.fire({ icon: 'warning', title: 'No se pudo aprobar', text: message });
+            }
+        });
+    }
+
+    function devolverRevisionAsistente() {
+        if (!revisionAsistenteCitacionId) {
+            return;
+        }
+
+        const observacion = normalizarTexto($('#revision_observacion').val());
+        if (!observacion) {
+            Swal.fire({ icon: 'warning', title: 'Observación requerida', text: 'Debe ingresar una observación para devolver a Guardia.' });
+            return;
+        }
+
+        $.ajax({
+            url: `/pla-citacion-devolver-guardia/${revisionAsistenteCitacionId}/`,
+            type: 'POST',
+            data: {
+                observacion: observacion
+            },
+            headers: {
+                'X-CSRFToken': '{{ csrf_token }}'
+            },
+            success: function (response) {
+                Swal.fire({
+                    icon: 'success',
+                    title: 'Devuelto',
+                    text: response.message || 'Camión devuelto a Guardia.'
+                }).then(function () {
+                    location.reload();
+                });
+            },
+            error: function (xhr) {
+                const message = xhr.responseJSON && xhr.responseJSON.message
+                    ? xhr.responseJSON.message
+                    : 'No fue posible devolver la citación.';
+                Swal.fire({ icon: 'warning', title: 'No se pudo devolver', text: message });
+            }
+        });
+    }
+
+    function enviarRevisionGuardiaPorteria() {
+        if (!revisionAsistenteCitacionId) {
+            return;
+        }
+
+        $.ajax({
+            url: `/pla-citacion-enviar-guardia-porteria/${revisionAsistenteCitacionId}/`,
+            type: 'POST',
+            headers: {
+                'X-CSRFToken': '{{ csrf_token }}'
+            },
+            success: function (response) {
+                Swal.fire({
+                    icon: 'success',
+                    title: 'Enviado',
+                    text: response.message || 'Citación enviada correctamente.'
+                }).then(function () {
+                    location.reload();
+                });
+            },
+            error: function (xhr) {
+                const message = xhr.responseJSON && xhr.responseJSON.message
+                    ? xhr.responseJSON.message
+                    : 'No fue posible enviar la citación.';
+                Swal.fire({ icon: 'warning', title: 'No se pudo enviar', text: message });
+            }
+        });
     }
 
  function renderIngresoCamionCampo(campo) {
@@ -2530,6 +3001,254 @@ function inicializarConductoresIngresoCamion(limpiarActual) {
         });
     }
 
+    function renderEstanqueCamionOptions(opciones, estanqueActual) {
+        const select = $('#estanque_operacional');
+        const items = opciones || [];
+        select.empty();
+        select.append('<option value="">Seleccione estanque</option>');
+
+        items.forEach(function (item) {
+            const valor = item.valor || '';
+            const texto = item.texto || valor;
+            const option = $('<option></option>')
+                .val(valor)
+                .text(texto);
+
+            if (!item.disponible && !item.seleccionado) {
+                option.prop('disabled', true);
+            }
+
+            if (item.seleccionado || valor === estanqueActual) {
+                option.prop('selected', true);
+            }
+
+            select.append(option);
+        });
+    }
+
+    function bloquearControlesEstanqueCamion(bloquear, mensaje) {
+        $('#estanque_operacional').prop('disabled', !!bloquear);
+        $('#btn_guardar_estanque').prop('disabled', !!bloquear);
+
+        if (mensaje) {
+            $('#estanque_camion_bloqueo').show().text(mensaje);
+        } else {
+            $('#estanque_camion_bloqueo').hide().text('');
+        }
+    }
+
+    function poblarEstanqueDestinoPorAlmacen(almacenSelector, estanqueSelector) {
+        const almacen = ($(almacenSelector).val() || '').trim();
+        const almacenNormalizado = almacen.toUpperCase();
+        const estanque = $(estanqueSelector);
+        const opciones = ESTANQUES_POR_ALMACEN_OPERACIONAL[almacen]
+            || ESTANQUES_POR_ALMACEN_OPERACIONAL[almacenNormalizado]
+            || [];
+
+        estanque.empty().append('<option value="">Seleccione estanque</option>');
+        opciones.forEach(function (valor) {
+            estanque.append($('<option></option>').val(valor).text(valor));
+        });
+
+        estanque.prop('disabled', opciones.length === 0);
+        if (almacenNormalizado === 'TRASVASIJE') {
+            estanque.val('Trasvasije').prop('disabled', false);
+        }
+    }
+
+    function openEstanqueCamionModal(citacionId) {
+        estanqueCamionCitacionId = citacionId;
+        $('#estanque_camion_subtitulo').text(`Citación #${citacionId}`);
+        $('#estanque_camion_alert').hide().text('');
+        $('#estanque_camion_contenido').html('<div class="text-center p-3">Cargando...</div>');
+        $('#estanque_almacen_planificacion').val('');
+        $('#estanque_operacional').empty().append('<option value="">Cargando estanques...</option>').prop('disabled', true);
+        $('#estanque_operacional').closest('.form-group').show();
+        $('#estanque_camion_bloqueo').removeClass('alert-info').addClass('alert-warning').hide().text('');
+        $('#btn_guardar_estanque').text('Guardar estanque');
+        $('#btn_enviar_estanque').text('Enviar siguiente etapa');
+        $('#btn_guardar_estanque, #btn_enviar_estanque').prop('disabled', true);
+        $('#ModalEstanqueCamion').modal('show');
+
+        $.ajax({
+            url: `/pla-citacion-estanque/${citacionId}/`,
+            type: 'GET',
+            success: function (response) {
+                if (!response.success) {
+                    $('#estanque_camion_contenido').empty();
+                    $('#estanque_camion_alert').show().text(response.message || 'No fue posible cargar la asignación de estanque.');
+                    return;
+                }
+
+                const opciones = response.opciones_estanque || [];
+                const puedeEditar = !!response.puede_editar && !response.enviado_siguiente;
+                const esTrasvasije = !!response.es_trasvasije;
+                const bloqueo = response.mensaje_bloqueo
+                    || (!esTrasvasije && !opciones.length ? 'No hay estanques configurados para el almacén definido en la planificación.' : '');
+
+                const html = [
+                    renderRevisionSection('Datos planificación', response.planificacion),
+                    renderRevisionSection('Datos citación', response.citacion),
+                    renderRevisionSection('Datos ingresados por Guardia', response.guardia),
+                    renderRevisionSection('Aprobación Asistente Recepción', response.aprobacion),
+                    renderRevisionDocuments(response.documentos)
+                ].join('');
+
+                $('#estanque_camion_contenido').html(html || '<div class="text-muted">Sin información registrada.</div>');
+                $('#estanque_almacen_planificacion').val(response.almacen || 'No registrado');
+
+                if (esTrasvasije) {
+                    $('#estanque_operacional').closest('.form-group').hide();
+                    $('#estanque_operacional').empty().append('<option value="Trasvasije" selected>Trasvasije</option>');
+                    $('#btn_guardar_estanque').text('Confirmar destino');
+                    $('#estanque_camion_bloqueo')
+                        .removeClass('alert-warning')
+                        .addClass('alert-info')
+                        .show()
+                        .text('Destino operacional Trasvasije definido desde planificación. No requiere selección de estanque físico.');
+                } else {
+                    $('#estanque_camion_bloqueo').removeClass('alert-info').addClass('alert-warning');
+                    $('#estanque_operacional').closest('.form-group').show();
+                    $('#btn_guardar_estanque').text('Guardar estanque');
+                    renderEstanqueCamionOptions(opciones, response.estanque_actual || '');
+                }
+
+                if (esTrasvasije) {
+                    $('#estanque_operacional').prop('disabled', false);
+                    $('#btn_guardar_estanque').prop('disabled', !puedeEditar);
+                } else {
+                    bloquearControlesEstanqueCamion(!puedeEditar || !!bloqueo, bloqueo);
+                }
+
+                $('#btn_enviar_estanque').prop('disabled', !puedeEditar || !response.estanque_actual || !response.estanque_actual_disponible);
+
+                if (response.enviado_siguiente) {
+                    $('#estanque_camion_alert').show().text('Esta citación ya fue enviada a la siguiente etapa.');
+                }
+            },
+            error: function (xhr) {
+                const message = xhr.responseJSON && xhr.responseJSON.message
+                    ? xhr.responseJSON.message
+                    : 'Ocurrió un error al cargar la asignación de estanque.';
+
+                $('#estanque_camion_contenido').empty();
+                $('#estanque_camion_alert').show().text(message);
+                bloquearControlesEstanqueCamion(true, '');
+            }
+        });
+    }
+
+    function guardarEstanqueCamion() {
+        if (!estanqueCamionCitacionId) {
+            return;
+        }
+
+        const estanque = normalizarTexto($('#estanque_operacional').val());
+        if (!estanque) {
+            Swal.fire({
+                icon: 'warning',
+                title: 'Estanque requerido',
+                text: 'Debe seleccionar un estanque destino.'
+            });
+            return;
+        }
+
+        $.ajax({
+            url: `/pla-citacion-estanque/${estanqueCamionCitacionId}/`,
+            type: 'POST',
+            data: { estanque: estanque },
+            headers: {
+                'X-CSRFToken': '{{ csrf_token }}'
+            },
+            success: function (response) {
+                if (!response.success) {
+                    Swal.fire({
+                        icon: 'error',
+                        title: 'No se pudo guardar',
+                        text: response.message || 'No fue posible guardar el estanque.'
+                    });
+                    return;
+                }
+
+                $('#btn_enviar_estanque').prop('disabled', false);
+                $(`#citacion-row-${estanqueCamionCitacionId}`).addClass('citacion-estanque-asignado');
+
+                Swal.fire({
+                    icon: 'success',
+                    title: 'Estanque guardado',
+                    text: response.message || 'Estanque guardado correctamente.'
+                });
+            },
+            error: function (xhr) {
+                const message = xhr.responseJSON && xhr.responseJSON.message
+                    ? xhr.responseJSON.message
+                    : 'No fue posible guardar el estanque.';
+
+                Swal.fire({
+                    icon: 'warning',
+                    title: 'No se pudo guardar',
+                    text: message
+                });
+            }
+        });
+    }
+
+    function enviarEstanqueSiguienteEtapa() {
+        if (!estanqueCamionCitacionId) {
+            return;
+        }
+
+        Swal.fire({
+            icon: 'question',
+            title: 'Enviar siguiente etapa',
+            text: 'Se enviará la citación con el estanque seleccionado.',
+            showCancelButton: true,
+            confirmButtonText: 'Enviar',
+            cancelButtonText: 'Cancelar'
+        }).then(function (result) {
+            if (!result.isConfirmed) {
+                return;
+            }
+
+            $.ajax({
+                url: `/pla-citacion-estanque-avanzar/${estanqueCamionCitacionId}/`,
+                type: 'POST',
+                headers: {
+                    'X-CSRFToken': '{{ csrf_token }}'
+                },
+                success: function (response) {
+                    if (!response.success) {
+                        Swal.fire({
+                            icon: 'error',
+                            title: 'No se pudo enviar',
+                            text: response.message || 'No fue posible enviar la citación.'
+                        });
+                        return;
+                    }
+
+                    Swal.fire({
+                        icon: 'success',
+                        title: 'Enviado',
+                        text: response.message || 'Citación enviada correctamente.'
+                    }).then(function () {
+                        location.reload();
+                    });
+                },
+                error: function (xhr) {
+                    const message = xhr.responseJSON && xhr.responseJSON.message
+                        ? xhr.responseJSON.message
+                        : 'No fue posible enviar la citación.';
+
+                    Swal.fire({
+                        icon: 'warning',
+                        title: 'No se pudo enviar',
+                        text: message
+                    });
+                }
+            });
+        });
+    }
+
     function marcarFilaPendienteEnvio(citacionId, forzarMarca) {
         if (!citacionId) {
             return;
@@ -2630,6 +3349,28 @@ function inicializarConductoresIngresoCamion(limpiarActual) {
             const modalBody = document.querySelector('#ModalIngresoCamion .modal-body');
             if (modalBody) {
                 modalBody.scrollTop = 0;
+            }
+        });
+
+    $(document)
+        .off('input.revision-ruta change.revision-ruta', '#revision_ruta_texto')
+        .on('input.revision-ruta change.revision-ruta', '#revision_ruta_texto', function () {
+            sincronizarRutaTransportistaRevision();
+        });
+
+    $(document)
+        .off('change.estanque-camion', '#estanque_operacional')
+        .on('change.estanque-camion', '#estanque_operacional', function () {
+            $('#btn_enviar_estanque').prop('disabled', true);
+        });
+
+    $(document)
+        .off('change.destino-operacional', '#no_plan_almacen_destino, #edit_almacen_destino')
+        .on('change.destino-operacional', '#no_plan_almacen_destino, #edit_almacen_destino', function () {
+            if (this.id === 'no_plan_almacen_destino') {
+                poblarEstanqueDestinoPorAlmacen('#no_plan_almacen_destino', '#no_plan_estanque_destino');
+            } else {
+                poblarEstanqueDestinoPorAlmacen('#edit_almacen_destino', '#edit_estanque_destino');
             }
         });
 

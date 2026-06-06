@@ -1334,6 +1334,8 @@ ESTANQUES_POR_ALMACEN = {
         'TKMX02',
         'TKMX03',
         'TKMX04',
+    ],
+    'TRASVASIJE': [
         'Trasvasije',
     ],
 }
@@ -1341,6 +1343,8 @@ ESTANQUES_POR_ALMACEN = {
 
 def normalizar_almacen_planificacion(valor):
     almacen = normalizar_nombre_perfil(valor)
+    if 'TRASVASIJE' in almacen or 'TRASVASIJES' in almacen:
+        return 'TRASVASIJE'
     if almacen.startswith('PROCESA') or almacen.startswith('PROSESA') or almacen.startswith('PROSE'):
         return 'PROSESA'
     if almacen.startswith('SBH'):
@@ -1357,6 +1361,7 @@ def obtener_estanques_modal_camion_no_planificado():
     return {
         'PROCESA': ESTANQUES_POR_ALMACEN['PROSESA'],
         'SBH': ESTANQUES_POR_ALMACEN['SBH'],
+        'TRASVASIJE': ESTANQUES_POR_ALMACEN['TRASVASIJE'],
     }
 
 
@@ -1609,7 +1614,11 @@ def PLANIFICACION_CITACION_RESUMEN(request, pk):
 
         if not request.user.is_superuser:
             usuario = request.user.id
-            if not usuario_es_planificador(request.user) and not validar_perfiles_activos(usuario, "pla_listone"):
+            if (
+                not usuario_es_ingreso_camion(request.user)
+                and not usuario_es_planificador(request.user)
+                and not validar_perfiles_activos(usuario, "pla_listone")
+            ):
                 return JsonResponse({'success': False, 'message': 'No tiene permisos para ver esta citacion.'}, status=403)
 
         citacion = CITACION.objects.select_related(
@@ -1627,8 +1636,13 @@ def PLANIFICACION_CITACION_RESUMEN(request, pk):
         citacion_item = CITACION_ITEM.objects.select_related('IT_NID').filter(CI_NID=citacion).first()
         detalle_operacional = detalle_operacional_dict(citacion)
         valores_ingreso = obtener_valores_ingreso_camion(citacion)
+        datos_operacion, documentos = obtener_datos_operacion_citacion(citacion)
         dato_estanque = obtener_dato_estanque_operacional(citacion)
         etapa_actual = citacion.ETAPA_ACTUAL
+
+        def dato_operacion(codigo):
+            registro = datos_operacion.get(codigo)
+            return registro.DO_CVALOR if registro else ''
 
         def fmt_fecha(valor, formato='%d/%m/%Y %H:%M'):
             return valor.strftime(formato) if valor else ''
@@ -1678,6 +1692,18 @@ def PLANIFICACION_CITACION_RESUMEN(request, pk):
                 for k, v in detalle_operacional.items()
                 if v not in [None, '']
             ],
+            'ingreso_camion': [
+                {'label': 'Numero guia', 'value': dato_operacion('CI_CNUMERODOCUMENTO') or citacion.CI_CNUMERODOCUMENTO},
+                {'label': 'BL', 'value': dato_operacion('ING_BL') or detalle_operacional.get('bl', '')},
+                {'label': 'Empresa transporte', 'value': texto_sin_informacion(valores_ingreso.get('transportista'))},
+                {'label': 'Nombre conductor', 'value': texto_sin_informacion(valores_ingreso.get('conductor'))},
+                {'label': 'Patente', 'value': texto_sin_informacion(valores_ingreso.get('patente'))},
+                {'label': 'Cantidad de ejes', 'value': texto_sin_informacion(valores_ingreso.get('cantidad_ejes'))},
+                {'label': 'Celular conductor', 'value': texto_sin_informacion(valores_ingreso.get('celular_conductor'))},
+                {'label': 'Lote / Contenedor', 'value': dato_operacion('ING_LOTE_CONTENEDOR')},
+                {'label': 'Observacion ingreso', 'value': dato_operacion('ING_OBSERVACION')},
+            ],
+            'documentos': documentos,
         }
 
         return JsonResponse({'success': True, 'data': data})
@@ -1796,46 +1822,49 @@ def texto_sin_informacion(valor):
     return valor if valor not in [None, ''] else 'Sin información'
 
 
-def obtener_rutas_tarifa_transportista(citacion, valores_ingreso=None):
+def limpiar_nombre_transportista_ingreso(valor):
+    return str(valor or '').split('(')[0].strip()
+
+
+def extraer_rut_transportista_ingreso(valor):
+    texto = str(valor or '')
+    if '(' not in texto or ')' not in texto:
+        return ''
+    return texto.split('(')[-1].split(')')[0].strip()
+
+
+def obtener_transportistas_ids_revision(citacion, valores_ingreso=None):
     valores_ingreso = valores_ingreso or obtener_valores_ingreso_camion(citacion)
-
-    if citacion.TAR_NID and citacion.TAR_NID.RUT_NID:
-        return {
-            'rutas_texto': citacion.TAR_NID.RUT_NID.RUT_CNOMBRE,
-            'tarifa_texto': citacion.TAR_NID.TAR_CNOMBRETARIFA,
-            'opciones': [{
-                'id': str(citacion.TAR_NID_id),
-                'text': citacion.TAR_NID.RUT_NID.RUT_CNOMBRE,
-                'tarifa': citacion.TAR_NID.TAR_CNOMBRETARIFA,
-                'selected': True,
-            }],
-        }
-
-    if citacion.RUT_NID:
-        return {
-            'rutas_texto': citacion.RUT_NID.RUT_CNOMBRE,
-            'tarifa_texto': citacion.TAR_NID.TAR_CNOMBRETARIFA if citacion.TAR_NID else '',
-            'opciones': [{
-                'id': str(citacion.TAR_NID_id or citacion.RUT_NID_id),
-                'text': citacion.RUT_NID.RUT_CNOMBRE,
-                'tarifa': citacion.TAR_NID.TAR_CNOMBRETARIFA if citacion.TAR_NID else '',
-                'selected': True,
-            }],
-        }
-
     transportista = str(valores_ingreso.get('transportista') or '').strip()
-    if not transportista:
-        return {'rutas_texto': '', 'tarifa_texto': '', 'opciones': []}
-
     socios_ids = []
+
+    if citacion.PRO_NID_id:
+        socios_ids.extend(obtener_ids_transportistas_equivalentes(citacion.PRO_NID))
+
+    nombre_transportista = limpiar_nombre_transportista_ingreso(transportista)
+    rut_transportista = extraer_rut_transportista_ingreso(transportista)
+    filtros = Q()
+    if nombre_transportista:
+        filtros |= Q(SN_CRAZONSOCIAL__iexact=nombre_transportista)
+    if rut_transportista and not rut_transportista_es_ficticio(rut_transportista):
+        filtros |= Q(SN_CRUT__iexact=rut_transportista)
+
+    if filtros:
+        for socio_id in SOCIONEGOCIO.objects.filter(
+            filtros,
+            SN_BHABILITADO=True
+        ).values_list('id', flat=True):
+            if socio_id not in socios_ids:
+                socios_ids.append(socio_id)
 
     conductor = str(valores_ingreso.get('conductor') or '').strip()
     if conductor:
         partes_nombre = conductor.split()
         conductores = CONDUCTOR.objects.filter(
             CON_BHABILITADO=True,
-            SN_NID__SN_CRAZONSOCIAL__iexact=transportista,
         )
+        if nombre_transportista:
+            conductores = conductores.filter(SN_NID__SN_CRAZONSOCIAL__iexact=nombre_transportista)
         if partes_nombre:
             conductores = conductores.filter(CON_CNOMBRE__icontains=partes_nombre[0])
         if len(partes_nombre) > 1:
@@ -1845,12 +1874,44 @@ def obtener_rutas_tarifa_transportista(citacion, valores_ingreso=None):
             if socio_id and socio_id not in socios_ids:
                 socios_ids.append(socio_id)
 
-    for socio_id in SOCIONEGOCIO.objects.filter(
-        SN_BHABILITADO=True,
-        SN_CRAZONSOCIAL__iexact=transportista,
-    ).values_list('id', flat=True):
-        if socio_id not in socios_ids:
-            socios_ids.append(socio_id)
+    return socios_ids
+
+
+def serializar_tarifa_revision(tarifa, selected=False):
+    ruta_nombre = tarifa.RUT_NID.RUT_CNOMBRE if tarifa.RUT_NID else tarifa.TAR_CNOMBRETARIFA
+    return {
+        'id': str(tarifa.id),
+        'ruta_id': str(tarifa.RUT_NID_id or ''),
+        'tarifa_id': str(tarifa.id),
+        'text': ruta_nombre,
+        'tarifa': tarifa.TAR_CNOMBRETARIFA,
+        'costo': str(tarifa.TAR_NVALOR),
+        'selected': selected,
+    }
+
+
+def obtener_rutas_tarifa_transportista(citacion, valores_ingreso=None):
+    valores_ingreso = valores_ingreso or obtener_valores_ingreso_camion(citacion)
+
+    if citacion.TAR_NID and citacion.TAR_NID.RUT_NID:
+        return {
+            'rutas_texto': citacion.TAR_NID.RUT_NID.RUT_CNOMBRE,
+            'tarifa_texto': citacion.TAR_NID.TAR_CNOMBRETARIFA,
+            'opciones': [serializar_tarifa_revision(citacion.TAR_NID, selected=True)],
+        }
+
+    if citacion.RUT_NID:
+        return {
+            'rutas_texto': citacion.RUT_NID.RUT_CNOMBRE,
+            'tarifa_texto': citacion.TAR_NID.TAR_CNOMBRETARIFA if citacion.TAR_NID else '',
+            'opciones': [serializar_tarifa_revision(citacion.TAR_NID, selected=True)] if citacion.TAR_NID else [],
+        }
+
+    transportista = str(valores_ingreso.get('transportista') or '').strip()
+    if not transportista:
+        return {'rutas_texto': '', 'tarifa_texto': '', 'opciones': []}
+
+    socios_ids = obtener_transportistas_ids_revision(citacion, valores_ingreso)
 
     if not socios_ids:
         return {'rutas_texto': '', 'tarifa_texto': '', 'opciones': []}
@@ -1870,12 +1931,7 @@ def obtener_rutas_tarifa_transportista(citacion, valores_ingreso=None):
         if tarifa.TAR_CNOMBRETARIFA and tarifa.TAR_CNOMBRETARIFA not in tarifas_nombres:
             tarifas_nombres.append(tarifa.TAR_CNOMBRETARIFA)
         if tarifa.RUT_NID and tarifa.RUT_NID.RUT_CNOMBRE not in rutas_opciones:
-            opciones.append({
-                'id': str(tarifa.id),
-                'text': tarifa.RUT_NID.RUT_CNOMBRE,
-                'tarifa': tarifa.TAR_CNOMBRETARIFA,
-                'selected': False,
-            })
+            opciones.append(serializar_tarifa_revision(tarifa, selected=False))
             rutas_opciones.add(tarifa.RUT_NID.RUT_CNOMBRE)
 
     def resumir(valores, limite=10):
@@ -2193,6 +2249,10 @@ def PLANIFICACION_CITACION_REVISION_ASISTENTE(request, pk):
                 'Lote-contenedor': dato('ING_LOTE_CONTENEDOR'),
                 'Observacion': dato('ING_OBSERVACION') or valor_detalle('observacion') or citacion.CI_CCOMENTARIO or '',
             },
+            'rutas_transportista': {
+                'options': ruta_tarifa_transportista.get('opciones', []),
+                'message': '' if ruta_tarifa_transportista.get('opciones') else 'El transportista no tiene rutas configuradas.',
+            },
             'asistente_cd': {
                 'Estanque asignado': dato_estanque.DO_CVALOR if dato_estanque else '',
                 'Usuario responsable': log_envio_estanque.US_NID.username if log_envio_estanque and log_envio_estanque.US_NID else (dato_estanque.US_NID.username if dato_estanque and dato_estanque.US_NID else ''),
@@ -2246,6 +2306,37 @@ def PLANIFICACION_CITACION_REVISION_ASISTENTE(request, pk):
         return JsonResponse({'success': False, 'message': str(e)}, status=500)
 
 
+def AJAX_RUTAS_TRANSPORTISTA_REVISION(request):
+    if request.method != 'GET':
+        return JsonResponse({'success': False, 'message': 'Metodo no permitido.'}, status=405)
+
+    if not usuario_es_asistente_recepcion(request.user) and not request.user.is_superuser:
+        return JsonResponse({'success': False, 'message': 'No tiene permisos para consultar rutas.'}, status=403)
+
+    Empresa = Verificar_empresa(request)
+    if Empresa is None:
+        return JsonResponse({'success': False, 'message': 'Debe seleccionar una empresa.', 'results': []}, status=400)
+
+    citacion_id = request.GET.get('citacion_id')
+    if not citacion_id:
+        return JsonResponse({'success': False, 'message': 'Debe indicar la citacion.', 'results': []}, status=400)
+
+    try:
+        citacion = CITACION.objects.select_related(
+            'EP_NID',
+            'PRO_NID',
+            'TAR_NID__RUT_NID',
+            'RUT_NID'
+        ).get(pk=citacion_id, EP_NID_id=Empresa, CI_BHABILITADO=True)
+        valores_ingreso = obtener_valores_ingreso_camion(citacion)
+        rutas = obtener_rutas_tarifa_transportista(citacion, valores_ingreso)
+        return JsonResponse({'success': True, 'results': rutas.get('opciones', [])})
+    except CITACION.DoesNotExist:
+        return JsonResponse({'success': False, 'message': 'Citacion no encontrada.', 'results': []}, status=404)
+    except Exception as e:
+        return JsonResponse({'success': False, 'message': str(e), 'results': []}, status=500)
+
+
 def APROBAR_CAMION_ASISTENTE(request, pk):
     if request.method != 'POST':
         return JsonResponse({'success': False, 'message': 'Metodo no permitido.'}, status=405)
@@ -2258,7 +2349,7 @@ def APROBAR_CAMION_ASISTENTE(request, pk):
         return JsonResponse({'success': False, 'message': 'Debe seleccionar una empresa.'}, status=400)
 
     try:
-        citacion = CITACION.objects.select_related('EP_NID', 'SC_NID').get(pk=pk, EP_NID_id=Empresa, CI_BHABILITADO=True)
+        citacion = CITACION.objects.select_related('EP_NID', 'SC_NID', 'PRO_NID').get(pk=pk, EP_NID_id=Empresa, CI_BHABILITADO=True)
         detalle_actual = DETALLE_SECUENCIA.objects.filter(
             SC_NID=citacion.SC_NID,
             ET_NID=citacion.ETAPA_ACTUAL,
@@ -2279,6 +2370,45 @@ def APROBAR_CAMION_ASISTENTE(request, pk):
 
         bl_validado = str(request.POST.get('bl') or '').strip()
         lote_contenedor_validado = str(request.POST.get('lote_contenedor') or '').strip()
+        tarifa_id = str(request.POST.get('tarifa_id') or '').strip()
+        ruta_id = str(request.POST.get('ruta_id') or '').strip()
+
+        if not tarifa_id:
+            return JsonResponse({
+                'success': False,
+                'message': 'Debe seleccionar una ruta del transportista antes de aprobar.'
+            }, status=400)
+
+        valores_ingreso = obtener_valores_ingreso_camion(citacion)
+        transportistas_ids = obtener_transportistas_ids_revision(citacion, valores_ingreso)
+        if not transportistas_ids:
+            return JsonResponse({
+                'success': False,
+                'message': 'No fue posible validar el transportista asociado a la citacion.'
+            }, status=400)
+
+        tarifa = TARIFA_GLOBAL.objects.select_related('RUT_NID', 'SN_NID').filter(
+            pk=tarifa_id,
+            SN_NID_id__in=transportistas_ids,
+            TAR_BHABILITADO=True
+        ).first()
+
+        if not tarifa:
+            return JsonResponse({
+                'success': False,
+                'message': 'La ruta seleccionada no pertenece al transportista o no esta habilitada.'
+            }, status=400)
+
+        if ruta_id and str(tarifa.RUT_NID_id) != ruta_id:
+            return JsonResponse({
+                'success': False,
+                'message': 'La ruta seleccionada no corresponde a la tarifa indicada.'
+            }, status=400)
+
+        citacion.TAR_NID = tarifa
+        citacion.RUT_NID = tarifa.RUT_NID
+        citacion.CI_NVALORTARIFA = tarifa.TAR_NVALOR
+        citacion.save(update_fields=['TAR_NID', 'RUT_NID', 'CI_NVALORTARIFA'])
 
         if bl_validado:
             guardar_dato_operacion_codigo(
@@ -2597,6 +2727,9 @@ def PLANIFICACION_CITACION_ESTANQUE(request, pk):
                 return JsonResponse({'success': False, 'message': 'No existe almacen definido en planificacion.'}, status=400)
 
             estanque = str(request.POST.get('estanque') or '').strip()
+            if almacen == 'TRASVASIJE':
+                estanque = 'Trasvasije'
+
             if not estanque:
                 return JsonResponse({'success': False, 'message': 'Debe seleccionar estanque.'}, status=400)
 
@@ -2604,20 +2737,21 @@ def PLANIFICACION_CITACION_ESTANQUE(request, pk):
                 return JsonResponse({'success': False, 'message': 'El estanque seleccionado no corresponde al almacen definido.'}, status=400)
 
             with transaction.atomic():
-                reserva, reserva_ocupada = reservar_estanque_citacion(
-                    citacion,
-                    almacen,
-                    estanque,
-                    request.user,
-                    patente=patente
-                )
-                if reserva_ocupada:
-                    return JsonResponse({
-                        'success': False,
-                        'message': 'El estanque seleccionado ya está ocupado por otra citación activa.',
-                        'ocupado_por_patente': reserva_ocupada.ER_CPATENTE,
-                        'ocupado_por_citacion': reserva_ocupada.CI_NID_id,
-                    }, status=409)
+                if almacen != 'TRASVASIJE':
+                    reserva, reserva_ocupada = reservar_estanque_citacion(
+                        citacion,
+                        almacen,
+                        estanque,
+                        request.user,
+                        patente=patente
+                    )
+                    if reserva_ocupada:
+                        return JsonResponse({
+                            'success': False,
+                            'message': 'El estanque seleccionado ya está ocupado por otra citación activa.',
+                            'ocupado_por_patente': reserva_ocupada.ER_CPATENTE,
+                            'ocupado_por_citacion': reserva_ocupada.CI_NID_id,
+                        }, status=409)
 
                 campo_estanque = obtener_campo_estanque_operacional(citacion, request.user)
                 DATO_OPERACION.objects.update_or_create(
@@ -2638,10 +2772,10 @@ def PLANIFICACION_CITACION_ESTANQUE(request, pk):
                 citacion.EP_NID,
                 'ESTANQUE_CD',
                 (
-                    f'Asistente_C_D reserva estanque {estanque} para citacion #{citacion.id}.\n'
+                    f'Asistente_C_D confirma destino {estanque} para citacion #{citacion.id}.\n'
                     f'Patente: {patente}\n'
                     f'Almacen: {almacen}\n'
-                    f'Estado reserva: {ESTANQUE_RESERVA.ESTADO_OCUPADO}'
+                    f'Estado reserva: {"No aplica" if almacen == "TRASVASIJE" else ESTANQUE_RESERVA.ESTADO_OCUPADO}'
                 ),
                 citacion.id,
                 estanque
@@ -2649,9 +2783,9 @@ def PLANIFICACION_CITACION_ESTANQUE(request, pk):
 
             return JsonResponse({
                 'success': True,
-                'message': 'Estanque guardado y reservado correctamente.',
+                'message': 'Destino confirmado correctamente.' if almacen == 'TRASVASIJE' else 'Estanque guardado y reservado correctamente.',
                 'estanque': estanque,
-                'reserva_estado': ESTANQUE_RESERVA.ESTADO_OCUPADO
+                'reserva_estado': 'NO_APLICA' if almacen == 'TRASVASIJE' else ESTANQUE_RESERVA.ESTADO_OCUPADO
             })
 
         citacion_item = CITACION_ITEM.objects.filter(CI_NID=citacion).select_related('IT_NID').first()
@@ -2669,7 +2803,7 @@ def PLANIFICACION_CITACION_ESTANQUE(request, pk):
         bl = dato('ING_BL') or obtener_bl_inicial_citacion(citacion) or detalle_operacional.get('bl', '')
         reserva_actual = obtener_reserva_ocupada_citacion(citacion)
         estanque_actual = dato_estanque.DO_CVALOR if dato_estanque else (reserva_actual.ER_CESTANQUE if reserva_actual else '')
-        opciones_estanque_reserva = construir_opciones_estanque_reserva(
+        opciones_estanque_reserva = [] if almacen == 'TRASVASIJE' else construir_opciones_estanque_reserva(
             citacion,
             almacen,
             opciones_estanque,
@@ -2688,6 +2822,7 @@ def PLANIFICACION_CITACION_ESTANQUE(request, pk):
             'estanque_actual': estanque_actual,
             'estanque_actual_disponible': estanque_actual_disponible,
             'enviado_siguiente': enviado_siguiente,
+            'es_trasvasije': almacen == 'TRASVASIJE',
             'puede_editar': not enviado_siguiente and bool(almacen),
             'mensaje_bloqueo': '' if almacen else 'No existe almacen definido en planificacion',
             'planificacion': {
@@ -2788,24 +2923,28 @@ def AVANZAR_ESTANQUE_SIGUIENTE_ETAPA(request, pk):
         if not almacen:
             return JsonResponse({'success': False, 'message': 'No existe almacen definido en planificacion.'}, status=400)
 
+        if almacen == 'TRASVASIJE':
+            estanque_asignado = 'Trasvasije'
+
         if estanque_asignado not in opciones_estanque:
             return JsonResponse({'success': False, 'message': 'El estanque asignado no corresponde al almacen definido.'}, status=400)
 
-        with transaction.atomic():
-            reserva, reserva_ocupada = reservar_estanque_citacion(
-                citacion,
-                almacen,
-                estanque_asignado,
-                request.user,
-                patente=patente
-            )
-            if reserva_ocupada:
-                return JsonResponse({
-                    'success': False,
-                    'message': 'El estanque seleccionado ya está ocupado por otra citación activa.',
-                    'ocupado_por_patente': reserva_ocupada.ER_CPATENTE,
-                    'ocupado_por_citacion': reserva_ocupada.CI_NID_id,
-                }, status=409)
+        if almacen != 'TRASVASIJE':
+            with transaction.atomic():
+                reserva, reserva_ocupada = reservar_estanque_citacion(
+                    citacion,
+                    almacen,
+                    estanque_asignado,
+                    request.user,
+                    patente=patente
+                )
+                if reserva_ocupada:
+                    return JsonResponse({
+                        'success': False,
+                        'message': 'El estanque seleccionado ya está ocupado por otra citación activa.',
+                        'ocupado_por_patente': reserva_ocupada.ER_CPATENTE,
+                        'ocupado_por_citacion': reserva_ocupada.CI_NID_id,
+                    }, status=409)
 
         detalle_operacional = detalle_operacional_dict(citacion)
         fecha_envio = timezone.localtime(timezone.now()).strftime('%d/%m/%Y %H:%M:%S')
@@ -2839,7 +2978,7 @@ def AVANZAR_ESTANQUE_SIGUIENTE_ETAPA(request, pk):
             f'Lote/contenedor: {valor_operacion("ING_LOTE_CONTENEDOR")}\n'
             f'Almacen: {almacen or "No registrado"}\n'
             f'Estanque: {estanque_asignado}\n'
-            f'Estado reserva estanque: {ESTANQUE_RESERVA.ESTADO_OCUPADO}\n'
+            f'Estado reserva estanque: {"No aplica" if almacen == "TRASVASIJE" else ESTANQUE_RESERVA.ESTADO_OCUPADO}\n'
             f'Observacion: {valor_operacion("ING_OBSERVACION") or detalle_operacional.get("observacion", "") or ""}\n'
             f'Usuario responsable: {request.user.username}\n'
             f'Fecha/hora envio: {fecha_envio}\n'
@@ -2860,7 +2999,7 @@ def AVANZAR_ESTANQUE_SIGUIENTE_ETAPA(request, pk):
             'success': True,
             'message': 'Citacion enviada a Guardia.',
             'estanque': estanque_asignado,
-            'reserva_estado': ESTANQUE_RESERVA.ESTADO_OCUPADO,
+            'reserva_estado': 'NO_APLICA' if almacen == 'TRASVASIJE' else ESTANQUE_RESERVA.ESTADO_OCUPADO,
             'notificados_guardia': len(guardias)
         })
 
@@ -9401,7 +9540,7 @@ def obtener_top_camiones_tiempo_planta(empresa_id, limite=3):
         id__in=citacion_ids,
         EP_NID_id=empresa_id,
         CI_BHABILITADO=True
-    )
+    ).exclude(CI_CESTADO=CIT_RECHAZADO)
 
     citaciones_con_salida = set(OPERACION_PLANTA_LOG.objects.filter(
         CI_NID_id__in=citacion_ids,
@@ -9469,7 +9608,7 @@ def SEGUIMIENTO_OPERACIONAL(request):
         id__in=citacion_ids,
         EP_NID_id=Empresa,
         CI_BHABILITADO=True
-    ).order_by('-id')
+    ).exclude(CI_CESTADO=CIT_RECHAZADO).order_by('-id')
 
     citacion_items = {
         item.CI_NID_id: item
@@ -9520,6 +9659,7 @@ def SEGUIMIENTO_OPERACIONAL(request):
 
         rows.append({
             'citacion': citacion,
+            'citacion_id': citacion.id,
             'patente': texto_sin_informacion(valores_ingreso.get('patente')),
             'conductor': texto_sin_informacion(valores_ingreso.get('conductor')),
             'producto': item.IT_NID.IT_CNOMBRE if item and item.IT_NID else 'Sin producto',
@@ -9548,6 +9688,92 @@ def SEGUIMIENTO_OPERACIONAL(request):
     return render(request, 'home/CITACION/seguimiento_operacional.html', {
         'camiones': rows,
     })
+
+
+def SEGUIMIENTO_OPERACIONAL_ELIMINAR_CAMION(request, pk):
+    if request.method != 'POST':
+        return JsonResponse({'success': False, 'message': 'Metodo no permitido.'}, status=405)
+
+    if not request.user.is_superuser:
+        return JsonResponse({'success': False, 'message': 'No tiene permisos para eliminar camiones activos.'}, status=403)
+
+    Empresa = Verificar_empresa(request)
+    if Empresa is None:
+        return JsonResponse({'success': False, 'message': 'Debe seleccionar una empresa.'}, status=400)
+
+    try:
+        with transaction.atomic():
+            citacion = CITACION.objects.select_related('EP_NID', 'PL_NID').get(
+                pk=pk,
+                EP_NID_id=Empresa,
+                CI_BHABILITADO=True
+            )
+
+            if citacion.CI_CESTADO == CIT_RECHAZADO:
+                return JsonResponse({
+                    'success': True,
+                    'message': 'El camion ya estaba eliminado del seguimiento operacional.'
+                })
+
+            ingreso_autorizado = SYSLOGGER.objects.filter(
+                EP_NID_id=Empresa,
+                LOG_COPERACION='AUTORIZA_INGRESO_PLANTA',
+                LOG_CADD1=str(citacion.id)
+            ).exists()
+            if not ingreso_autorizado:
+                return JsonResponse({
+                    'success': False,
+                    'message': 'La citacion no tiene ingreso a planta autorizado.'
+                }, status=400)
+
+            salida_confirmada = OPERACION_PLANTA_LOG.objects.filter(
+                CI_NID=citacion,
+                OPL_CPASO='Confirmar Salida',
+                OPL_CESTADO=OPERACION_PLANTA_LOG.ESTADO_COMPLETADO
+            ).exists()
+            if salida_confirmada:
+                return JsonResponse({
+                    'success': False,
+                    'message': 'El camion ya tiene salida confirmada.'
+                }, status=400)
+
+            valores_ingreso = obtener_valores_ingreso_camion(citacion)
+            patente = texto_sin_informacion(valores_ingreso.get('patente'))
+            ahora = timezone.now()
+
+            citacion.CI_CESTADO = CIT_RECHAZADO
+            citacion.CI_FFECHATERMINO = ahora
+            citacion.save(update_fields=['CI_CESTADO', 'CI_FFECHATERMINO'])
+
+            OPERACION_PLANTA_LOG.objects.create(
+                US_NID=request.user,
+                EP_NID=citacion.EP_NID,
+                PL_NID=citacion.PL_NID,
+                CI_NID=citacion,
+                OPL_CPASO='Cancelacion seguimiento operacional',
+                OPL_CPERFIL_RESPONSABLE='ADMIN',
+                OPL_CESTADO=OPERACION_PLANTA_LOG.ESTADO_COMPLETADO,
+                OPL_COBSERVACION='Camion activo eliminado/cancelado desde Seguimiento Operacional por usuario administrador.',
+                OPL_FFECHAREGISTRO=ahora
+            )
+
+            registrar_log_camion_no_planificado(
+                request.user,
+                citacion.EP_NID,
+                'CANCELA_SEG_OPER',
+                f'Camion activo cancelado desde seguimiento operacional. Citacion #{citacion.id}. Patente: {patente}',
+                citacion.id,
+                patente
+            )
+
+        return JsonResponse({
+            'success': True,
+            'message': 'Camion eliminado del seguimiento operacional.'
+        })
+    except CITACION.DoesNotExist:
+        return JsonResponse({'success': False, 'message': 'Citacion no encontrada.'}, status=404)
+    except Exception as e:
+        return JsonResponse({'success': False, 'message': str(e)}, status=500)
 
 
 def export_citaciones_despachos_excel(request):

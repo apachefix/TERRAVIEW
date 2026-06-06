@@ -198,6 +198,11 @@
                                     <button type="button" class="btn btn-outline-primary btn-sm btn-detalle-seguimiento" data-detalle='{{ camion.detalle_json|escape }}'>
                                         Ver detalle
                                     </button>
+                                    {% if request.user.is_superuser %}
+                                    <button type="button" class="btn btn-outline-danger btn-sm btn-eliminar-seguimiento ml-1" data-citacion-id="{{ camion.citacion_id }}">
+                                        <i class="fas fa-trash"></i> Eliminar
+                                    </button>
+                                    {% endif %}
                                 </td>
                             </tr>
                             {% empty %}
@@ -328,6 +333,47 @@
             </div>
         `);
         $('#ModalDetalleSeguimiento').modal('show');
+    });
+
+    $(document).on('click', '.btn-eliminar-seguimiento', function () {
+        const citacionId = $(this).data('citacion-id');
+        if (!citacionId) {
+            Swal.fire('Error', 'No se pudo identificar la citacion.', 'error');
+            return;
+        }
+
+        Swal.fire({
+            title: '¿Eliminar camion activo?',
+            text: 'Esta accion sacara el camion del seguimiento operacional.',
+            icon: 'warning',
+            showCancelButton: true,
+            confirmButtonColor: '#dc3545',
+            cancelButtonColor: '#6c757d',
+            confirmButtonText: 'Eliminar',
+            cancelButtonText: 'Cancelar'
+        }).then(function (result) {
+            if (!result.isConfirmed) {
+                return;
+            }
+
+            $.ajax({
+                url: `/seguimiento-operacional/eliminar-camion/${citacionId}/`,
+                type: 'POST',
+                headers: {
+                    'X-CSRFToken': '{{ csrf_token }}'
+                },
+                success: function (response) {
+                    Swal.fire('Eliminado', response.message || 'Camion eliminado del seguimiento operacional.', 'success')
+                        .then(function () {
+                            window.location.reload();
+                        });
+                },
+                error: function (xhr) {
+                    const response = xhr.responseJSON || {};
+                    Swal.fire('Error', response.message || 'No fue posible eliminar el camion activo.', 'error');
+                }
+            });
+        });
     });
 </script>
 {% endblock javascripts %}

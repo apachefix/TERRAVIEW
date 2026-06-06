@@ -52,6 +52,7 @@ urlpatterns = [
     path('pla-citacion-resumen/<int:pk>/', login_required(views.PLANIFICACION_CITACION_RESUMEN), name='pla_citacion_resumen'),
     path('pla-citacion-estanque/<int:pk>/', login_required(views.PLANIFICACION_CITACION_ESTANQUE), name='pla_citacion_estanque'),
     path('pla-citacion-estanque-avanzar/<int:pk>/', login_required(views.AVANZAR_ESTANQUE_SIGUIENTE_ETAPA), name='pla_citacion_estanque_avanzar'),
+    path('ajax-rutas-transportista-revision/', login_required(views.AJAX_RUTAS_TRANSPORTISTA_REVISION), name='ajax_rutas_transportista_revision'),
         #########################################
     ########         EMPRESA     NUEVO    ########
     #########################################
@@ -274,6 +275,7 @@ urlpatterns = [
     path('operacion-planta/<int:pk>/', login_required(views.OPERACION_PLANTA_CITACION), name='operacion_planta_citacion'),
     path('operacion-planta/<int:pk>/guardar-paso/', login_required(views.OPERACION_PLANTA_GUARDAR_PASO), name='operacion_planta_guardar_paso'),
     path('seguimiento-operacional/', login_required(views.SEGUIMIENTO_OPERACIONAL), name='seguimiento_operacional'),
+    path('seguimiento-operacional/eliminar-camion/<int:pk>/', login_required(views.SEGUIMIENTO_OPERACIONAL_ELIMINAR_CAMION), name='seguimiento_operacional_eliminar_camion'),
     path('expediente-citacion/', login_required(views.EXPEDIENTE_CITACION_LIST), name='expediente_citacion_list'),
     path('expediente-citacion/<int:pk>/', login_required(views.EXPEDIENTE_CITACION_DETAIL), name='expediente_citacion_detail'),
     path('expediente-citacion/documento/<int:pk>/ver/', login_required(views.EXPEDIENTE_CITACION_DOCUMENTO_VER), name='expediente_citacion_documento_ver'),
