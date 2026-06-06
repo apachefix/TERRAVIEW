@@ -71,6 +71,30 @@ def _normalizar_texto(valor):
     return ' '.join(texto.replace('_', ' ').replace('-', ' ').split())
 
 
+@register.filter(name='es_operador_romana')
+def es_operador_romana(user):
+    if getattr(user, 'is_superuser', False):
+        return False
+
+    username_normalizado = _normalizar_texto(getattr(user, 'username', ''))
+    if username_normalizado == 'OPERADOR ROMANA' or username_normalizado.startswith('OPERADOR ROMANA'):
+        return True
+
+    perfiles_usuario = PERFIL_USUARIO.objects.select_related('PR_NID').filter(
+        US_NID=user.id,
+        PE_BHABILITADO=True,
+        PR_NID__PR_BHABILITADO=True
+    )
+
+    for perfil_usuario in perfiles_usuario:
+        nombre = _normalizar_texto(perfil_usuario.PR_NID.PR_CNOMBRE)
+        codigo = _normalizar_texto(perfil_usuario.PR_NID.PR_CCODIGO)
+        if nombre == 'OPERADOR ROMANA' or codigo == 'OPERADOR ROMANA':
+            return True
+
+    return False
+
+
 @register.filter(name='es_usuario_maesc')
 def es_usuario_maesc(user):
     return _normalizar_texto(getattr(user, 'username', '')) == 'MAESC'
@@ -330,6 +354,9 @@ def puede_gestionar_planificaciones(user):
 @register.filter(name='es_operacion_planta')
 def es_operacion_planta(user):
     if getattr(user, 'is_superuser', False):
+        return True
+
+    if es_operador_romana(user):
         return True
 
     username_normalizado = _normalizar_texto(getattr(user, 'username', ''))

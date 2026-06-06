@@ -151,12 +151,16 @@
                     <div class="d-flex justify-content-end mr-5 mt-4">
                         <button class="btn btn-primary m-t-5" type="button" data-toggle="collapse" data-target="#collapseExample" aria-expanded="false" aria-controls="collapseExample"><i class="fas fa-filter"></i> Ocultar/Mostrar Filtros</button>
                         {% if filtrado == 1 %}
-                            <a class="btn btn-danger m-t-5 ml-3" href="{% if request.path == '/cit_listall_despachos/' %}{% url 'cit_listall_despachos' %}{% else %}{% url 'cit_listall_recepciones' %}{% endif %}"><i class="fas fa-times"></i> Borrar Filtros</a>
+                            <a class="btn btn-danger m-t-5 ml-3" href="{% if request.path == '/cit_listall_despachos/' %}{% url 'cit_listall_despachos' %}{% else %}{% url 'cit_listall_recepciones' %}{% endif %}{% if contexto_operacion_planta %}?contexto=operacion_planta&empresa_id={{ empresa_activa_id }}{% endif %}"><i class="fas fa-times"></i> Borrar Filtros</a>
                         {% endif %}
                     </div>
                     <div class="collapse show" id="collapseExample">
                         <form method="GET" onsubmit="return validacion()">
                             {% csrf_token %}
+                            {% if contexto_operacion_planta %}
+                                <input type="hidden" name="contexto" value="operacion_planta">
+                                <input type="hidden" name="empresa_id" value="{{ empresa_activa_id }}">
+                            {% endif %}
                             <div class="form-row mr-5">
                                 <div class="col-md-6">
                                     <label class="ml-2 my-2 me-2" for="secuencia">Secuencia</label>
@@ -237,7 +241,9 @@
                                             <th>FECHA CITACION</th>
                                             <th>NOMBRE SECUENCIA</th>
                                             <th>NOMBRE ETAPA</th>
-                                            <th>CLIENTE</th>
+                                            {% if not ocultar_cliente_operacion_recepcion %}
+                                                <th>CLIENTE</th>
+                                            {% endif %}
                                             <th>CONDUCTOR</th>
                                             <th>PATENTE</th>
                                             <th>TIPO EJE</th>
@@ -253,12 +259,16 @@
                                         {% for object in object_list %}
                                             <tr>
                                                 <td>
-                                                    {% if guardia_ingreso %}
+                                                    {% if contexto_operacion_planta and object.operacion_planta_habilitada %}
+                                                    <a class="btn btn-success" href="{% url 'operacion_planta_citacion' object.pk %}?empresa_id={{ empresa_activa_id }}" title="Gestionar operacion">
+                                                        <i class="fas fa-truck-loading"></i> Operaci&oacute;n
+                                                    </a>
+                                                    {% elif guardia_ingreso %}
                                                     <a class="btn btn-primary" href="{% url 'pla_listone' object.PL_NID_id %}?citacion={{ object.pk }}" title="Ingreso de camión">
                                                         <i class="fas fa-truck"></i> Ingreso
                                                     </a>
                                                     {% elif acceso_operacion_planta and object.operacion_planta_habilitada %}
-                                                    <a class="btn btn-success" href="{% url 'operacion_planta_citacion' object.pk %}" title="Gestionar operacion">
+                                                    <a class="btn btn-success" href="{% url 'operacion_planta_citacion' object.pk %}?empresa_id={{ empresa_activa_id }}" title="Gestionar operacion">
                                                         <i class="fas fa-truck-loading"></i> Operaci&oacute;n
                                                     </a>
                                                     {% else %}
@@ -287,10 +297,12 @@
                                                     <td>{{ object.CI_CNUMERODOCUMENTO|default:'Sin numero de documento' }}</td>
                                                 {% endif %}
                                                 <td>{{ object.CI_NCUPO }}</td>
-                                                <td>{{ object.CI_FFECHACITACION|date:'d/m/Y H:i' }}</td>
+                                                <td>{{ object.CI_FFECHACITACION|date:'d/m/Y' }}</td>
                                                 <td>{{ object.SC_NID.SE_CCODIGO }} - {{ object.SC_NID.SE_CNOMBRE }}</td>
                                                 <td>{{ object.operacion_estado_visible|default:object.ETAPA_ACTUAL.ET_CCODIGO }}</td>
-                                                <td>{{ object.SN_NID.SN_CRAZONSOCIAL|default:'-' }}</td>
+                                                {% if not ocultar_cliente_operacion_recepcion %}
+                                                    <td>{{ object.SN_NID.SN_CRAZONSOCIAL|default:'-' }}</td>
+                                                {% endif %}
                                                 <td>{{ object.operacion_conductor|default:'Sin información' }}</td>
                                                 <td>{{ object.operacion_patente|default:'Sin información' }}</td>
                                                 <td>{{ object.operacion_tipo_eje|default:'Sin información' }}</td>

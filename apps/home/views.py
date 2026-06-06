@@ -3177,57 +3177,34 @@ FLUJOS_RECEPCION_ETAPA_0 = (
     ('RECEPCION_PATIO_LF_SIN_CALIDAD', 'Patio LF sin Calidad', 'ACEITES A PISO V_2'),
 )
 
+PASOS_RECEPCION_CON_CALIDAD = [
+    ('Pesaje Entrada', ['OPERADOR ROMANA']),
+    ('Toma de muestra', ['ASISTENTE C D']),
+    ('Analisis y calidad', ['CALIDAD']),
+    ('Resultado Calidad', ['ASISTENTE C D']),
+    ('Ciclo Descarga', ['GUARDIA PORTERIA']),
+    ('Pesaje Salida', ['OPERADOR ROMANA']),
+    ('Autorizar Salida', ['ASISTENTE DE RECEPCION']),
+    ('Confirmar Salida', ['GUARDIA PORTERIA']),
+]
+
+PASOS_RECEPCION_SIN_CALIDAD = [
+    ('Pesaje Entrada', ['OPERADOR ROMANA']),
+    ('Ciclo Descarga', ['GUARDIA PORTERIA']),
+    ('Pesaje Salida', ['OPERADOR ROMANA']),
+    ('Autorizar Salida', ['ASISTENTE DE RECEPCION']),
+    ('Confirmar Salida', ['GUARDIA PORTERIA']),
+]
+
 FLUJOS_OPERACION_PLANTA = {
-    'RECEPCION ESTANQUE SBH': [
-        ('Pesaje Entrada', ['OPERADOR ROMANA']),
-        ('Toma de muestra', ['ASISTENTE C D']),
-        ('Analisis y calidad', ['CALIDAD']),
-        ('Resultado Calidad', ['ASISTENTE C D']),
-        ('Ciclo Descarga', ['ASISTENTE C D']),
-        ('Pesaje Salida', ['OPERADOR ROMANA']),
-        ('Autorizar Salida', ['ASISTENTE DE RECEPCION']),
-        ('Confirmar Salida', ['GUARDIA PORTERIA']),
-    ],
-    'RECEPCION BODEGA EXTERNA': [
-        ('Pesaje Entrada', ['OPERADOR ROMANA']),
-        ('Toma de muestra', ['ASISTENTE C D']),
-        ('Analisis y calidad', ['CALIDAD']),
-        ('Resultado Calidad', ['ASISTENTE C D']),
-        ('Ciclo Descarga', ['GUARDIA PORTERIA']),
-        ('Pesaje Salida', ['OPERADOR ROMANA']),
-        ('Autorizar Salida', ['ASISTENTE DE RECEPCION']),
-        ('Confirmar Salida', ['GUARDIA PORTERIA']),
-    ],
-    'RECEPCION TRASVASIJE': [
-        ('Pesaje Entrada', ['OPERADOR ROMANA']),
-        ('Toma de muestra', ['ASISTENTE C D']),
-        ('Analisis y calidad', ['CALIDAD']),
-        ('Resultado Calidad', ['ASISTENTE C D']),
-        ('Ciclo Descarga', ['ASISTENTE C D']),
-        ('Pesaje Salida', ['OPERADOR ROMANA']),
-        ('Autorizar Salida', ['ASISTENTE DE RECEPCION']),
-        ('Confirmar Salida', ['GUARDIA PORTERIA']),
-    ],
-    'RECEPCION PATIO LF CON CALIDAD': [
-        ('Pesaje Entrada', ['OPERADOR ROMANA']),
-        ('Toma de muestra', ['ASISTENTE C D']),
-        ('Analisis y calidad', ['CALIDAD']),
-        ('Resultado Calidad', ['ASISTENTE C D']),
-        ('Ciclo Descarga', ['ASISTENTE C D']),
-        ('Pesaje Salida', ['OPERADOR ROMANA']),
-        ('Autorizar Salida', ['ASISTENTE DE RECEPCION']),
-        ('Confirmar Salida', ['GUARDIA PORTERIA']),
-    ],
-    'RECEPCION PATIO LF SIN CALIDAD': [
-        ('Pesaje Entrada', ['OPERADOR ROMANA']),
-        ('Ciclo Descarga', ['ASISTENTE C D']),
-        ('Pesaje Salida', ['OPERADOR ROMANA']),
-        ('Autorizar Salida', ['ASISTENTE DE RECEPCION']),
-        ('Confirmar Salida', ['GUARDIA PORTERIA']),
-    ],
+    'RECEPCION ESTANQUE SBH': PASOS_RECEPCION_CON_CALIDAD,
+    'RECEPCION BODEGA EXTERNA': PASOS_RECEPCION_CON_CALIDAD,
+    'RECEPCION TRASVASIJE': PASOS_RECEPCION_CON_CALIDAD,
+    'RECEPCION PATIO LF CON CALIDAD': PASOS_RECEPCION_CON_CALIDAD,
+    'RECEPCION PATIO LF SIN CALIDAD': PASOS_RECEPCION_SIN_CALIDAD,
     'RECEPCION CONTENEDOR A PISO': [
         ('Pesaje Entrada', ['OPERADOR ROMANA']),
-        ('Ciclo Descarga', ['ASISTENTE C D']),
+        ('Ciclo Descarga', ['GUARDIA PORTERIA']),
         ('Pesaje Salida', ['OPERADOR ROMANA']),
         ('Autorizar Salida', ['ASISTENTE DE RECEPCION']),
         ('Confirmar Salida', ['GUARDIA PORTERIA']),
@@ -3237,7 +3214,7 @@ FLUJOS_OPERACION_PLANTA = {
         ('Toma de muestra', ['ASISTENTE C D']),
         ('Analisis y calidad', ['CALIDAD']),
         ('Resultado Calidad', ['ASISTENTE C D']),
-        ('Ciclo Descarga', ['ASISTENTE C D']),
+        ('Ciclo Descarga', ['GUARDIA PORTERIA']),
         ('Pesaje Salida', ['OPERADOR ROMANA']),
         ('Autorizar Salida', ['ASISTENTE DE RECEPCION']),
         ('Confirmar Salida', ['GUARDIA PORTERIA']),
@@ -3247,7 +3224,7 @@ FLUJOS_OPERACION_PLANTA = {
         ('Toma de muestra', ['ASISTENTE C D']),
         ('Analisis y calidad', ['CALIDAD']),
         ('Resultado Calidad', ['ASISTENTE C D']),
-        ('Ciclo Descarga', ['ASISTENTE C D']),
+        ('Ciclo Descarga', ['GUARDIA PORTERIA']),
         ('Pesaje Salida', ['OPERADOR ROMANA']),
         ('Autorizar Salida', ['ASISTENTE DE RECEPCION']),
         ('Confirmar Salida', ['GUARDIA PORTERIA']),
@@ -3283,12 +3260,35 @@ MAPEO_ETAPA_TECNICA_BOTON_OPERACIONAL = {
     'CONFIRMAR SALIDA': 'Confirmar Salida',
 }
 
+NOMBRE_ETAPA_DOCUMENTACION_APROBADA = 'Documentacion Aprobada'
+NOMBRE_ETAPA_AUTORIZACION_INGRESO = 'Autorizacion Ingreso'
+
 
 def normalizar_nombre_perfil(valor):
     texto = str(valor or '').strip().upper()
     texto = unicodedata.normalize('NFKD', texto)
     texto = ''.join(caracter for caracter in texto if not unicodedata.combining(caracter))
     return ' '.join(texto.replace('_', ' ').replace('-', ' ').split())
+
+
+def usuario_es_operador_romana(user):
+    username_normalizado = normalizar_nombre_perfil(getattr(user, 'username', ''))
+    if username_normalizado == 'OPERADOR ROMANA' or username_normalizado.startswith('OPERADOR ROMANA'):
+        return True
+
+    perfiles_usuario = PERFIL_USUARIO.objects.select_related('PR_NID').filter(
+        US_NID=user.id,
+        PE_BHABILITADO=True,
+        PR_NID__PR_BHABILITADO=True
+    )
+
+    for perfil_usuario in perfiles_usuario:
+        nombre = normalizar_nombre_perfil(perfil_usuario.PR_NID.PR_CNOMBRE)
+        codigo = normalizar_nombre_perfil(perfil_usuario.PR_NID.PR_CCODIGO)
+        if nombre == 'OPERADOR ROMANA' or codigo == 'OPERADOR ROMANA':
+            return True
+
+    return False
 
 
 def usuario_es_ingreso_camion(user):
@@ -3460,6 +3460,9 @@ def perfiles_normalizados_usuario(user):
         perfiles.add('GUARDIA PORTERIA')
     elif usuario_es_guardia(user):
         perfiles.update({'GUARDIA', 'GUA'})
+    if usuario_es_operador_romana(user):
+        # TODO tecnico: crear perfil dedicado Operador Romana con permisos minimos y evitar heredar vistas amplias de OP/REC.
+        perfiles.add('OPERADOR ROMANA')
 
     return perfiles
 
@@ -3482,6 +3485,17 @@ def citacion_habilitada_operacion(citacion):
         LOG_COPERACION='AUTORIZA_INGRESO_PLANTA',
         LOG_CADD1=str(citacion.id)
     ).exists()
+
+
+def obtener_etapa_preoperacional_citacion(citacion):
+    citacion_id = str(citacion.id)
+    if SYSLOGGER.objects.filter(LOG_COPERACION='AUTORIZA_INGRESO_PLANTA', LOG_CADD1=citacion_id).exists():
+        return ''
+    if SYSLOGGER.objects.filter(LOG_COPERACION='ENVIA_GUARDIA_PORTERIA', LOG_CADD1=citacion_id).exists():
+        return NOMBRE_ETAPA_AUTORIZACION_INGRESO
+    if SYSLOGGER.objects.filter(LOG_COPERACION='ENVIA_CD_NEXT', LOG_CADD1=citacion_id).exists():
+        return NOMBRE_ETAPA_DOCUMENTACION_APROBADA
+    return ''
 
 
 def normalizar_nombre_flujo_operacion(valor):
@@ -4400,7 +4414,12 @@ EMPRESA_ACTIVA_PARAM = '_empresa_id'
 
 
 def obtener_empresa_request_id(request):
-    empresa_id = request.GET.get(EMPRESA_ACTIVA_PARAM) or request.POST.get(EMPRESA_ACTIVA_PARAM)
+    empresa_id = (
+        request.GET.get(EMPRESA_ACTIVA_PARAM)
+        or request.POST.get(EMPRESA_ACTIVA_PARAM)
+        or request.GET.get('empresa_id')
+        or request.POST.get('empresa_id')
+    )
 
     if empresa_id and str(empresa_id).isdigit():
         return int(empresa_id)
@@ -9164,6 +9183,7 @@ def CITACION_LISTALL_DESPACHOS(request):
             usuario = request.user.id
 
         Empresa = Verificar_empresa(request)
+        contexto_operacion_planta = request.GET.get('contexto') == 'operacion_planta'
 
         asignadas = obtener_secuencias_asignadas_usuario(request.user)
 
@@ -9209,7 +9229,14 @@ def CITACION_LISTALL_DESPACHOS(request):
 
         guardia_ingreso = usuario_es_guardia(request.user) and not usuario_es_guardia_porteria(request.user)
 
-        if acceso_operacion and not request.user.is_superuser and not guardia_ingreso:
+        if contexto_operacion_planta:
+            citaciones_operacion = OPERACION_PLANTA_LOG.objects.filter(
+                EP_NID_id=Empresa,
+                OPL_CPASO='Habilitar Operacion Planta',
+                OPL_CESTADO=OPERACION_PLANTA_LOG.ESTADO_COMPLETADO
+            ).values_list('CI_NID_id', flat=True)
+            queryset = queryset.filter(id__in=citaciones_operacion)
+        elif acceso_operacion and not request.user.is_superuser and not guardia_ingreso:
             citaciones_operacion = SYSLOGGER.objects.filter(
                 LOG_COPERACION='AUTORIZA_INGRESO_PLANTA'
             ).values_list('LOG_CADD1', flat=True)
@@ -9275,6 +9302,9 @@ def CITACION_LISTALL_DESPACHOS(request):
             'permiso_borrar': permiso_borrar,
             'acceso_operacion_planta': acceso_operacion,
             'guardia_ingreso': guardia_ingreso,
+            'contexto_operacion_planta': contexto_operacion_planta,
+            'empresa_activa_id': Empresa,
+            'ocultar_cliente_operacion_recepcion': False,
         }
 
         query_params = request.GET.copy()
@@ -9302,6 +9332,7 @@ def CITACION_LISTALL_RECEPCIONES(request):
             usuario = request.user.id
 
         Empresa = Verificar_empresa(request)
+        contexto_operacion_planta = request.GET.get('contexto') == 'operacion_planta'
 
         asignadas = obtener_secuencias_asignadas_usuario(request.user)
 
@@ -9336,7 +9367,14 @@ def CITACION_LISTALL_RECEPCIONES(request):
 
         guardia_ingreso = usuario_es_guardia(request.user) and not usuario_es_guardia_porteria(request.user)
 
-        if acceso_operacion and not request.user.is_superuser and not guardia_ingreso:
+        if contexto_operacion_planta:
+            citaciones_operacion = OPERACION_PLANTA_LOG.objects.filter(
+                EP_NID_id=Empresa,
+                OPL_CPASO='Habilitar Operacion Planta',
+                OPL_CESTADO=OPERACION_PLANTA_LOG.ESTADO_COMPLETADO
+            ).values_list('CI_NID_id', flat=True)
+            queryset = queryset.filter(id__in=citaciones_operacion)
+        elif acceso_operacion and not request.user.is_superuser and not guardia_ingreso:
             citaciones_operacion = SYSLOGGER.objects.filter(
                 LOG_COPERACION='AUTORIZA_INGRESO_PLANTA'
             ).values_list('LOG_CADD1', flat=True)
@@ -9382,7 +9420,10 @@ def CITACION_LISTALL_RECEPCIONES(request):
         enriquecer_citaciones_con_ingreso_camion(object_list)
         for citacion in object_list:
             citacion.operacion_planta_habilitada = citacion_habilitada_operacion(citacion)
-            if citacion.operacion_planta_habilitada:
+            etapa_preoperacional = obtener_etapa_preoperacional_citacion(citacion)
+            if etapa_preoperacional:
+                citacion.operacion_estado_visible = etapa_preoperacional
+            elif citacion.operacion_planta_habilitada:
                 _, pasos_config = obtener_pasos_operacion_citacion(citacion)
                 logs_completados = set(OPERACION_PLANTA_LOG.objects.filter(
                     CI_NID=citacion,
@@ -9414,6 +9455,9 @@ def CITACION_LISTALL_RECEPCIONES(request):
             'ltsProveedores': ltsProveedores,
             'acceso_operacion_planta': acceso_operacion,
             'guardia_ingreso': guardia_ingreso,
+            'contexto_operacion_planta': contexto_operacion_planta,
+            'empresa_activa_id': Empresa,
+            'ocultar_cliente_operacion_recepcion': contexto_operacion_planta,
         }
 
         query_params = request.GET.copy()
@@ -9542,6 +9586,17 @@ def OPERACION_PLANTA_GUARDAR_PASO(request, pk):
 
     if not responsables_paso:
         return JsonResponse({'success': False, 'message': 'Paso operacional no valido.'}, status=400)
+
+    logs_completados = set(OPERACION_PLANTA_LOG.objects.filter(
+        CI_NID=citacion,
+        OPL_CESTADO=OPERACION_PLANTA_LOG.ESTADO_COMPLETADO
+    ).values_list('OPL_CPASO', flat=True))
+    paso_actual_visible = resolver_estado_operacional_visible(citacion, pasos_config, logs_completados)
+    if paso != paso_actual_visible:
+        return JsonResponse({
+            'success': False,
+            'message': f'Solo puede guardar la etapa activa actual: {paso_actual_visible}.'
+        }, status=409)
 
     if not usuario_puede_paso_operacion(request.user, responsables_paso):
         return JsonResponse({
@@ -9990,31 +10045,42 @@ def export_citaciones_recepciones_excel(request):
         worksheet = workbook.active
         worksheet.title = "Citaciones Recepciones"
 
+        ocultar_cliente_operacion_recepcion = request.GET.get('contexto') == 'operacion_planta'
         columnas = [
             'ID', 'Planificacion', 'Tipo de Documento', 'Número Documento',
             'Número Cupo', 'Fecha Citación', 'Nombre Secuencia',
-            'Nombre Etapa', 'Cliente', 'Conductor', 'Celular Conductor', 'Patente', 'Tipo eje', 'Transportista'
+            'Nombre Etapa'
         ]
+        if not ocultar_cliente_operacion_recepcion:
+            columnas.append('Cliente')
+        columnas.extend(['Conductor', 'Celular Conductor', 'Patente', 'Tipo eje', 'Transportista'])
 
         for col, header in enumerate(columnas, 1):
             worksheet.cell(row=1, column=col, value=header)
 
         for row, citacion in enumerate(object_list, 2):
-            worksheet.cell(row=row, column=1, value=citacion.pk)
-            worksheet.cell(row=row, column=2, value=citacion.PL_NID.id if citacion.PL_NID else '')
-            worksheet.cell(row=row, column=3, value=citacion.CI_CTIPODOCUMENTO if citacion.CI_CTIPODOCUMENTO else '')
-            worksheet.cell(row=row, column=4, value=citacion.CI_CNUMERODOCUMENTO if citacion.CI_CNUMERODOCUMENTO else '')
-            worksheet.cell(row=row, column=5, value=citacion.CI_NCUPO)
-            worksheet.cell(row=row, column=6, value=citacion.CI_FFECHACITACION.strftime('%Y-%m-%d %H:%M') if citacion.CI_FFECHACITACION else '')
-            worksheet.cell(row=row, column=7, value=citacion.SC_NID.SE_CCODIGO + ' - ' + citacion.SC_NID.SE_CNOMBRE if citacion.SC_NID else '')
-            worksheet.cell(row=row, column=8, value=citacion.ETAPA_ACTUAL.ET_CCODIGO if citacion.ETAPA_ACTUAL else '')
-            worksheet.cell(row=row, column=9, value=citacion.SN_NID.SN_CRAZONSOCIAL if citacion.SN_NID else '')
             valores_ingreso = obtener_valores_ingreso_camion(citacion)
-            worksheet.cell(row=row, column=10, value=texto_sin_informacion(valores_ingreso.get('conductor')))
-            worksheet.cell(row=row, column=11, value=texto_sin_informacion(valores_ingreso.get('celular_conductor')))
-            worksheet.cell(row=row, column=12, value=texto_sin_informacion(valores_ingreso.get('patente')))
-            worksheet.cell(row=row, column=13, value=texto_sin_informacion(valores_ingreso.get('cantidad_ejes')))
-            worksheet.cell(row=row, column=14, value=texto_sin_informacion(valores_ingreso.get('transportista')))
+            fila = [
+                citacion.pk,
+                citacion.PL_NID.id if citacion.PL_NID else '',
+                citacion.CI_CTIPODOCUMENTO if citacion.CI_CTIPODOCUMENTO else '',
+                citacion.CI_CNUMERODOCUMENTO if citacion.CI_CNUMERODOCUMENTO else '',
+                citacion.CI_NCUPO,
+                citacion.CI_FFECHACITACION.strftime('%Y-%m-%d %H:%M') if citacion.CI_FFECHACITACION else '',
+                citacion.SC_NID.SE_CCODIGO + ' - ' + citacion.SC_NID.SE_CNOMBRE if citacion.SC_NID else '',
+                citacion.ETAPA_ACTUAL.ET_CCODIGO if citacion.ETAPA_ACTUAL else '',
+            ]
+            if not ocultar_cliente_operacion_recepcion:
+                fila.append(citacion.SN_NID.SN_CRAZONSOCIAL if citacion.SN_NID else '')
+            fila.extend([
+                texto_sin_informacion(valores_ingreso.get('conductor')),
+                texto_sin_informacion(valores_ingreso.get('celular_conductor')),
+                texto_sin_informacion(valores_ingreso.get('patente')),
+                texto_sin_informacion(valores_ingreso.get('cantidad_ejes')),
+                texto_sin_informacion(valores_ingreso.get('transportista')),
+            ])
+            for col, value in enumerate(fila, 1):
+                worksheet.cell(row=row, column=col, value=value)
 
         for column in worksheet.columns:
             max_length = 0
