@@ -1797,6 +1797,7 @@
     let revisionAsistenteCitacionId = null;
     let estanqueCamionCitacionId = null;
     let revisionRutasTransportista = [];
+    let revisionGuardiaAutorizaPlanta = false;
     let ingresoCamionCamposPorCodigo = {};
     const ESTANQUES_POR_ALMACEN_OPERACIONAL = {{ estanques_por_almacen_json|default:"{}"|safe }};
     const DEBUG_INGRESO_CAMION = true;
@@ -2091,11 +2092,12 @@
 
     function openRevisionAsistenteModal(citacionId) {
         revisionAsistenteCitacionId = citacionId;
+        revisionGuardiaAutorizaPlanta = false;
         $('#revision_asistente_subtitulo').text(`Citación #${citacionId}`);
         $('#revision_asistente_alert').hide().text('');
         $('#revision_asistente_contenido').html('<div class="text-center p-3">Cargando...</div>');
         $('#btn_revision_aprobar, #btn_revision_devolver').prop('disabled', true).show();
-        $('#btn_revision_guardia_porteria').hide();
+        $('#btn_revision_guardia_porteria').hide().text('Enviar siguiente etapa');
         $('#ModalRevisionAsistente').modal('show');
 
         $.ajax({
@@ -2108,23 +2110,27 @@
                     return;
                 }
 
+                const puedeEditarRevision = !!response.puede_editar_revision_asistente;
                 const html = [
                     renderRevisionSection('Datos planificación', response.planificacion),
                     renderRevisionSection('Datos citación', response.citacion),
                     renderRevisionSection('Datos ingresados por Guardia', response.guardia),
+                    renderRevisionSection('Validación Asistente Recepción', response.validacion_asistente),
                     renderRevisionSection('Datos operacionales', response.datos_operacionales),
                     renderRevisionSection('Asistente C_D', response.asistente_cd),
                     renderRevisionSection('Guardia Portería', response.guardia_porteria),
                     renderRevisionDocuments(response.documentos),
-                    renderRevisionValidacion(response)
+                    puedeEditarRevision ? renderRevisionValidacion(response) : ''
                 ].join('');
 
                 $('#revision_asistente_contenido').html(html || '<div class="text-muted">Sin información registrada.</div>');
-                cargarRutasTransportistaRevision(
-                    citacionId,
-                    (response.rutas_transportista && response.rutas_transportista.options) || [],
-                    response.rutas_transportista ? response.rutas_transportista.message : ''
-                );
+                if (puedeEditarRevision) {
+                    cargarRutasTransportistaRevision(
+                        citacionId,
+                        (response.rutas_transportista && response.rutas_transportista.options) || [],
+                        response.rutas_transportista ? response.rutas_transportista.message : ''
+                    );
+                }
                 $('#btn_revision_aprobar, #btn_revision_devolver').prop('disabled', !!response.aprobado_asistente);
 
                 if (response.aprobado_asistente) {
@@ -2132,7 +2138,10 @@
                 }
 
                 if (response.guardia_puede_enviar_porteria || response.guardia_porteria_puede_autorizar) {
-                    $('#btn_revision_guardia_porteria').show();
+                    revisionGuardiaAutorizaPlanta = true;
+                    $('#btn_revision_guardia_porteria')
+                        .text('Autorizar ingreso a planta')
+                        .show();
                 }
             },
             error: function (xhr) {
@@ -2237,7 +2246,25 @@
             return;
         }
 
-        $.ajax({
+        const titulo = revisionGuardiaAutorizaPlanta ? 'Autorizar ingreso a planta' : 'Enviar siguiente etapa';
+        const mensaje = revisionGuardiaAutorizaPlanta
+            ? '¿Confirma autorizar el ingreso del camión a planta?'
+            : '¿Confirma enviar la citación a la siguiente etapa?';
+        const textoConfirmar = revisionGuardiaAutorizaPlanta ? 'Autorizar ingreso' : 'Enviar';
+
+        Swal.fire({
+            icon: 'question',
+            title: titulo,
+            text: mensaje,
+            showCancelButton: true,
+            confirmButtonText: textoConfirmar,
+            cancelButtonText: 'Cancelar'
+        }).then(function (result) {
+            if (!result.isConfirmed) {
+                return;
+            }
+
+            $.ajax({
             url: `/pla-citacion-enviar-guardia-porteria/${revisionAsistenteCitacionId}/`,
             type: 'POST',
             headers: {
@@ -2246,7 +2273,7 @@
             success: function (response) {
                 Swal.fire({
                     icon: 'success',
-                    title: 'Enviado',
+                    title: revisionGuardiaAutorizaPlanta ? 'Autorizado' : 'Enviado',
                     text: response.message || 'Citación enviada correctamente.'
                 }).then(function () {
                     location.reload();
@@ -2258,6 +2285,7 @@
                     : 'No fue posible enviar la citación.';
                 Swal.fire({ icon: 'warning', title: 'No se pudo enviar', text: message });
             }
+            });
         });
     }
 
@@ -3381,7 +3409,7 @@ function inicializarConductoresIngresoCamion(limpiarActual) {
 
         if (citacionInicial) {
             window.setTimeout(function () {
-                openIngresoCamionModal(citacionInicial);
+                marcarFilaPendienteEnvio(citacionInicial, false);
             }, 350);
         }
     });

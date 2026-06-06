@@ -2175,6 +2175,14 @@ def PLANIFICACION_CITACION_REVISION_ASISTENTE(request, pk):
             return '' if valor is None else valor
 
         bl = dato('ING_BL') or obtener_bl_inicial_citacion(citacion) or detalle_operacional.get('bl', '')
+        ruta_seleccionada_texto = ''
+        if citacion.RUT_NID:
+            ruta_seleccionada_texto = citacion.RUT_NID.RUT_CNOMBRE
+        elif citacion.TAR_NID and citacion.TAR_NID.RUT_NID:
+            ruta_seleccionada_texto = citacion.TAR_NID.RUT_NID.RUT_CNOMBRE
+        else:
+            ruta_seleccionada_texto = ruta_tarifa_transportista.get('rutas_texto', '')
+        tarifa_seleccionada_texto = citacion.TAR_NID.TAR_CNOMBRETARIFA if citacion.TAR_NID else ruta_tarifa_transportista.get('tarifa_texto', '')
         dato_estanque = obtener_dato_estanque_operacional(citacion)
         log_envio_estanque = SYSLOGGER.objects.select_related('US_NID').filter(
             LOG_COPERACION='ENVIA_CD_NEXT',
@@ -2205,6 +2213,7 @@ def PLANIFICACION_CITACION_REVISION_ASISTENTE(request, pk):
             'success': True,
             'citacion_id': citacion.id,
             'aprobado_asistente': aprobado_asistente,
+            'puede_editar_revision_asistente': usuario_es_asistente_recepcion(request.user) and not aprobado_asistente,
             'guardia_puede_enviar_porteria': usuario_es_guardia(request.user) and not usuario_es_guardia_porteria(request.user) and bool(log_envio_estanque) and not bool(log_guardia_porteria),
             'guardia_porteria_puede_autorizar': usuario_es_guardia_porteria(request.user) and bool(log_guardia_porteria) and not bool(log_autoriza_planta),
             'guardia_porteria_enviado': bool(log_guardia_porteria),
@@ -2214,11 +2223,7 @@ def PLANIFICACION_CITACION_REVISION_ASISTENTE(request, pk):
                 'Fecha planificacion': citacion.PL_NID.PL_FFECHAINICIO.strftime('%d/%m/%Y %H:%M') if citacion.PL_NID and citacion.PL_NID.PL_FFECHAINICIO else '',
                 'Cliente': citacion.SN_NID.SN_CRAZONSOCIAL if citacion.SN_NID else '',
                 'Transportista': texto_sin_informacion(valores_ingreso.get('transportista')),
-                'Ruta tarifa transportista': {
-                    'type': 'select',
-                    'placeholder': 'Seleccione ruta tarifa',
-                    'options': ruta_tarifa_transportista.get('opciones', []),
-                },
+                'Ruta tarifa transportista': ruta_seleccionada_texto,
                 'Insumo': citacion_item.IT_NID.IT_CNOMBRE if citacion_item and citacion_item.IT_NID else detalle_operacional.get('insumo', ''),
                 'Pedido': detalle_operacional.get('pedido', ''),
                 'BL': bl,
@@ -2248,6 +2253,14 @@ def PLANIFICACION_CITACION_REVISION_ASISTENTE(request, pk):
                 'Telefono conductor': texto_sin_informacion(valores_ingreso.get('celular_conductor')),
                 'Lote-contenedor': dato('ING_LOTE_CONTENEDOR'),
                 'Observacion': dato('ING_OBSERVACION') or valor_detalle('observacion') or citacion.CI_CCOMENTARIO or '',
+            },
+            'validacion_asistente': {
+                'BL validado': dato('AR_BL_VALIDADO') or bl,
+                'Lote / Contenedor validado': dato('AR_LOTE_CONTENEDOR') or dato('ING_LOTE_CONTENEDOR'),
+                'Ruta seleccionada': dato('AR_RUTA_TRANSPORTISTA') or ruta_seleccionada_texto,
+                'RUT_NID': dato('AR_RUTA_ID') or (str(citacion.RUT_NID_id) if citacion.RUT_NID_id else ''),
+                'TAR_NID': dato('AR_TARIFA_ID') or (str(citacion.TAR_NID_id) if citacion.TAR_NID_id else ''),
+                'Tarifa transportista': tarifa_seleccionada_texto,
             },
             'rutas_transportista': {
                 'options': ruta_tarifa_transportista.get('opciones', []),
@@ -2405,40 +2418,84 @@ def APROBAR_CAMION_ASISTENTE(request, pk):
                 'message': 'La ruta seleccionada no corresponde a la tarifa indicada.'
             }, status=400)
 
-        citacion.TAR_NID = tarifa
-        citacion.RUT_NID = tarifa.RUT_NID
-        citacion.CI_NVALORTARIFA = tarifa.TAR_NVALOR
-        citacion.save(update_fields=['TAR_NID', 'RUT_NID', 'CI_NVALORTARIFA'])
+        ruta_texto = tarifa.RUT_NID.RUT_CNOMBRE if tarifa.RUT_NID else tarifa.TAR_CNOMBRETARIFA
 
-        if bl_validado:
+        with transaction.atomic():
+            citacion.TAR_NID = tarifa
+            citacion.RUT_NID = tarifa.RUT_NID
+            citacion.CI_NVALORTARIFA = tarifa.TAR_NVALOR
+            citacion.save(update_fields=['TAR_NID', 'RUT_NID', 'CI_NVALORTARIFA'])
+
+            if bl_validado:
+                guardar_dato_operacion_codigo(
+                    citacion,
+                    'ING_BL',
+                    bl_validado,
+                    request.user,
+                    etiqueta='BL',
+                    etapa=citacion.ETAPA_ACTUAL
+                )
+                detalle = obtener_detalle_operacional_citacion(citacion)
+                if detalle:
+                    detalle.CDO_CBL_CONTENEDOR = bl_validado
+                    detalle.save(update_fields=['CDO_CBL_CONTENEDOR'])
+
+            if lote_contenedor_validado:
+                guardar_dato_operacion_codigo(
+                    citacion,
+                    'ING_LOTE_CONTENEDOR',
+                    lote_contenedor_validado,
+                    request.user,
+                    etiqueta='Lote / Contenedor',
+                    etapa=citacion.ETAPA_ACTUAL
+                )
+
             guardar_dato_operacion_codigo(
                 citacion,
-                'ING_BL',
+                'AR_BL_VALIDADO',
                 bl_validado,
                 request.user,
-                etiqueta='BL',
+                etiqueta='BL validado Asistente Recepcion',
                 etapa=citacion.ETAPA_ACTUAL
             )
-            detalle = obtener_detalle_operacional_citacion(citacion)
-            if detalle:
-                detalle.CDO_CBL_CONTENEDOR = bl_validado
-                detalle.save(update_fields=['CDO_CBL_CONTENEDOR'])
-
-        if lote_contenedor_validado:
             guardar_dato_operacion_codigo(
                 citacion,
-                'ING_LOTE_CONTENEDOR',
+                'AR_LOTE_CONTENEDOR',
                 lote_contenedor_validado,
                 request.user,
-                etiqueta='Lote / Contenedor',
+                etiqueta='Lote / Contenedor validado Asistente Recepcion',
+                etapa=citacion.ETAPA_ACTUAL
+            )
+            guardar_dato_operacion_codigo(
+                citacion,
+                'AR_RUTA_TRANSPORTISTA',
+                ruta_texto,
+                request.user,
+                etiqueta='Ruta transportista validada Asistente Recepcion',
+                etapa=citacion.ETAPA_ACTUAL
+            )
+            guardar_dato_operacion_codigo(
+                citacion,
+                'AR_RUTA_ID',
+                tarifa.RUT_NID_id or '',
+                request.user,
+                etiqueta='RUT_NID validado Asistente Recepcion',
+                etapa=citacion.ETAPA_ACTUAL
+            )
+            guardar_dato_operacion_codigo(
+                citacion,
+                'AR_TARIFA_ID',
+                tarifa.id,
+                request.user,
+                etiqueta='TAR_NID validado Asistente Recepcion',
                 etapa=citacion.ETAPA_ACTUAL
             )
 
-        etapa_origen, etapa_destino = avanzar_citacion_a_siguiente_etapa(
-            citacion,
-            usuario=request.user,
-            accion='APRUEBA_ASISTENTE'
-        )
+            etapa_origen, etapa_destino = avanzar_citacion_a_siguiente_etapa(
+                citacion,
+                usuario=request.user,
+                accion='APRUEBA_ASISTENTE'
+            )
 
         datos_operacion, _ = obtener_datos_operacion_citacion(citacion)
 
@@ -2456,6 +2513,7 @@ def APROBAR_CAMION_ASISTENTE(request, pk):
             f'Empresa transporte: {valor_operacion("ING_EMPRESA_TRANSPORTE")}\n'
             f'BL: {valor_operacion("ING_BL")}\n'
             f'Lote / Contenedor: {valor_operacion("ING_LOTE_CONTENEDOR")}\n'
+            f'Ruta transportista: {ruta_texto}\n'
             f'Almacen: {almacen or "No registrado"}\n'
             f'Fecha/hora aprobacion: {fecha_aprobacion}\n'
             f'Asistente recepcion: {request.user.username}'
@@ -2474,7 +2532,14 @@ def APROBAR_CAMION_ASISTENTE(request, pk):
             request.user,
             citacion.EP_NID,
             'APRUEBA_AR',
-            f'Asistente aprueba citacion #{citacion.id} desde {etapa_origen.ET_CCODIGO} a {etapa_destino.ET_CCODIGO if etapa_destino else "FIN"}. Notificados Asistente_C_D: {len(asistentes_cd)}',
+            (
+                f'Asistente aprueba citacion #{citacion.id} desde {etapa_origen.ET_CCODIGO} '
+                f'a {etapa_destino.ET_CCODIGO if etapa_destino else "FIN"}.\n'
+                f'Ruta transportista: {ruta_texto}\n'
+                f'RUT_NID: {tarifa.RUT_NID_id or ""}\n'
+                f'TAR_NID: {tarifa.id}\n'
+                f'Notificados Asistente_C_D: {len(asistentes_cd)}'
+            ),
             citacion.id,
             etapa_destino.ET_CCODIGO if etapa_destino else 'FIN'
         )
