@@ -13,14 +13,18 @@ class LoginForm(forms.Form):
         widget=forms.TextInput(
             attrs={
                 "placeholder": "Username",
-                "class": "form-control"
+                "class": "form-control",
+                "id": "username",
+                "autocomplete": "username",
             }
         ))
     password = forms.CharField(
         widget=forms.PasswordInput(
             attrs={
                 "placeholder": "Password",
-                "class": "form-control"
+                "class": "form-control",
+                "id": "password",
+                "autocomplete": "current-password",
             }
         ))
 

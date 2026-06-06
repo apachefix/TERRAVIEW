@@ -25,6 +25,13 @@ urlpatterns = [
     #########################################
     ########         SAP             ########
     #########################################
+    path('api/sap/producto/', login_required(views.API_SAP_PRODUCTO), name='api_sap_producto'),
+    path('api/sap/productos/', login_required(views.API_SAP_PRODUCTOS), name='api_sap_productos'),
+    path('api/sap/clientes/', login_required(views.API_SAP_CLIENTES), name='api_sap_clientes'),
+    path('api/sap/proveedores/', login_required(views.API_SAP_PROVEEDORES), name='api_sap_proveedores'),
+    path('api/sap/pedido/', login_required(views.API_SAP_PEDIDO), name='api_sap_pedido'),
+    path('api/sap/pedidos-por-producto/', login_required(views.API_SAP_PEDIDOS_POR_PRODUCTO), name='api_sap_pedidos_por_producto'),
+    path('api/sap/pedido-detalle/', login_required(views.API_SAP_PEDIDO_DETALLE), name='api_sap_pedido_detalle'),
     path('buscar-opor-codigo/', login_required(views.BUSCAR_OPOR_POR_CODIGO), name='buscar_opor_codigo'),
     path('buscar-opor-pedido/', login_required(views.BUSCAR_OPOR_POR_PEDIDO), name='buscar_opor_pedido'),
 
@@ -234,6 +241,8 @@ urlpatterns = [
     path('pla_addone/', login_required(views.PLANIFICACION_ADDONE), name='pla_addone'),
     path('pla_filedone/<int:pk>', login_required(views.PLANIFICACION_FILEDONE), name="pla_filedone"),
     path('pla_filedlistall/', login_required(views.PLANIFICACION_FILEDLISTALL), name="pla_filedlistall"),
+    path('ajax/transportistas-ingreso-camion/', login_required(views.AJAX_TRANSPORTISTAS_INGRESO_CAMION), name='ajax_transportistas_ingreso_camion'),
+    path('ajax/conductores-ingreso-camion/', login_required(views.AJAX_CONDUCTORES_INGRESO_CAMION), name='ajax_conductores_ingreso_camion'),
     path('ajax_validar_calendario_planificacion/', login_required(views.ajax_validar_calendario_planificacion), name='ajax_validar_calendario_planificacion'),
     path('ajax_validar_nueva_planificacion/', login_required(views.ajax_validar_nueva_planificacion), name='ajax_validar_nueva_planificacion'),
     path('ajax_archivar_planificaciones/', login_required(views.ajax_archivar_planificaciones_seleccionadas), name="ajax_archivar_planificaciones"),
@@ -265,6 +274,11 @@ urlpatterns = [
     path('operacion-planta/<int:pk>/', login_required(views.OPERACION_PLANTA_CITACION), name='operacion_planta_citacion'),
     path('operacion-planta/<int:pk>/guardar-paso/', login_required(views.OPERACION_PLANTA_GUARDAR_PASO), name='operacion_planta_guardar_paso'),
     path('seguimiento-operacional/', login_required(views.SEGUIMIENTO_OPERACIONAL), name='seguimiento_operacional'),
+    path('expediente-citacion/', login_required(views.EXPEDIENTE_CITACION_LIST), name='expediente_citacion_list'),
+    path('expediente-citacion/<int:pk>/', login_required(views.EXPEDIENTE_CITACION_DETAIL), name='expediente_citacion_detail'),
+    path('expediente-citacion/documento/<int:pk>/ver/', login_required(views.EXPEDIENTE_CITACION_DOCUMENTO_VER), name='expediente_citacion_documento_ver'),
+    path('expediente-citacion/documento/<int:pk>/descargar/', login_required(views.EXPEDIENTE_CITACION_DOCUMENTO_DESCARGAR), name='expediente_citacion_documento_descargar'),
+    path('expediente-citacion/documento/<int:pk>/reemplazar/', login_required(views.EXPEDIENTE_CITACION_DOCUMENTO_REEMPLAZAR), name='expediente_citacion_documento_reemplazar'),
     path('cit_update_data/<int:pk>', login_required(views.CITACION_UPDATE_DATA), name='cit_update_data'),
     path('cit_finalizar_secuencia/<int:pk>', login_required(views.FINALIZAR_SECUENCIA), name='cit_finalizar_secuencia'),
     path('cit_finalizar/<int:pk>', login_required(views.CITACION_FINALIZAR), name='cit_finalizar'),

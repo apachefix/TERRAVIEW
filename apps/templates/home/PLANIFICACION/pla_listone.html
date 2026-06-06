@@ -10,353 +10,466 @@
     <link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet" />
 
     <style>
-        #basic-btn td {
-            text-align: center;
+    #basic-btn td {
+        text-align: center;
+    }
+
+    #basic-btn1 td {
+        text-align: center;
+    }
+
+    .dropdown-menu {
+        min-width: 200px;
+    }
+
+    .dropdown-item {
+        white-space: normal;
+        word-wrap: break-word;
+    }
+
+    @keyframes pulse-ring {
+        0% {
+            transform: scale(0.33);
         }
-        #basic-btn1 td {
-            text-align: center;
+        80%, 100% {
+            opacity: 0;
         }
-        .dropdown-menu {
-            min-width: 200px;
+    }
+
+    @keyframes pulse-dot {
+        0% {
+            transform: scale(0.8);
         }
-        .dropdown-item {
-            white-space: normal;
-            word-wrap: break-word;
+        50% {
+            transform: scale(1);
         }
-        @keyframes pulse-ring {
-            0% {
-                transform: scale(0.33);
-            }
-            80%, 100% {
-                opacity: 0;
-            }
+        100% {
+            transform: scale(0.8);
+        }
+    }
+
+    .pulse-button-container {
+        position: relative;
+        width: auto;
+        min-width: 40px;
+        min-height: 40px;
+        height: auto;
+        margin: 5px;
+        display: flex;
+        align-items: flex-start;
+        flex-wrap: wrap;
+        gap: 4px;
+        white-space: normal;
+    }
+
+    .pulse-button {
+        width: 100%;
+        height: 100%;
+        background: #007bff;
+        position: absolute;
+        top: 0;
+        left: 0;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+    }
+
+    .pulse-button::before {
+        content: '';
+        position: absolute;
+        width: 300%;
+        height: 300%;
+        background-color: #007bff;
+        animation: pulse-ring 1.25s cubic-bezier(0.215, 0.61, 0.355, 1) infinite;
+    }
+
+    .pulse-button::after {
+        content: '';
+        position: absolute;
+        left: 0;
+        top: 0;
+        display: block;
+        width: 100%;
+        height: 100%;
+        background-color: #007bff;
+        box-shadow: 0 0 8px rgba(0,0,0,.3);
+        animation: pulse-dot 1.25s cubic-bezier(0.455, 0.03, 0.515, 0.955) -.4s infinite;
+    }
+
+    .pulse-button svg {
+        width: 20px;
+        height: 20px;
+        position: relative;
+        z-index: 10;
+        fill: white;
+    }
+
+    /* ============================================================
+       MODAL INGRESO CAMIÓN
+       Se usa scroll del modal completo, NO scroll interno en modal-body.
+       Esto evita bloqueo al seleccionar transportista con Select2.
+       ============================================================ */
+#ModalIngresoCamion {
+    overflow: hidden !important;
+}
+
+#ModalIngresoCamion .modal-dialog {
+    max-width: 760px;
+    margin: 1rem auto;
+}
+
+#ModalIngresoCamion .modal-content {
+    overflow: hidden !important;
+}
+
+#ModalIngresoCamion form {
+    display: block;
+}
+
+#ModalIngresoCamion form.modal-content {
+    flex: none !important;
+}
+
+#ModalIngresoCamion .modal-body {
+    height: 70vh !important;
+    overflow-y: scroll !important;
+    overflow-x: hidden !important;
+    min-height: auto !important;
+    padding-right: 10px;
+}
+
+/* Barra visible */
+#ModalIngresoCamion .modal-body::-webkit-scrollbar {
+    width: 14px;
+}
+
+#ModalIngresoCamion .modal-body::-webkit-scrollbar-track {
+    background: #e5e7eb;
+}
+
+#ModalIngresoCamion .modal-body::-webkit-scrollbar-thumb {
+    background: #6b7280;
+    border-radius: 8px;
+}
+
+#ModalIngresoCamion .modal-body::-webkit-scrollbar-thumb:hover {
+    background: #4b5563;
+}
+
+#ModalIngresoCamion .modal-footer {
+    background: #fff;
+}
+
+.select2-container--open {
+    z-index: 20001 !important;
+}
+
+/* Autocomplete antiguo */
+#ModalIngresoCamion .ingreso-autocomplete {
+    position: relative;
+}
+
+#ModalIngresoCamion .ingreso-transportista-results {
+    position: absolute;
+    right: 0;
+    left: 0;
+    z-index: 1065;
+    display: none;
+    max-height: 220px;
+    overflow-y: auto;
+    border: 1px solid #ced4da;
+    border-radius: 0 0 4px 4px;
+    background: #fff;
+    box-shadow: 0 6px 14px rgba(15, 23, 42, .12);
+}
+
+#ModalIngresoCamion .ingreso-transportista-option {
+    padding: 8px 12px;
+    cursor: pointer;
+}
+
+#ModalIngresoCamion .ingreso-transportista-option:hover {
+    background: #eef5ff;
+}
+
+#ModalIngresoCamion .ingreso-transportista-empty {
+    padding: 8px 12px;
+    color: #6c757d;
+}
+
+    /* ============================================================
+       MODAL SOLICITUD CAMIÓN NO PLANIFICADO
+       Scroll simple del modal completo.
+       ============================================================ */
+
+    #ModalSolicitudCamionNoPlanificado {
+        overflow-y: auto !important;
+    }
+
+    #ModalSolicitudCamionNoPlanificado .modal-dialog {
+        margin: 1rem auto;
+    }
+
+    #ModalSolicitudCamionNoPlanificado .modal-content {
+        max-height: none !important;
+        overflow: visible !important;
+    }
+
+    #ModalSolicitudCamionNoPlanificado .modal-body {
+        overflow: visible !important;
+        max-height: none !important;
+    }
+
+    #ModalSolicitudCamionNoPlanificado .modal-footer {
+        background: #fff;
+    }
+
+    /* ============================================================
+       MODAL CAMIÓN NO PLANIFICADO
+       Se mantiene scroll interno porque es otro flujo.
+       ============================================================ */
+
+    #ModalCamionNoPlanificado .modal-content {
+        max-height: calc(100vh - 40px);
+        display: flex;
+        flex-direction: column;
+        overflow: hidden;
+    }
+
+    #ModalCamionNoPlanificado form {
+        display: flex;
+        flex-direction: column;
+        min-height: 0;
+        flex: 1 1 auto;
+    }
+
+    #ModalCamionNoPlanificado .modal-body {
+        overflow-y: auto;
+        max-height: calc(100vh - 210px);
+    }
+
+    #ModalCamionNoPlanificado .modal-footer {
+        flex-shrink: 0;
+        position: sticky;
+        bottom: 0;
+        z-index: 2;
+        background: #fff;
+    }
+
+    /* ============================================================
+       MODALES ASISTENTE / ESTANQUE
+       ============================================================ */
+
+    #ModalRevisionAsistente .modal-content,
+    #ModalEstanqueCamion .modal-content {
+        max-height: calc(100vh - 40px);
+        display: flex;
+        flex-direction: column;
+    }
+
+    #ModalRevisionAsistente .modal-body,
+    #ModalEstanqueCamion .modal-body {
+        max-height: calc(100vh - 180px);
+        overflow-y: auto;
+    }
+
+    #ModalRevisionAsistente .modal-footer,
+    #ModalEstanqueCamion .modal-footer {
+        flex-shrink: 0;
+        position: sticky;
+        bottom: 0;
+        z-index: 2;
+        background: #fff;
+    }
+
+    .revision-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
+        gap: 10px 16px;
+    }
+
+    .revision-section {
+        border: 1px solid #e3e6ea;
+        border-radius: 4px;
+        padding: 14px;
+        margin-bottom: 14px;
+    }
+
+    .revision-section h6 {
+        font-weight: 700;
+        margin-bottom: 12px;
+    }
+
+    .revision-item-label {
+        font-size: 12px;
+        font-weight: 700;
+        color: #6c757d;
+        text-transform: uppercase;
+    }
+
+    .revision-item-value {
+        word-break: break-word;
+    }
+
+    .citacion-enviada-asistente,
+    .citacion-enviada-asistente > td {
+        background-color: #eef7ff !important;
+    }
+
+    .citacion-aprobada-asistente,
+    .citacion-aprobada-asistente > td {
+        background-color: #ecfdf3 !important;
+    }
+
+    .citacion-aprobada-asistente {
+        box-shadow: inset 4px 0 0 #20c997;
+    }
+
+    .citacion-estanque-asignado,
+    .citacion-estanque-asignado > td {
+        background-color: #fff8e5 !important;
+    }
+
+    .citacion-estanque-asignado {
+        box-shadow: inset 4px 0 0 #f0ad4e;
+    }
+
+    .citacion-enviada-siguiente,
+    .citacion-enviada-siguiente > td {
+        background-color: #f1f3f5 !important;
+    }
+
+    .citacion-enviada-siguiente {
+        box-shadow: inset 4px 0 0 #6c757d;
+    }
+
+    .estado-envio-asistente {
+        border-left: 4px solid #17a2b8;
+        background: #f1f9fb;
+        padding: 6px 8px;
+        width: 185px;
+        max-width: 185px;
+        text-align: left;
+        font-size: 11px;
+        line-height: 1.25;
+        white-space: normal;
+        word-break: break-word;
+        margin-top: 4px;
+        display: block;
+    }
+
+    .estado-envio-asistente .badge {
+        font-size: 12px;
+        margin-bottom: 4px;
+        white-space: normal;
+    }
+
+    .acciones-enviada {
+        display: grid;
+        grid-template-columns: 36px 185px;
+        align-items: center;
+        width: 225px;
+        column-gap: 8px;
+    }
+
+    .acciones-enviada > button,
+    .acciones-enviada > a {
+        grid-column: 1;
+        justify-self: start;
+        align-self: center;
+    }
+
+    .acciones-enviada .estado-envio-asistente {
+        grid-column: 2;
+        margin-top: 0;
+    }
+
+    .acciones-pendiente-envio {
+        display: grid;
+        grid-template-columns: 36px 36px 185px;
+        align-items: center;
+        width: 270px;
+        column-gap: 6px;
+    }
+
+    .acciones-pendiente-envio > button:nth-of-type(1) {
+        grid-column: 1;
+    }
+
+    .acciones-pendiente-envio > button:nth-of-type(2) {
+        grid-column: 2;
+    }
+
+    .acciones-pendiente-envio .estado-envio-asistente {
+        grid-column: 3;
+        margin-top: 0;
+    }
+
+    .estado-pendiente-envio {
+        border-left-color: #ffc107;
+        background: #fff8e1;
+    }
+
+    #basic-btn td:first-child,
+    #basic-btn1 td:first-child {
+        white-space: normal !important;
+        vertical-align: top;
+        min-width: 220px;
+    }
+
+    .swal2-container,
+    .swal2-container.swal2-backdrop-show,
+    body.swal2-shown > .swal2-container {
+        z-index: 20000 !important;
+    }
+
+    .fila-pendiente-envio {
+        animation: pulseFilaPendienteEnvio 1.2s infinite;
+        background-color: #e8f7ff !important;
+        box-shadow: inset 4px 0 0 #00bcd4;
+    }
+
+    .fila-pendiente-envio .btn-enviar-asistente {
+        animation: pulseBotonEnviarAsistente 1s infinite;
+        transform: scale(1.05);
+    }
+
+    @keyframes pulseFilaPendienteEnvio {
+        0% {
+            background-color: #e8f7ff;
+        }
+        50% {
+            background-color: #c9efff;
+        }
+        100% {
+            background-color: #e8f7ff;
+        }
+    }
+
+    @keyframes pulseBotonEnviarAsistente {
+        0% {
+            box-shadow: 0 0 0 0 rgba(32, 201, 151, 0.6);
+        }
+        70% {
+            box-shadow: 0 0 0 8px rgba(32, 201, 151, 0);
+        }
+        100% {
+            box-shadow: 0 0 0 0 rgba(32, 201, 151, 0);
+        }
+    }
+
+    @media (max-width: 576px) {
+        #ModalIngresoCamion .modal-dialog,
+        #ModalSolicitudCamionNoPlanificado .modal-dialog {
+            margin: .5rem;
         }
 
-        @keyframes pulse-dot {
-            0% {
-                transform: scale(0.8);
-            }
-            50% {
-                transform: scale(1);
-            }
-            100% {
-                transform: scale(0.8);
-            }
-        }
-
-        .pulse-button-container {
-            position: relative;
-            width: auto;
-            min-width: 40px;
-            min-height: 40px;
-            height: auto;
-            margin: 5px;
-            display: flex;
-            align-items: flex-start;
-            flex-wrap: wrap;
-            gap: 4px;
-            white-space: normal;
-        }
-
-        .pulse-button {
-            width: 100%;
-            height: 100%;
-            background: #007bff;
-            position: absolute;
-            top: 0;
-            left: 0;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-        }
-
-        .pulse-button::before {
-            content: '';
-            position: absolute;
-            width: 300%;
-            height: 300%;
-            background-color: #007bff;
-            animation: pulse-ring 1.25s cubic-bezier(0.215, 0.61, 0.355, 1) infinite;
-        }
-
-        .pulse-button::after {
-            content: '';
-            position: absolute;
-            left: 0;
-            top: 0;
-            display: block;
-            width: 100%;
-            height: 100%;
-            background-color: #007bff;
-            box-shadow: 0 0 8px rgba(0,0,0,.3);
-            animation: pulse-dot 1.25s cubic-bezier(0.455, 0.03, 0.515, 0.955) -.4s infinite;
-        }
-
-        .pulse-button svg {
-            width: 20px;
-            height: 20px;
-            position: relative;
-            z-index: 10;
-            fill: white;
-        }
-
-        #ModalIngresoCamion .modal-dialog {
-            max-width: 760px;
-            margin: 1rem auto;
-        }
-
-        #ModalIngresoCamion .modal-content {
-            max-height: calc(100vh - 40px);
-            display: flex;
-            flex-direction: column;
-        }
-
-        #ModalIngresoCamion .modal-body {
-            max-height: calc(100vh - 180px);
-            overflow-y: auto;
-        }
-
-        #ModalIngresoCamion .modal-footer {
-            flex-shrink: 0;
-            position: sticky;
-            bottom: 0;
-            z-index: 2;
-            background: #fff;
-        }
-
-        #ModalSolicitudCamionNoPlanificado .modal-content,
-        #ModalRechazarCamionNoPlanificado .modal-content {
-            max-height: calc(100vh - 40px);
-            display: flex;
-            flex-direction: column;
-        }
-
-        #ModalSolicitudCamionNoPlanificado .modal-body,
-        #ModalRechazarCamionNoPlanificado .modal-body {
-            max-height: calc(100vh - 180px);
-            overflow-y: auto;
-        }
-
-        #ModalSolicitudCamionNoPlanificado .modal-footer,
-        #ModalRechazarCamionNoPlanificado .modal-footer {
-            flex-shrink: 0;
-            position: sticky;
-            bottom: 0;
-            z-index: 2;
-            background: #fff;
-        }
-
-        #ModalCamionNoPlanificado .modal-dialog {
-            max-height: calc(100vh - 2rem);
-        }
-
-        #ModalCamionNoPlanificado .modal-content {
-            max-height: calc(100vh - 40px);
-            display: flex;
-            flex-direction: column;
-            overflow: hidden;
-        }
-
-        #ModalCamionNoPlanificado form {
-            display: flex;
-            flex-direction: column;
-            min-height: 0;
-            flex: 1 1 auto;
-        }
-
+        #ModalRechazarCamionNoPlanificado .modal-body,
         #ModalCamionNoPlanificado .modal-body {
-            overflow-y: auto;
-            max-height: calc(100vh - 210px);
+            max-height: calc(100vh - 150px);
         }
-
-        #ModalCamionNoPlanificado .modal-footer {
-            flex-shrink: 0;
-            position: sticky;
-            bottom: 0;
-            z-index: 2;
-            background: #fff;
-        }
-
-        #ModalRevisionAsistente .modal-content,
-        #ModalEstanqueCamion .modal-content {
-            max-height: calc(100vh - 40px);
-            display: flex;
-            flex-direction: column;
-        }
-
-        #ModalRevisionAsistente .modal-body,
-        #ModalEstanqueCamion .modal-body {
-            max-height: calc(100vh - 180px);
-            overflow-y: auto;
-        }
-
-        #ModalRevisionAsistente .modal-footer,
-        #ModalEstanqueCamion .modal-footer {
-            flex-shrink: 0;
-            position: sticky;
-            bottom: 0;
-            z-index: 2;
-            background: #fff;
-        }
-
-        .revision-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
-            gap: 10px 16px;
-        }
-
-        .revision-section {
-            border: 1px solid #e3e6ea;
-            border-radius: 4px;
-            padding: 14px;
-            margin-bottom: 14px;
-        }
-
-        .revision-section h6 {
-            font-weight: 700;
-            margin-bottom: 12px;
-        }
-
-        .revision-item-label {
-            font-size: 12px;
-            font-weight: 700;
-            color: #6c757d;
-            text-transform: uppercase;
-        }
-
-        .revision-item-value {
-            word-break: break-word;
-        }
-
-        .citacion-enviada-asistente,
-        .citacion-enviada-asistente > td {
-            background-color: #eef7ff !important;
-        }
-
-        .citacion-aprobada-asistente,
-        .citacion-aprobada-asistente > td {
-            background-color: #ecfdf3 !important;
-        }
-
-        .citacion-aprobada-asistente {
-            box-shadow: inset 4px 0 0 #20c997;
-        }
-
-        .citacion-estanque-asignado,
-        .citacion-estanque-asignado > td {
-            background-color: #fff8e5 !important;
-        }
-
-        .citacion-estanque-asignado {
-            box-shadow: inset 4px 0 0 #f0ad4e;
-        }
-
-        .citacion-enviada-siguiente,
-        .citacion-enviada-siguiente > td {
-            background-color: #f1f3f5 !important;
-        }
-
-        .citacion-enviada-siguiente {
-            box-shadow: inset 4px 0 0 #6c757d;
-        }
-
-        .estado-envio-asistente {
-            border-left: 4px solid #17a2b8;
-            background: #f1f9fb;
-            padding: 6px 8px;
-            width: 185px;
-            max-width: 185px;
-            text-align: left;
-            font-size: 11px;
-            line-height: 1.25;
-            white-space: normal;
-            word-break: break-word;
-            margin-top: 4px;
-            display: block;
-        }
-
-        .estado-envio-asistente .badge {
-            font-size: 12px;
-            margin-bottom: 4px;
-            white-space: normal;
-        }
-
-        .acciones-enviada {
-            display: grid;
-            grid-template-columns: 36px 185px;
-            align-items: center;
-            width: 225px;
-            column-gap: 8px;
-        }
-
-        .acciones-enviada > button,
-        .acciones-enviada > a {
-            grid-column: 1;
-            justify-self: start;
-            align-self: center;
-        }
-
-        .acciones-enviada .estado-envio-asistente {
-            grid-column: 2;
-            margin-top: 0;
-        }
-
-        #basic-btn td:first-child,
-        #basic-btn1 td:first-child {
-            white-space: normal !important;
-            vertical-align: top;
-            min-width: 220px;
-        }
-
-        .swal2-container,
-        .swal2-container.swal2-backdrop-show,
-        body.swal2-shown > .swal2-container {
-            z-index: 20000 !important;
-        }
-
-        .fila-pendiente-envio {
-            animation: pulseFilaPendienteEnvio 1.2s infinite;
-            background-color: #e8f7ff !important;
-            box-shadow: inset 4px 0 0 #00bcd4;
-        }
-
-        .fila-pendiente-envio .btn-enviar-asistente {
-            animation: pulseBotonEnviarAsistente 1s infinite;
-            transform: scale(1.05);
-        }
-
-        @keyframes pulseFilaPendienteEnvio {
-            0% { background-color: #e8f7ff; }
-            50% { background-color: #c9efff; }
-            100% { background-color: #e8f7ff; }
-        }
-
-        @keyframes pulseBotonEnviarAsistente {
-            0% { box-shadow: 0 0 0 0 rgba(32, 201, 151, 0.6); }
-            70% { box-shadow: 0 0 0 8px rgba(32, 201, 151, 0); }
-            100% { box-shadow: 0 0 0 0 rgba(32, 201, 151, 0); }
-        }
-
-        @media (max-width: 576px) {
-            #ModalIngresoCamion .modal-dialog {
-                margin: .5rem;
-            }
-
-            #ModalIngresoCamion .modal-content {
-                max-height: calc(100vh - 1rem);
-            }
-
-            #ModalIngresoCamion .modal-body {
-                max-height: calc(100vh - 150px);
-            }
-
-            #ModalSolicitudCamionNoPlanificado .modal-body,
-            #ModalRechazarCamionNoPlanificado .modal-body,
-            #ModalCamionNoPlanificado .modal-body {
-                max-height: calc(100vh - 150px);
-            }
-        }
-    </style>
+    }
+</style>
     {% load humanize %}
     {% load i18n %}
     {% load l10n %}
@@ -387,7 +500,7 @@
                             </div>
                             <ul class="breadcrumb">
                                 <li class="breadcrumb-item"><a href="/"><i class="feather icon-home"></i></a></li>
-                                <li class="breadcrumb-item"><a href="/">Sistema Camiones</a></li>
+                                <li class="breadcrumb-item"><a href="/">TERRAVIEW</a></li>
                                 <li class="breadcrumb-item"><a href="{% url 'pla_listall' %}">Planificación #{{planificacion.pk}}</a></li>
                                 
                             </ul>
@@ -560,9 +673,9 @@
                                             </thead>
                                             <tbody>
                                                 {% for object in despachos %}
-                                                    <tr id="citacion-row-{{ object.0 }}" class="{% if object.37 %}citacion-enviada-siguiente{% elif object.34 %}citacion-enviada-siguiente{% elif object.30 %}citacion-enviada-siguiente{% elif object.27 %}citacion-estanque-asignado{% elif object.24 %}citacion-aprobada-asistente{% elif object.21 %}citacion-enviada-asistente{% endif %}">
+                                                    <tr id="citacion-row-{{ object.0 }}" class="{% if object.40 %}fila-pendiente-envio{% elif object.37 %}citacion-enviada-siguiente{% elif object.34 %}citacion-enviada-siguiente{% elif object.30 %}citacion-enviada-siguiente{% elif object.27 %}citacion-estanque-asignado{% elif object.24 %}citacion-aprobada-asistente{% elif object.21 %}citacion-enviada-asistente{% endif %}">
                                                         <td>
-                                                            <div class="pulse-button-container {% if request.user|es_guardia and object.34 %}acciones-enviada{% elif request.user|es_guardia and object.21 %}acciones-enviada{% elif request.user|es_asistente_recepcion and object.24 %}acciones-enviada{% elif request.user|es_asistente_recepcion and object.21 %}acciones-enviada{% elif request.user|es_asistente_cd and object.30 %}acciones-enviada{% elif request.user|es_asistente_cd %}acciones-enviada{% endif %}">
+                                                            <div class="pulse-button-container {% if request.user|es_guardia and object.40 %}acciones-enviada acciones-pendiente-envio{% elif request.user|es_guardia and object.34 %}acciones-enviada{% elif request.user|es_guardia and object.21 %}acciones-enviada{% elif request.user|es_asistente_recepcion and object.24 %}acciones-enviada{% elif request.user|es_asistente_recepcion and object.21 %}acciones-enviada{% elif request.user|es_asistente_cd and object.30 %}acciones-enviada{% elif request.user|es_asistente_cd %}acciones-enviada{% endif %}">
                                                                 {% if request.user|es_guardia_porteria and object.37 %}
                                                                     <button type="button" class="btn btn-outline-primary btn-sm" onclick="openRevisionAsistenteModal({{ object.0 }})" title="Ver autorizacion ingreso a planta">
                                                                         <i class="fas fa-eye"></i>
@@ -606,9 +719,17 @@
                                                                     <button type="button" class="btn btn-primary btn-sm" onclick="openIngresoCamionModal({{ object.0 }})" title="Ver / editar ingreso">
                                                                         <i class="fas fa-eye"></i>
                                                                     </button>
-                                                                    <button type="button" class="btn btn-success btn-sm ml-1 btn-enviar-asistente" data-accion="enviar" onclick="avanzarIngresoCamionAsistente({{ object.0 }})" title="Enviar al asistente">
+                                                                    <button type="button" class="btn btn-success btn-sm ml-1 btn-enviar-asistente" data-accion="enviar" onclick="avanzarIngresoCamionAsistente({{ object.0 }})" title="Enviar a Asistente Recepción">
                                                                         <i class="fas fa-arrow-right"></i>
                                                                     </button>
+                                                                    {% if object.40 %}
+                                                                        <div class="estado-envio-asistente estado-pendiente-envio">
+                                                                            <span class="badge badge-warning">Enviar a Asistente Recepción</span>
+                                                                            <div>Ingreso: {% if object.42 %}{{ object.42|date:'d/m/Y H:i' }}{% else %}No registrada{% endif %}</div>
+                                                                            <div>Usuario: {{ object.41|default:'Guardia' }}</div>
+                                                                            <div>Presione la flecha</div>
+                                                                        </div>
+                                                                    {% endif %}
                                                                 {% elif request.user|es_asistente_recepcion and object.24 %}
                                                                     <button type="button" class="btn btn-outline-primary btn-sm" onclick="openRevisionAsistenteModal({{ object.0 }})" title="Ver resumen aprobado">
                                                                         <i class="fas fa-eye"></i>
@@ -749,9 +870,9 @@
                                             </thead>
                                             <tbody>
                                                 {% for object in recepciones %}
-                                                    <tr id="citacion-row-{{ object.0 }}" class="{% if object.31 %}citacion-enviada-siguiente{% elif object.28 %}citacion-enviada-siguiente{% elif object.24 %}citacion-enviada-siguiente{% elif object.21 %}citacion-estanque-asignado{% elif object.18 %}citacion-aprobada-asistente{% elif object.15 %}citacion-enviada-asistente{% endif %}">
+                                                    <tr id="citacion-row-{{ object.0 }}" class="{% if object.34 %}fila-pendiente-envio{% elif object.31 %}citacion-enviada-siguiente{% elif object.28 %}citacion-enviada-siguiente{% elif object.24 %}citacion-enviada-siguiente{% elif object.21 %}citacion-estanque-asignado{% elif object.18 %}citacion-aprobada-asistente{% elif object.15 %}citacion-enviada-asistente{% endif %}">
                                                         <td>
-                                                            <div class="pulse-button-container {% if request.user|es_guardia and object.28 %}acciones-enviada{% elif request.user|es_guardia and object.15 %}acciones-enviada{% elif request.user|es_asistente_recepcion and object.18 %}acciones-enviada{% elif request.user|es_asistente_recepcion and object.15 %}acciones-enviada{% elif request.user|es_asistente_cd and object.24 %}acciones-enviada{% elif request.user|es_asistente_cd %}acciones-enviada{% endif %}">
+                                                            <div class="pulse-button-container {% if request.user|es_guardia and object.34 %}acciones-enviada acciones-pendiente-envio{% elif request.user|es_guardia and object.28 %}acciones-enviada{% elif request.user|es_guardia and object.15 %}acciones-enviada{% elif request.user|es_asistente_recepcion and object.18 %}acciones-enviada{% elif request.user|es_asistente_recepcion and object.15 %}acciones-enviada{% elif request.user|es_asistente_cd and object.24 %}acciones-enviada{% elif request.user|es_asistente_cd %}acciones-enviada{% endif %}">
                                                                 {% if request.user|es_guardia_porteria and object.31 %}
                                                                     <button type="button" class="btn btn-outline-primary btn-sm" onclick="openRevisionAsistenteModal({{ object.0 }})" title="Ver autorizacion ingreso a planta">
                                                                         <i class="fas fa-eye"></i>
@@ -795,9 +916,17 @@
                                                                     <button type="button" class="btn btn-primary btn-sm" onclick="openIngresoCamionModal({{ object.0 }})" title="Ver / editar ingreso">
                                                                         <i class="fas fa-eye"></i>
                                                                     </button>
-                                                                    <button type="button" class="btn btn-success btn-sm ml-1 btn-enviar-asistente" data-accion="enviar" onclick="avanzarIngresoCamionAsistente({{ object.0 }})" title="Enviar al asistente">
+                                                                    <button type="button" class="btn btn-success btn-sm ml-1 btn-enviar-asistente" data-accion="enviar" onclick="avanzarIngresoCamionAsistente({{ object.0 }})" title="Enviar a Asistente Recepción">
                                                                         <i class="fas fa-arrow-right"></i>
                                                                     </button>
+                                                                    {% if object.34 %}
+                                                                        <div class="estado-envio-asistente estado-pendiente-envio">
+                                                                            <span class="badge badge-warning">Enviar a Asistente Recepción</span>
+                                                                            <div>Ingreso: {% if object.36 %}{{ object.36|date:'d/m/Y H:i' }}{% else %}No registrada{% endif %}</div>
+                                                                            <div>Usuario: {{ object.35|default:'Guardia' }}</div>
+                                                                            <div>Presione la flecha</div>
+                                                                        </div>
+                                                                    {% endif %}
                                                                 {% elif request.user|es_asistente_recepcion and object.18 %}
                                                                     <button type="button" class="btn btn-outline-primary btn-sm" onclick="openRevisionAsistenteModal({{ object.0 }})" title="Ver resumen aprobado">
                                                                         <i class="fas fa-eye"></i>
@@ -920,81 +1049,106 @@
     <!-- [ Main Content ] end -->
 
     <div class="modal fade" id="ModalSolicitudCamionNoPlanificado" tabindex="-1" role="dialog" aria-labelledby="ModalSolicitudCamionNoPlanificadoLabel" aria-hidden="true">
-        <div class="modal-dialog modal-dialog-scrollable modal-lg" role="document">
-            <div class="modal-content">
-                <div class="modal-header">
-                    <div>
-                        <h5 class="modal-title" id="ModalSolicitudCamionNoPlanificadoLabel">Camion no planificado</h5>
-                        <small>Solicitud operacional para la planificacion #{{ planificacion.id }}.</small>
-                    </div>
-                    <button type="button" class="close" data-dismiss="modal" aria-label="Cerrar">
-                        <span aria-hidden="true">&times;</span>
-                    </button>
-                </div>
-                <form id="form_solicitud_camion_no_planificado" method="POST" enctype="multipart/form-data">
-                    {% csrf_token %}
-                    <input type="hidden" name="planificacion_id" value="{{ planificacion.id }}">
-                    <input type="hidden" id="solicitud_cliente_nombre" name="cliente_nombre">
+    <div class="modal-dialog modal-lg" role="document">
+        <div class="modal-content">
 
-                    <div class="modal-body">
-                        <div class="row">
-                            <div class="col-md-6">
-                                <div class="form-group">
-                                    <label>Cliente</label>
-                                    <select class="form-control" id="solicitud_cliente" name="cliente" required>
-                                        <option value="">Seleccione cliente</option>
-                                        {% for cliente in clientes_sap %}
-                                            <option value="{{ cliente.SOP_CARDCODE }}">{{ cliente.SOP_CARDNAME }}</option>
-                                        {% endfor %}
-                                    </select>
-                                </div>
-                            </div>
-                            <div class="col-md-6">
-                                <div class="form-group">
-                                    <label>Insumo</label>
-                                    <input type="text" class="form-control" id="solicitud_insumo" name="insumo" required>
-                                </div>
-                            </div>
-                            <div class="col-md-6">
-                                <div class="form-group">
-                                    <label>Numero guia</label>
-                                    <input type="text" class="form-control" id="solicitud_numero_guia" name="numero_guia" required>
-                                </div>
-                            </div>
-                            <div class="col-md-6">
-                                <div class="form-group">
-                                    <label>Patente</label>
-                                    <input type="text" class="form-control text-uppercase" id="solicitud_patente" name="patente" required>
-                                </div>
-                            </div>
-                            <div class="col-md-6">
-                                <div class="form-group">
-                                    <label>Empresa transporte</label>
-                                    <input type="text" class="form-control" id="solicitud_empresa_transporte" name="empresa_transporte" required>
-                                </div>
-                            </div>
-                            <div class="col-md-6">
-                                <div class="form-group">
-                                    <label>Adjuntar guia escaneada</label>
-                                    <input type="file" class="form-control-file" id="solicitud_archivo_guia" name="archivo_guia" required>
-                                </div>
-                            </div>
-                            <div class="col-12">
-                                <div class="form-group">
-                                    <label>Observacion</label>
-                                    <textarea class="form-control" id="solicitud_observacion" name="observacion" rows="3"></textarea>
-                                </div>
+            <div class="modal-header">
+                <div>
+                    <h5 class="modal-title" id="ModalSolicitudCamionNoPlanificadoLabel">
+                        Camión no planificado
+                    </h5>
+                    <small>
+                        Solicitud operacional para la planificación #{{ planificacion.id }}.
+                    </small>
+                </div>
+
+                <button type="button" class="close" data-dismiss="modal" aria-label="Cerrar">
+                    <span aria-hidden="true">&times;</span>
+                </button>
+            </div>
+
+            <form id="form_solicitud_camion_no_planificado" method="POST" enctype="multipart/form-data">
+                {% csrf_token %}
+
+                <input type="hidden" name="planificacion_id" value="{{ planificacion.id }}">
+                <input type="hidden" id="solicitud_cliente_nombre" name="cliente_nombre">
+
+                <div class="modal-body">
+                    <div class="row">
+
+                        <div class="col-md-6">
+                            <div class="form-group">
+                                <label for="solicitud_cliente">Cliente</label>
+                                <select class="form-control" id="solicitud_cliente" name="cliente" required>
+                                    <option value="">Seleccione cliente</option>
+                                    {% for cliente in clientes_sap %}
+                                        <option value="{{ cliente.SOP_CARDCODE }}">
+                                            {{ cliente.SOP_CARDNAME }}
+                                        </option>
+                                    {% endfor %}
+                                </select>
                             </div>
                         </div>
+
+                        <div class="col-md-6">
+                            <div class="form-group">
+                                <label for="solicitud_insumo">Insumo</label>
+                                <input type="text" class="form-control" id="solicitud_insumo" name="insumo" required>
+                            </div>
+                        </div>
+
+                        <div class="col-md-6">
+                            <div class="form-group">
+                                <label for="solicitud_numero_guia">Número guía</label>
+                                <input type="text" class="form-control" id="solicitud_numero_guia" name="numero_guia" required>
+                            </div>
+                        </div>
+
+                        <div class="col-md-6">
+                            <div class="form-group">
+                                <label for="solicitud_patente">Patente</label>
+                                <input type="text" class="form-control text-uppercase" id="solicitud_patente" name="patente" required>
+                            </div>
+                        </div>
+
+                        <div class="col-md-6">
+                            <div class="form-group">
+                                <label for="solicitud_empresa_transporte">Empresa transporte</label>
+                                <input type="text" class="form-control" id="solicitud_empresa_transporte" name="empresa_transporte" required>
+                            </div>
+                        </div>
+
+                        <div class="col-md-6">
+                            <div class="form-group">
+                                <label for="solicitud_archivo_guia">Adjuntar guía escaneada</label>
+                                <input type="file" class="form-control-file" id="solicitud_archivo_guia" name="archivo_guia" required>
+                            </div>
+                        </div>
+
+                        <div class="col-12">
+                            <div class="form-group">
+                                <label for="solicitud_observacion">Observación</label>
+                                <textarea class="form-control" id="solicitud_observacion" name="observacion" rows="3"></textarea>
+                            </div>
+                        </div>
+
                     </div>
-                    <div class="modal-footer">
-                        <button type="button" class="btn btn-secondary" data-dismiss="modal">Cancelar</button>
-                        <button type="button" class="btn btn-success" onclick="guardarSolicitudCamionNoPlanificado()">Enviar solicitud</button>
-                    </div>
-                </form>
-            </div>
+                </div>
+
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-dismiss="modal">
+                        Cancelar
+                    </button>
+                    <button type="button" class="btn btn-success" onclick="guardarSolicitudCamionNoPlanificado()">
+                        Enviar solicitud
+                    </button>
+                </div>
+
+            </form>
+
         </div>
     </div>
+</div>
 
     <div class="modal fade" id="ModalCamionNoPlanificado" tabindex="-1" role="dialog" aria-labelledby="ModalCamionNoPlanificadoLabel" aria-hidden="true">
         <div class="modal-dialog modal-dialog-scrollable modal-xl" role="document">
@@ -1495,29 +1649,35 @@
     <!-- End of Modal Content -->
 
 <div class="modal fade" id="ModalIngresoCamion" tabindex="-1" role="dialog" aria-labelledby="ModalIngresoCamionLabel" aria-hidden="true">
-    <div class="modal-dialog modal-dialog-scrollable modal-lg" role="document">
-        <div class="modal-content">
+    <div class="modal-dialog modal-lg" role="document">
+        <form id="form_ingreso_camion" class="modal-content" method="POST" enctype="multipart/form-data">
+            {% csrf_token %}
+
             <div class="modal-header">
                 <div>
                     <h5 class="modal-title" id="ModalIngresoCamionLabel">Ingreso de camión</h5>
                     <small id="ingreso_camion_subtitulo" class="text-muted"></small>
                 </div>
+
                 <button type="button" class="close" data-dismiss="modal" aria-label="Cerrar">
                     <span aria-hidden="true">&times;</span>
                 </button>
             </div>
-            <form id="form_ingreso_camion" method="POST" enctype="multipart/form-data">
-                {% csrf_token %}
-                <div class="modal-body">
-                    <div id="ingreso_camion_alert" class="alert alert-info" style="display:none;"></div>
-                    <div id="ingreso_camion_campos"></div>
-                </div>
-                <div class="modal-footer">
-                    <button type="button" class="btn btn-secondary" data-dismiss="modal">Cancelar</button>
-                    <button type="button" class="btn btn-success" onclick="guardarIngresoCamion()">Guardar</button>
-                </div>
-            </form>
-        </div>
+
+            <div class="modal-body">
+                <div id="ingreso_camion_alert" class="alert alert-info" style="display:none;"></div>
+                <div id="ingreso_camion_campos"></div>
+            </div>
+
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-dismiss="modal">
+                    Cancelar
+                </button>
+                <button type="button" class="btn btn-success" onclick="guardarIngresoCamion()">
+                    Guardar
+                </button>
+            </div>
+        </form>
     </div>
 </div>
 
@@ -1601,552 +1761,830 @@
     <script src="/static/assets/js/plugins/buttons.bootstrap4.min.js"></script>
     <script src="/static/assets/js/pages/data-export-custom.js"></script>
     <script>
-        const estanquesNoPlanificados = {{ estanques_por_almacen_json|safe }};
+    let ingresoCamionCitacionId = null;
+    let ingresoCamionCamposPorCodigo = {};
+    const DEBUG_INGRESO_CAMION = true;
 
-        function renderNoPlanEstanques(almacen, seleccionado) {
-            const almacenKey = (almacen || '').toString().trim().toUpperCase();
-            const estanques = estanquesNoPlanificados[almacenKey] || [];
-            const selectEstanque = $('#no_plan_estanque_destino');
-
-            if (selectEstanque.data('select2')) {
-                selectEstanque.select2('destroy');
-            }
-
-            selectEstanque.empty();
-            selectEstanque.append(new Option('Seleccione estanque', ''));
-
-            estanques.forEach(function (estanque) {
-                selectEstanque.append(new Option(estanque, estanque));
-            });
-
-            const valorSeleccionado = estanques.includes(seleccionado) ? seleccionado : '';
-            selectEstanque.prop('disabled', estanques.length === 0);
-            selectEstanque.val(valorSeleccionado);
-            selectEstanque.select2({
-                dropdownParent: $('#ModalCamionNoPlanificado'),
-                allowClear: true,
-                width: '100%',
-                placeholder: 'Seleccione estanque'
-            });
+    function logIngresoCamion() {
+        if (!DEBUG_INGRESO_CAMION || !window.console || !console.debug) {
+            return;
         }
 
-        function renderEditEstanques(almacen, seleccionado) {
-            const almacenKey = (almacen || '').toString().trim().toUpperCase();
-            const estanques = estanquesNoPlanificados[almacenKey] || [];
-            const selectEstanque = $('#edit_estanque_destino');
+        console.debug.apply(console, ['[IngresoCamion]'].concat(Array.from(arguments)));
+    }
 
-            if (selectEstanque.data('select2')) {
-                selectEstanque.select2('destroy');
-            }
+    function escapeHtml(value) {
+        return String(value ?? '')
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;')
+            .replace(/'/g, '&#039;');
+    }
 
-            selectEstanque.empty();
-            selectEstanque.append(new Option('Seleccione estanque', ''));
+    function normalizarTexto(value) {
+        return String(value ?? '').trim();
+    }
 
-            estanques.forEach(function (estanque) {
-                selectEstanque.append(new Option(estanque, estanque));
-            });
+    function normalizarIdHtml(value) {
+        return String(value ?? '').replace(/[^a-zA-Z0-9_-]/g, '_');
+    }
 
-            const valorSeleccionado = estanques.includes(seleccionado) ? seleccionado : '';
-            selectEstanque.prop('disabled', estanques.length === 0);
-            selectEstanque.val(valorSeleccionado);
-            selectEstanque.select2({
-                dropdownParent: $('#editCitationModal'),
-                allowClear: true,
-                width: '100%',
-                placeholder: 'Seleccione estanque'
-            });
+ function renderIngresoCamionCampo(campo) {
+    const required = campo.required ? 'required' : '';
+    const maxlength = campo.maxlength ? `maxlength="${escapeHtml(campo.maxlength)}"` : '';
+    const label = escapeHtml(campo.label);
+    const name = escapeHtml(campo.name);
+    const rawName = String(campo.name || '');
+    const value = escapeHtml(campo.default);
+    let control = '';
+
+    if (campo.codigo === 'ING_EMPRESA_TRANSPORTE') {
+        const listId = `${normalizarIdHtml(rawName)}_transportistas`;
+
+        control = `
+            <input class="form-control ingreso-transportista-input"
+                   id="${name}"
+                   name="${name}"
+                   type="text"
+                   value="${value}"
+                   list="${listId}"
+                   autocomplete="off"
+                   data-default="${value}"
+                   ${required}>
+            <datalist id="${listId}" class="ingreso-transportista-list"></datalist>
+        `;
+    } else if (campo.codigo === 'ING_NOMBRE_CONDUCTOR') {
+        const listId = `${normalizarIdHtml(rawName)}_conductores`;
+
+        control = `
+            <input class="form-control ingreso-conductor-input"
+                   id="${name}"
+                   name="${name}"
+                   type="text"
+                   value="${value}"
+                   list="${listId}"
+                   autocomplete="off"
+                   data-default="${value}"
+                   ${required}>
+            <datalist id="${listId}" class="ingreso-conductor-list"></datalist>
+        `;
+    } else if (campo.codigo === 'ING_PATENTE') {
+        const listId = `${normalizarIdHtml(rawName)}_opciones`;
+
+        control = `
+            <input class="form-control ingreso-patente-input text-uppercase"
+                   id="${name}"
+                   name="${name}"
+                   type="text"
+                   value="${value}"
+                   list="${listId}"
+                   data-default="${value}"
+                   ${maxlength}
+                   ${required}>
+            <datalist id="${listId}" class="ingreso-patente-list"></datalist>
+        `;
+    } else if (campo.type === 'multilinea') {
+        control = `
+            <textarea class="form-control"
+                      id="${name}"
+                      name="${name}"
+                      ${maxlength}
+                      ${required}>${value}</textarea>
+        `;
+    } else if (campo.type === 'numero') {
+        control = `
+            <input class="form-control"
+                   id="${name}"
+                   name="${name}"
+                   type="number"
+                   value="${value}"
+                   ${required}>
+        `;
+    } else if (campo.type === 'decimal') {
+        control = `
+            <input class="form-control"
+                   id="${name}"
+                   name="${name}"
+                   type="number"
+                   step="0.01"
+                   value="${value}"
+                   ${required}>
+        `;
+    } else if (campo.type === 'fecha') {
+        control = `
+            <input class="form-control"
+                   id="${name}"
+                   name="${name}"
+                   type="date"
+                   value="${value}"
+                   ${required}>
+        `;
+    } else if (campo.type === 'fecha/hora') {
+        control = `
+            <input class="form-control"
+                   id="${name}"
+                   name="${name}"
+                   type="datetime-local"
+                   value="${value}"
+                   ${required}>
+        `;
+    } else if (campo.type === 'archivo') {
+        const descarga = campo.has_file && campo.download_url
+            ? `
+                <div class="mt-2">
+                    <a class="btn btn-outline-primary btn-sm"
+                       href="${escapeHtml(campo.download_url)}"
+                       target="_blank">
+                        Descargar archivo actual
+                    </a>
+                </div>
+              `
+            : '';
+
+        control = `
+            <input class="form-control-file"
+                   id="${name}"
+                   name="${name}"
+                   type="file"
+                   ${required}>
+            ${descarga}
+        `;
+    } else if (campo.type === 'lista') {
+        const options = (campo.datos || []).map(function (dato) {
+            const optionValue = escapeHtml(dato[0]);
+            const optionText = escapeHtml(dato[1]);
+            const selected = String(dato[0]) === String(campo.default) ? 'selected' : '';
+
+            return `<option value="${optionValue}" ${selected}>${optionText}</option>`;
+        }).join('');
+
+        control = `
+            <select class="form-control"
+                    id="${name}"
+                    name="${name}"
+                    ${required}>
+                <option value="">Seleccione una opción</option>
+                ${options}
+            </select>
+        `;
+    } else if (campo.type === 'check') {
+        const checked = campo.default === true || campo.default === 'on' || campo.default === 'True'
+            ? 'checked'
+            : '';
+
+        control = `
+            <input id="${name}"
+                   name="${name}"
+                   type="checkbox"
+                   class="form-check-input ml-1"
+                   ${checked}
+                   ${required}>
+        `;
+    } else {
+        control = `
+            <input class="form-control"
+                   id="${name}"
+                   name="${name}"
+                   type="text"
+                   value="${value}"
+                   ${maxlength}
+                   ${required}>
+        `;
+    }
+
+    return `
+        <div class="form-group">
+            <label for="${name}">${label}</label>
+            ${control}
+        </div>
+    `;
+}
+    function obtenerCampoIngresoPorCodigo(codigo) {
+        return ingresoCamionCamposPorCodigo[codigo] || null;
+    }
+
+    function obtenerSelectorCampoIngreso(codigo) {
+        const campo = obtenerCampoIngresoPorCodigo(codigo);
+
+        if (!campo || !campo.name) {
+            return $();
         }
 
-        $(document).ready(function() {
-            // Inicializar Select2 para el proveedor
-            initializeSelect2();
-            initializeCamionNoPlanificado();
-            renderEditEstanques('', '');
-            $('#edit_almacen_destino').on('change', function () {
-                renderEditEstanques($(this).val(), '');
+        const elemento = document.getElementById(campo.name);
+
+        if (!elemento) {
+            return $();
+        }
+
+        return $(elemento);
+    }
+
+    function obtenerTransportistaSeleccionado() {
+        const input = document.querySelector('.ingreso-transportista-input');
+
+        if (!input) {
+            return {
+                id: '',
+                text: ''
+            };
+        }
+
+        const texto = normalizarTexto(input.value);
+        const listId = input.getAttribute('list');
+        const lista = listId ? document.getElementById(listId) : null;
+        let id = '';
+
+        if (lista) {
+            const opciones = Array.from(lista.options || []);
+
+            const opcionSeleccionada = opciones.find(function (option) {
+                return normalizarTexto(option.value) === texto;
             });
-        
-            // Manejar el cambio de proveedor
-            $('#id_proveedor').change(function() {
-                var proveedorId = $(this).val();
-                var citacionId = $('#citation_id').val();
-                if (proveedorId) {
-                    $.ajax({
-                        url: `/get_proveedor_data/${proveedorId}/`,
-                        type: 'GET',
-                        data: {
-                            citacion_id: citacionId
-                        },
-                        success: function(data) {
-                            $('#id_conductor').html(data.conductores);
-                            $('#id_camion').html(data.camiones);
-                            $('#id_tarifa').html(data.tarifas);
-                        },
-                        error: function(error) {
-                            console.log('Error fetching proveedor data:', error);
-                            Swal.fire({
-                                icon: 'error',
-                                title: 'Error',
-                                text: 'Error al cargar los datos del proveedor'
-                            });
-                        }
-                    });
-                } else {
-                    // Si no se selecciona proveedor, mostrar opciones genéricas
-                    $('#id_conductor').html('<option value="1">Conductor Genérico</option>');
-                    $('#id_camion').html('<option value="1">Camión Genérico</option>');
-                    $('#id_tarifa').html('<option value="">Seleccione una tarifa</option>');
-                }
-            });
-        
-            // Manejar el clic en eliminar citación
-            $('.delete_citacion').on("click", function(){
-                Swal.fire({
-                    title: '¿Está seguro que desea eliminar la citación?',
-                    text: 'Esta acción no se puede deshacer',
-                    icon: 'warning',
-                    showCancelButton: true,
-                    confirmButtonColor: '#d33',
-                    cancelButtonColor: '#3085d6',
-                    confirmButtonText: 'Eliminar',
-                    cancelButtonText: 'Cancelar',
-                }).then((result) => {
-                    if (result.isConfirmed) {
-                        window.location.href = $(this).data('href');
-                    }
-                });
-            });
-        
-            // Manejar el clic en archivar planificación
-            $('#pla_filed').on("click", function(){
-                Swal.fire({
-                    title: 'Atención',
-                    icon: "warning",
-                    text: "¿Estás seguro de archivar esta planificación?"
-                }).then((result) => {
-                    if (result.isConfirmed) {
-                        window.location.href = $(this).data('href');
-                    }
-                });
-            });
-        
-            // Manejar la animación de los botones pulsantes
-            var pulseButtons = document.querySelectorAll('.pulse-button');
-            pulseButtons.forEach(function(button) {
-                button.addEventListener('mouseenter', function() {
-                    this.style.animation = 'none';
-                    this.style.transform = 'scale(1.05)';
-                    if (this.previousElementSibling) {
-                        this.previousElementSibling.style.animation = 'none';
-                    }
-                });
-                button.addEventListener('mouseleave', function() {
-                    this.style.animation = 'pulse 1.5s infinite';
-                    this.style.transform = 'scale(1)';
-                    if (this.previousElementSibling) {
-                        this.previousElementSibling.style.animation = 'pulse-background 1.5s infinite';
-                    }
-                });
-            });
+
+            if (opcionSeleccionada) {
+                id = opcionSeleccionada.dataset.socionegocioId || '';
+            }
+        }
+
+        const transportista = {
+            id: id,
+            text: texto
+        };
+
+        logIngresoCamion('transportista seleccionado', transportista);
+
+        return transportista;
+    }
+
+    function autocompletarDatoEditable(codigo, valor) {
+        const valorLimpio = normalizarTexto(valor);
+
+        if (!valorLimpio) {
+            return;
+        }
+
+        const $campo = obtenerSelectorCampoIngreso(codigo);
+
+        if (!$campo.length || $campo.val()) {
+            return;
+        }
+
+        if ($campo.is('select')) {
+            if (!$campo.find(`option[value="${valorLimpio}"]`).length) {
+                $campo.append(new Option(valorLimpio, valorLimpio, true, true));
+            }
+
+            if ($campo.hasClass('select2-hidden-accessible')) {
+                $campo.val(valorLimpio).trigger('change.select2');
+            } else {
+                $campo.val(valorLimpio).trigger('change');
+            }
+
+            return;
+        }
+
+        $campo.val(valorLimpio).trigger('change');
+    }
+
+    function diagnosticarScrollIngresoCamion(contexto) {
+        const $modal = $('#ModalIngresoCamion');
+        const $body = $modal.find('.modal-body');
+
+        if (!$body.length) {
+            return;
+        }
+
+        const body = $body[0];
+        const modal = $modal[0];
+        const dialog = $modal.find('.modal-dialog')[0];
+        const modalContent = $modal.find('.modal-content')[0];
+
+        logIngresoCamion('scroll state', contexto, {
+            windowScrollY: window.scrollY,
+            htmlOverflow: window.getComputedStyle(document.documentElement).overflow,
+            bodyOverflow: window.getComputedStyle(document.body).overflow,
+            bodyInlineOverflow: document.body.style.overflow || '',
+            bodyClass: document.body.className,
+            modalOverflowY: modal ? window.getComputedStyle(modal).overflowY : '',
+            modalScrollTop: modal ? modal.scrollTop : 0,
+            modalScrollHeight: modal ? modal.scrollHeight : 0,
+            modalClientHeight: modal ? modal.clientHeight : 0,
+            dialogOverflowY: dialog ? window.getComputedStyle(dialog).overflowY : '',
+            dialogScrollTop: dialog ? dialog.scrollTop : 0,
+            dialogScrollHeight: dialog ? dialog.scrollHeight : 0,
+            dialogClientHeight: dialog ? dialog.clientHeight : 0,
+            modalContentOverflowY: modalContent ? window.getComputedStyle(modalContent).overflowY : '',
+            modalContentScrollTop: modalContent ? modalContent.scrollTop : 0,
+            modalContentScrollHeight: modalContent ? modalContent.scrollHeight : 0,
+            modalContentClientHeight: modalContent ? modalContent.clientHeight : 0,
+            modalBodyOverflowY: window.getComputedStyle(body).overflowY,
+            modalBodyInlineOverflowY: body.style.overflowY || '',
+            modalBodyScrollTop: body.scrollTop,
+            modalBodyScrollHeight: body.scrollHeight,
+            modalBodyClientHeight: body.clientHeight,
+            activeElement: document.activeElement ? {
+                tag: document.activeElement.tagName,
+                id: document.activeElement.id || '',
+                className: String(document.activeElement.className || '')
+            } : null,
+            select2Abiertos: $('.select2-container--open').length,
+            select2Dropdowns: $('.select2-dropdown').length
         });
-        $(document).ready(function() {
-            var secuenciaSelect = $('#id_secuencia');
-            if (secuenciaSelect.attr('readonly')) {
-                secuenciaSelect.on('mousedown', function(e) {
-                    e.preventDefault();
-                    this.blur();
-                    window.focus();
+    }
+
+    function asegurarScrollModalIngresoCamion() {
+        const modalBody = document.querySelector('#ModalIngresoCamion .modal-body');
+
+        if (!modalBody) {
+            return;
+        }
+
+        modalBody.style.height = '70vh';
+        modalBody.style.overflowY = 'scroll';
+        modalBody.style.overflowX = 'hidden';
+    }
+
+    function limpiarPatentesIngresoCamion() {
+        const $patente = $('.ingreso-patente-input');
+
+        if ($patente.length) {
+            $patente.val('').trigger('change');
+            $('.ingreso-patente-list').empty();
+        } else {
+            obtenerSelectorCampoIngreso('ING_PATENTE').val('').trigger('change');
+        }
+
+        obtenerSelectorCampoIngreso('ING_CANTIDAD_EJES').val('').trigger('change');
+    }
+
+    function actualizarPatentesIngresoCamion(camiones, patenteSugerida, cantidadEjesSugerida) {
+        const $patente = $('.ingreso-patente-input');
+        const patentePropuesta = patenteSugerida || ((camiones || [])[0] && (camiones || [])[0].patente) || '';
+        const ejesPropuestos = cantidadEjesSugerida || ((camiones || [])[0] && (camiones || [])[0].cantidad_ejes) || '';
+
+        logIngresoCamion('Camiones encontrados', camiones || []);
+        logIngresoCamion('Patente propuesta', patentePropuesta);
+
+        if (!$patente.length) {
+            autocompletarDatoEditable('ING_PATENTE', patentePropuesta || '');
+            autocompletarDatoEditable('ING_CANTIDAD_EJES', ejesPropuestos || '');
+            return;
+        }
+
+        const valorActual = $patente.val() || $patente.data('default') || '';
+        const listId = $patente.attr('list');
+        const listaElement = listId ? document.getElementById(listId) : null;
+        const $lista = listaElement ? $(listaElement) : $('.ingreso-patente-list');
+
+        $lista.empty();
+
+        (camiones || []).forEach(function (camion) {
+            const patente = camion.patente || '';
+
+            if (!patente || $lista.find(`option[value="${patente}"]`).length) {
+                return;
+            }
+
+            $lista.append(`<option value="${escapeHtml(patente)}"></option>`);
+        });
+
+        if (!valorActual && patentePropuesta) {
+            $patente.val(patentePropuesta).trigger('change');
+            autocompletarDatoEditable('ING_CANTIDAD_EJES', ejesPropuestos || '');
+        }
+
+        $patente.off('change.ingreso-patente').on('change.ingreso-patente', function () {
+            const seleccionada = String($(this).val() || '').trim().toUpperCase();
+
+            const camion = (camiones || []).find(function (item) {
+                return String(item.patente || '').trim().toUpperCase() === seleccionada;
+            });
+
+            if (camion && camion.cantidad_ejes) {
+                autocompletarDatoEditable('ING_CANTIDAD_EJES', camion.cantidad_ejes);
+            }
+
+            diagnosticarScrollIngresoCamion('patente change');
+        });
+    }
+
+   function cargarSugerenciasTransportistaIngresoCamion() {
+    const transportista = obtenerTransportistaSeleccionado();
+
+    if (!transportista.id && !transportista.text) {
+        return;
+    }
+
+    $.ajax({
+        url: '{% url "ajax_conductores_ingreso_camion" %}',
+        type: 'GET',
+        data: {
+            empresa_id: '{{ planificacion.EP_NID.id }}',
+            transportista_id: transportista.id || '',
+            transportista: transportista.text || '',
+            q: ''
+        },
+        success: function (data) {
+            logIngresoCamion('Conductores cargados por transportista', data);
+
+            poblarConductoresIngresoCamion(data);
+
+            actualizarPatentesIngresoCamion(
+                data.camiones || [],
+                data.patente_sugerida || data.patente || '',
+                data.cantidad_ejes_sugerida || data.cantidad_ejes || ''
+            );
+        },
+        error: function (xhr) {
+            console.error('[IngresoCamion] Error cargando conductores:', xhr.responseText || xhr);
+        },
+        complete: function () {
+            asegurarScrollModalIngresoCamion();
+            diagnosticarScrollIngresoCamion('sugerencias transportista complete');
+        }
+    });
+}
+    function inicializarTransportistasIngresoCamion() {
+        const $input = $('.ingreso-transportista-input');
+
+        if (!$input.length) {
+            return;
+        }
+
+        const listId = $input.attr('list');
+        const lista = listId ? document.getElementById(listId) : null;
+
+        if (!lista) {
+            console.warn('[IngresoCamion] No existe datalist de transportistas');
+            return;
+        }
+
+        lista.innerHTML = '';
+
+        $.ajax({
+            url: '{% url "ajax_transportistas_ingreso_camion" %}',
+            type: 'GET',
+            dataType: 'json',
+            data: {
+                q: '',
+                empresa_id: '{{ planificacion.EP_NID.id }}'
+            },
+            success: function (data) {
+                lista.innerHTML = '';
+
+                (data.results || []).forEach(function (item) {
+                    const option = document.createElement('option');
+
+                    option.value = item.text || item.id || '';
+                    option.dataset.socionegocioId = item.socionegocio_id || item.id || '';
+
+                    lista.appendChild(option);
+                });
+
+                logIngresoCamion('transportistas datalist cargados', {
+                    total: (data.results || []).length
+                });
+            },
+            error: function (xhr) {
+                console.error('[IngresoCamion] Error cargando transportistas:', xhr.responseText || xhr);
+            }
+        });
+
+        $input
+            .off('change.ingreso-transportista')
+            .on('change.ingreso-transportista', function () {
+                const texto = normalizarTexto($(this).val());
+
+                logIngresoCamion('transportista input change', {
+                    transportista: texto
+                });
+
+                limpiarPatentesIngresoCamion();
+
+                const $conductor = $('.ingreso-conductor-select');
+
+                if ($conductor.length) {
+                    $conductor.data('ultimaRespuestaConductores', null);
+
+                    if ($conductor.hasClass('select2-hidden-accessible')) {
+                        $conductor.val(null).trigger('change.select2');
+                    } else {
+                        $conductor.val('');
+                    }
+                }
+
+                if (texto) {
+                    cargarSugerenciasTransportistaIngresoCamion();
+                }
+
+                asegurarScrollModalIngresoCamion();
+                diagnosticarScrollIngresoCamion('transportista datalist change');
+            });
+    }
+
+function obtenerConductorSeleccionado() {
+    const input = document.querySelector('.ingreso-conductor-input');
+
+    if (!input) {
+        return {
+            id: '',
+            text: ''
+        };
+    }
+
+    const texto = normalizarTexto(input.value);
+    const listId = input.getAttribute('list');
+    const lista = listId ? document.getElementById(listId) : null;
+    let id = '';
+
+    if (lista) {
+        const opciones = Array.from(lista.options || []);
+
+        const opcionSeleccionada = opciones.find(function (option) {
+            return normalizarTexto(option.value) === texto;
+        });
+
+        if (opcionSeleccionada) {
+            id = opcionSeleccionada.dataset.conductorId || '';
+        }
+    }
+
+    return {
+        id: id,
+        text: texto
+    };
+}
+
+function poblarConductoresIngresoCamion(data) {
+    const $input = $('.ingreso-conductor-input');
+
+    if (!$input.length) {
+        return;
+    }
+
+    const listId = $input.attr('list');
+    const lista = listId ? document.getElementById(listId) : null;
+
+    if (!lista) {
+        console.warn('[IngresoCamion] No existe datalist de conductores');
+        return;
+    }
+
+    lista.innerHTML = '';
+
+    (data.results || []).forEach(function (item) {
+        const option = document.createElement('option');
+
+        option.value = item.text || item.nombre || item.id || '';
+        option.dataset.conductorId = item.conductor_id || item.id || '';
+        option.dataset.telefono = item.telefono || '';
+        option.dataset.patente = item.patente || data.patente_sugerida || data.patente || '';
+        option.dataset.cantidadEjes = item.cantidad_ejes || data.cantidad_ejes_sugerida || data.cantidad_ejes || '';
+
+        lista.appendChild(option);
+    });
+
+    $input.data('ultimaRespuestaConductores', data);
+
+    logIngresoCamion('conductores datalist cargados', {
+        total: (data.results || []).length
+    });
+}
+
+function inicializarConductoresIngresoCamion(limpiarActual) {
+    const $input = $('.ingreso-conductor-input');
+
+    if (!$input.length) {
+        return;
+    }
+
+    if (limpiarActual) {
+        $input.val('');
+    }
+
+    $input
+        .off('change.ingreso-conductor')
+        .on('change.ingreso-conductor', function () {
+            const texto = normalizarTexto($(this).val());
+            const listId = $(this).attr('list');
+            const lista = listId ? document.getElementById(listId) : null;
+
+            let telefono = '';
+            let patente = '';
+            let cantidadEjes = '';
+
+            if (lista) {
+                const opciones = Array.from(lista.options || []);
+
+                const opcionSeleccionada = opciones.find(function (option) {
+                    return normalizarTexto(option.value) === texto;
+                });
+
+                if (opcionSeleccionada) {
+                    telefono = opcionSeleccionada.dataset.telefono || '';
+                    patente = opcionSeleccionada.dataset.patente || '';
+                    cantidadEjes = opcionSeleccionada.dataset.cantidadEjes || '';
+                }
+            }
+
+            logIngresoCamion('conductor input change', {
+                conductor: texto,
+                telefono: telefono,
+                patente: patente,
+                cantidad_ejes: cantidadEjes
+            });
+
+            autocompletarDatoEditable('ING_TELEFONO_CONDUCTOR', telefono);
+
+            const respuestaConductores = $input.data('ultimaRespuestaConductores') || {};
+
+            actualizarPatentesIngresoCamion(
+                respuestaConductores.camiones || [],
+                patente || respuestaConductores.patente_sugerida || respuestaConductores.patente || '',
+                cantidadEjes || respuestaConductores.cantidad_ejes_sugerida || respuestaConductores.cantidad_ejes || ''
+            );
+
+            asegurarScrollModalIngresoCamion();
+            diagnosticarScrollIngresoCamion('conductor datalist change');
+        });
+}
+    function openIngresoCamionModal(citacionId) {
+        ingresoCamionCitacionId = citacionId;
+
+        const form = document.getElementById('form_ingreso_camion');
+        if (form) {
+            form.reset();
+        }
+
+        $('#ingreso_camion_campos').html('<div class="text-center p-3">Cargando...</div>');
+        $('#ingreso_camion_alert').hide().text('');
+        $('#ingreso_camion_subtitulo').text('');
+
+        $('#ModalIngresoCamion').modal('show');
+
+        $.ajax({
+            url: `/pla-citacion-ingreso-camion/${citacionId}/`,
+            type: 'GET',
+            success: function (response) {
+                if (!response.success) {
+                    $('#ingreso_camion_campos').empty();
+                    $('#ingreso_camion_alert').show().text(response.message || 'No fue posible cargar la citación.');
+                    return;
+                }
+
+                const subtitulo = `Citación #${response.citacion.id} | Etapa: ${response.etapa.codigo} - ${response.etapa.nombre}`;
+                $('#ingreso_camion_subtitulo').text(subtitulo);
+
+                if (!response.campos || response.campos.length === 0) {
+                    $('#ingreso_camion_campos').empty();
+                    $('#ingreso_camion_alert').show().text('La etapa actual no tiene campos operativos configurados.');
+                    return;
+                }
+
+                ingresoCamionCamposPorCodigo = {};
+
+                response.campos.forEach(function (campo) {
+                    if (campo.codigo) {
+                        ingresoCamionCamposPorCodigo[campo.codigo] = campo;
+                    }
+                });
+
+                $('#ingreso_camion_campos').html(response.campos.map(renderIngresoCamionCampo).join(''));
+
+                inicializarTransportistasIngresoCamion();
+                inicializarConductoresIngresoCamion(false);
+
+                asegurarScrollModalIngresoCamion();
+
+                const modalBody = document.querySelector('#ModalIngresoCamion .modal-body');
+                if (modalBody) {
+                    modalBody.scrollTop = 0;
+                }
+
+                diagnosticarScrollIngresoCamion('modal campos cargados');
+            },
+            error: function (xhr) {
+                const message = xhr.responseJSON && xhr.responseJSON.message
+                    ? xhr.responseJSON.message
+                    : 'Ocurrió un error al cargar el ingreso de camión.';
+
+                $('#ingreso_camion_campos').empty();
+                $('#ingreso_camion_alert').show().text(message);
+            }
+        });
+    }
+
+    function guardarIngresoCamion() {
+        const form = document.getElementById('form_ingreso_camion');
+
+        if (!form.checkValidity()) {
+            form.reportValidity();
+            return;
+        }
+
+        const formData = new FormData(form);
+
+        $.ajax({
+            url: `/pla-citacion-ingreso-camion/${ingresoCamionCitacionId}/`,
+            type: 'POST',
+            data: formData,
+            processData: false,
+            contentType: false,
+            headers: {
+                'X-CSRFToken': document.querySelector('#form_ingreso_camion [name=csrfmiddlewaretoken]').value
+            },
+            success: function (response) {
+                if (!response.success) {
+                    Swal.fire({
+                        icon: 'error',
+                        title: 'Error',
+                        text: response.message || 'No fue posible guardar.'
+                    });
+                    return;
+                }
+
+                $('#ModalIngresoCamion').modal('hide');
+                marcarFilaPendienteEnvio(ingresoCamionCitacionId);
+
+                Swal.fire({
+                    icon: 'success',
+                    title: 'Ingreso registrado',
+                    text: response.message || 'Datos guardados correctamente.'
+                }).then(function () {
+                    sessionStorage.setItem('citacion_pendiente_envio', ingresoCamionCitacionId);
+                    location.reload();
+                });
+            },
+            error: function (xhr) {
+                const message = xhr.responseJSON && xhr.responseJSON.message
+                    ? xhr.responseJSON.message
+                    : 'Ocurrió un error al guardar.';
+
+                Swal.fire({
+                    icon: 'error',
+                    title: 'Error',
+                    text: message
                 });
             }
         });
-        function initializeSelect2() {
-            $('#id_proveedor').select2({
-                dropdownParent: $('#editCitationModal'),
-                placeholder: 'Seleccione un proveedor',
-                allowClear: true,
-                ajax: {
-                    url: '/buscar_proveedores/',
-                    dataType: 'json',
-                    delay: 250,
-                    data: function (params) {
-                        return {
-                            q: params.term,
-                            empresa_id: {{ planificacion.EP_NID.id }}
-                        };
-                    },
-                    processResults: function (data) {
-                        return {
-                            results: data.items
-                        };
-                    },
-                    cache: true
-                },
-                minimumInputLength: 2
-            });
-            
-            // Inicializar Select2 para el cliente
-            $('#id_cliente').select2({
-                dropdownParent: $('#editCitationModal'),
-                placeholder: 'Seleccione un cliente',
-                allowClear: true,
-                ajax: {
-                    url: '/buscar_clientes/',
-                    dataType: 'json',
-                    delay: 250,
-                    data: function (params) {
-                        return {
-                            q: params.term,
-                            empresa_id: {{ planificacion.EP_NID.id }}
-                        };
-                    },
-                    processResults: function (data) {
-                        return {
-                            results: data.items
-                        };
-                    },
-                    cache: true
-                },
-                minimumInputLength: 2
-            });
+    }
+
+    function marcarFilaPendienteEnvio(citacionId, forzarMarca) {
+        if (!citacionId) {
+            return;
         }
 
-        function initializeCamionNoPlanificado() {
-            const modal = $('#ModalCamionNoPlanificado');
-            const selectIds = [
-                '#no_plan_cliente',
-                '#no_plan_proveedor',
-                '#no_plan_secuencia_id',
-                '#no_plan_tipo_carga',
-                '#no_plan_almacen_destino'
-            ];
-
-            selectIds.forEach(function (selector) {
-                if ($(selector).length) {
-                    $(selector).select2({
-                        dropdownParent: modal,
-                        allowClear: true,
-                        width: '100%'
-                    });
-                }
-            });
-
-            $('#no_plan_proveedor').on('change', function () {
-                $('#no_plan_proveedor_codigo').val($(this).val() || '');
-            });
-
-            $('#no_plan_inf_24hrs').val('No').prop('disabled', true);
-
-            $('#no_plan_almacen_destino').on('change', function () {
-                renderNoPlanEstanques($(this).val(), '');
-            });
-
-            $('#no_plan_codigo').on('keypress', function (e) {
-                if (e.key === 'Enter') {
-                    e.preventDefault();
-                    buscarNoPlanificadoPorCodigo();
-                }
-            });
-
-            $('#no_plan_pedido').on('keypress', function (e) {
-                if (e.key === 'Enter') {
-                    e.preventDefault();
-                    buscarNoPlanificadoPorPedido();
-                }
-            });
-
-            renderNoPlanEstanques('', '');
+        if (forzarMarca === undefined) {
+            forzarMarca = true;
         }
 
-        function setNoPlanValue(id, value) {
-            const element = document.getElementById(id);
-            if (element) {
-                element.value = value || '';
-            }
+        const fila = $(`#citacion-row-${citacionId}`);
+
+        if (forzarMarca) {
+            fila.addClass('fila-pendiente-envio');
         }
 
-        function limpiarNoPlanPedido(limpiarPedido = false) {
-            const campos = [
-                'no_plan_sap_opor_id',
-                'no_plan_proveedor_codigo',
-                'no_plan_cantidad_disponible',
-                'no_plan_docentry'
-            ];
+        if (fila.length) {
+            $('html, body').animate({
+                scrollTop: Math.max(fila.offset().top - 160, 0)
+            }, 300);
+        }
+    }
 
-            if (limpiarPedido) {
-                campos.push('no_plan_pedido');
-            }
+    function restaurarFilaPendienteEnvio() {
+        const citacionId = sessionStorage.getItem('citacion_pendiente_envio');
 
-            campos.forEach(function (id) {
-                setNoPlanValue(id, '');
-            });
-
-            $('#no_plan_proveedor').val('').trigger('change');
+        if (!citacionId) {
+            return;
         }
 
-        function limpiarNoPlanProducto(limpiarCodigo = true) {
-            const campos = [
-                'no_plan_sap_opor_id',
-                'no_plan_insumo',
-                'no_plan_proveedor_codigo',
-                'no_plan_pedido',
-                'no_plan_cantidad_disponible',
-                'no_plan_docentry'
-            ];
+        const fila = $(`#citacion-row-${citacionId}`);
 
-            if (limpiarCodigo) {
-                campos.push('no_plan_codigo');
-            }
-
-            campos.forEach(function (id) {
-                setNoPlanValue(id, '');
-            });
-
-            $('#no_plan_proveedor').val('').trigger('change');
+        if (!fila.hasClass('fila-pendiente-envio')) {
+            sessionStorage.removeItem('citacion_pendiente_envio');
+            return;
         }
 
-        function buscarNoPlanificadoPorCodigo() {
-            const codigo = $('#no_plan_codigo').val().trim();
+        marcarFilaPendienteEnvio(citacionId, false);
+    }
 
-            if (!codigo) {
-                Swal.fire({ icon: 'warning', title: 'Atención', text: 'Debe ingresar un código SAP.' });
+    function avanzarIngresoCamionAsistente(citacionId) {
+        Swal.fire({
+            icon: 'question',
+            title: 'Enviar a Asistente Recepción',
+            text: 'Se validarán los datos mínimos antes de avanzar la etapa.',
+            showCancelButton: true,
+            confirmButtonText: 'Enviar',
+            cancelButtonText: 'Cancelar'
+        }).then(function (result) {
+            if (!result.isConfirmed) {
                 return;
             }
 
             $.ajax({
-                url: '/buscar-opor-codigo/',
-                type: 'GET',
-                data: { codigo: codigo },
-                success: function (response) {
-                    if (!response.success || response.total === 0) {
-                        limpiarNoPlanProducto(false);
-                        Swal.fire({ icon: 'info', title: 'Sin registros', text: response.message || 'No se encontrá producto para el código SAP ingresado.' });
-                        return;
-                    }
-
-                    const item = response.data[0];
-                    setNoPlanValue('no_plan_codigo', item.codigo || codigo);
-                    setNoPlanValue('no_plan_insumo', item.insumo || '');
-                    limpiarNoPlanPedido(true);
-                },
-                error: function () {
-                    Swal.fire({ icon: 'error', title: 'Error', text: 'Ocurrió un error al consultar el código SAP.' });
-                }
-            });
-        }
-
-        function buscarNoPlanificadoPorPedido() {
-            const codigo = $('#no_plan_codigo').val().trim();
-            const pedido = $('#no_plan_pedido').val().trim();
-
-            if (!codigo) {
-                Swal.fire({ icon: 'warning', title: 'AtenciÃ³n', text: 'Debe ingresar primero el código SAP.' });
-                return;
-            }
-
-            if (!pedido) {
-                Swal.fire({ icon: 'warning', title: 'Atención', text: 'Debe ingresar el Pedido SAP.' });
-                return;
-            }
-
-            setNoPlanValue('no_plan_cantidad_disponible', 'Buscando...');
-
-            $.ajax({
-                url: '/buscar-opor-pedido/',
-                type: 'GET',
-                data: {
-                    codigo: codigo,
-                    pedido: pedido
-                },
-                success: function (response) {
-                    if (!response.success || response.total === 0) {
-                        limpiarNoPlanPedido(false);
-                        Swal.fire({ icon: 'info', title: 'Sin registros', text: response.message || 'No se encontrá programación para el Código SAP y Pedido SAP ingresado.' });
-                        return;
-                    }
-
-                    const item = response.data[0];
-                    setNoPlanValue('no_plan_sap_opor_id', item.sap_opor_id || '');
-                    setNoPlanValue('no_plan_pedido', item.pedido || pedido);
-                    setNoPlanValue('no_plan_cantidad_disponible', item.cantidad_disponible !== null && item.cantidad_disponible !== undefined ? item.cantidad_disponible : '');
-                    setNoPlanValue('no_plan_docentry', item.docentry || '');
-                    setNoPlanValue('no_plan_proveedor_codigo', item.proveedor_codigo || '');
-                    $('#no_plan_proveedor').val(item.proveedor_codigo || '').trigger('change');
-                },
-                error: function () {
-                    limpiarNoPlanPedido(false);
-                    Swal.fire({ icon: 'error', title: 'Error', text: 'Ocurrió un error al consultar el Pedido SAP.' });
-                }
-            });
-        }
-
-        function guardarCamionNoPlanificado() {
-            const form = document.getElementById('form_camion_no_planificado');
-
-            if (!form.checkValidity()) {
-                form.reportValidity();
-                return;
-            }
-
-            if (!$('#no_plan_sap_opor_id').val().trim()) {
-                Swal.fire({ icon: 'warning', title: 'Atención', text: 'Debe buscar un Pedido SAP válido antes de agregar la citación.' });
-                return;
-            }
-
-            $.ajax({
-                url: "{% url 'crear_citacion_no_planificada' planificacion.id %}",
+                url: `/pla-citacion-avanzar-asistente/${citacionId}/`,
                 type: 'POST',
-                data: $('#form_camion_no_planificado').serialize(),
-                headers: {
-                    'X-CSRFToken': document.querySelector('#form_camion_no_planificado [name=csrfmiddlewaretoken]').value
-                },
-                success: function (response) {
-                    if (!response.success) {
-                        Swal.fire({ icon: 'error', title: 'Error', text: response.message || 'No fue posible agregar la citación.' });
-                        return;
-                    }
-
-                    $('#ModalCamionNoPlanificado').modal('hide');
-                    Swal.fire({
-                        icon: 'success',
-                        title: 'Camión agregado',
-                        text: response.message || 'La citación fue agregada como sobrecupo.'
-                    }).then(function () {
-                        location.reload();
-                    });
-                },
-                error: function (xhr) {
-                    console.error('Error camion no planificado:', xhr.responseText);
-                    Swal.fire({ icon: 'error', title: 'Error', text: 'Ocurrió un error al agregar la citación.' });
-                }
-            });
-        }
-
-        function getCookie(name) {
-            let cookieValue = null;
-            if (document.cookie && document.cookie !== '') {
-                const cookies = document.cookie.split(';');
-                for (let cookie of cookies) {
-                    cookie = cookie.trim();
-                    if (cookie.substring(0, name.length + 1) === (name + '=')) {
-                        cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
-                        break;
-                    }
-                }
-            }
-            return cookieValue;
-        }
-
-        function guardarSolicitudCamionNoPlanificado() {
-            const form = document.getElementById('form_solicitud_camion_no_planificado');
-
-            if (!form.checkValidity()) {
-                form.reportValidity();
-                return;
-            }
-
-            const clienteTexto = $('#solicitud_cliente option:selected').text().trim();
-            $('#solicitud_cliente_nombre').val(clienteTexto);
-
-            const formData = new FormData(form);
-            const boton = $('#form_solicitud_camion_no_planificado .btn-success');
-            boton.prop('disabled', true);
-
-            $.ajax({
-                url: "{% url 'solicitar_camion_no_planificado' %}",
-                type: 'POST',
-                data: formData,
-                processData: false,
-                contentType: false,
-                headers: {
-                    'X-CSRFToken': getCookie('csrftoken')
-                },
-                success: function (response) {
-                    if (!response.success) {
-                        Swal.fire({ icon: 'error', title: 'Error', text: response.message || 'No fue posible enviar la solicitud.' });
-                        return;
-                    }
-
-                    $('#ModalSolicitudCamionNoPlanificado').modal('hide');
-                    form.reset();
-
-                    Swal.fire({
-                        icon: 'success',
-                        title: 'Solicitud enviada',
-                        text: response.teams_sent ? 'Se notifico al planificador por Teams.' : 'La solicitud quedo registrada para el planificador.'
-                    });
-                },
-                error: function (xhr) {
-                    const message = xhr.responseJSON && xhr.responseJSON.message
-                        ? xhr.responseJSON.message
-                        : 'No fue posible enviar la solicitud.';
-                    Swal.fire({ icon: 'error', title: 'Error', text: message });
-                },
-                complete: function () {
-                    boton.prop('disabled', false);
-                }
-            });
-        }
-
-        function rechazarCamionNoPlanificado() {
-            const form = document.getElementById('form_rechazar_camion_no_planificado');
-
-            if (!form.checkValidity()) {
-                form.reportValidity();
-                return;
-            }
-
-            const boton = $('#form_rechazar_camion_no_planificado .btn-danger');
-            boton.prop('disabled', true);
-
-            $.ajax({
-                url: "{% url 'rechazar_camion_no_planificado' %}",
-                type: 'POST',
-                data: $('#form_rechazar_camion_no_planificado').serialize(),
-                headers: {
-                    'X-CSRFToken': getCookie('csrftoken')
-                },
-                success: function (response) {
-                    if (!response.success) {
-                        Swal.fire({ icon: 'error', title: 'Error', text: response.message || 'No fue posible rechazar la solicitud.' });
-                        return;
-                    }
-
-                    $('#ModalRechazarCamionNoPlanificado').modal('hide');
-                    $('#ModalCamionNoPlanificado').modal('hide');
-                    form.reset();
-
-                    Swal.fire({
-                        icon: 'success',
-                        title: 'Camion rechazado',
-                        text: response.teams_sent ? 'Guardia notificado y alerta enviada a Teams.' : 'Guardia notificado internamente.'
-                    });
-                },
-                error: function (xhr) {
-                    const message = xhr.responseJSON && xhr.responseJSON.message
-                        ? xhr.responseJSON.message
-                        : 'No fue posible rechazar la solicitud.';
-                    Swal.fire({ icon: 'error', title: 'Error', text: message });
-                },
-                complete: function () {
-                    boton.prop('disabled', false);
-                }
-            });
-        }
-
-        function notificarCamionNoPlanificadoLegacy() {
-            console.log('CLICK BOTON CAMION NO PLANIFICADO');
-            console.log('URL:', "{% url 'notificar_camion_no_planificado' %}");
-
-            const boton = $('#btn_notificar_camion_no_planificado');
-
-            boton.prop('disabled', true);
-
-            $.ajax({
-                url: "{% url 'notificar_camion_no_planificado' %}",
-                type: 'POST',
-                data: {
-                    planificacion_id: "{{ planificacion.id }}"
-                },
                 headers: {
                     'X-CSRFToken': getCookie('csrftoken')
                 },
@@ -2154,878 +2592,58 @@
                     if (!response.success) {
                         Swal.fire({
                             icon: 'error',
-                            title: 'Error',
-                            text: response.message || 'No se pudo notificar al planificador'
+                            title: 'No se pudo avanzar',
+                            text: response.message || 'Revise los datos del ingreso.'
                         });
                         return;
                     }
 
                     Swal.fire({
                         icon: 'success',
-                        title: 'Se notificó al planificador',
-                        text: response.teams_sent ? 'La alerta fue enviada a Microsoft Teams.' : 'La alerta quedó registrada para el planificador.'
+                        title: 'Enviado al asistente',
+                        text: response.message || 'La citación fue enviada al asistente de recepción.'
+                    }).then(function () {
+                        sessionStorage.removeItem('citacion_pendiente_envio');
+                        location.reload();
                     });
                 },
                 error: function (xhr) {
                     const message = xhr.responseJSON && xhr.responseJSON.message
                         ? xhr.responseJSON.message
-                        : 'No se pudo notificar al planificador';
+                        : 'No fue posible avanzar la citación.';
 
                     Swal.fire({
-                        icon: 'error',
-                        title: 'Error',
+                        icon: 'warning',
+                        title: 'Datos incompletos',
                         text: message
                     });
-                },
-                complete: function () {
-                    boton.prop('disabled', false);
                 }
             });
-        }
-
-        let ingresoCamionCitacionId = null;
-
-        function escapeHtml(value) {
-            return String(value || '')
-                .replace(/&/g, '&amp;')
-                .replace(/</g, '&lt;')
-                .replace(/>/g, '&gt;')
-                .replace(/"/g, '&quot;')
-                .replace(/'/g, '&#039;');
-        }
-
-        function renderIngresoCamionCampo(campo) {
-            const required = campo.required ? 'required' : '';
-            const maxlength = campo.maxlength ? `maxlength="${campo.maxlength}"` : '';
-            const label = escapeHtml(campo.label);
-            const name = escapeHtml(campo.name);
-            const value = escapeHtml(campo.default);
-            let control = '';
-
-            if (campo.type === 'multilinea') {
-                control = `<textarea class="form-control" id="${name}" name="${name}" ${maxlength} ${required}>${value}</textarea>`;
-            } else if (campo.type === 'numero') {
-                control = `<input class="form-control" id="${name}" name="${name}" type="number" value="${value}" ${required}>`;
-            } else if (campo.type === 'decimal') {
-                control = `<input class="form-control" id="${name}" name="${name}" type="number" step="0.01" value="${value}" ${required}>`;
-            } else if (campo.type === 'fecha') {
-                control = `<input class="form-control" id="${name}" name="${name}" type="date" value="${value}" ${required}>`;
-            } else if (campo.type === 'fecha/hora') {
-                control = `<input class="form-control" id="${name}" name="${name}" type="datetime-local" value="${value}" ${required}>`;
-            } else if (campo.type === 'archivo') {
-                const descarga = campo.has_file && campo.download_url
-                    ? `<div class="mt-2"><a class="btn btn-outline-primary btn-sm" href="${escapeHtml(campo.download_url)}" target="_blank">Descargar archivo actual</a></div>`
-                    : '';
-                control = `<input class="form-control-file" id="${name}" name="${name}" type="file" ${required}>${descarga}`;
-            } else if (campo.type === 'lista') {
-                const options = (campo.datos || []).map(function (dato) {
-                    const optionValue = escapeHtml(dato[0]);
-                    const optionText = escapeHtml(dato[1]);
-                    const selected = String(dato[0]) === String(campo.default) ? 'selected' : '';
-                    return `<option value="${optionValue}" ${selected}>${optionText}</option>`;
-                }).join('');
-                control = `<select class="form-control" id="${name}" name="${name}" ${required}><option value="">Seleccione una opción</option>${options}</select>`;
-            } else if (campo.type === 'check') {
-                const checked = campo.default === true || campo.default === 'on' || campo.default === 'True' ? 'checked' : '';
-                control = `<input id="${name}" name="${name}" type="checkbox" class="form-check-input ml-1" ${checked} ${required}>`;
-            } else {
-                control = `<input class="form-control" id="${name}" name="${name}" type="text" value="${value}" ${maxlength} ${required}>`;
-            }
-
-            return `<div class="form-group"><label for="${name}">${label}</label>${control}</div>`;
-        }
-
-        function openIngresoCamionModal(citacionId) {
-            ingresoCamionCitacionId = citacionId;
-            $('#form_ingreso_camion')[0].reset();
-            $('#ingreso_camion_campos').html('<div class="text-center p-3">Cargando...</div>');
-            $('#ingreso_camion_alert').hide().text('');
-            $('#ModalIngresoCamion').modal('show');
-
-            $.ajax({
-                url: `/pla-citacion-ingreso-camion/${citacionId}/`,
-                type: 'GET',
-                success: function (response) {
-                    if (!response.success) {
-                        $('#ingreso_camion_campos').empty();
-                        $('#ingreso_camion_alert').show().text(response.message || 'No fue posible cargar la citación.');
-                        return;
-                    }
-
-                    const subtitulo = `Citación #${response.citacion.id} | Etapa: ${response.etapa.codigo} - ${response.etapa.nombre}`;
-                    $('#ingreso_camion_subtitulo').text(subtitulo);
-
-                    if (!response.campos || response.campos.length === 0) {
-                        $('#ingreso_camion_campos').empty();
-                        $('#ingreso_camion_alert').show().text('La etapa actual no tiene campos operativos configurados.');
-                        return;
-                    }
-
-                    $('#ingreso_camion_campos').html(response.campos.map(renderIngresoCamionCampo).join(''));
-                },
-                error: function (xhr) {
-                    const message = xhr.responseJSON && xhr.responseJSON.message ? xhr.responseJSON.message : 'Ocurrió un error al cargar el ingreso de camión.';
-                    $('#ingreso_camion_campos').empty();
-                    $('#ingreso_camion_alert').show().text(message);
-                }
-            });
-        }
-
-        function guardarIngresoCamion() {
-            const form = document.getElementById('form_ingreso_camion');
-
-            if (!form.checkValidity()) {
-                form.reportValidity();
-                return;
-            }
-
-            const formData = new FormData(form);
-
-            $.ajax({
-                url: `/pla-citacion-ingreso-camion/${ingresoCamionCitacionId}/`,
-                type: 'POST',
-                data: formData,
-                processData: false,
-                contentType: false,
-                headers: {
-                    'X-CSRFToken': document.querySelector('#form_ingreso_camion [name=csrfmiddlewaretoken]').value
-                },
-                success: function (response) {
-                    if (!response.success) {
-                        Swal.fire({ icon: 'error', title: 'Error', text: response.message || 'No fue posible guardar.' });
-                        return;
-                    }
-
-                    $('#ModalIngresoCamion').modal('hide');
-                    marcarFilaPendienteEnvio(ingresoCamionCitacionId);
-                    Swal.fire({
-                        icon: 'success',
-                        title: 'Ingreso registrado',
-                        text: response.message || 'Datos guardados correctamente.'
-                    }).then(function () {
-                        sessionStorage.setItem('citacion_pendiente_envio', ingresoCamionCitacionId);
-                        location.reload();
-                    });
-                },
-                error: function (xhr) {
-                    const message = xhr.responseJSON && xhr.responseJSON.message ? xhr.responseJSON.message : 'Ocurrió un error al guardar.';
-                    Swal.fire({ icon: 'error', title: 'Error', text: message });
-                }
-            });
-        }
-
-        function marcarFilaPendienteEnvio(citacionId) {
-            if (!citacionId) {
-                return;
-            }
-
-            $('.fila-pendiente-envio').removeClass('fila-pendiente-envio');
-            const fila = $(`#citacion-row-${citacionId}`);
-            fila.addClass('fila-pendiente-envio');
-
-            if (fila.length) {
-                $('html, body').animate({
-                    scrollTop: Math.max(fila.offset().top - 160, 0)
-                }, 300);
-            }
-        }
-
-        function restaurarFilaPendienteEnvio() {
-            const citacionId = sessionStorage.getItem('citacion_pendiente_envio');
-            if (!citacionId) {
-                return;
-            }
-
-            marcarFilaPendienteEnvio(citacionId);
-        }
-
-        function avanzarIngresoCamionAsistente(citacionId) {
-            Swal.fire({
-                icon: 'question',
-                title: 'Enviar al asistente',
-                text: 'Se validaran los datos minimos antes de avanzar la etapa.',
-                showCancelButton: true,
-                confirmButtonText: 'Enviar',
-                cancelButtonText: 'Cancelar'
-            }).then(function (result) {
-                if (!result.isConfirmed) {
-                    return;
-                }
-
-                $.ajax({
-                    url: `/pla-citacion-avanzar-asistente/${citacionId}/`,
-                    type: 'POST',
-                    headers: {
-                        'X-CSRFToken': getCookie('csrftoken')
-                    },
-                    success: function (response) {
-                        if (!response.success) {
-                            Swal.fire({ icon: 'error', title: 'No se pudo avanzar', text: response.message || 'Revise los datos del ingreso.' });
-                            return;
-                        }
-
-                        Swal.fire({
-                            icon: 'success',
-                            title: 'Enviado al asistente',
-                            text: response.message || 'La citacion fue enviada al asistente de recepcion.'
-                        }).then(function () {
-                            sessionStorage.removeItem('citacion_pendiente_envio');
-                            location.reload();
-                        });
-                    },
-                    error: function (xhr) {
-                        const message = xhr.responseJSON && xhr.responseJSON.message
-                            ? xhr.responseJSON.message
-                            : 'No fue posible avanzar la citacion.';
-                        Swal.fire({ icon: 'warning', title: 'Datos incompletos', text: message });
-                    }
-                });
-            });
-        }
-
-        let revisionAsistenteCitacionId = null;
-        let estanqueCamionCitacionId = null;
-        const usuarioPuedeAprobarRevision = {% if request.user|es_asistente_recepcion %}true{% else %}false{% endif %};
-        const usuarioEsGuardiaPorteria = {% if request.user|es_guardia_porteria %}true{% else %}false{% endif %};
-        const usuarioPuedeEnviarGuardiaPorteria = {% if request.user|es_guardia %}true{% else %}false{% endif %};
-
-        function revisionValue(value) {
-            return value === null || value === undefined || String(value).trim() === ''
-                ? 'No registrado'
-                : escapeHtml(value);
-        }
-
-        function renderRevisionSection(title, data) {
-            const items = Object.keys(data || {}).map(function (key) {
-                return `
-                    <div>
-                        <div class="revision-item-label">${escapeHtml(key)}</div>
-                        <div class="revision-item-value">${revisionValue(data[key])}</div>
-                    </div>
-                `;
-            }).join('');
-
-            return `
-                <div class="revision-section">
-                    <h6>${escapeHtml(title)}</h6>
-                    <div class="revision-grid">${items}</div>
-                </div>
-            `;
-        }
-
-        function renderRevisionValidacionFields(data, editable) {
-            const disabled = editable ? '' : 'disabled';
-            const bl = escapeHtml((data && data.bl) || '');
-            const lote = escapeHtml((data && data.lote_contenedor) || '');
-
-            return `
-                <div class="revision-section">
-                    <h6>Validacion Asistente Recepcion</h6>
-                    <div class="form-row">
-                        <div class="form-group col-md-6">
-                            <label for="revision_bl">BL</label>
-                            <input type="text" class="form-control" id="revision_bl" value="${bl}" ${disabled}>
-                        </div>
-                        <div class="form-group col-md-6">
-                            <label for="revision_lote_contenedor">Lote / Contenedor</label>
-                            <input type="text" class="form-control" id="revision_lote_contenedor" value="${lote}" ${disabled}>
-                        </div>
-                    </div>
-                </div>
-            `;
-        }
-
-        function renderRevisionDocumentos(documentos) {
-            if (!documentos || documentos.length === 0) {
-                return `
-                    <div class="revision-section">
-                        <h6>Documentos adjuntos</h6>
-                        <div>Sin documento adjunto</div>
-                    </div>
-                `;
-            }
-
-            const rows = documentos.map(function (doc) {
-                const link = doc.download_url
-                    ? `<a class="btn btn-outline-primary btn-sm" href="${escapeHtml(doc.download_url)}" target="_blank">Ver / Descargar</a>`
-                    : 'Sin documento adjunto';
-
-                return `
-                    <tr>
-                        <td>${revisionValue(doc.label)}</td>
-                        <td>${revisionValue(doc.etapa)}</td>
-                        <td>${link}</td>
-                    </tr>
-                `;
-            }).join('');
-
-            return `
-                <div class="revision-section">
-                    <h6>Documentos adjuntos</h6>
-                    <div class="table-responsive">
-                        <table class="table table-sm table-bordered mb-0">
-                            <thead>
-                                <tr>
-                                    <th>Documento</th>
-                                    <th>Etapa</th>
-                                    <th>Archivo</th>
-                                </tr>
-                            </thead>
-                            <tbody>${rows}</tbody>
-                        </table>
-                    </div>
-                </div>
-            `;
-        }
-
-        function openRevisionAsistenteModal(citacionId) {
-            revisionAsistenteCitacionId = citacionId;
-            $('#revision_asistente_contenido').html('<div class="text-center p-3">Cargando...</div>');
-            $('#revision_asistente_alert').hide().text('');
-            $('#revision_asistente_subtitulo').text('');
-            $('#btn_revision_guardia_porteria').hide().prop('disabled', true);
-            $('#ModalRevisionAsistente').modal('show');
-
-            $.ajax({
-                url: `/pla-citacion-revision-asistente/${citacionId}/`,
-                type: 'GET',
-                success: function (response) {
-                    if (!response.success) {
-                        $('#revision_asistente_contenido').empty();
-                        $('#revision_asistente_alert').show().text(response.message || 'No fue posible cargar la revision.');
-                        return;
-                    }
-
-                    const accionesHabilitadas = usuarioPuedeAprobarRevision && !response.aprobado_asistente;
-                    const accionesGuardiaPorteria = usuarioPuedeEnviarGuardiaPorteria && (!!response.guardia_puede_enviar_porteria || !!response.guardia_porteria_puede_autorizar);
-                    $('#btn_revision_devolver').toggle(accionesHabilitadas).prop('disabled', false);
-                    $('#btn_revision_aprobar').toggle(accionesHabilitadas).prop('disabled', false);
-                    $('#btn_revision_guardia_porteria')
-                        .text(usuarioEsGuardiaPorteria ? 'Autorizo ingreso a planta' : 'Enviar siguiente etapa')
-                        .toggle(accionesGuardiaPorteria)
-                        .prop('disabled', false);
-                    $('#revision_asistente_subtitulo').text(`Citacion #${response.citacion_id}`);
-                    $('#revision_asistente_contenido').html(
-                        renderRevisionSection('Datos planificacion', response.planificacion) +
-                        renderRevisionSection('Datos citacion', response.citacion) +
-                        renderRevisionSection('Datos operacionales', response.datos_operacionales) +
-                        renderRevisionSection('Datos ingresados por Guardia', response.guardia) +
-                        renderRevisionSection('Datos Asistente_C_D', response.asistente_cd) +
-                        renderRevisionSection('Datos Guardia_Porteria', response.guardia_porteria) +
-                        renderRevisionValidacionFields(response.campos_validacion, accionesHabilitadas) +
-                        renderRevisionDocumentos(response.documentos)
-                    );
-                },
-                error: function (xhr) {
-                    const message = xhr.responseJSON && xhr.responseJSON.message
-                        ? xhr.responseJSON.message
-                        : 'No fue posible cargar la revision.';
-                    $('#revision_asistente_contenido').empty();
-                    $('#revision_asistente_alert').show().text(message);
-                }
-            });
-        }
-
-        function aprobarRevisionAsistente() {
-            if (!revisionAsistenteCitacionId) {
-                return;
-            }
-
-            Swal.fire({
-                icon: 'question',
-                title: 'Aprobar camion',
-                text: 'La citacion avanzara a asignacion de estanque.',
-                showCancelButton: true,
-                confirmButtonText: 'Aprobar',
-                cancelButtonText: 'Cancelar'
-            }).then(function (result) {
-                if (!result.isConfirmed) {
-                    return;
-                }
-
-                $.ajax({
-                    url: `/pla-citacion-aprobar-asistente/${revisionAsistenteCitacionId}/`,
-                    type: 'POST',
-                    data: {
-                        bl: $('#revision_bl').val() || '',
-                        lote_contenedor: $('#revision_lote_contenedor').val() || ''
-                    },
-                    headers: {
-                        'X-CSRFToken': getCookie('csrftoken')
-                    },
-                    beforeSend: function () {
-                        $('#btn_revision_aprobar').prop('disabled', true);
-                    },
-                    success: function (response) {
-                        if (!response.success) {
-                            $('#btn_revision_aprobar').prop('disabled', false);
-                            Swal.fire({ icon: 'error', title: 'Error', text: response.message || 'No fue posible aprobar.' });
-                            return;
-                        }
-
-                        $('#ModalRevisionAsistente').modal('hide');
-                        Swal.fire({ icon: 'success', title: 'Aprobado', text: response.message || 'Camion aprobado.' }).then(function () {
-                            location.reload();
-                        });
-                    },
-                    error: function (xhr) {
-                        $('#btn_revision_aprobar').prop('disabled', false);
-                        const message = xhr.responseJSON && xhr.responseJSON.message ? xhr.responseJSON.message : 'No fue posible aprobar.';
-                        Swal.fire({ icon: 'error', title: 'Error', text: message });
-                    }
-                });
-            });
-        }
-
-        function devolverRevisionAsistente() {
-            if (!revisionAsistenteCitacionId) {
-                return;
-            }
-
-            $(document).off('focusin.bs.modal');
-
-            Swal.fire({
-                icon: 'warning',
-                title: 'Devolver a Guardia',
-                input: 'textarea',
-                inputLabel: 'Observacion obligatoria',
-                inputPlaceholder: 'Indique el motivo de la devolucion...',
-                didOpen: function () {
-                    const input = Swal.getInput();
-                    if (input) {
-                        input.focus();
-                    }
-                },
-                inputValidator: function (value) {
-                    if (!value || !value.trim()) {
-                        return 'Debe ingresar una observacion.';
-                    }
-                    return null;
-                },
-                showCancelButton: true,
-                confirmButtonText: 'Devolver',
-                cancelButtonText: 'Cancelar'
-            }).then(function (result) {
-                if (!result.isConfirmed) {
-                    return;
-                }
-
-                $.ajax({
-                    url: `/pla-citacion-devolver-guardia/${revisionAsistenteCitacionId}/`,
-                    type: 'POST',
-                    data: {
-                        observacion: result.value
-                    },
-                    headers: {
-                        'X-CSRFToken': getCookie('csrftoken')
-                    },
-                    beforeSend: function () {
-                        $('#btn_revision_devolver').prop('disabled', true);
-                    },
-                    success: function (response) {
-                        if (!response.success) {
-                            $('#btn_revision_devolver').prop('disabled', false);
-                            Swal.fire({ icon: 'error', title: 'Error', text: response.message || 'No fue posible devolver.' });
-                            return;
-                        }
-
-                        $('#ModalRevisionAsistente').modal('hide');
-                        Swal.fire({ icon: 'success', title: 'Devuelto a Guardia', text: response.message || 'Camion devuelto a Guardia.' }).then(function () {
-                            location.reload();
-                        });
-                    },
-                    error: function (xhr) {
-                        $('#btn_revision_devolver').prop('disabled', false);
-                        const message = xhr.responseJSON && xhr.responseJSON.message ? xhr.responseJSON.message : 'No fue posible devolver.';
-                        Swal.fire({ icon: 'error', title: 'Error', text: message });
-                    }
-                });
-            });
-        }
-
-        function enviarRevisionGuardiaPorteria() {
-            if (!revisionAsistenteCitacionId) {
-                return;
-            }
-
-            Swal.fire({
-                icon: 'question',
-                title: usuarioEsGuardiaPorteria ? 'Autorizar ingreso a planta' : 'Enviar siguiente etapa',
-                text: usuarioEsGuardiaPorteria ? 'El camion quedara autorizado para ingresar a planta.' : 'La tarea sera enviada a Guardia_Porteria.',
-                showCancelButton: true,
-                confirmButtonText: usuarioEsGuardiaPorteria ? 'Autorizar' : 'Enviar',
-                cancelButtonText: 'Cancelar'
-            }).then(function (result) {
-                if (!result.isConfirmed) {
-                    return;
-                }
-
-                $.ajax({
-                    url: `/pla-citacion-enviar-guardia-porteria/${revisionAsistenteCitacionId}/`,
-                    type: 'POST',
-                    headers: {
-                        'X-CSRFToken': getCookie('csrftoken')
-                    },
-                    beforeSend: function () {
-                        $('#btn_revision_guardia_porteria').prop('disabled', true);
-                    },
-                    success: function (response) {
-                        if (!response.success) {
-                            $('#btn_revision_guardia_porteria').prop('disabled', false);
-                            Swal.fire({ icon: 'error', title: 'Error', text: response.message || 'No fue posible enviar.' });
-                            return;
-                        }
-
-                        if (typeof window.dismissActivePlantNotification === 'function') {
-                            window.dismissActivePlantNotification();
-                        }
-
-                        $('#ModalRevisionAsistente').modal('hide');
-                        Swal.fire({ icon: 'success', title: usuarioEsGuardiaPorteria ? 'Autorizado' : 'Enviado', text: response.message || (usuarioEsGuardiaPorteria ? 'Ingreso a planta autorizado.' : 'Citacion enviada a Guardia_Porteria.') }).then(function () {
-                            location.reload();
-                        });
-                    },
-                    error: function (xhr) {
-                        $('#btn_revision_guardia_porteria').prop('disabled', false);
-                        const message = xhr.responseJSON && xhr.responseJSON.message ? xhr.responseJSON.message : 'No fue posible enviar.';
-                        Swal.fire({ icon: 'error', title: 'Error', text: message });
-                    }
-                });
-            });
-        }
-
-        function renderEstanqueOptions(opciones, seleccionado) {
-            const options = [`<option value="">Seleccione estanque</option>`].concat((opciones || []).map(function (opcion) {
-                const valor = typeof opcion === 'object' ? (opcion.valor || '') : opcion;
-                const texto = typeof opcion === 'object' ? (opcion.texto || valor) : opcion;
-                const disponible = typeof opcion === 'object' ? opcion.disponible !== false : true;
-                const selected = String(valor) === String(seleccionado || '') ? 'selected' : '';
-                const disabled = disponible ? '' : 'disabled';
-                return `<option value="${escapeHtml(valor)}" ${selected} ${disabled}>${escapeHtml(texto)}</option>`;
-            }));
-            $('#estanque_operacional').html(options.join(''));
-        }
-
-        function openEstanqueCamionModal(citacionId) {
-            estanqueCamionCitacionId = citacionId;
-            $('#estanque_camion_contenido').html('<div class="text-center p-3">Cargando...</div>');
-            $('#estanque_camion_alert').hide().text('');
-            $('#estanque_camion_bloqueo').hide().text('');
-            $('#estanque_camion_subtitulo').text('');
-            $('#estanque_operacional').empty().prop('disabled', true);
-            $('#btn_guardar_estanque').prop('disabled', true).show();
-            $('#btn_enviar_estanque').prop('disabled', true).show();
-            $('#ModalEstanqueCamion').modal('show');
-
-            $.ajax({
-                url: `/pla-citacion-estanque/${citacionId}/`,
-                type: 'GET',
-                success: function (response) {
-                    if (!response.success) {
-                        $('#estanque_camion_contenido').empty();
-                        $('#estanque_camion_alert').show().text(response.message || 'No fue posible cargar la citacion.');
-                        return;
-                    }
-
-                    $('#estanque_camion_subtitulo').text(`Citacion #${response.citacion_id} | Almacen: ${response.almacen || 'No registrado'}`);
-                    $('#estanque_camion_contenido').html(
-                        renderRevisionSection('Datos planificacion', response.planificacion) +
-                        renderRevisionSection('Datos citacion', response.citacion) +
-                        renderRevisionSection('Datos Guardia', response.guardia) +
-                        renderRevisionSection('Datos aprobación recepción', response.aprobacion) +
-                        renderRevisionDocumentos(response.documentos)
-                    );
-                    renderEstanqueOptions(response.opciones_estanque, response.estanque_actual);
-
-                    if (response.mensaje_bloqueo) {
-                        $('#estanque_camion_bloqueo').show().text(response.mensaje_bloqueo);
-                    }
-
-                    const opcionesOcupadas = (response.opciones_estanque || []).filter(function (opcion) {
-                        return typeof opcion === 'object' && opcion.ocupado;
-                    });
-                    if (opcionesOcupadas.length > 0) {
-                        const ocupados = opcionesOcupadas.map(function (opcion) {
-                            return `${opcion.valor}: ocupado por patente ${opcion.patente_ocupante || 'No registrada'}`;
-                        }).join(' | ');
-                        $('#estanque_camion_bloqueo').show().text(ocupados);
-                    }
-
-                    const puedeEditar = !!response.puede_editar;
-                    $('#estanque_operacional').prop('disabled', !puedeEditar);
-                    $('#btn_guardar_estanque').prop('disabled', !puedeEditar).toggle(!response.enviado_siguiente);
-                    $('#btn_enviar_estanque').prop('disabled', !puedeEditar || !response.estanque_actual || response.estanque_actual_disponible === false).toggle(!response.enviado_siguiente);
-
-                    if (response.enviado_siguiente) {
-                        $('#estanque_camion_alert').show().text('Proceso enviado a siguiente etapa.');
-                    }
-                },
-                error: function (xhr) {
-                    const message = xhr.responseJSON && xhr.responseJSON.message ? xhr.responseJSON.message : 'No fue posible cargar la asignacion de estanque.';
-                    $('#estanque_camion_contenido').empty();
-                    $('#estanque_camion_alert').show().text(message);
-                }
-            });
-        }
-
-        function guardarEstanqueCamion() {
-            if (!estanqueCamionCitacionId) {
-                return;
-            }
-
-            const estanque = $('#estanque_operacional').val();
-            if (!estanque) {
-                Swal.fire({ icon: 'warning', title: 'Estanque obligatorio', text: 'Debe seleccionar estanque.' });
-                return;
-            }
-
-            $.ajax({
-                url: `/pla-citacion-estanque/${estanqueCamionCitacionId}/`,
-                type: 'POST',
-                data: {
-                    estanque: estanque
-                },
-                headers: {
-                    'X-CSRFToken': getCookie('csrftoken')
-                },
-                beforeSend: function () {
-                    $('#btn_guardar_estanque').prop('disabled', true);
-                },
-                success: function (response) {
-                    if (!response.success) {
-                        $('#btn_guardar_estanque').prop('disabled', false);
-                        Swal.fire({ icon: 'error', title: 'Error', text: response.message || 'No fue posible guardar estanque.' });
-                        return;
-                    }
-
-                    $('#btn_guardar_estanque').prop('disabled', false);
-                    $('#btn_enviar_estanque').prop('disabled', false);
-                    Swal.fire({ icon: 'success', title: 'Estanque guardado', text: response.message || 'Estanque guardado correctamente.' }).then(function () {
-                        location.reload();
-                    });
-                },
-                error: function (xhr) {
-                    $('#btn_guardar_estanque').prop('disabled', false);
-                    const message = xhr.responseJSON && xhr.responseJSON.message ? xhr.responseJSON.message : 'No fue posible guardar estanque.';
-                    Swal.fire({ icon: 'error', title: 'Error', text: message });
-                }
-            });
-        }
-
-        function enviarEstanqueSiguienteEtapa() {
-            if (!estanqueCamionCitacionId) {
-                return;
-            }
-
-            Swal.fire({
-                icon: 'question',
-                title: 'Enviar siguiente etapa',
-                text: 'Se validara que exista estanque asignado.',
-                showCancelButton: true,
-                confirmButtonText: 'Enviar',
-                cancelButtonText: 'Cancelar'
-            }).then(function (result) {
-                if (!result.isConfirmed) {
-                    return;
-                }
-
-                $.ajax({
-                    url: `/pla-citacion-estanque-avanzar/${estanqueCamionCitacionId}/`,
-                    type: 'POST',
-                    headers: {
-                        'X-CSRFToken': getCookie('csrftoken')
-                    },
-                    beforeSend: function () {
-                        $('#btn_enviar_estanque').prop('disabled', true);
-                    },
-                    success: function (response) {
-                        if (!response.success) {
-                            $('#btn_enviar_estanque').prop('disabled', false);
-                            Swal.fire({ icon: 'error', title: 'Error', text: response.message || 'No fue posible enviar.' });
-                            return;
-                        }
-
-                        $('#ModalEstanqueCamion').modal('hide');
-                        Swal.fire({ icon: 'success', title: 'Enviado', text: response.message || 'Citacion enviada a la siguiente etapa.' }).then(function () {
-                            location.reload();
-                        });
-                    },
-                    error: function (xhr) {
-                        $('#btn_enviar_estanque').prop('disabled', false);
-                        const message = xhr.responseJSON && xhr.responseJSON.message ? xhr.responseJSON.message : 'No fue posible enviar.';
-                        Swal.fire({ icon: 'error', title: 'Error', text: message });
-                    }
-                });
-            });
-        }
-         
-        function renderCitationSummaryTable(title, rows) {
-            if (!rows || rows.length === 0) {
-                return '';
-            }
-
-            const body = rows.map(function (row) {
-                const value = row.value === null || row.value === undefined || row.value === '' ? 'No registrado' : row.value;
-                return `
-                    <tr>
-                        <th style="width: 32%;">${escapeHtml(row.label)}</th>
-                        <td>${escapeHtml(value)}</td>
-                    </tr>
-                `;
-            }).join('');
-
-            return `
-                <h6 class="mt-3 mb-2">${escapeHtml(title)}</h6>
-                <div class="table-responsive">
-                    <table class="table table-sm table-bordered mb-3">
-                        <tbody>${body}</tbody>
-                    </table>
-                </div>
-            `;
-        }
-
-        function openCitationSummaryModal(citationId) {
-            $('#citationSummarySubtitle').text(`Citacion #${citationId}`);
-            $('#citationSummaryContent').html('<div class="text-center p-3">Cargando...</div>');
-            $('#citationSummaryAlert').hide().text('');
-            $('#citationSummaryModal').modal('show');
-
-            $.ajax({
-                url: `/pla-citacion-resumen/${citationId}/`,
-                type: 'GET',
-                success: function (response) {
-                    if (!response.success) {
-                        $('#citationSummaryContent').empty();
-                        $('#citationSummaryAlert').show().text(response.message || 'No fue posible cargar el resumen.');
-                        return;
-                    }
-
-                    const data = response.data || {};
-                    $('#citationSummaryContent').html(
-                        renderCitationSummaryTable('Planificacion', data.planificacion) +
-                        renderCitationSummaryTable('Citacion', data.citacion) +
-                        renderCitationSummaryTable('Datos operacionales', data.datos_operacionales)
-                    );
-                },
-                error: function (xhr) {
-                    const message = xhr.responseJSON && xhr.responseJSON.message
-                        ? xhr.responseJSON.message
-                        : 'No fue posible cargar el resumen.';
-                    $('#citationSummaryContent').empty();
-                    $('#citationSummaryAlert').show().text(message);
-                }
-            });
-        }
-
-        function openEditModal(citationId) {
-            $.ajax({
-                url: `/get_citation_data/${citationId}/`,
-                type: 'GET',
-                success: function(data) {
-                    const detalle = data.detalle_operacional || {};
-
-                    $('#citation_id').val(citationId);
-                    $('#tipo_documento').html(data.tipos_documento);
-                    $('#numero_documento').val(data.numero_documento || '');
-                    $('#edit_fecha_llegada').val(data.fecha_llegada || '');
-                    $('#edit_tipo_operacion').val(data.tipo_operacion || 'RECEPCION');
-                    $('#edit_tipo_carga').val(data.tipo_carga || '');
-
-                    $('#edit_origen').val(detalle.origen || 'planificacion');
-                    $('#edit_sap_opor_id').val(detalle.sap_opor_id || '');
-                    $('#edit_proveedor_codigo').val(detalle.proveedor_codigo || '');
-                    $('#edit_inf_24hrs').val(detalle.inf_24hrs || '');
-                    $('#edit_codigo').val(detalle.codigo || '');
-                    $('#edit_pedido').val(detalle.pedido || '');
-                    $('#edit_insumo').val(detalle.insumo || '');
-                    $('#edit_bl').val(detalle.bl || '');
-                    $('#edit_cantidad_disponible').val(detalle.cantidad_disponible || '');
-                    $('#edit_docentry').val(detalle.docentry || '');
-                    $('#edit_almacen_destino').val(detalle.almacen_destino || '');
-                    renderEditEstanques(detalle.almacen_destino || '', detalle.estanque_destino || '');
-                    $('#observacion').val(detalle.observacion || data.observacion || '');
-
-                    $('#id_proveedor').empty();
-                    if (data.proveedor && data.proveedor.id) {
-                        const proveedorOption = new Option(data.proveedor.text, data.proveedor.id, true, true);
-                        $('#id_proveedor').append(proveedorOption);
-                    }
-                    $('#id_proveedor').trigger('change');
-
-                    $('#id_secuencia').html(data.secuencias);
-                    if ($('#id_secuencia').hasClass('select2-hidden-accessible')) {
-                        $('#id_secuencia').select2('destroy');
-                    }
-                    $('#id_secuencia').select2({
-                        dropdownParent: $('#editCitationModal'),
-                        placeholder: 'Buscar secuencia...',
-                        allowClear: true,
-                        width: '100%',
-                        language: {
-                            noResults: function() {
-                                return 'No se encontraron resultados';
-                            },
-                            searching: function() {
-                                return 'Buscando...';
-                            }
-                        }
-                    });
-                    $('#id_secuencia').prop('disabled', data.estado !== 'CREADO');
-
-                    $('#editCitationModal').modal('show');
-                },
-                error: function(error) {
-                    console.log('Error fetching citation data:', error);
-                    const message = error.responseJSON && error.responseJSON.error ? error.responseJSON.error : 'No fue posible cargar los datos de la citacion.';
-                    Swal.fire({ icon: 'error', title: 'Error', text: message });
-                }
-            });
-        }
-            
-        function updateCitation() {
-            // Si es despacho, copiar el valor del conductor de despacho al conductor normal para el envío
-            if ($('#conductor_field_despacho').length && $('#conductor_field_despacho').is(':visible')) {
-                $('#id_conductor').val($('#id_conductor_despacho').val());
-            }
-            
-            let formData = $('#updateCitationForm').serialize();
-            
-            $.ajax({
-                url: `/update_citation/${$('#citation_id').val()}/`,
-                type: 'POST',
-                data: formData,
-                success: function(response) {
-                    $('#editCitationModal').modal('hide');
-                    if(response.valid) {
-                        Swal.fire({
-                            icon: 'success',
-                            title: 'Éxito',
-                            text: 'Citación actualizada correctamente'
-                        }).then(() => {
-                            location.reload();
-                        });
-                    } else {
-                        Swal.fire({
-                            icon: 'error',
-                            title: 'Error',
-                            text: response.msg
-                        });
-                    }
-                },
-                error: function(error) {
-                    console.log('Error updating citation:', error);
-                    Swal.fire({
-                        icon: 'error',
-                        title: 'Error',
-                        text: 'Hubo un problema al actualizar la citación'
-                    });
-                }
-            });
-        }
-
-        $(document).ready(function () {
-            restaurarFilaPendienteEnvio();
         });
-        </script>
+    }
+
+    $(document)
+        .off('shown.bs.modal.ingreso-scroll', '#ModalIngresoCamion')
+        .on('shown.bs.modal.ingreso-scroll', '#ModalIngresoCamion', function () {
+            asegurarScrollModalIngresoCamion();
+
+            const modalBody = document.querySelector('#ModalIngresoCamion .modal-body');
+            if (modalBody) {
+                modalBody.scrollTop = 0;
+            }
+        });
+
+    $(document).ready(function () {
+        restaurarFilaPendienteEnvio();
+
+        const citacionInicial = '{{ request.GET.citacion|default:"" }}';
+
+        if (citacionInicial) {
+            window.setTimeout(function () {
+                openIngresoCamionModal(citacionInicial);
+            }, 350);
+        }
+    });
+</script>
 {% endblock javascripts %}
  

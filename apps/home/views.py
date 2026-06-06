@@ -8,13 +8,14 @@ from django.core.paginator import Paginator, PageNotAnInteger, EmptyPage
 from django.utils import timezone
 from django.utils.translation import gettext_lazy as _
 from django.utils.dateparse import parse_date
+from django.utils.text import get_valid_filename
 from django.views.generic import FormView
 from django.contrib.auth import update_session_auth_hash, authenticate, logout
 from django.conf import settings
 from django.template.loader import render_to_string
 from django.db.models import Q, Subquery, OuterRef, Count
 from django.core.cache import cache
-from django.db import connection, transaction
+from django.db import connection, transaction, models
 from django.db.models import Min
 
 
@@ -26,6 +27,7 @@ from .general_postgres import *
 from .general_hana import *
 from .general_sql_server import *
 from .general_postgres import QueryParam
+from .sap_di_api import SapDiApiError, consultar_clientes_sap, consultar_detalle_pedido_sap, consultar_pedido_sap, consultar_pedidos_por_producto_sap, consultar_producto_sap, consultar_productos_sap, consultar_proveedores_sap
 from .services.teams_service import (
     enviar_alerta_camion_no_planificado_teams,
     enviar_solicitud_camion_no_planificado_teams,
@@ -846,6 +848,227 @@ def PLANIFICACION_CITACION_INGRESO_CAMION(request, pk):
         }, status=400)
 
 
+def AJAX_TRANSPORTISTAS_INGRESO_CAMION(request):
+    if not (
+        request.user.is_superuser
+        or usuario_es_guardia(request.user)
+        or usuario_es_planificador(request.user)
+        or validar_perfiles_activos(request.user.id, "pla_listone")
+    ):
+        return JsonResponse({'results': [], 'message': 'No tiene permisos.'}, status=403)
+
+    empresa_id = request.GET.get('empresa_id') or Verificar_empresa(request)
+    if not empresa_id:
+        return JsonResponse({'results': []})
+
+    query = str(request.GET.get('q') or '').strip()
+    transportistas_relacionados = set(
+        CONDUCTOR.objects.filter(
+            EP_NID_id=empresa_id,
+            CON_BHABILITADO=True,
+            SN_NID__isnull=False
+        ).values_list('SN_NID_id', flat=True)
+    )
+    transportistas_relacionados.update(
+        CAMION.objects.filter(
+            EP_NID_id=empresa_id,
+            CAM_BHABILITADO=True,
+            SN_NID__isnull=False
+        ).values_list('SN_NID_id', flat=True)
+    )
+
+    transportistas = SOCIONEGOCIO.objects.filter(
+        SN_BHABILITADO=True,
+        SN_CTIPO='S'
+    ).filter(
+        Q(EP_NID_id=empresa_id) | Q(id__in=transportistas_relacionados)
+    )
+
+    if query:
+        transportistas = transportistas.filter(
+            Q(SN_CRAZONSOCIAL__icontains=query) |
+            Q(SN_CRUT__icontains=query)
+        )
+
+    transportistas = transportistas.order_by('SN_CRAZONSOCIAL').distinct()[:50]
+    results = []
+    for transportista in transportistas:
+        razon_social = transportista.SN_CRAZONSOCIAL or ''
+        rut = transportista.SN_CRUT or ''
+        rut_visual = '' if rut_transportista_es_ficticio(rut) else rut
+        results.append({
+            'id': razon_social,
+            'text': f'{razon_social} ({rut_visual})' if rut_visual else razon_social,
+            'rut': rut_visual or None,
+            'socionegocio_id': transportista.id,
+        })
+
+    return JsonResponse({'results': results})
+
+
+def rut_transportista_es_ficticio(rut):
+    rut_normalizado = ''.join(ch for ch in str(rut or '') if ch.isdigit())
+    return bool(rut_normalizado) and '555' in rut_normalizado
+
+
+def obtener_cantidad_ejes_desde_camion(camion):
+    if not camion:
+        return ''
+    texto = str(camion.CAM_CCARGA or '').lower()
+    for cantidad in range(2, 9):
+        if str(cantidad) in texto and 'eje' in texto:
+            return f'{cantidad} ejes'
+    return ''
+
+
+def obtener_camiones_transportista_ingreso(transportistas_ids, empresa_id=None):
+    if not transportistas_ids:
+        return []
+
+    camiones = CAMION.objects.filter(
+        SN_NID_id__in=transportistas_ids,
+        CAM_BHABILITADO=True
+    )
+    if empresa_id:
+        camiones = camiones.order_by(
+            models.Case(
+                models.When(EP_NID_id=empresa_id, then=0),
+                default=1,
+                output_field=models.IntegerField()
+            ),
+            'id'
+        )
+    else:
+        camiones = camiones.order_by('id')
+
+    opciones = []
+    patentes = set()
+    for camion in camiones:
+        patente = str(camion.CAM_CPATENTE or '').strip()
+        if not patente or patente in patentes:
+            continue
+        opciones.append({
+            'camion_id': camion.id,
+            'patente': patente,
+            'cantidad_ejes': obtener_cantidad_ejes_desde_camion(camion),
+        })
+        patentes.add(patente)
+
+    return opciones
+
+
+def obtener_ids_transportistas_equivalentes(transportista):
+    if not transportista:
+        return []
+
+    filtros = Q(id=transportista.id)
+    razon_social = str(transportista.SN_CRAZONSOCIAL or '').strip()
+    rut = str(transportista.SN_CRUT or '').strip()
+
+    if razon_social:
+        filtros |= Q(SN_CRAZONSOCIAL__iexact=razon_social)
+    if rut and not rut_transportista_es_ficticio(rut):
+        filtros |= Q(SN_CRUT__iexact=rut)
+
+    return list(
+        SOCIONEGOCIO.objects.filter(
+            filtros,
+            SN_BHABILITADO=True
+        ).values_list('id', flat=True)
+    )
+
+
+def AJAX_CONDUCTORES_INGRESO_CAMION(request):
+    if not (
+        request.user.is_superuser
+        or usuario_es_guardia(request.user)
+        or usuario_es_planificador(request.user)
+        or validar_perfiles_activos(request.user.id, "pla_listone")
+    ):
+        return JsonResponse({'results': [], 'message': 'No tiene permisos.'}, status=403)
+
+    empresa_id = request.GET.get('empresa_id') or Verificar_empresa(request)
+    transportista_id = str(request.GET.get('transportista_id') or '').strip()
+    transportista_nombre = str(request.GET.get('transportista') or '').strip()
+    query = str(request.GET.get('q') or '').strip()
+
+    if not empresa_id or (not transportista_id and not transportista_nombre):
+        return JsonResponse({'results': []})
+
+    transportista = None
+    if transportista_id.isdigit():
+        transportista = SOCIONEGOCIO.objects.filter(
+            id=transportista_id,
+            SN_BHABILITADO=True
+        ).first()
+    if not transportista and transportista_nombre:
+        transportista_nombre_limpio = transportista_nombre.split('(')[0].strip()
+        transportista = SOCIONEGOCIO.objects.filter(
+            SN_CRAZONSOCIAL__iexact=transportista_nombre_limpio,
+            SN_BHABILITADO=True,
+            SN_CTIPO='S'
+        ).first()
+
+    if not transportista:
+        return JsonResponse({'results': []})
+
+    if transportista_id.isdigit():
+        transportistas_ids = [transportista.id]
+    else:
+        transportistas_ids = obtener_ids_transportistas_equivalentes(transportista)
+
+    camiones_transportista = obtener_camiones_transportista_ingreso(transportistas_ids, empresa_id)
+    camion_sugerido = camiones_transportista[0] if camiones_transportista else {}
+    patente_sugerida = camion_sugerido.get('patente', '')
+    cantidad_ejes_sugerida = camion_sugerido.get('cantidad_ejes', '')
+
+    conductores = CONDUCTOR.objects.filter(
+        SN_NID_id__in=transportistas_ids,
+        CON_BHABILITADO=True
+    )
+
+    if query:
+        conductores = conductores.filter(
+            Q(CON_CNOMBRE__icontains=query) |
+            Q(CON_CAPELLIDO__icontains=query) |
+            Q(CON_CRUT__icontains=query)
+        )
+
+    conductores = conductores.order_by('-EP_NID_id', 'CON_CNOMBRE', 'CON_CAPELLIDO')[:300]
+    results = []
+    for conductor in conductores:
+        nombre = ' '.join([
+            str(conductor.CON_CNOMBRE or '').strip(),
+            str(conductor.CON_CAPELLIDO or '').strip()
+        ]).strip()
+        rut = str(conductor.CON_CRUT or '').strip()
+        rut_visual = '' if rut_transportista_es_ficticio(rut) else rut
+        results.append({
+            'id': nombre,
+            'text': f'{nombre} ({rut_visual})' if rut_visual else nombre,
+            'conductor_id': conductor.id,
+            'nombre': nombre,
+            'rut': rut_visual or None,
+            'telefono': conductor.CON_CTELEFONO or '',
+            'camion_id': camion_sugerido.get('camion_id', ''),
+            'patente': patente_sugerida,
+            'cantidad_ejes': cantidad_ejes_sugerida,
+            'patente_sugerida': patente_sugerida,
+            'cantidad_ejes_sugerida': cantidad_ejes_sugerida,
+            'camiones': camiones_transportista,
+        })
+
+    return JsonResponse({
+        'results': results,
+        'patente_sugerida': patente_sugerida,
+        'cantidad_ejes_sugerida': cantidad_ejes_sugerida,
+        'camion_id': camion_sugerido.get('camion_id', ''),
+        'patente': patente_sugerida,
+        'cantidad_ejes': cantidad_ejes_sugerida,
+        'camiones': camiones_transportista,
+    })
+
+
 def obtener_dato_operacion_por_codigo(citacion, etapa, codigo):
     dato = DATO_OPERACION.objects.filter(
         CI_NID=citacion,
@@ -898,6 +1121,24 @@ def obtener_usuarios_asistente_recepcion():
             if perfil_usuario.US_NID_id not in usuarios_ids:
                 usuarios.append(perfil_usuario.US_NID)
                 usuarios_ids.add(perfil_usuario.US_NID_id)
+
+    usuarios_fallback = User.objects.filter(
+        username__in=[
+            'Asistente_Recepcion',
+            'Asistente_Recepción',
+            'ASISTENTE_RECEPCION',
+            'ASISTENTE_RECEPCIÓN',
+            'Asistente Recepcion',
+            'Asistente Recepción',
+            'ASISTENTE RECEPCION',
+            'ASISTENTE RECEPCIÓN',
+        ],
+        is_active=True
+    )
+    for usuario in usuarios_fallback:
+        if usuario.id not in usuarios_ids:
+            usuarios.append(usuario)
+            usuarios_ids.add(usuario.id)
 
     return usuarios
 
@@ -1467,6 +1708,7 @@ def obtener_datos_operacion_citacion(citacion):
                 'label': campo.CA_CETIQUETA or codigo,
                 'etapa': dato.ET_NID.ET_CNOMBRE if dato.ET_NID else '',
                 'valor': dato.DO_CVALOR,
+                'nombre_archivo': os.path.basename(dato.DO_CVALOR) if dato.DO_CVALOR else '',
                 'download_url': reverse('cit_download_file', args=[dato.id]) if dato.DO_CVALOR else '',
             })
 
@@ -1552,6 +1794,100 @@ def obtener_valores_ingreso_camion(citacion):
 
 def texto_sin_informacion(valor):
     return valor if valor not in [None, ''] else 'Sin información'
+
+
+def obtener_rutas_tarifa_transportista(citacion, valores_ingreso=None):
+    valores_ingreso = valores_ingreso or obtener_valores_ingreso_camion(citacion)
+
+    if citacion.TAR_NID and citacion.TAR_NID.RUT_NID:
+        return {
+            'rutas_texto': citacion.TAR_NID.RUT_NID.RUT_CNOMBRE,
+            'tarifa_texto': citacion.TAR_NID.TAR_CNOMBRETARIFA,
+            'opciones': [{
+                'id': str(citacion.TAR_NID_id),
+                'text': citacion.TAR_NID.RUT_NID.RUT_CNOMBRE,
+                'tarifa': citacion.TAR_NID.TAR_CNOMBRETARIFA,
+                'selected': True,
+            }],
+        }
+
+    if citacion.RUT_NID:
+        return {
+            'rutas_texto': citacion.RUT_NID.RUT_CNOMBRE,
+            'tarifa_texto': citacion.TAR_NID.TAR_CNOMBRETARIFA if citacion.TAR_NID else '',
+            'opciones': [{
+                'id': str(citacion.TAR_NID_id or citacion.RUT_NID_id),
+                'text': citacion.RUT_NID.RUT_CNOMBRE,
+                'tarifa': citacion.TAR_NID.TAR_CNOMBRETARIFA if citacion.TAR_NID else '',
+                'selected': True,
+            }],
+        }
+
+    transportista = str(valores_ingreso.get('transportista') or '').strip()
+    if not transportista:
+        return {'rutas_texto': '', 'tarifa_texto': '', 'opciones': []}
+
+    socios_ids = []
+
+    conductor = str(valores_ingreso.get('conductor') or '').strip()
+    if conductor:
+        partes_nombre = conductor.split()
+        conductores = CONDUCTOR.objects.filter(
+            CON_BHABILITADO=True,
+            SN_NID__SN_CRAZONSOCIAL__iexact=transportista,
+        )
+        if partes_nombre:
+            conductores = conductores.filter(CON_CNOMBRE__icontains=partes_nombre[0])
+        if len(partes_nombre) > 1:
+            conductores = conductores.filter(CON_CAPELLIDO__icontains=partes_nombre[-1])
+
+        for socio_id in conductores.values_list('SN_NID_id', flat=True).distinct():
+            if socio_id and socio_id not in socios_ids:
+                socios_ids.append(socio_id)
+
+    for socio_id in SOCIONEGOCIO.objects.filter(
+        SN_BHABILITADO=True,
+        SN_CRAZONSOCIAL__iexact=transportista,
+    ).values_list('id', flat=True):
+        if socio_id not in socios_ids:
+            socios_ids.append(socio_id)
+
+    if not socios_ids:
+        return {'rutas_texto': '', 'tarifa_texto': '', 'opciones': []}
+
+    tarifas = TARIFA_GLOBAL.objects.filter(
+        SN_NID_id__in=socios_ids,
+        TAR_BHABILITADO=True,
+    ).select_related('RUT_NID').order_by('RUT_NID__RUT_CNOMBRE', 'id')
+
+    rutas = []
+    tarifas_nombres = []
+    opciones = []
+    rutas_opciones = set()
+    for tarifa in tarifas:
+        if tarifa.RUT_NID and tarifa.RUT_NID.RUT_CNOMBRE not in rutas:
+            rutas.append(tarifa.RUT_NID.RUT_CNOMBRE)
+        if tarifa.TAR_CNOMBRETARIFA and tarifa.TAR_CNOMBRETARIFA not in tarifas_nombres:
+            tarifas_nombres.append(tarifa.TAR_CNOMBRETARIFA)
+        if tarifa.RUT_NID and tarifa.RUT_NID.RUT_CNOMBRE not in rutas_opciones:
+            opciones.append({
+                'id': str(tarifa.id),
+                'text': tarifa.RUT_NID.RUT_CNOMBRE,
+                'tarifa': tarifa.TAR_CNOMBRETARIFA,
+                'selected': False,
+            })
+            rutas_opciones.add(tarifa.RUT_NID.RUT_CNOMBRE)
+
+    def resumir(valores, limite=10):
+        if len(valores) <= limite:
+            return ' | '.join(valores)
+        return ' | '.join(valores[:limite]) + f' (+{len(valores) - limite} mas)'
+
+    return {
+        'rutas_texto': resumir(rutas),
+        'tarifa_texto': resumir(tarifas_nombres, limite=3),
+        'opciones': opciones,
+    }
 
 
 def texto_camion_operacional(valores_ingreso):
@@ -1757,13 +2093,22 @@ def PLANIFICACION_CITACION_REVISION_ASISTENTE(request, pk):
 
     try:
         citacion = CITACION.objects.select_related(
-            'EP_NID', 'PL_NID', 'SC_NID', 'PRO_NID', 'SN_NID', 'CON_NID', 'CA_NID'
+            'EP_NID',
+            'PL_NID',
+            'SC_NID',
+            'PRO_NID',
+            'SN_NID',
+            'CON_NID',
+            'CA_NID',
+            'TAR_NID__RUT_NID',
+            'RUT_NID',
         ).get(pk=pk, EP_NID_id=Empresa, CI_BHABILITADO=True)
 
         citacion_item = CITACION_ITEM.objects.filter(CI_NID=citacion).select_related('IT_NID').first()
         detalle_operacional = detalle_operacional_dict(citacion)
         datos_operacion, documentos = obtener_datos_operacion_citacion(citacion)
         valores_ingreso = obtener_valores_ingreso_camion(citacion)
+        ruta_tarifa_transportista = obtener_rutas_tarifa_transportista(citacion, valores_ingreso)
 
         def dato(codigo):
             registro = datos_operacion.get(codigo)
@@ -1813,6 +2158,11 @@ def PLANIFICACION_CITACION_REVISION_ASISTENTE(request, pk):
                 'Fecha planificacion': citacion.PL_NID.PL_FFECHAINICIO.strftime('%d/%m/%Y %H:%M') if citacion.PL_NID and citacion.PL_NID.PL_FFECHAINICIO else '',
                 'Cliente': citacion.SN_NID.SN_CRAZONSOCIAL if citacion.SN_NID else '',
                 'Transportista': texto_sin_informacion(valores_ingreso.get('transportista')),
+                'Ruta tarifa transportista': {
+                    'type': 'select',
+                    'placeholder': 'Seleccione ruta tarifa',
+                    'options': ruta_tarifa_transportista.get('opciones', []),
+                },
                 'Insumo': citacion_item.IT_NID.IT_CNOMBRE if citacion_item and citacion_item.IT_NID else detalle_operacional.get('insumo', ''),
                 'Pedido': detalle_operacional.get('pedido', ''),
                 'BL': bl,
@@ -2578,6 +2928,10 @@ PERFILES_ASISTENTE_RECEPCION = {
     'AR',
 }
 
+USUARIOS_ASISTENTE_RECEPCION = {
+    'ASISTENTE RECEPCION',
+}
+
 PERFILES_ASISTENTE_CD = {
     'ASISTENTE C D',
     'ASISTENTE CD',
@@ -2611,13 +2965,58 @@ PERFILES_OPERACION_PLANTA = {
     'GUA',
 }
 
+FLUJOS_RECEPCION_ETAPA_0 = (
+    ('RECEPCION_ESTANQUE_SBH', 'Estanque SBH', 'RECEPCION ESTANQUES ( ALMACENAJE)'),
+    ('RECEPCION_BODEGA_EXTERNA', 'Bodega Externa', 'RECEPCION DE ACEITES V-3'),
+    ('RECEPCION_TRASVASIJE', 'Trasvasije', 'TRASVASIJES A PROSESA'),
+    ('RECEPCION_PATIO_LF_CON_CALIDAD', 'Patio LF con Calidad', 'RECEPCION DE ACEITES V-3'),
+    ('RECEPCION_PATIO_LF_SIN_CALIDAD', 'Patio LF sin Calidad', 'ACEITES A PISO V_2'),
+)
+
 FLUJOS_OPERACION_PLANTA = {
+    'RECEPCION ESTANQUE SBH': [
+        ('Pesaje Entrada', ['OPERADOR ROMANA']),
+        ('Toma de muestra', ['ASISTENTE C D']),
+        ('Analisis y calidad', ['CALIDAD']),
+        ('Resultado Calidad', ['ASISTENTE C D']),
+        ('Ciclo Descarga', ['ASISTENTE C D']),
+        ('Pesaje Salida', ['OPERADOR ROMANA']),
+        ('Autorizar Salida', ['ASISTENTE DE RECEPCION']),
+        ('Confirmar Salida', ['GUARDIA PORTERIA']),
+    ],
     'RECEPCION BODEGA EXTERNA': [
         ('Pesaje Entrada', ['OPERADOR ROMANA']),
         ('Toma de muestra', ['ASISTENTE C D']),
         ('Analisis y calidad', ['CALIDAD']),
         ('Resultado Calidad', ['ASISTENTE C D']),
         ('Ciclo Descarga', ['GUARDIA PORTERIA']),
+        ('Pesaje Salida', ['OPERADOR ROMANA']),
+        ('Autorizar Salida', ['ASISTENTE DE RECEPCION']),
+        ('Confirmar Salida', ['GUARDIA PORTERIA']),
+    ],
+    'RECEPCION TRASVASIJE': [
+        ('Pesaje Entrada', ['OPERADOR ROMANA']),
+        ('Toma de muestra', ['ASISTENTE C D']),
+        ('Analisis y calidad', ['CALIDAD']),
+        ('Resultado Calidad', ['ASISTENTE C D']),
+        ('Ciclo Descarga', ['ASISTENTE C D']),
+        ('Pesaje Salida', ['OPERADOR ROMANA']),
+        ('Autorizar Salida', ['ASISTENTE DE RECEPCION']),
+        ('Confirmar Salida', ['GUARDIA PORTERIA']),
+    ],
+    'RECEPCION PATIO LF CON CALIDAD': [
+        ('Pesaje Entrada', ['OPERADOR ROMANA']),
+        ('Toma de muestra', ['ASISTENTE C D']),
+        ('Analisis y calidad', ['CALIDAD']),
+        ('Resultado Calidad', ['ASISTENTE C D']),
+        ('Ciclo Descarga', ['ASISTENTE C D']),
+        ('Pesaje Salida', ['OPERADOR ROMANA']),
+        ('Autorizar Salida', ['ASISTENTE DE RECEPCION']),
+        ('Confirmar Salida', ['GUARDIA PORTERIA']),
+    ],
+    'RECEPCION PATIO LF SIN CALIDAD': [
+        ('Pesaje Entrada', ['OPERADOR ROMANA']),
+        ('Ciclo Descarga', ['ASISTENTE C D']),
         ('Pesaje Salida', ['OPERADOR ROMANA']),
         ('Autorizar Salida', ['ASISTENTE DE RECEPCION']),
         ('Confirmar Salida', ['GUARDIA PORTERIA']),
@@ -2694,6 +3093,9 @@ def usuario_es_ingreso_camion(user):
 
     username_normalizado = normalizar_nombre_perfil(getattr(user, 'username', ''))
 
+    if username_normalizado in PERFILES_INGRESO_CAMION:
+        return True
+
     if username_normalizado in USUARIOS_ASISTENTE_CD:
         return True
 
@@ -2764,6 +3166,9 @@ def usuario_es_guardia_porteria(user):
 def usuario_es_asistente_recepcion(user):
     if getattr(user, 'is_superuser', False):
         return False
+
+    if normalizar_nombre_perfil(getattr(user, 'username', '')) in USUARIOS_ASISTENTE_RECEPCION:
+        return True
 
     perfiles_usuario = PERFIL_USUARIO.objects.select_related('PR_NID').filter(
         US_NID=user.id,
@@ -3075,6 +3480,118 @@ def guardar_archivo_dato_operacion(citacion, etapa, archivo):
     return file_path
 
 
+EXPEDIENTE_CITACION_ROOT = os.path.join(settings.MEDIA_ROOT, 'documentos_citaciones')
+EXPEDIENTE_CAMPO_TIPO = {
+    'ING_DOC_GUIA': CITACION_DOCUMENTO.TIPO_GUIA,
+    'ING_DOC_TICKET_ORIGEN': CITACION_DOCUMENTO.TIPO_TICKET_ORIGEN,
+    'ING_DOC_SERNAPESCA': CITACION_DOCUMENTO.TIPO_SERNAPESCA,
+}
+EXPEDIENTE_TIPO_LABELS = {
+    CITACION_DOCUMENTO.TIPO_GUIA: 'Guia',
+    CITACION_DOCUMENTO.TIPO_TICKET_ORIGEN: 'Ticket origen',
+    CITACION_DOCUMENTO.TIPO_SERNAPESCA: 'Sernapesca',
+}
+
+
+def usuario_puede_administrar_expediente(user):
+    return getattr(user, 'is_superuser', False)
+
+
+def obtener_nombre_archivo_expediente(tipo_documento, archivo):
+    nombre_original = get_valid_filename(os.path.basename(archivo.name or 'documento'))
+    extension = os.path.splitext(nombre_original)[1]
+    prefijo = tipo_documento.lower()
+    return f'{prefijo}_{uuid.uuid4()}{extension}'
+
+
+def guardar_archivo_expediente_citacion(citacion, tipo_documento, archivo):
+    folder_path = os.path.join(EXPEDIENTE_CITACION_ROOT, f'CITACION_{citacion.id}')
+    os.makedirs(folder_path, exist_ok=True)
+
+    nombre_archivo = obtener_nombre_archivo_expediente(tipo_documento, archivo)
+    file_path = os.path.join(folder_path, nombre_archivo)
+
+    with open(file_path, 'wb+') as destination:
+        for chunk in archivo.chunks():
+            destination.write(chunk)
+
+    return file_path, nombre_archivo
+
+
+def registrar_documento_expediente(citacion, tipo_documento, ruta_archivo, nombre_archivo, usuario, dato_operacion=None):
+    fecha_modificacion = timezone.now()
+    CITACION_DOCUMENTO.objects.filter(
+        CI_NID=citacion,
+        EP_NID=citacion.EP_NID,
+        CD_CTIPO=tipo_documento,
+        CD_BACTIVO=True
+    ).update(
+        CD_BACTIVO=False,
+        CD_FFECHAMODIFICACION=fecha_modificacion,
+        US_MODIFICA_NID=usuario
+    )
+
+    documento = CITACION_DOCUMENTO.objects.create(
+        CI_NID=citacion,
+        EP_NID=citacion.EP_NID,
+        DO_NID=dato_operacion,
+        CD_CTIPO=tipo_documento,
+        CD_CRUTA_ARCHIVO=ruta_archivo,
+        CD_CNOMBRE_ARCHIVO=nombre_archivo,
+        US_SUBE_NID=usuario,
+    )
+
+    registrar_log_camion_no_planificado(
+        usuario,
+        citacion.EP_NID,
+        'DOC_CIT_CARGA',
+        f'Documento {tipo_documento} cargado en expediente de citacion #{citacion.id}',
+        citacion.id,
+        tipo_documento
+    )
+    return documento
+
+
+def sincronizar_expediente_legacy_citacion(citacion, usuario=None):
+    datos = DATO_OPERACION.objects.select_related('CAMP_NID', 'US_NID').filter(
+        CI_NID=citacion,
+        EP_NID=citacion.EP_NID,
+        CAMP_NID__CA_CCODIGO__in=EXPEDIENTE_CAMPO_TIPO.keys()
+    ).exclude(DO_CVALOR='')
+
+    for dato in datos:
+        tipo_documento = EXPEDIENTE_CAMPO_TIPO.get(dato.CAMP_NID.CA_CCODIGO)
+        if not tipo_documento or not dato.DO_CVALOR:
+            continue
+        if CITACION_DOCUMENTO.objects.filter(DO_NID=dato).exists():
+            continue
+        if CITACION_DOCUMENTO.objects.filter(
+            CI_NID=citacion,
+            CD_CTIPO=tipo_documento,
+            CD_BACTIVO=True
+        ).exists():
+            continue
+        CITACION_DOCUMENTO.objects.create(
+            CI_NID=citacion,
+            EP_NID=citacion.EP_NID,
+            DO_NID=dato,
+            CD_CTIPO=tipo_documento,
+            CD_CRUTA_ARCHIVO=dato.DO_CVALOR,
+            CD_CNOMBRE_ARCHIVO=os.path.basename(dato.DO_CVALOR),
+            US_SUBE_NID=dato.US_NID,
+        )
+
+
+def sincronizar_expedientes_legacy_empresa(empresa_id, limite=500):
+    citaciones_ids = DATO_OPERACION.objects.filter(
+        EP_NID_id=empresa_id,
+        CAMP_NID__CA_CCODIGO__in=EXPEDIENTE_CAMPO_TIPO.keys()
+    ).exclude(DO_CVALOR='').values_list('CI_NID_id', flat=True).distinct()[:limite]
+
+    for citacion in CITACION.objects.filter(id__in=list(citaciones_ids)).select_related('EP_NID'):
+        sincronizar_expediente_legacy_citacion(citacion)
+
+
 def asegurar_campos_ingreso_camion(citacion, etapa, usuario):
     for indice, definicion in enumerate(CAMPOS_INGRESO_CAMION_DEFAULT, start=1):
         campo = CAMPO.objects.filter(
@@ -3184,6 +3701,7 @@ def obtener_campos_operacion_etapa(citacion, etapa, usuario):
 
         campos.append({
             'id': campo.id,
+            'codigo': campo.CA_CCODIGO,
             'name': f'{etapa.ET_CCODIGO.replace(" ", "")}_{campo.id}',
             'label': detalle.DET_CETIQUETAETAPA or campo.CA_CETIQUETA,
             'type': campo.CA_CTIPO.lower(),
@@ -3244,6 +3762,8 @@ def guardar_operacion_etapa(citacion, request):
     for campo_data in campos_etapa:
         campo = CAMPO.objects.get(id=campo_data['id'])
         input_name = campo_data['name']
+        tipo_documento_expediente = None
+        nombre_archivo_expediente = None
 
         if campo.CA_CTIPO.lower() == 'archivo':
             archivo = request.FILES.get(input_name)
@@ -3251,7 +3771,15 @@ def guardar_operacion_etapa(citacion, request):
                 if campo_data['required'] and not campo_data['has_file']:
                     raise Exception(f'Debe cargar el archivo {campo_data["label"]}.')
                 continue
-            valor_campo = guardar_archivo_dato_operacion(citacion, etapa_actual, archivo)
+            tipo_documento_expediente = EXPEDIENTE_CAMPO_TIPO.get(campo.CA_CCODIGO)
+            if tipo_documento_expediente:
+                valor_campo, nombre_archivo_expediente = guardar_archivo_expediente_citacion(
+                    citacion,
+                    tipo_documento_expediente,
+                    archivo
+                )
+            else:
+                valor_campo = guardar_archivo_dato_operacion(citacion, etapa_actual, archivo)
         else:
             valor_campo = request.POST.get(input_name)
             if campo.CA_CTIPO == 'CHECK' and valor_campo is None:
@@ -3268,7 +3796,7 @@ def guardar_operacion_etapa(citacion, request):
             setattr(citacion, campo.CA_CCODIGO, valor_campo)
             citacion.save(update_fields=[campo.CA_CCODIGO])
 
-        DATO_OPERACION.objects.update_or_create(
+        dato_operacion, _ = DATO_OPERACION.objects.update_or_create(
             CI_NID=citacion,
             SC_NID=secuencia,
             ET_NID=etapa_actual,
@@ -3280,6 +3808,15 @@ def guardar_operacion_etapa(citacion, request):
                 'DO_FFECHAREGISTRO': datetime.now(),
             }
         )
+        if tipo_documento_expediente:
+            registrar_documento_expediente(
+                citacion,
+                tipo_documento_expediente,
+                valor_campo,
+                nombre_archivo_expediente or os.path.basename(valor_campo),
+                request.user,
+                dato_operacion=dato_operacion
+            )
 
     registrar_log_camion_no_planificado(
         request.user,
@@ -3291,6 +3828,93 @@ def guardar_operacion_etapa(citacion, request):
     )
 
     return tuvo_datos_previos
+
+
+def asegurar_flujos_recepcion_etapa_0(empresa_id, usuario):
+    flujos = []
+    usuario_registro = usuario if getattr(usuario, 'is_authenticated', False) else None
+
+    for codigo, nombre, nombre_base in FLUJOS_RECEPCION_ETAPA_0:
+        secuencia = SECUENCIA.objects.filter(
+            EP_NID_id=empresa_id
+        ).filter(
+            Q(SE_CCODIGO=codigo) | Q(SE_CNOMBRE=nombre)
+        ).order_by('id').first()
+
+        if not secuencia:
+            secuencia = SECUENCIA.objects.create(
+                EP_NID_id=empresa_id,
+                US_NID=usuario_registro,
+                SE_CTIPO='RECEPCION',
+                SE_CCODIGO=codigo,
+                SE_CNOMBRE=nombre,
+                SE_BHABILITADO=True,
+                SE_FFECHAREGISTRO=timezone.now(),
+            )
+
+        campos_actualizar = []
+
+        if secuencia.SE_CCODIGO != codigo:
+            secuencia.SE_CCODIGO = codigo
+            campos_actualizar.append('SE_CCODIGO')
+
+        if secuencia.SE_CTIPO != 'RECEPCION':
+            secuencia.SE_CTIPO = 'RECEPCION'
+            campos_actualizar.append('SE_CTIPO')
+
+        if secuencia.SE_CNOMBRE != nombre:
+            secuencia.SE_CNOMBRE = nombre
+            campos_actualizar.append('SE_CNOMBRE')
+
+        if not secuencia.SE_BHABILITADO:
+            secuencia.SE_BHABILITADO = True
+            campos_actualizar.append('SE_BHABILITADO')
+
+        if usuario_registro and not secuencia.US_NID_id:
+            secuencia.US_NID = usuario_registro
+            campos_actualizar.append('US_NID')
+
+        if not secuencia.SE_FFECHAREGISTRO:
+            secuencia.SE_FFECHAREGISTRO = timezone.now()
+            campos_actualizar.append('SE_FFECHAREGISTRO')
+
+        if campos_actualizar:
+            secuencia.save(update_fields=campos_actualizar)
+
+        if not DETALLE_SECUENCIA.objects.filter(SC_NID=secuencia, SE_BHABILITADO=True).exists():
+            secuencia_base = SECUENCIA.objects.filter(
+                SE_CNOMBRE=nombre_base,
+                SE_BHABILITADO=True
+            ).exclude(
+                pk=secuencia.pk
+            ).order_by('EP_NID_id', 'id').first()
+
+            if secuencia_base:
+                detalles_base = DETALLE_SECUENCIA.objects.filter(
+                    SC_NID=secuencia_base,
+                    SE_BHABILITADO=True
+                ).order_by('SE_NPASO', 'id')
+
+                detalles_nuevos = [
+                    DETALLE_SECUENCIA(
+                        US_NID=detalle.US_NID,
+                        USERS_RESPONSABLE_ID=detalle.USERS_RESPONSABLE_ID,
+                        EP_NID_id=empresa_id,
+                        SC_NID=secuencia,
+                        ET_NID=detalle.ET_NID,
+                        SE_NPASO=detalle.SE_NPASO,
+                        SE_BHABILITADO=detalle.SE_BHABILITADO,
+                        SE_BOBLIGATORIO=detalle.SE_BOBLIGATORIO,
+                    )
+                    for detalle in detalles_base
+                ]
+
+                if detalles_nuevos:
+                    DETALLE_SECUENCIA.objects.bulk_create(detalles_nuevos)
+
+        flujos.append(secuencia)
+
+    return flujos
 
 
 def PLANIFICACION_ADDONE(request):
@@ -3327,29 +3951,37 @@ def PLANIFICACION_ADDONE(request):
 
         form = formPLANIFICACION()
 
-        clientes_sap = obtener_clientes_aceite(Empresa)
+        avisos_desarrollo = []
 
-        proveedores_sap = SAP_OPOR_PROGRAMACION.objects.filter(
-            EP_NID_id=Empresa,
-            SOP_BHABILITADO=True,
-            SOP_CARDNAME__isnull=False
-        ).exclude(
-            SOP_CARDNAME=''
-        ).values(
-            'SOP_CARDCODE',
-            'SOP_CARDNAME'
-        ).distinct().order_by('SOP_CARDNAME')
+        try:
+            clientes_sap = obtener_clientes_aceite(Empresa)
+        except Exception as e:
+            print(f'PLANIFICACION_ADDONE clientes_sap no disponibles: {e}')
+            clientes_sap = []
+            avisos_desarrollo.append('Clientes SAP no disponibles. El modal se muestra con el selector vacio.')
 
-        secuencias = SECUENCIA.objects.filter(
-            EP_NID_id=Empresa,
-            SE_BHABILITADO=True
-        ).order_by("SE_CTIPO", "SE_CNOMBRE")
+        proveedores_sap = []
+
+        try:
+            secuencias_recepcion = asegurar_flujos_recepcion_etapa_0(Empresa, request.user)
+            secuencias_despacho = list(SECUENCIA.objects.filter(
+                EP_NID_id=Empresa,
+                SE_CTIPO='DESPACHO',
+                SE_BHABILITADO=True
+            ).order_by("SE_CNOMBRE"))
+            secuencias = secuencias_recepcion + secuencias_despacho
+        except Exception as e:
+            print(f'PLANIFICACION_ADDONE secuencias no disponibles: {e}')
+            secuencias = []
+            avisos_desarrollo.append('Secuencias no disponibles. El modal se muestra con el selector vacio.')
 
         ctx = {
             'form': form,
             'clientes_sap': clientes_sap,
             'proveedores_sap': proveedores_sap,
-            'secuencias': secuencias
+            'secuencias': secuencias,
+            'abrir_modal': request.GET.get('modal', ''),
+            'avisos_desarrollo': avisos_desarrollo,
         }
 
         return render(request, 'home/PLANIFICACION/pla_addone.html', ctx)
@@ -3363,49 +3995,111 @@ def PLANIFICACION_ADDONE(request):
 #####################  CONSULTA SAP OPOR NUEVO  ##########################
 ##########################################################################
 
+def API_SAP_PRODUCTO(request):
+    try:
+        codigo = request.GET.get('codigo', '').strip()
+        data = consultar_producto_sap(codigo)
+        return JsonResponse(data)
+    except SapDiApiError as e:
+        return JsonResponse({'ok': False, 'mensaje': str(e), 'message': str(e)}, status=503)
+    except Exception as e:
+        print('ERROR API_SAP_PRODUCTO:', e)
+        mensaje = f'Error al consultar producto SAP: {str(e)}'
+        return JsonResponse({'ok': False, 'mensaje': mensaje, 'message': mensaje}, status=500)
+
+
+def API_SAP_PRODUCTOS(request):
+    try:
+        data = consultar_productos_sap()
+        return JsonResponse(data)
+    except SapDiApiError as e:
+        return JsonResponse({'ok': False, 'mensaje': str(e), 'message': str(e)}, status=503)
+    except Exception as e:
+        print('ERROR API_SAP_PRODUCTOS:', e)
+        mensaje = f'Error al consultar productos SAP: {str(e)}'
+        return JsonResponse({'ok': False, 'mensaje': mensaje, 'message': mensaje}, status=500)
+
+
+def API_SAP_CLIENTES(request):
+    try:
+        data = consultar_clientes_sap()
+        return JsonResponse(data)
+    except SapDiApiError as e:
+        return JsonResponse({'ok': False, 'mensaje': str(e), 'message': str(e)}, status=503)
+    except Exception as e:
+        print('ERROR API_SAP_CLIENTES:', e)
+        mensaje = f'Error al consultar clientes SAP: {str(e)}'
+        return JsonResponse({'ok': False, 'mensaje': mensaje, 'message': mensaje}, status=500)
+
+
+def API_SAP_PROVEEDORES(request):
+    try:
+        data = consultar_proveedores_sap()
+        return JsonResponse(data)
+    except SapDiApiError as e:
+        return JsonResponse({'ok': False, 'mensaje': str(e), 'message': str(e)}, status=503)
+    except Exception as e:
+        print('ERROR API_SAP_PROVEEDORES:', e)
+        mensaje = f'Error al consultar proveedores SAP: {str(e)}'
+        return JsonResponse({'ok': False, 'mensaje': mensaje, 'message': mensaje}, status=500)
+
+
+def API_SAP_PEDIDO(request):
+    try:
+        pedido = request.GET.get('pedido', '').strip()
+        codigo = request.GET.get('codigo', '').strip()
+        proveedor = request.GET.get('proveedor', '').strip() or request.GET.get('proveedor_codigo', '').strip()
+        data = consultar_pedido_sap(pedido, codigo, proveedor)
+        return JsonResponse(data)
+    except SapDiApiError as e:
+        return JsonResponse({'ok': False, 'mensaje': str(e), 'message': str(e)}, status=503)
+    except Exception as e:
+        print('ERROR API_SAP_PEDIDO:', e)
+        mensaje = f'Error al consultar pedido SAP: {str(e)}'
+        return JsonResponse({'ok': False, 'mensaje': mensaje, 'message': mensaje}, status=500)
+
+
+def API_SAP_PEDIDOS_POR_PRODUCTO(request):
+    try:
+        codigo = request.GET.get('codigo', '').strip()
+        data = consultar_pedidos_por_producto_sap(codigo)
+        return JsonResponse(data)
+    except SapDiApiError as e:
+        return JsonResponse({'ok': False, 'mensaje': str(e), 'message': str(e)}, status=503)
+    except Exception as e:
+        print('ERROR API_SAP_PEDIDOS_POR_PRODUCTO:', e)
+        mensaje = f'Error al consultar pedidos SAP por producto: {str(e)}'
+        return JsonResponse({'ok': False, 'mensaje': mensaje, 'message': mensaje}, status=500)
+
+
+def API_SAP_PEDIDO_DETALLE(request):
+    try:
+        pedido = request.GET.get('pedido', '').strip()
+        data = consultar_detalle_pedido_sap(pedido)
+        return JsonResponse(data)
+    except SapDiApiError as e:
+        return JsonResponse({'ok': False, 'mensaje': str(e), 'message': str(e)}, status=503)
+    except Exception as e:
+        print('ERROR API_SAP_PEDIDO_DETALLE:', e)
+        mensaje = f'Error al consultar detalle de Pedido SAP: {str(e)}'
+        return JsonResponse({'ok': False, 'mensaje': mensaje, 'message': mensaje}, status=500)
+
+
 def BUSCAR_OPOR_POR_CODIGO(request):
     try:
-        Empresa = Verificar_empresa(request)
-
-        if Empresa is None:
-            return JsonResponse({
-                'success': False,
-                'total': 0,
-                'message': 'Debe seleccionar una empresa.'
-            })
-
         codigo = request.GET.get('codigo', '').strip()
+        resultado = consultar_producto_sap(codigo)
 
-        if not codigo:
+        if not resultado.get('ok'):
             return JsonResponse({
                 'success': False,
                 'total': 0,
-                'message': 'Debe ingresar código SAP.'
-            })
-
-        registro = (
-            SAP_OPOR_PROGRAMACION.objects
-            .filter(
-                EP_NID_id=Empresa,
-                SOP_ITEMCODE=codigo,
-                SOP_BHABILITADO=True
-            )
-            .values('SOP_ITEMCODE')
-            .annotate(nombre_producto=Min('SOP_DSCRIPTIONS'))
-            .order_by('SOP_ITEMCODE')
-            .first()
-        )
-
-        if not registro:
-            return JsonResponse({
-                'success': False,
-                'total': 0,
-                'message': 'No se encontró producto para el código SAP ingresado.'
+                'message': resultado.get('message') or resultado.get('mensaje', 'No se encontro producto SAP.')
             })
 
         data = {
-            'codigo': registro['SOP_ITEMCODE'],
-            'insumo': registro['nombre_producto'] or '',
+            'codigo': resultado.get('item_code', ''),
+            'insumo': resultado.get('item_name', ''),
         }
 
         return JsonResponse({
@@ -3414,6 +4108,12 @@ def BUSCAR_OPOR_POR_CODIGO(request):
             'data': [data]
         })
 
+    except SapDiApiError as e:
+        return JsonResponse({
+            'success': False,
+            'total': 0,
+            'message': str(e)
+        }, status=503)
     except Exception as e:
         print('ERROR BUSCAR_OPOR_POR_CODIGO:', e)
         return JsonResponse({
@@ -3424,55 +4124,30 @@ def BUSCAR_OPOR_POR_CODIGO(request):
 
 def BUSCAR_OPOR_POR_PEDIDO(request):
     try:
-        Empresa = Verificar_empresa(request)
-
-        if Empresa is None:
-            return JsonResponse({
-                'success': False,
-                'total': 0,
-                'message': 'Debe seleccionar una empresa.'
-            })
-
         codigo = request.GET.get('codigo', '').strip()
         pedido = request.GET.get('pedido', '').strip()
+        proveedor = request.GET.get('proveedor', '').strip() or request.GET.get('proveedor_codigo', '').strip()
+        resultado = consultar_pedido_sap(pedido, codigo, proveedor)
 
-        if not codigo:
+        if not resultado.get('ok'):
             return JsonResponse({
                 'success': False,
                 'total': 0,
-                'message': 'Debe ingresar código SAP.'
-            })
-
-        if not pedido:
-            return JsonResponse({
-                'success': False,
-                'total': 0,
-                'message': 'Debe ingresar Pedido SAP.'
-            })
-
-        item = SAP_OPOR_PROGRAMACION.objects.filter(
-            EP_NID_id=Empresa,
-            SOP_ITEMCODE=codigo,
-            SOP_DOCNUM=pedido,
-            SOP_BHABILITADO=True
-        ).first()
-
-        if not item:
-            return JsonResponse({
-                'success': False,
-                'total': 0,
-                'message': 'No se encontró programación para el código SAP y Pedido SAP ingresado.'
+                'message': resultado.get('message') or resultado.get('mensaje', 'No se encontro pedido SAP.')
             })
 
         data = {
-            'sap_opor_id': item.id,
-            'codigo': item.SOP_ITEMCODE or '',
-            'pedido': item.SOP_DOCNUM or '',
-            'cantidad_disponible': str(item.SOP_OPENQTY) if item.SOP_OPENQTY is not None else '',
-            'docentry': item.SOP_DOCENTRY or '',
-            'proveedor_codigo': item.SOP_CARDCODE or '',
-            'proveedor_nombre': item.SOP_CARDNAME or '',
-            'empresa_id': item.EP_NID_id,
+            'sap_opor_id': resultado.get('docentry', ''),
+            'codigo': resultado.get('itemcode', ''),
+            'insumo': resultado.get('descripcion', ''),
+            'pedido': resultado.get('docnum', ''),
+            'cantidad_disponible': resultado.get('cantidad_disponible', ''),
+            'docentry': resultado.get('docentry', ''),
+            'proveedor_codigo': resultado.get('cardcode', ''),
+            'proveedor_nombre': resultado.get('cardname', ''),
+            'bl': resultado.get('contenedor', '') or resultado.get('bl', ''),
+            'bl_contenedor': resultado.get('contenedor', '') or resultado.get('bl_contenedor', ''),
+            'contenedor': resultado.get('contenedor', ''),
         }
 
         return JsonResponse({
@@ -3481,6 +4156,12 @@ def BUSCAR_OPOR_POR_PEDIDO(request):
             'data': [data]
         })
 
+    except SapDiApiError as e:
+        return JsonResponse({
+            'success': False,
+            'total': 0,
+            'message': str(e)
+        }, status=503)
     except Exception as e:
         print('ERROR BUSCAR_OPOR_POR_PEDIDO:', e)
 
@@ -3511,6 +4192,25 @@ def validar_perfiles_activos(id_user, template):
 #####################  VALIDACIÓN DE EMPRESA ACTIVA NUEVO #####################
 ##########################################################################
 
+EMPRESA_ACTIVA_PARAM = '_empresa_id'
+
+
+def obtener_empresa_request_id(request):
+    empresa_id = request.GET.get(EMPRESA_ACTIVA_PARAM) or request.POST.get(EMPRESA_ACTIVA_PARAM)
+
+    if empresa_id and str(empresa_id).isdigit():
+        return int(empresa_id)
+
+    return None
+
+
+def usuario_tiene_empresa(request, empresa_id):
+    return USERS_EMPRESA.objects.filter(
+        US_NID=request.user,
+        EP_NID_id=empresa_id
+    ).exists()
+
+
 def Verificar_empresa(request):
     """
     Retorna el ID de la empresa activa del usuario.
@@ -3522,15 +4222,20 @@ def Verificar_empresa(request):
     - Si el usuario no tiene empresa asignada, retorna None.
     """
 
+    empresa_id = obtener_empresa_request_id(request)
+
+    if empresa_id:
+        if usuario_tiene_empresa(request, empresa_id):
+            request.session['empresa_id'] = empresa_id
+            return empresa_id
+
+        messages.error(request, 'No tiene acceso a la empresa seleccionada.')
+        return None
+
     empresa_id = request.session.get('empresa_id')
 
     if empresa_id:
-        acceso = USERS_EMPRESA.objects.filter(
-            US_NID=request.user,
-            EP_NID_id=empresa_id
-        ).exists()
-
-        if acceso:
+        if usuario_tiene_empresa(request, empresa_id):
             return empresa_id
 
         request.session.pop('empresa_id', None)
@@ -3642,7 +4347,7 @@ def cambiar_empresa(request, empresa_id):
             messages.error(request, 'No tiene acceso a la empresa seleccionada.')
             return redirect('/seleccionar_empresa/')
 
-        # Guardar empresa activa en session
+        # Guardar empresa activa en session como fallback para flujos antiguos.
         request.session['empresa_id'] = empresa_id
 
         # Mensaje informativo
@@ -3733,6 +4438,7 @@ def inicio(request):
         citacion_terminada_noproforma = get_citacion_terminada_noproforma(Empresa)
         citaciones_por_etapa = get_citacion_por_etapa(Empresa)
         citacion_por_secuencia = get_citacion_por_secuencia(Empresa)
+        top_camiones_tiempo_planta = obtener_top_camiones_tiempo_planta(Empresa, limite=3)
 
         citacion_tipos = [
             ('Despachos', citaciones_despachos.count()),
@@ -3807,6 +4513,7 @@ def inicio(request):
             'cupos_por_proveedor': cupos_por_proveedor,
             'citacion_por_etapa': citaciones_por_etapa,
             'citacion_por_secuencia': citacion_por_secuencia,
+            'top_camiones_tiempo_planta': top_camiones_tiempo_planta,
             'proformas': proformas_por_socionegocio,
             'today': today.strftime('%d-%m-%Y'),
             'one_week_before': one_week_before.strftime('%d-%m-%Y')
@@ -4089,7 +4796,11 @@ def CONDUCTOR_LISTALL(request):
                 return redirect('/')
         Empresa = Verificar_empresa(request)
         if request.user.userv.UX_IS_PROVEEDOR:
-            usuario_socionegocio = USUARIO_SOCIONEGOCIO.objects.get(US_NID_id = request.user.id)
+            usuario_socionegocio = USUARIO_SOCIONEGOCIO.objects.filter(US_NID_id=request.user.id).first()
+        else:
+            usuario_socionegocio = None
+
+        if usuario_socionegocio:
             object_list = CONDUCTOR.objects.filter(CON_BHABILITADO = True, EP_NID_id = Empresa, SN_NID_id = usuario_socionegocio.SN_NID_id)
         else:
             object_list = CONDUCTOR.objects.filter(CON_BHABILITADO = True, EP_NID_id = Empresa) 
@@ -4904,7 +5615,11 @@ def CAMION_LISTALL(request):
                 return redirect('/')
         Empresa = Verificar_empresa(request) 
         if request.user.userv.UX_IS_PROVEEDOR:
-            usuario_socionegocio = USUARIO_SOCIONEGOCIO.objects.get(US_NID_id = request.user.id)
+            usuario_socionegocio = USUARIO_SOCIONEGOCIO.objects.filter(US_NID_id=request.user.id).first()
+        else:
+            usuario_socionegocio = None
+
+        if usuario_socionegocio:
             camiones = CAMION.objects.filter(CAM_BHABILITADO = True, EP_NID_id = Empresa, SN_NID_id = usuario_socionegocio.SN_NID_id)
         else:
             camiones = CAMION.objects.filter(CAM_BHABILITADO = True, EP_NID_id = Empresa)
@@ -6194,9 +6909,20 @@ def OBTENER_EMPRESA_USUARIO(request):
 
 def ACTUALIZAR_EMPRESA_USUARIO(request,ep_id):
     try:
-        empresa = USERS_EMPRESA.objects.filter(US_NID_id = request.user.id).update(EP_NID_id = ep_id)
+        acceso = USERS_EMPRESA.objects.filter(
+            US_NID_id=request.user.id,
+            EP_NID_id=ep_id
+        ).exists()
+
+        if not acceso:
+            messages.error(request, 'No tiene acceso a la empresa seleccionada.')
+            return redirect('/seleccionar_empresa/')
+
+        request.session['empresa_id'] = ep_id
+        next_url = request.META.get('HTTP_REFERER', '/') or '/'
+        separator = '&' if '?' in next_url else '?'
         messages.success(request, 'Empresa actualizada correctamente')
-        return redirect(request.META.get('HTTP_REFERER', '/'))
+        return redirect(f'{next_url}{separator}{EMPRESA_ACTIVA_PARAM}={ep_id}')
     except Exception as e:
         print(e)
         messages.error(request, f'Error, {str(e)}')
@@ -6219,18 +6945,23 @@ def Verificar_empresa(request):
 
     try:
 
-        # Buscar empresa activa en session
+        # Prioridad: empresa de la ventana/pestaña actual.
+        empresa_id = obtener_empresa_request_id(request)
+
+        if empresa_id:
+            if usuario_tiene_empresa(request, empresa_id):
+                request.session['empresa_id'] = empresa_id
+                return empresa_id
+
+            messages.error(request, 'No tiene acceso a la empresa seleccionada.')
+            return None
+
+        # Fallback: empresa activa en session para compatibilidad.
         empresa_id = request.session.get('empresa_id')
 
         # Validar acceso a empresa activa
         if empresa_id:
-
-            acceso = USERS_EMPRESA.objects.filter(
-                US_NID=request.user,
-                EP_NID_id=empresa_id
-            ).exists()
-
-            if acceso:
+            if usuario_tiene_empresa(request, empresa_id):
                 return empresa_id
 
             # Si perdió acceso, limpiar session
@@ -6753,18 +7484,13 @@ def PLANIFICACION_LISTONE(request, pk):
 
         planificacion = PLANIFICACION.objects.get(id=pk, EP_NID_id=Empresa)
 
-        clientes_sap = obtener_clientes_aceite(Empresa)
+        try:
+            clientes_sap = obtener_clientes_aceite(Empresa)
+        except Exception as e:
+            print(f'PLANIFICACION_LISTONE clientes_sap no disponibles: {e}')
+            clientes_sap = []
 
-        proveedores_sap = SAP_OPOR_PROGRAMACION.objects.filter(
-            EP_NID_id=Empresa,
-            SOP_BHABILITADO=True,
-            SOP_CARDNAME__isnull=False
-        ).exclude(
-            SOP_CARDNAME=''
-        ).values(
-            'SOP_CARDCODE',
-            'SOP_CARDNAME'
-        ).distinct().order_by('SOP_CARDNAME')
+        proveedores_sap = []
 
         secuencias = SECUENCIA.objects.filter(
             EP_NID_id=Empresa,
@@ -6872,6 +7598,30 @@ def PLANIFICACION_LISTONE(request, pk):
             tipo_eje_operacional = texto_sin_informacion(valores_ingreso.get('cantidad_ejes'))
             transportista_operacional = texto_sin_informacion(valores_ingreso.get('transportista'))
 
+            log_ingreso_guardia = SYSLOGGER.objects.select_related('US_NID').filter(
+                LOG_COPERACION='ING_CAMION',
+                LOG_CADD1=str(row.pk)
+            ).order_by('-LOG_FFECHAREGISTRO').first()
+            datos_ingreso_guardia, _ = obtener_datos_operacion_citacion(row)
+            campos_ingreso_guardia = [
+                'ING_EMPRESA_TRANSPORTE',
+                'ING_NOMBRE_CONDUCTOR',
+                'ING_TELEFONO_CONDUCTOR',
+                'ING_PATENTE',
+                'ING_CANTIDAD_EJES',
+                'ING_BL',
+                'ING_LOTE_CONTENEDOR',
+                'ING_OBSERVACION',
+            ]
+            ingreso_guardia_registrado = bool(log_ingreso_guardia) or any(
+                datos_ingreso_guardia.get(codigo)
+                and datos_ingreso_guardia[codigo].DO_CVALOR not in [None, '']
+                for codigo in campos_ingreso_guardia
+            )
+            pendiente_envio_asistente = ingreso_guardia_registrado and not enviado_asistente
+            ingreso_guardia_usuario = log_ingreso_guardia.US_NID.username if log_ingreso_guardia and log_ingreso_guardia.US_NID else ''
+            ingreso_guardia_fecha = log_ingreso_guardia.LOG_FFECHAREGISTRO if log_ingreso_guardia else None
+
             if row.CI_CTIPO == CIT_DESPACHO:
                 despachos.append([
                     row.pk,
@@ -6913,7 +7663,10 @@ def PLANIFICACION_LISTONE(request, pk):
                     guardia_porteria_fecha,
                     planta_autorizada,
                     planta_autorizada_usuario,
-                    planta_autorizada_fecha
+                    planta_autorizada_fecha,
+                    pendiente_envio_asistente,
+                    ingreso_guardia_usuario,
+                    ingreso_guardia_fecha
                 ])
 
             elif row.CI_CTIPO == CIT_RECEPCION:
@@ -6951,7 +7704,10 @@ def PLANIFICACION_LISTONE(request, pk):
                     guardia_porteria_fecha,
                     planta_autorizada,
                     planta_autorizada_usuario,
-                    planta_autorizada_fecha
+                    planta_autorizada_fecha,
+                    pendiente_envio_asistente,
+                    ingreso_guardia_usuario,
+                    ingreso_guardia_fecha
                 ])
 
         ctx = {
@@ -8247,7 +9003,9 @@ def CITACION_LISTALL_DESPACHOS(request):
             )
         )
 
-        if acceso_operacion and not request.user.is_superuser:
+        guardia_ingreso = usuario_es_guardia(request.user) and not usuario_es_guardia_porteria(request.user)
+
+        if acceso_operacion and not request.user.is_superuser and not guardia_ingreso:
             citaciones_operacion = SYSLOGGER.objects.filter(
                 LOG_COPERACION='AUTORIZA_INGRESO_PLANTA'
             ).values_list('LOG_CADD1', flat=True)
@@ -8312,6 +9070,7 @@ def CITACION_LISTALL_DESPACHOS(request):
             'ltsProveedores': ltsProveedores,
             'permiso_borrar': permiso_borrar,
             'acceso_operacion_planta': acceso_operacion,
+            'guardia_ingreso': guardia_ingreso,
         }
 
         query_params = request.GET.copy()
@@ -8371,7 +9130,9 @@ def CITACION_LISTALL_RECEPCIONES(request):
             CI_BHABILITADO=True
         )
 
-        if acceso_operacion and not request.user.is_superuser:
+        guardia_ingreso = usuario_es_guardia(request.user) and not usuario_es_guardia_porteria(request.user)
+
+        if acceso_operacion and not request.user.is_superuser and not guardia_ingreso:
             citaciones_operacion = SYSLOGGER.objects.filter(
                 LOG_COPERACION='AUTORIZA_INGRESO_PLANTA'
             ).values_list('LOG_CADD1', flat=True)
@@ -8448,6 +9209,7 @@ def CITACION_LISTALL_RECEPCIONES(request):
             'secuencia_id': secuencia_id,
             'ltsProveedores': ltsProveedores,
             'acceso_operacion_planta': acceso_operacion,
+            'guardia_ingreso': guardia_ingreso,
         }
 
         query_params = request.GET.copy()
@@ -8472,7 +9234,12 @@ def CITACION_LISTALL_RECEPCIONES(request):
 def OPERACION_PLANTA_CITACION(request, pk):
     if not usuario_es_operacion_planta(request.user):
         messages.error(request, 'No tiene permisos para acceder a Operacion Planta')
-        return redirect('/')
+        next_url = request.GET.get('next') or '/'
+        empresa_id_redirect = obtener_empresa_request_id(request) or request.session.get('empresa_id')
+        if empresa_id_redirect:
+            separator = '&' if '?' in next_url else '?'
+            return redirect(f'{next_url}{separator}{EMPRESA_ACTIVA_PARAM}={empresa_id_redirect}')
+        return redirect(next_url)
 
     Empresa = Verificar_empresa(request)
     if Empresa is None:
@@ -8523,13 +9290,16 @@ def OPERACION_PLANTA_CITACION(request, pk):
         })
 
     valores_ingreso = obtener_valores_ingreso_camion(citacion)
+    _, documentos_operacion = obtener_datos_operacion_citacion(citacion)
     ctx = {
         'citacion': citacion,
         'nombre_flujo': nombre_flujo,
         'pasos': pasos,
         'patente': texto_sin_informacion(valores_ingreso.get('patente')),
         'conductor': texto_sin_informacion(valores_ingreso.get('conductor')),
+        'telefono_conductor': texto_sin_informacion(valores_ingreso.get('celular_conductor')),
         'transportista': texto_sin_informacion(valores_ingreso.get('transportista')),
+        'documentos_operacion': documentos_operacion,
     }
     return render(request, 'home/CITACION/operacion_planta.html', ctx)
 
@@ -8607,6 +9377,72 @@ def formatear_duracion_planta(fecha_inicio):
     if horas:
         return f'{horas}h {minutos}m'
     return f'{minutos}m'
+
+
+def obtener_top_camiones_tiempo_planta(empresa_id, limite=3):
+    logs_autorizacion = SYSLOGGER.objects.select_related('US_NID').filter(
+        EP_NID_id=empresa_id,
+        LOG_COPERACION='AUTORIZA_INGRESO_PLANTA'
+    ).order_by('-LOG_FFECHAREGISTRO')
+
+    autorizacion_por_citacion = {}
+    for log in logs_autorizacion:
+        citacion_id = str(log.LOG_CADD1 or '').strip()
+        if citacion_id.isdigit() and citacion_id not in autorizacion_por_citacion:
+            autorizacion_por_citacion[citacion_id] = log
+
+    citacion_ids = [int(citacion_id) for citacion_id in autorizacion_por_citacion.keys()]
+    if not citacion_ids:
+        return []
+
+    citaciones = CITACION.objects.select_related(
+        'EP_NID', 'PL_NID', 'SC_NID', 'SN_NID', 'CA_NID'
+    ).filter(
+        id__in=citacion_ids,
+        EP_NID_id=empresa_id,
+        CI_BHABILITADO=True
+    )
+
+    citaciones_con_salida = set(OPERACION_PLANTA_LOG.objects.filter(
+        CI_NID_id__in=citacion_ids,
+        OPL_CPASO='Confirmar Salida',
+        OPL_CESTADO=OPERACION_PLANTA_LOG.ESTADO_COMPLETADO
+    ).values_list('CI_NID_id', flat=True))
+
+    ranking = []
+    for citacion in citaciones:
+        if citacion.id in citaciones_con_salida:
+            continue
+
+        log_autorizacion = autorizacion_por_citacion.get(str(citacion.id))
+        if not log_autorizacion or not log_autorizacion.LOG_FFECHAREGISTRO:
+            continue
+
+        logs_pasos = list(OPERACION_PLANTA_LOG.objects.filter(
+            CI_NID=citacion
+        ).order_by('OPL_FFECHAREGISTRO'))
+        completados = {
+            log.OPL_CPASO
+            for log in logs_pasos
+            if log.OPL_CESTADO == OPERACION_PLANTA_LOG.ESTADO_COMPLETADO
+        }
+        nombre_flujo, pasos_config = obtener_pasos_operacion_citacion(citacion)
+        etapa_actual = resolver_estado_operacional_visible(citacion, pasos_config, completados)
+        valores_ingreso = obtener_valores_ingreso_camion(citacion)
+
+        ranking.append({
+            'citacion': citacion,
+            'patente': texto_sin_informacion(valores_ingreso.get('patente')),
+            'conductor': texto_sin_informacion(valores_ingreso.get('conductor')),
+            'estado_actual': etapa_actual,
+            'nombre_flujo': nombre_flujo,
+            'ingreso_autorizado': timezone.localtime(log_autorizacion.LOG_FFECHAREGISTRO).strftime('%d/%m/%Y %H:%M'),
+            'tiempo_planta': formatear_duracion_planta(log_autorizacion.LOG_FFECHAREGISTRO),
+            'minutos_planta': max(int((timezone.now() - log_autorizacion.LOG_FFECHAREGISTRO).total_seconds() // 60), 0),
+        })
+
+    ranking.sort(key=lambda item: item['minutos_planta'], reverse=True)
+    return ranking[:limite]
 
 
 def SEGUIMIENTO_OPERACIONAL(request):
@@ -10212,24 +11048,220 @@ def ajax_validar_citaciones(request):
 
 def DOWNLOAD_DATO_OPERACION_FILE(request, pk):
     try:
-        if request.user.is_superuser == False:                     
+        dato_operacion = DATO_OPERACION.objects.get(id=pk)
+        empresa = Verificar_empresa(request)
+
+        if empresa is not None and dato_operacion.EP_NID_id != empresa:
+            messages.error(request, 'Documento no disponible para la empresa activa')
+            return redirect('/')
+
+        if request.user.is_superuser == False:
             usuario = request.user.id
-            if not validar_perfiles_activos(usuario, "cit_listone"):
-                messages.error(request, 'No tiene permisos para acceder a esta sección')
+            tiene_permiso_citacion = validar_perfiles_activos(usuario, "cit_listone")
+            tiene_permiso_operacion = usuario_es_operacion_planta(request.user)
+            if not tiene_permiso_citacion and not tiene_permiso_operacion:
+                messages.error(request, 'No tiene permisos para acceder a esta seccion')
                 return redirect('/')
 
-        dato_operacion = DATO_OPERACION.objects.get(id = pk)
         file_path = dato_operacion.DO_CVALOR
         if os.path.exists(file_path):
             response = FileResponse(open(file_path, 'rb'))
             response['Content-Disposition'] = f'attachment; filename="{os.path.basename(file_path)}"'
             return response
-        else:
-            messages.error(request, 'Documento no encontrado')
-            return redirect(f'/cit_listone/{dato_operacion.CI_NID.pk}')
+
+        messages.error(request, 'Documento no encontrado')
+        return redirect(f'/cit_listone/{dato_operacion.CI_NID.pk}')
     except Exception as e:
         print(e)
         return JsonResponse({'success': False})
+
+
+def aplicar_filtros_expediente_citacion(queryset, params):
+    citacion = str(params.get('citacion') or '').strip()
+    producto_sap = str(params.get('producto_sap') or '').strip()
+    codigo_sap = str(params.get('codigo_sap') or '').strip()
+    pedido_sap = str(params.get('pedido_sap') or '').strip()
+    cliente = str(params.get('cliente') or '').strip()
+    proveedor = str(params.get('proveedor') or '').strip()
+    fecha_desde = parse_date(str(params.get('fecha_desde') or '').strip())
+    fecha_hasta = parse_date(str(params.get('fecha_hasta') or '').strip())
+    tipo_documento = str(params.get('tipo_documento') or '').strip()
+
+    if citacion and citacion.isdigit():
+        queryset = queryset.filter(CI_NID_id=citacion)
+    elif citacion:
+        queryset = queryset.none()
+    if producto_sap:
+        queryset = queryset.filter(CI_NID__detalle_operacional__CDO_CINSUMO__icontains=producto_sap)
+    if codigo_sap:
+        queryset = queryset.filter(CI_NID__detalle_operacional__CDO_CCODIGO_SAP__icontains=codigo_sap)
+    if pedido_sap:
+        queryset = queryset.filter(CI_NID__detalle_operacional__CDO_CPEDIDO_SAP__icontains=pedido_sap)
+    if cliente:
+        queryset = queryset.filter(CI_NID__SN_NID__SN_CRAZONSOCIAL__icontains=cliente)
+    if proveedor:
+        queryset = queryset.filter(CI_NID__PRO_NID__SN_CRAZONSOCIAL__icontains=proveedor)
+    if fecha_desde:
+        queryset = queryset.filter(CI_NID__CI_FFECHACITACION__date__gte=fecha_desde)
+    if fecha_hasta:
+        queryset = queryset.filter(CI_NID__CI_FFECHACITACION__date__lte=fecha_hasta)
+    if tipo_documento:
+        queryset = queryset.filter(CD_CTIPO=tipo_documento)
+    return queryset
+
+
+def EXPEDIENTE_CITACION_LIST(request):
+    empresa = Verificar_empresa(request)
+    if empresa is None:
+        messages.error(request, 'Debe seleccionar una empresa activa')
+        return redirect('/')
+
+    sincronizar_expedientes_legacy_empresa(empresa)
+    documentos = CITACION_DOCUMENTO.objects.select_related(
+        'CI_NID',
+        'CI_NID__SN_NID',
+        'CI_NID__PRO_NID',
+        'CI_NID__detalle_operacional',
+        'US_SUBE_NID'
+    ).filter(
+        EP_NID_id=empresa,
+        CD_BACTIVO=True
+    )
+    documentos = aplicar_filtros_expediente_citacion(documentos, request.GET)
+    documentos = documentos.order_by('-CI_NID__CI_FFECHACITACION', '-CD_FFECHASUBIDA')
+
+    paginator = Paginator(documentos, 50)
+    page_number = request.GET.get('page')
+    page_obj = paginator.get_page(page_number)
+    querystring = request.GET.copy()
+    querystring.pop('page', None)
+
+    return render(request, 'home/EXPEDIENTE/expediente_list.html', {
+        'page_obj': page_obj,
+        'object_list': page_obj.object_list,
+        'tipos_documento': EXPEDIENTE_TIPO_LABELS.items(),
+        'filtros': request.GET,
+        'querystring': querystring.urlencode(),
+        'puede_administrar': usuario_puede_administrar_expediente(request.user),
+    })
+
+
+def EXPEDIENTE_CITACION_DETAIL(request, pk):
+    empresa = Verificar_empresa(request)
+    citacion = get_object_or_404(
+        CITACION.objects.select_related('SN_NID', 'PRO_NID', 'PL_NID', 'SC_NID'),
+        pk=pk,
+        EP_NID_id=empresa
+    )
+    sincronizar_expediente_legacy_citacion(citacion)
+
+    documentos_activos = {
+        documento.CD_CTIPO: documento
+        for documento in CITACION_DOCUMENTO.objects.select_related('US_SUBE_NID').filter(
+            CI_NID=citacion,
+            EP_NID_id=empresa,
+            CD_BACTIVO=True
+        )
+    }
+    historial = CITACION_DOCUMENTO.objects.select_related('US_SUBE_NID', 'US_MODIFICA_NID').filter(
+        CI_NID=citacion,
+        EP_NID_id=empresa
+    ).order_by('-CD_FFECHASUBIDA')
+
+    documentos = []
+    for tipo, etiqueta in EXPEDIENTE_TIPO_LABELS.items():
+        documentos.append({
+            'tipo': tipo,
+            'etiqueta': etiqueta,
+            'documento': documentos_activos.get(tipo),
+        })
+
+    detalle = getattr(citacion, 'detalle_operacional', None)
+    return render(request, 'home/EXPEDIENTE/expediente_detail.html', {
+        'citacion': citacion,
+        'detalle': detalle,
+        'documentos': documentos,
+        'historial': historial,
+        'puede_administrar': usuario_puede_administrar_expediente(request.user),
+    })
+
+
+def obtener_documento_expediente_autorizado(request, pk):
+    empresa = Verificar_empresa(request)
+    documento = get_object_or_404(
+        CITACION_DOCUMENTO.objects.select_related('CI_NID', 'EP_NID'),
+        pk=pk,
+        EP_NID_id=empresa
+    )
+    return documento
+
+
+def responder_documento_expediente(request, pk, descargar=False):
+    documento = obtener_documento_expediente_autorizado(request, pk)
+    file_path = documento.CD_CRUTA_ARCHIVO
+    if not os.path.exists(file_path):
+        messages.error(request, 'Documento no encontrado')
+        return redirect('expediente_citacion_detail', pk=documento.CI_NID_id)
+
+    registrar_log_camion_no_planificado(
+        request.user,
+        documento.EP_NID,
+        'DOC_CIT_DESC' if descargar else 'DOC_CIT_VER',
+        f'Documento {documento.CD_CTIPO} {"descargado" if descargar else "visto"} desde expediente de citacion #{documento.CI_NID_id}',
+        documento.CI_NID_id,
+        documento.CD_CTIPO
+    )
+    response = FileResponse(open(file_path, 'rb'), as_attachment=descargar, filename=documento.CD_CNOMBRE_ARCHIVO)
+    if not descargar:
+        response['Content-Disposition'] = f'inline; filename="{documento.CD_CNOMBRE_ARCHIVO}"'
+    return response
+
+
+def EXPEDIENTE_CITACION_DOCUMENTO_VER(request, pk):
+    return responder_documento_expediente(request, pk, descargar=False)
+
+
+def EXPEDIENTE_CITACION_DOCUMENTO_DESCARGAR(request, pk):
+    return responder_documento_expediente(request, pk, descargar=True)
+
+
+def EXPEDIENTE_CITACION_DOCUMENTO_REEMPLAZAR(request, pk):
+    documento = obtener_documento_expediente_autorizado(request, pk)
+    if not usuario_puede_administrar_expediente(request.user):
+        messages.error(request, 'No tiene permisos para reemplazar documentos')
+        return redirect('expediente_citacion_detail', pk=documento.CI_NID_id)
+    if request.method != 'POST':
+        return redirect('expediente_citacion_detail', pk=documento.CI_NID_id)
+
+    archivo = request.FILES.get('archivo')
+    if not archivo:
+        messages.error(request, 'Debe seleccionar un archivo')
+        return redirect('expediente_citacion_detail', pk=documento.CI_NID_id)
+
+    ruta_archivo, nombre_archivo = guardar_archivo_expediente_citacion(
+        documento.CI_NID,
+        documento.CD_CTIPO,
+        archivo
+    )
+    nuevo_documento = registrar_documento_expediente(
+        documento.CI_NID,
+        documento.CD_CTIPO,
+        ruta_archivo,
+        nombre_archivo,
+        request.user,
+        dato_operacion=documento.DO_NID
+    )
+    registrar_log_camion_no_planificado(
+        request.user,
+        documento.EP_NID,
+        'DOC_CIT_REEMP',
+        f'Documento {documento.CD_CTIPO} reemplazado en expediente de citacion #{documento.CI_NID_id}',
+        documento.CI_NID_id,
+        nuevo_documento.id
+    )
+    messages.success(request, 'Documento reemplazado correctamente')
+    return redirect('expediente_citacion_detail', pk=documento.CI_NID_id)
+
 
 def ajax_listar_archivos_tickets(request):
     """Lista archivos en \tickets que contengan el número de citación y la patente"""
@@ -13612,9 +14644,77 @@ def cerrar_notificaciones_guardia_porteria_incorrectas(user):
     )
 
 
+def asegurar_notificaciones_asistente_recepcion_pendientes(user):
+    if not usuario_es_asistente_recepcion(user):
+        return
+
+    logs_envio = ETAPA_LOG.objects.select_related(
+        'CI_NID',
+        'CI_NID__EP_NID',
+        'CI_NID__PL_NID',
+        'CI_NID__SC_NID',
+        'ET_NID',
+        'US_INICIO_ID'
+    ).filter(
+        EL_CACCION='ENVIA_ASISTENTE',
+        EL_FFECHAFIN=None,
+        CI_NID__CI_CESTADO=CIT_EN_PROCESO,
+        CI_NID__CI_BHABILITADO=True,
+        CI_NID__CI_BARCHIVADO=False
+    ).order_by('-EL_FFECHAINICIO')[:20]
+
+    for log_envio in logs_envio:
+        citacion = log_envio.CI_NID
+        if not citacion or not citacion.PL_NID_id:
+            continue
+
+        detalle_actual = DETALLE_SECUENCIA.objects.filter(
+            SC_NID=citacion.SC_NID,
+            ET_NID=log_envio.ET_NID,
+            SE_BHABILITADO=True
+        ).first()
+        if detalle_actual and detalle_actual.SE_NPASO != 2:
+            continue
+
+        notificacion_url = f'/pla_listone/{citacion.PL_NID_id}'
+        if NOTIFICACION.objects.filter(
+            USER_RECEIVER_ID=user,
+            NOT_CURL=notificacion_url,
+            NOT_CCONTENIDO__icontains=f'Citacion: {citacion.id}',
+            NOT_BHABILITADO=True
+        ).exists():
+            continue
+
+        valores_ingreso = obtener_valores_ingreso_camion(citacion)
+        fecha_base = log_envio.EL_FFECHAINICIO or timezone.now()
+        if timezone.is_naive(fecha_base):
+            fecha_base = timezone.make_aware(fecha_base)
+        fecha_envio = timezone.localtime(fecha_base).strftime('%d/%m/%Y %H:%M:%S')
+        guardia = log_envio.US_INICIO_ID or user
+        mensaje = (
+            'Nuevo camion pendiente de aprobacion/revision.\n'
+            f'Citacion: {citacion.id}\n'
+            f'Patente: {texto_sin_informacion(valores_ingreso.get("patente"))}\n'
+            f'Cantidad de ejes: {texto_sin_informacion(valores_ingreso.get("cantidad_ejes"))}\n'
+            f'Conductor: {texto_sin_informacion(valores_ingreso.get("conductor"))}\n'
+            f'Celular conductor: {texto_sin_informacion(valores_ingreso.get("celular_conductor"))}\n'
+            f'Empresa transporte: {texto_sin_informacion(valores_ingreso.get("transportista"))}\n'
+            f'Fecha/hora envio: {fecha_envio}\n'
+            f'Guardia: {guardia.username}'
+        )
+        NOTIFICACION.objects.create(
+            USER_SENDER_ID=guardia,
+            USER_RECEIVER_ID=user,
+            EP_NID=citacion.EP_NID,
+            NOT_CCONTENIDO=mensaje,
+            NOT_CURL=notificacion_url
+        )
+
+
 def CHECK_NOTIFICATIONS(request):
     try:
         cerrar_notificaciones_guardia_porteria_incorrectas(request.user)
+        asegurar_notificaciones_asistente_recepcion_pendientes(request.user)
         asegurar_notificaciones_guardia_porteria_pendientes(request.user)
         notificaciones = get_notificaciones(request.user.id)
         return JsonResponse({

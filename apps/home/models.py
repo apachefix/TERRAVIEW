@@ -1128,6 +1128,65 @@ class DATO_OPERACION(models.Model):
         db_table = "DATO_OPERACION"
 
 
+class CITACION_DOCUMENTO(models.Model):
+    TIPO_GUIA = 'GUIA'
+    TIPO_TICKET_ORIGEN = 'TICKET_ORIGEN'
+    TIPO_SERNAPESCA = 'SERNAPESCA'
+
+    TIPOS_INICIALES = (
+        (TIPO_GUIA, 'Guia'),
+        (TIPO_TICKET_ORIGEN, 'Ticket origen'),
+        (TIPO_SERNAPESCA, 'Sernapesca'),
+    )
+
+    CI_NID = models.ForeignKey(
+        CITACION,
+        verbose_name='Id citacion',
+        on_delete=models.PROTECT,
+        related_name='documentos_expediente'
+    )
+    EP_NID = models.ForeignKey(EMPRESA, verbose_name='Id empresa', on_delete=models.PROTECT)
+    DO_NID = models.ForeignKey(
+        DATO_OPERACION,
+        verbose_name='Id dato operacion',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='documentos_expediente'
+    )
+    CD_CTIPO = models.CharField('Tipo documento', max_length=64, choices=TIPOS_INICIALES)
+    CD_CRUTA_ARCHIVO = models.TextField('Ruta archivo')
+    CD_CNOMBRE_ARCHIVO = models.CharField('Nombre archivo', max_length=255)
+    CD_FFECHASUBIDA = models.DateTimeField('Fecha subida', auto_now_add=True)
+    US_SUBE_NID = models.ForeignKey(
+        User,
+        verbose_name='Usuario subida',
+        on_delete=models.PROTECT,
+        null=True,
+        blank=True,
+        related_name='citacion_documentos_subidos'
+    )
+    CD_FFECHAMODIFICACION = models.DateTimeField('Fecha modificacion', null=True, blank=True)
+    US_MODIFICA_NID = models.ForeignKey(
+        User,
+        verbose_name='Usuario modificacion',
+        on_delete=models.PROTECT,
+        null=True,
+        blank=True,
+        related_name='citacion_documentos_modificados'
+    )
+    CD_BACTIVO = models.BooleanField('Estado activo', default=True)
+
+    class Meta:
+        db_table = "CITACION_DOCUMENTO"
+        indexes = [
+            models.Index(fields=['EP_NID', 'CD_BACTIVO'], name='CIT_DOC_EP_ACT_idx'),
+            models.Index(fields=['CI_NID', 'CD_CTIPO', 'CD_BACTIVO'], name='CIT_DOC_CI_TIPO_ACT_idx'),
+            models.Index(fields=['CD_CTIPO'], name='CIT_DOC_TIPO_idx'),
+            models.Index(fields=['CD_FFECHASUBIDA'], name='CIT_DOC_FECHA_idx'),
+        ]
+
+
 class ESTANQUE_RESERVA(models.Model):
     ESTADO_OCUPADO = 'OCUPADO'
     ESTADO_LIBERADO = 'LIBERADO'

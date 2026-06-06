@@ -24,6 +24,7 @@
     </li>
     {% endif %}
 
+    {% if not request.user|es_usuario_maesc %}
     {% if request.user|has_vista:'PROVEEDOR' or request.user.is_superuser == 1 %}
     <li class="nav-item pcoded-hasmenu">
         <a href="#" class="nav-link "><span class="pcoded-micon"><i class="fas fa-user-lock"></i></span><span class="pcoded-mtext">Proveedor</span></a>
@@ -116,11 +117,16 @@
         </ul>
     </li>
     {% endif %}
+    {% endif %}
 
     <li class="nav-item">
         <a href="{% url 'seguimiento_operacional' %}" class="nav-link "><span class="pcoded-micon"><i class="fas fa-route"></i></span><span class="pcoded-mtext">Seguimiento Operacional</span></a>
     </li>
+    <li class="nav-item">
+        <a href="{% url 'expediente_citacion_list' %}" class="nav-link "><span class="pcoded-micon"><i class="fas fa-folder-open"></i></span><span class="pcoded-mtext">Expediente de Citaci&oacute;n</span></a>
+    </li>
     
+    {% if not request.user|es_usuario_maesc %}
     {% if request.user|has_vista:'PROFORMAS' or request.user.is_superuser == 1 %}
     <li class="nav-item pcoded-hasmenu">
         <a href="#" class="nav-link "><span class="pcoded-micon"><i class="fas fa-file-invoice-dollar"></i></span><span class="pcoded-mtext">Proformas</span></a>
@@ -242,5 +248,6 @@
             <li><a href="{% url 'zon_listall' %}">Zonas</a></li>
         </ul>
     </li>
+    {% endif %}
     {% endif %}
 </ul>

@@ -3,43 +3,493 @@
 
 {% block title %} Operacion Planta {% endblock %}
 
+{% block stylesheets %}
+<style>
+    .operacion-hero {
+        position: relative;
+        overflow: hidden;
+        border-radius: 8px;
+        border: 1px solid rgba(232, 227, 200, 0.24);
+        background:
+            linear-gradient(120deg, rgba(11, 37, 69, 0.98) 0%, rgba(16, 47, 87, 0.96) 58%, rgba(211, 107, 92, 0.92) 100%);
+        box-shadow: 0 18px 44px rgba(11, 37, 69, 0.20);
+        color: #fff;
+    }
+
+    .operacion-hero:before {
+        content: "";
+        position: absolute;
+        inset: 0;
+        background:
+            linear-gradient(90deg, rgba(255, 255, 255, 0.10) 1px, transparent 1px),
+            linear-gradient(180deg, rgba(255, 255, 255, 0.07) 1px, transparent 1px);
+        background-size: 38px 38px;
+        opacity: 0.16;
+        pointer-events: none;
+    }
+
+    .operacion-hero-inner {
+        position: relative;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 20px;
+        padding: 24px 28px;
+    }
+
+    .operacion-hero-title {
+        display: flex;
+        align-items: center;
+        gap: 16px;
+        margin-bottom: 12px;
+    }
+
+    .operacion-hero-icon {
+        width: 48px;
+        height: 48px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        border-radius: 8px;
+        background: rgba(232, 227, 200, 0.14);
+        border: 1px solid rgba(232, 227, 200, 0.22);
+        color: #E8E3C8;
+        font-size: 22px;
+        box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.08);
+    }
+
+    .operacion-hero h4 {
+        margin: 0;
+        color: #fff;
+        font-size: 24px;
+        font-weight: 800;
+        letter-spacing: 0;
+    }
+
+    .operacion-hero-subtitle {
+        margin: 3px 0 0;
+        color: rgba(255, 255, 255, 0.76);
+        font-size: 14px;
+    }
+
+    .operacion-hero-metrics {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 10px;
+    }
+
+    .operacion-hero-chip {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        min-height: 34px;
+        padding: 7px 12px;
+        border-radius: 6px;
+        background: rgba(255, 255, 255, 0.12);
+        border: 1px solid rgba(255, 255, 255, 0.18);
+        color: #fff;
+        font-size: 13px;
+        font-weight: 700;
+    }
+
+    .operacion-hero-chip span {
+        color: rgba(255, 255, 255, 0.68);
+        font-weight: 600;
+    }
+
+    .operacion-hero-status {
+        min-width: 230px;
+        padding: 16px 18px;
+        border-radius: 8px;
+        background: rgba(255, 255, 255, 0.14);
+        border: 1px solid rgba(255, 255, 255, 0.20);
+        backdrop-filter: blur(8px);
+    }
+
+    .operacion-hero-status-label {
+        margin-bottom: 5px;
+        color: rgba(255, 255, 255, 0.68);
+        font-size: 12px;
+        font-weight: 800;
+        text-transform: uppercase;
+    }
+
+    .operacion-hero-status-value {
+        color: #fff;
+        font-size: 18px;
+        font-weight: 800;
+        line-height: 1.2;
+    }
+
+    .operacion-hero-breadcrumb {
+        position: relative;
+        margin: 0;
+        padding: 12px 28px 16px;
+        background: rgba(7, 24, 45, 0.34);
+        border-top: 1px solid rgba(255, 255, 255, 0.10);
+    }
+
+    .operacion-hero-breadcrumb .breadcrumb {
+        margin: 0;
+        padding: 0;
+        background: transparent;
+    }
+
+    .operacion-hero-breadcrumb .breadcrumb-item,
+    .operacion-hero-breadcrumb .breadcrumb-item a {
+        color: rgba(255, 255, 255, 0.82);
+        font-weight: 600;
+    }
+
+    .operacion-hero-breadcrumb .breadcrumb-item.active,
+    .operacion-hero-breadcrumb .breadcrumb-item:last-child {
+        color: #fff;
+    }
+
+    .operacion-contact-card {
+        border: 1px solid rgba(11, 37, 69, 0.10);
+        border-radius: 8px;
+        box-shadow: 0 12px 32px rgba(11, 37, 69, 0.10);
+        overflow: hidden;
+    }
+
+    .operacion-contact-card .card-body {
+        padding: 22px 26px;
+    }
+
+    .operacion-contact-title {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        margin-bottom: 18px;
+    }
+
+    .operacion-contact-title-icon {
+        width: 40px;
+        height: 40px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        border-radius: 8px;
+        background: rgba(11, 37, 69, 0.08);
+        color: #0B2545;
+        font-size: 18px;
+    }
+
+    .operacion-contact-title h5 {
+        margin: 0;
+        font-size: 18px;
+        font-weight: 800;
+        color: #0B2545;
+    }
+
+    .operacion-contact-title p {
+        margin: 2px 0 0;
+        color: #6d7886;
+        font-size: 13px;
+    }
+
+    .operacion-contact-item {
+        padding: 14px 16px;
+        border-radius: 8px;
+        background: rgba(11, 37, 69, 0.035);
+        border: 1px solid rgba(11, 37, 69, 0.08);
+        min-height: 82px;
+    }
+
+    .operacion-contact-label {
+        display: block;
+        margin-bottom: 7px;
+        color: #6d7886;
+        font-size: 12px;
+        font-weight: 800;
+        text-transform: uppercase;
+    }
+
+    .operacion-contact-value {
+        color: #0B2545;
+        font-size: 16px;
+        font-weight: 800;
+        line-height: 1.25;
+    }
+
+    .operacion-call-row {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+    }
+
+    .btn-operacion-call {
+        min-width: 42px;
+        height: 38px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        border-radius: 8px;
+        background: linear-gradient(135deg, #0B2545, #102f57);
+        color: #fff;
+        border: 0;
+        box-shadow: 0 8px 18px rgba(11, 37, 69, 0.20);
+        transition: background 160ms ease, transform 160ms ease, box-shadow 160ms ease;
+    }
+
+    .btn-operacion-call:hover {
+        background: linear-gradient(135deg, #D36B5C, #b95347);
+        color: #fff;
+        transform: translateY(-1px);
+        box-shadow: 0 10px 24px rgba(211, 107, 92, 0.26);
+    }
+
+    .operacion-doc-card {
+        border: 1px solid rgba(11, 37, 69, 0.10);
+        border-radius: 8px;
+        box-shadow: 0 12px 32px rgba(11, 37, 69, 0.10);
+        overflow: hidden;
+    }
+
+    .operacion-doc-title {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 14px;
+        margin-bottom: 16px;
+    }
+
+    .operacion-doc-title-main {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+    }
+
+    .operacion-doc-icon {
+        width: 40px;
+        height: 40px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        border-radius: 8px;
+        background: rgba(211, 107, 92, 0.12);
+        color: #D36B5C;
+        font-size: 18px;
+    }
+
+    .operacion-doc-title h5 {
+        margin: 0;
+        font-size: 18px;
+        font-weight: 800;
+        color: #0B2545;
+    }
+
+    .operacion-doc-title p {
+        margin: 2px 0 0;
+        color: #6d7886;
+        font-size: 13px;
+    }
+
+    .operacion-doc-count {
+        display: inline-flex;
+        align-items: center;
+        min-height: 28px;
+        padding: 5px 10px;
+        border-radius: 999px;
+        background: rgba(11, 37, 69, 0.08);
+        color: #0B2545;
+        font-size: 12px;
+        font-weight: 800;
+    }
+
+    .operacion-doc-list {
+        display: grid;
+        gap: 10px;
+    }
+
+    .operacion-doc-item {
+        display: grid;
+        grid-template-columns: minmax(170px, 1.2fr) minmax(120px, 0.8fr) minmax(160px, 1fr) auto;
+        gap: 14px;
+        align-items: center;
+        padding: 13px 14px;
+        border-radius: 8px;
+        background: rgba(11, 37, 69, 0.035);
+        border: 1px solid rgba(11, 37, 69, 0.08);
+    }
+
+    .operacion-doc-label {
+        display: block;
+        margin-bottom: 3px;
+        color: #6d7886;
+        font-size: 11px;
+        font-weight: 800;
+        text-transform: uppercase;
+    }
+
+    .operacion-doc-value {
+        color: #0B2545;
+        font-weight: 800;
+        line-height: 1.25;
+        word-break: break-word;
+    }
+
+    .operacion-doc-empty {
+        padding: 18px;
+        border-radius: 8px;
+        background: rgba(11, 37, 69, 0.035);
+        color: #6d7886;
+        border: 1px dashed rgba(11, 37, 69, 0.16);
+    }
+
+    @media (max-width: 767.98px) {
+        .operacion-hero-inner {
+            flex-direction: column;
+            align-items: stretch;
+            padding: 20px;
+        }
+
+        .operacion-hero-status {
+            min-width: 0;
+        }
+
+        .operacion-doc-item {
+            grid-template-columns: 1fr;
+        }
+    }
+</style>
+{% endblock stylesheets %}
+
 {% block content %}
 <div class="pcoded-main-container">
     <div class="pcoded-content">
         <div class="page-header">
-            <div class="page-block">
-                <div class="row align-items-center">
-                    <div class="col-md-12">
-                        <div class="page-header-title">
-                            <h5 class="m-b-10">Operacion Planta</h5>
+            <div class="operacion-hero">
+                <div class="operacion-hero-inner">
+                    <div>
+                        <div class="operacion-hero-title">
+                            <div class="operacion-hero-icon">
+                                <i class="fas fa-industry"></i>
+                            </div>
+                            <div>
+                                <h4>Operacion Planta</h4>
+                                <p class="operacion-hero-subtitle">Gestion operacional de citacion habilitada para planta</p>
+                            </div>
                         </div>
+                        <div class="operacion-hero-metrics">
+                            <div class="operacion-hero-chip"><span>Citacion</span> #{{ citacion.id }}</div>
+                            <div class="operacion-hero-chip"><span>Patente</span> {{ patente }}</div>
+                            <div class="operacion-hero-chip"><span>Tipo</span> {{ citacion.CI_CTIPO }}</div>
+                            <div class="operacion-hero-chip"><span>Flujo</span> {{ nombre_flujo }}</div>
+                        </div>
+                    </div>
+                    <div class="operacion-hero-status">
+                        <div class="operacion-hero-status-label">Etapa actual</div>
+                        {% for paso in pasos %}
+                            {% if paso.activo %}
+                                <div class="operacion-hero-status-value">{{ paso.nombre }}</div>
+                            {% endif %}
+                        {% endfor %}
+                    </div>
+                </div>
+                <div class="operacion-hero-breadcrumb">
                         <ul class="breadcrumb">
                             <li class="breadcrumb-item"><a href="{% url 'home' %}"><i class="feather icon-home"></i></a></li>
                             <li class="breadcrumb-item"><a href="{% if citacion.CI_CTIPO == 'DESPACHO' %}{% url 'cit_listall_despachos' %}{% else %}{% url 'cit_listall_recepciones' %}{% endif %}">Operacion</a></li>
                             <li class="breadcrumb-item">Citacion #{{ citacion.id }}</li>
                         </ul>
-                    </div>
                 </div>
             </div>
         </div>
 
         <div class="row">
             <div class="col-12">
-                <div class="card">
+                <div class="card operacion-contact-card">
                     <div class="card-body">
-                        <div class="d-flex flex-wrap justify-content-between align-items-start mb-3">
-                            <div>
-                                <h4 class="mb-1">Citacion #{{ citacion.id }}</h4>
-                                <div class="text-muted">{{ nombre_flujo }}</div>
+                        <div class="operacion-contact-title">
+                            <div class="operacion-contact-title-icon">
+                                <i class="fas fa-address-card"></i>
                             </div>
-                            <span class="badge badge-success mt-1">Habilitada para operacion</span>
+                            <div>
+                                <h5>Contacto operacional</h5>
+                                <p>Datos de conductor y transporte asociados a la citacion</p>
+                            </div>
                         </div>
                         <div class="row">
-                            <div class="col-md-3"><strong>Patente</strong><br>{{ patente }}</div>
-                            <div class="col-md-3"><strong>Conductor</strong><br>{{ conductor }}</div>
-                            <div class="col-md-3"><strong>Transportista</strong><br>{{ transportista }}</div>
-                            <div class="col-md-3"><strong>Tipo</strong><br>{{ citacion.CI_CTIPO }}</div>
+                            <div class="col-md-4 mb-3 mb-md-0">
+                                <div class="operacion-contact-item">
+                                    <span class="operacion-contact-label">Nombre conductor</span>
+                                    <div class="operacion-contact-value">{{ conductor }}</div>
+                                </div>
+                            </div>
+                            <div class="col-md-4 mb-3 mb-md-0">
+                                <div class="operacion-contact-item">
+                                    <span class="operacion-contact-label">Telefono conductor</span>
+                                    <div class="operacion-call-row">
+                                        <div class="operacion-contact-value">{{ telefono_conductor }}</div>
+                                        <button type="button" class="btn-operacion-call" title="Accion de llamada futura" aria-label="Accion de llamada futura">
+                                            <i class="fas fa-phone-alt"></i>
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-md-4">
+                                <div class="operacion-contact-item">
+                                    <span class="operacion-contact-label">Transportista</span>
+                                    <div class="operacion-contact-value">{{ transportista }}</div>
+                                </div>
+                            </div>
                         </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-12">
+                <div class="card operacion-doc-card">
+                    <div class="card-body">
+                        <div class="operacion-doc-title">
+                            <div class="operacion-doc-title-main">
+                                <div class="operacion-doc-icon">
+                                    <i class="fas fa-paperclip"></i>
+                                </div>
+                                <div>
+                                    <h5>Documentos adjuntos</h5>
+                                    <p>Archivos cargados previamente para esta citacion</p>
+                                </div>
+                            </div>
+                            <span class="operacion-doc-count">{{ documentos_operacion|length }} archivo(s)</span>
+                        </div>
+
+                        {% if documentos_operacion %}
+                            <div class="operacion-doc-list">
+                                {% for documento in documentos_operacion %}
+                                    <div class="operacion-doc-item">
+                                        <div>
+                                            <span class="operacion-doc-label">Documento</span>
+                                            <div class="operacion-doc-value">{{ documento.label }}</div>
+                                        </div>
+                                        <div>
+                                            <span class="operacion-doc-label">Etapa</span>
+                                            <div class="operacion-doc-value">{{ documento.etapa|default:"Sin etapa" }}</div>
+                                        </div>
+                                        <div>
+                                            <span class="operacion-doc-label">Archivo</span>
+                                            <div class="operacion-doc-value">{{ documento.nombre_archivo|default:"Sin archivo" }}</div>
+                                        </div>
+                                        <div class="text-right">
+                                            {% if documento.download_url %}
+                                                <a href="{{ documento.download_url }}" class="btn btn-primary btn-sm">
+                                                    <i class="fas fa-download"></i> Descargar
+                                                </a>
+                                            {% else %}
+                                                <span class="badge badge-secondary">No disponible</span>
+                                            {% endif %}
+                                        </div>
+                                    </div>
+                                {% endfor %}
+                            </div>
+                        {% else %}
+                            <div class="operacion-doc-empty">
+                                No hay documentos adjuntos cargados para esta citacion.
+                            </div>
+                        {% endif %}
                     </div>
                 </div>
             </div>

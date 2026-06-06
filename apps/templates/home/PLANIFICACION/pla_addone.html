@@ -776,12 +776,8 @@
                                 <label class="required-label">Cliente</label>
                                 <select class="form-control" id="cliente" name="cliente" required>
                                     <option value="">Seleccione cliente</option>
-                                    {% for cliente in clientes_sap %}
-                                        <option value="{{ cliente.SOP_CARDCODE }}">
-                                            {{ cliente.SOP_CARDNAME }}
-                                        </option>
-                                    {% endfor %}
                                 </select>
+                                <input type="hidden" id="cliente_codigo" name="cliente_codigo">
                             </div>
                         </div>
 
@@ -868,54 +864,32 @@
                         <div class="col-lg-4 col-md-6">
                             <div class="form-group">
                                 <label class="required-label">Código SAP</label>
-                                <div class="input-group">
-                                    <input type="text"
-                                           class="form-control"
-                                           id="codigo"
-                                           name="codigo"
-                                           autocomplete="off"
-                                           placeholder="Ingrese código SAP"
-                                           required>
-                                    <div class="input-group-append">
-                                        <button type="button" class="btn btn-primary" onclick="buscarOporPorCodigo()">
-                                            Buscar
-                                        </button>
-                                    </div>
-                                </div>
-                                <small class="form-help-text">Busca solo el nombre del producto / insumo</small>
+                                <input type="text"
+                                       class="form-control"
+                                       id="codigo"
+                                       name="codigo"
+                                       autocomplete="off"
+                                       placeholder="Código SAP del producto"
+                                       readonly
+                                       required>
+                                <small class="form-help-text">Se completa al seleccionar producto</small>
                             </div>
                         </div>
 
                         <div class="col-lg-4 col-md-6">
                             <div class="form-group">
                                 <label class="required-label">Insumo / Producto</label>
-                                <input type="text"
-                                       class="form-control"
-                                       id="insumo"
-                                       name="insumo"
-                                       readonly
-                                       required>
+                                <select class="form-control" id="insumo" name="insumo" required>
+                                    <option value="">Seleccione producto</option>
+                                </select>
                             </div>
                         </div>
 
                         <div class="col-lg-4 col-md-6">
                             <div class="form-group">
                                 <label class="required-label">Pedido SAP</label>
-                                <div class="input-group">
-                                    <input type="text"
-                                           class="form-control"
-                                           id="pedido"
-                                           name="pedido"
-                                           autocomplete="off"
-                                           placeholder="Ingrese Pedido SAP"
-                                           required>
-                                    <div class="input-group-append">
-                                        <button type="button" class="btn btn-primary" onclick="buscarOporPorPedido()">
-                                            Buscar
-                                        </button>
-                                    </div>
-                                </div>
-                                <small class="form-help-text">Buscar cantidad disponible por Pedido SAP</small>
+                                    <select class="form-control" id="pedido" name="pedido" required></select>
+                                    <small class="form-help-text">Seleccione o escriba Pedido SAP</small>
                             </div>
                         </div>
 
@@ -937,13 +911,8 @@
                         <div class="col-lg-4 col-md-6">
                             <div class="form-group">
                                 <label class="required-label">Proveedor</label>
-                                <select class="form-control" id="proveedor" name="proveedor" required>
-                                    <option value="">Seleccione proveedor</option>
-                                    {% for proveedor in proveedores_sap %}
-                                        <option value="{{ proveedor.SOP_CARDCODE }}">
-                                            {{ proveedor.SOP_CARDNAME }}
-                                        </option>
-                                    {% endfor %}
+                                <select class="form-control" id="proveedor" name="proveedor" required disabled>
+                                    <option value="">Proveedor desde Pedido SAP</option>
                                 </select>
                                 <input type="hidden" id="proveedor_codigo" name="proveedor_codigo">
                             </div>
@@ -1208,10 +1177,14 @@
 <script>
     let citacionesTemporales = [];
     let opcionesSecuenciaOriginales = [];
+    let clientesSapCargados = false;
+    let productosSapCargados = false;
+    let bloquearLimpiezaProducto = false;
+    let pedidosProductoActual = [];
+    let lineasPedidoActual = [];
+    let bloqueandoCambioPedido = false;
 
     document.addEventListener('DOMContentLoaded', function () {
-        const codigo = document.getElementById('codigo');
-        const pedido = document.getElementById('pedido');
         opcionesSecuenciaOriginales = $('#secuencia_id option[data-tipo]').clone();
 
         if ($('#cliente').length) {
@@ -1221,12 +1194,66 @@
                 width: '100%',
                 dropdownParent: $('#ModalCrearCitacion')
             });
+
+            $('#cliente').on('change', function () {
+                setValue('cliente_codigo', $(this).val() || '');
+            });
+        }
+
+        if ($('#insumo').length) {
+            $('#insumo').select2({
+                placeholder: 'Buscar producto...',
+                allowClear: true,
+                width: '100%',
+                dropdownParent: $('#ModalCrearCitacion')
+            });
+
+            $('#insumo').on('change', function () {
+                const itemCode = $(this).val() || '';
+                setValue('codigo', itemCode);
+                if (!bloquearLimpiezaProducto) {
+                    limpiarProveedorSap();
+                    limpiarDatosPedido(true);
+                    cargarPedidosPorProducto(itemCode);
+                }
+            });
+        }
+
+        if ($('#pedido').length) {
+            $('#pedido').select2({
+                placeholder: 'Seleccione o escriba Pedido SAP',
+                allowClear: true,
+                tags: true,
+                width: '100%',
+                dropdownParent: $('#ModalCrearCitacion'),
+                createTag: function (params) {
+                    const term = $.trim(params.term);
+
+                    if (!term || !/^\d+$/.test(term)) {
+                        return null;
+                    }
+
+                    return {
+                        id: term,
+                        text: term,
+                        nuevo: true
+                    };
+                }
+            });
+
+            $('#pedido').on('change', function () {
+                if (bloqueandoCambioPedido) {
+                    return;
+                }
+
+                resolverPedidoSapSeleccionado($(this).val() || '');
+            });
         }
 
         if ($('#proveedor').length) {
             $('#proveedor').select2({
-                placeholder: 'Buscar proveedor...',
-                allowClear: true,
+                placeholder: 'Proveedor desde Pedido SAP',
+                allowClear: false,
                 width: '100%',
                 dropdownParent: $('#ModalCrearCitacion')
             });
@@ -1267,24 +1294,6 @@
             filtrarSecuenciasPorTipo();
         });
 
-        if (codigo) {
-            codigo.addEventListener('keypress', function (e) {
-                if (e.key === 'Enter') {
-                    e.preventDefault();
-                    buscarOporPorCodigo();
-                }
-            });
-        }
-
-        if (pedido) {
-            pedido.addEventListener('keypress', function (e) {
-                if (e.key === 'Enter') {
-                    e.preventDefault();
-                    buscarOporPorPedido();
-                }
-            });
-        }
-
         $('#ModalCrearCitacion').on('shown.bs.modal', function () {
             const cantidadRepetir = document.getElementById('cantidad_repetir');
 
@@ -1296,13 +1305,158 @@
         renderizarCitacionesTemporales();
         controlarSobrecupoPlanificacion();
         filtrarSecuenciasPorTipo();
+
+        const modalInicial = '{{ abrir_modal|default:"" }}';
+        if (modalInicial === 'recepcion') {
+            window.setTimeout(function () {
+                abrirModalRecepcion();
+            }, 250);
+        } else if (modalInicial === 'despacho') {
+            window.setTimeout(function () {
+                abrirModalDespacho();
+            }, 250);
+        }
     });
 
     function abrirModalRecepcion() {
         setValue('tipo', 'RECEPCION');
         $('#tipo').prop('disabled', true).trigger('change');
         filtrarSecuenciasPorTipo();
+        cargarClientesSap();
+        cargarProductosSap();
         $('#ModalCrearCitacion').modal('show');
+    }
+
+    function cargarProductosSap(force = false) {
+        const productoSelect = $('#insumo');
+
+        if (!productoSelect.length || (productosSapCargados && !force)) {
+            return;
+        }
+
+        const valorActual = productoSelect.val() || '';
+        productoSelect.prop('disabled', true);
+        productoSelect.empty().append(new Option('Cargando productos SAP...', '', false, false));
+        productoSelect.trigger('change.select2');
+
+        $.ajax({
+            url: '/api/sap/productos/',
+            type: 'GET',
+            success: function (response) {
+                if (!response.ok) {
+                    productoSelect.empty().append(new Option('Seleccione producto', '', false, false));
+                    swalFront({
+                        title: 'Error',
+                        text: response.mensaje || response.message || 'No fue posible cargar productos SAP.',
+                        icon: 'error'
+                    });
+                    return;
+                }
+
+                productoSelect.empty().append(new Option('Seleccione producto', '', false, false));
+
+                (response.productos || []).forEach(function (producto) {
+                    const productoTexto = (producto.itemname || producto.itemcode) + ' - ' + producto.itemcode;
+                    const option = new Option(
+                        productoTexto,
+                        producto.itemcode,
+                        false,
+                        false
+                    );
+                    $(option).attr('data-itemname', producto.itemname || '');
+                    productoSelect.append(option);
+                });
+
+                productosSapCargados = true;
+
+                bloquearLimpiezaProducto = true;
+                if (valorActual && productoSelect.find('option[value="' + valorActual.replace(/"/g, '\\"') + '"]').length) {
+                    productoSelect.val(valorActual);
+                } else {
+                    productoSelect.val('');
+                }
+                productoSelect.trigger('change');
+                bloquearLimpiezaProducto = false;
+            },
+            error: function (xhr) {
+                const response = xhr.responseJSON || {};
+                productoSelect.empty().append(new Option('Seleccione producto', '', false, false));
+                swalFront({
+                    title: 'Error',
+                    text: response.mensaje || response.message || 'Ocurrió un error al cargar productos SAP.',
+                    icon: 'error'
+                });
+            },
+            complete: function () {
+                productoSelect.prop('disabled', false);
+                productoSelect.trigger('change.select2');
+            }
+        });
+    }
+
+    function cargarClientesSap(force = false) {
+        const clienteSelect = $('#cliente');
+
+        if (!clienteSelect.length || (clientesSapCargados && !force)) {
+            return;
+        }
+
+        const valorActual = clienteSelect.val() || '';
+        clienteSelect.prop('disabled', true);
+        clienteSelect.empty().append(new Option('Cargando clientes SAP...', '', false, false));
+        clienteSelect.trigger('change.select2');
+
+        $.ajax({
+            url: '/api/sap/clientes/',
+            type: 'GET',
+            success: function (response) {
+                if (!response.ok) {
+                    clienteSelect.empty().append(new Option('Seleccione cliente', '', false, false));
+                    swalFront({
+                        title: 'Error',
+                        text: response.mensaje || response.message || 'No fue posible cargar clientes SAP.',
+                        icon: 'error'
+                    });
+                    return;
+                }
+
+                clienteSelect.empty().append(new Option('Seleccione cliente', '', false, false));
+
+                (response.clientes || []).forEach(function (cliente) {
+                    const option = new Option(
+                        cliente.cardname || cliente.cardcode,
+                        cliente.cardcode,
+                        false,
+                        false
+                    );
+                    $(option).attr('data-cardname', cliente.cardname || '');
+                    clienteSelect.append(option);
+                });
+
+                clientesSapCargados = true;
+
+                if (valorActual && clienteSelect.find('option[value="' + valorActual.replace(/"/g, '\\"') + '"]').length) {
+                    clienteSelect.val(valorActual);
+                } else {
+                    clienteSelect.val('');
+                }
+
+                clienteSelect.trigger('change');
+            },
+            error: function (xhr) {
+                const response = xhr.responseJSON || {};
+                clienteSelect.empty().append(new Option('Seleccione cliente', '', false, false));
+                swalFront({
+                    title: 'Error',
+                    text: response.mensaje || response.message || 'Ocurrió un error al cargar clientes SAP.',
+                    icon: 'error'
+                });
+            },
+            complete: function () {
+                clienteSelect.prop('disabled', false);
+                clienteSelect.trigger('change.select2');
+            }
+        });
     }
 
     function abrirModalDespacho() {
@@ -1374,6 +1528,17 @@
         }
 
         return element.value;
+    }
+
+    function getSelectedData(id, dataName) {
+        const element = document.getElementById(id);
+
+        if (!element || element.tagName !== 'SELECT' || element.selectedIndex < 0) {
+            return '';
+        }
+
+        const option = element.options[element.selectedIndex];
+        return option ? (option.getAttribute('data-' + dataName) || '') : '';
     }
 
     function escapeHtml(value) {
@@ -1460,147 +1625,292 @@
         selectSecuencia.trigger('change');
     }
 
-    function buscarOporPorCodigo() {
-        const codigo = getValue('codigo').trim();
+    function pedidoTexto(item) {
+        const cantidad = item.openqty !== null && item.openqty !== undefined ? item.openqty : item.cantidad_disponible || '';
+        return `${item.docnum || item.pedido} - ${item.cardname || item.proveedor_nombre || ''} - ${cantidad}`;
+    }
+
+    function lineaPedidoTexto(item) {
+        const cantidad = item.openqty !== null && item.openqty !== undefined ? item.openqty : item.cantidad_disponible || '';
+        return `${item.descripcion || item.producto || ''} - ${item.itemcode || item.codigo || ''} - ${cantidad} - ${item.cardname || item.proveedor_nombre || ''}`;
+    }
+
+    function setPedidoSapOptions(items, seleccion = '') {
+        const pedidoSelect = $('#pedido');
+
+        if (!pedidoSelect.length) {
+            return;
+        }
+
+        bloqueandoCambioPedido = true;
+        pedidoSelect.empty().append(new Option('', '', false, false));
+
+        items.forEach(function (item, index) {
+            const docnum = String(item.docnum || item.pedido || '');
+            const value = `${docnum}__${index}`;
+            const option = new Option(pedidoTexto(item), value, false, value === String(seleccion || ''));
+            $(option).attr('data-line-index', index);
+            $(option).attr('data-docnum', docnum);
+            pedidoSelect.append(option);
+        });
+
+        if (seleccion && !pedidoSelect.find('option[value="' + String(seleccion).replace(/"/g, '\\"') + '"]').length) {
+            pedidoSelect.append(new Option(seleccion, seleccion, true, true));
+        }
+
+        pedidoSelect.val(seleccion || '').trigger('change.select2');
+        bloqueandoCambioPedido = false;
+    }
+
+    function cargarPedidosPorProducto(codigo) {
+        pedidosProductoActual = [];
+        lineasPedidoActual = [];
+        setPedidoSapOptions([]);
 
         if (!codigo) {
-            swalFront({
-                title: 'Atención',
-                text: 'Debe ingresar un código SAP.',
-                icon: 'warning'
-            });
             return;
         }
 
         $.ajax({
-            url: '/buscar-opor-codigo/',
+            url: '/api/sap/pedidos-por-producto/',
             type: 'GET',
             data: { codigo: codigo },
             success: function (response) {
-                console.log('Respuesta buscar-opor-codigo:', response);
+                if (!response.ok) {
+                    return;
+                }
 
-                if (!response.success || response.total === 0) {
-                    limpiarDatosProducto(false);
+                pedidosProductoActual = response.pedidos || [];
+                setPedidoSapOptions(pedidosProductoActual);
+            },
+            error: function () {
+                pedidosProductoActual = [];
+                setPedidoSapOptions([]);
+            }
+        });
+    }
 
+    function resolverPedidoSapSeleccionado(pedido) {
+        const pedidoLimpio = String(pedido || '').trim();
+
+        limpiarDatosPedido(false);
+
+        if (!pedidoLimpio) {
+            return;
+        }
+
+        if (pedidoLimpio.indexOf('__') > -1) {
+            const partes = pedidoLimpio.split('__');
+            const index = Number(partes[1]);
+
+            if (!Number.isNaN(index) && pedidosProductoActual[index]) {
+                cargarDatosPedidoSap(pedidosProductoActual[index]);
+                return;
+            }
+
+            if (!Number.isNaN(index) && lineasPedidoActual[index]) {
+                cargarDatosPedidoSap(lineasPedidoActual[index]);
+                return;
+            }
+        }
+
+        const codigo = getValue('codigo').trim();
+        const pedidoDesdeProducto = pedidosProductoActual.filter(function (item) {
+            return String(item.docnum || item.pedido || '') === pedidoLimpio;
+        });
+
+        if (codigo && pedidoDesdeProducto.length === 1) {
+            cargarDatosPedidoSap(pedidoDesdeProducto[0]);
+            return;
+        }
+
+        if (codigo && pedidoDesdeProducto.length > 1) {
+            lineasPedidoActual = pedidoDesdeProducto;
+            mostrarLineasPedidoSap(lineasPedidoActual, pedidoLimpio);
+            return;
+        }
+
+        consultarDetallePedidoSap(pedidoLimpio);
+    }
+
+    function consultarDetallePedidoSap(pedido) {
+        setValue('cantidad_disponible', 'Buscando...');
+
+        $.ajax({
+            url: '/api/sap/pedido-detalle/',
+            type: 'GET',
+            data: { pedido: pedido },
+            success: function (response) {
+                if (!response.ok || !response.lineas || response.lineas.length === 0) {
+                    limpiarDatosPedido(false);
                     swalFront({
                         title: 'Sin registros',
-                        text: response.message || 'No se encontró producto para el código SAP ingresado.',
+                        text: response.mensaje || response.message || 'No existe pedido abierto con saldo disponible.',
                         icon: 'info'
                     });
                     return;
                 }
 
-                cargarProductoSap(response.data[0]);
+                if (response.lineas.length === 1) {
+                    cargarDatosPedidoSap(response.lineas[0]);
+                    return;
+                }
 
-                swalFront({
-                    title: 'Producto encontrado',
-                    text: 'Producto SAP cargado correctamente. Ahora ingrese el Pedido SAP para obtener la cantidad disponible.',
-                    icon: 'success'
-                });
+                lineasPedidoActual = response.lineas;
+                mostrarLineasPedidoSap(lineasPedidoActual, pedido);
             },
             error: function (xhr) {
-                console.error('Error buscar-opor-codigo:', xhr.responseText);
-
-                limpiarDatosProducto(false);
-
+                const response = xhr.responseJSON || {};
+                limpiarDatosPedido(false);
                 swalFront({
                     title: 'Error',
-                    text: 'Ocurrió un error al consultar el código SAP.',
+                    text: response.mensaje || response.message || 'Ocurrió un error al consultar el Pedido SAP.',
                     icon: 'error'
                 });
+            }
+        });
+    }
+
+    function mostrarLineasPedidoSap(lineas, pedido) {
+        const pedidoSelect = $('#pedido');
+
+        bloqueandoCambioPedido = true;
+        pedidoSelect.empty().append(new Option('', '', false, false));
+
+        lineas.forEach(function (item, index) {
+            const value = `${item.docnum || pedido}__${index}`;
+            const option = new Option(lineaPedidoTexto(item), value, false, false);
+            $(option).attr('data-line-index', index);
+            pedidoSelect.append(option);
+        });
+
+        pedidoSelect.val('').trigger('change.select2');
+        pedidoSelect.select2('open');
+        bloqueandoCambioPedido = false;
+
+        pedidoSelect.off('select2:select.lineasPedido').on('select2:select.lineasPedido', function (event) {
+            const index = Number($(event.params.data.element).attr('data-line-index'));
+
+            if (!Number.isNaN(index) && lineas[index]) {
+                cargarDatosPedidoSap(lineas[index]);
+                pedidoSelect.off('select2:select.lineasPedido');
             }
         });
     }
 
     function buscarOporPorPedido() {
-        const codigo = getValue('codigo').trim();
-        const pedido = getValue('pedido').trim();
-
-        if (!codigo) {
-            swalFront({
-                title: 'Atención',
-                text: 'Debe ingresar primero el código SAP.',
-                icon: 'warning'
-            });
-            return;
-        }
-
-        if (!pedido) {
-            swalFront({
-                title: 'Atención',
-                text: 'Debe ingresar el Pedido SAP.',
-                icon: 'warning'
-            });
-            return;
-        }
-
-        setValue('cantidad_disponible', 'Buscando...');
-
-        $.ajax({
-            url: '/buscar-opor-pedido/',
-            type: 'GET',
-            data: {
-                codigo: codigo,
-                pedido: pedido
-            },
-            success: function (response) {
-                console.log('Respuesta buscar-opor-pedido:', response);
-
-                if (!response.success || response.total === 0) {
-                    limpiarDatosPedido(false);
-
-                    swalFront({
-                        title: 'Sin registros',
-                        text: response.message || 'No se encontró programación para el Código SAP y Pedido SAP ingresado.',
-                        icon: 'info'
-                    });
-                    return;
-                }
-
-                cargarDatosPedidoSap(response.data[0]);
-
-                swalFront({
-                    title: 'Pedido encontrado',
-                    text: 'Cantidad disponible actualizada correctamente.',
-                    icon: 'success'
-                });
-            },
-            error: function (xhr) {
-                console.error('Error buscar-opor-pedido:', xhr.responseText);
-
-                limpiarDatosPedido(false);
-
-                swalFront({
-                    title: 'Error',
-                    text: 'Ocurrió un error al consultar el Pedido SAP.',
-                    icon: 'error'
-                });
-            }
-        });
+        resolverPedidoSapSeleccionado(getValue('pedido'));
     }
 
     function cargarProductoSap(item) {
-        setValue('codigo', item.codigo || getValue('codigo'));
-        setValue('insumo', item.insumo || '');
+        setValue('codigo', item.item_code || getValue('codigo'));
+        bloquearLimpiezaProducto = true;
+        cargarProductoSapEnSelect(item.item_code || getValue('codigo'), item.item_name || '');
+        bloquearLimpiezaProducto = false;
 
+        limpiarProveedorSap();
         limpiarDatosPedido(true);
     }
 
     function cargarDatosPedidoSap(item) {
-        setValue('sap_opor_id', item.sap_opor_id || '');
-        setValue('pedido', item.pedido || getValue('pedido'));
+        setValue('sap_opor_id', item.docentry || '');
+        const docnum = item.docnum || item.pedido || getValue('pedido');
+        const pedidoSelect = $('#pedido');
+
+        bloqueandoCambioPedido = true;
+        if (pedidoSelect.length && docnum) {
+            const option = new Option(String(docnum), String(docnum), true, true);
+            pedidoSelect.append(option);
+            pedidoSelect.val(String(docnum)).trigger('change.select2');
+        } else {
+            setValue('pedido', docnum);
+        }
+        bloqueandoCambioPedido = false;
         setValue(
             'cantidad_disponible',
-            item.cantidad_disponible !== null && item.cantidad_disponible !== undefined
+            item.openqty !== null && item.openqty !== undefined
+                ? item.openqty
+                : item.cantidad_disponible !== null && item.cantidad_disponible !== undefined
                 ? item.cantidad_disponible
                 : ''
         );
         setValue('docentry', item.docentry || '');
-        setValue('proveedor_codigo', item.proveedor_codigo || '');
+        setValue('bl', item.contenedor || item.bl || item.bl_contenedor || '');
+        setValue('proveedor_codigo', item.cardcode || item.proveedor_codigo || '');
 
-        if ($('#proveedor').length) {
-            $('#proveedor').val(item.proveedor_codigo || '').trigger('change');
+        if (item.descripcion) {
+            bloquearLimpiezaProducto = true;
+            cargarProductoSapEnSelect(item.itemcode || getValue('codigo'), item.descripcion);
+            bloquearLimpiezaProducto = false;
         }
+
+        cargarProveedorSapEnSelect(
+            item.cardcode || item.proveedor_codigo || '',
+            item.cardname || item.proveedor_nombre || ''
+        );
+    }
+
+    function cargarProductoSapEnSelect(codigo, nombre) {
+        const productoSelect = $('#insumo');
+
+        if (!productoSelect.length || !codigo) {
+            return;
+        }
+
+        let existe = false;
+
+        productoSelect.find('option').each(function () {
+            if ($(this).val() === codigo) {
+                existe = true;
+                if (nombre) {
+                    $(this).text(nombre);
+                    $(this).attr('data-itemname', nombre);
+                }
+                return false;
+            }
+        });
+
+        if (!existe) {
+            const option = new Option(nombre ? nombre + ' - ' + codigo : codigo, codigo, true, true);
+            $(option).attr('data-itemname', nombre || '');
+            productoSelect.append(option);
+        }
+
+        productoSelect.val(codigo).trigger('change');
+    }
+
+    function limpiarProveedorSap() {
+        if ($('#proveedor').length) {
+            $('#proveedor').empty().append(new Option('Proveedor desde Pedido SAP', '', false, false));
+            $('#proveedor').val('').trigger('change');
+        }
+
+        setValue('proveedor_codigo', '');
+    }
+
+    function cargarProveedorSapEnSelect(codigo, nombre) {
+        const proveedorSelect = $('#proveedor');
+
+        if (!proveedorSelect.length || !codigo) {
+            return;
+        }
+
+        let existe = false;
+
+        proveedorSelect.find('option').each(function () {
+            if ($(this).val() === codigo) {
+                existe = true;
+                return false;
+            }
+        });
+
+        if (!existe) {
+            const option = new Option(nombre || codigo, codigo, true, true);
+            $(option).attr('data-cardname', nombre || '');
+            proveedorSelect.append(option);
+        }
+
+        proveedorSelect.val(codigo).trigger('change');
     }
 
     function agregarCitacionTemporal() {
@@ -1630,6 +1940,7 @@
             const citacion = {
                 cliente: clienteSelect.val() || '',
                 cliente_nombre: clienteSelect.find('option:selected').text().trim(),
+                cliente_codigo: getValue('cliente_codigo'),
 
                 inf_24hrs: getValue('inf_24hrs'),
                 fecha_llegada: getValue('fecha_llegada'),
@@ -1642,7 +1953,7 @@
                 tipo_carga_texto: getSelectedText('tipo_carga'),
 
                 codigo: getValue('codigo'),
-                insumo: getValue('insumo'),
+                insumo: getSelectedData('insumo', 'itemname') || getSelectedText('insumo') || getValue('insumo'),
                 pedido: getValue('pedido'),
                 sap_opor_id: getValue('sap_opor_id'),
 
@@ -1653,6 +1964,7 @@
                 bl: getValue('bl'),
                 cantidad_disponible: getValue('cantidad_disponible'),
                 docentry: getValue('docentry'),
+
                 estanque_destino: getValue('estanque_destino'),
                 estanque_destino_texto: getSelectedText('estanque_destino'),
 
@@ -1710,6 +2022,7 @@
             bl: getValue('despacho_patente'),
             cantidad_disponible: getValue('despacho_orden_carga'),
             docentry: '',
+            productor: '',
 
             estanque_destino: getValue('despacho_bodega'),
             estanque_destino_texto: getValue('despacho_destino'),
@@ -2080,9 +2393,9 @@
     function limpiarDatosPedido(limpiarPedido = false) {
         const campos = [
             'sap_opor_id',
-            'proveedor_codigo',
             'cantidad_disponible',
-            'docentry'
+            'docentry',
+            'bl'
         ];
 
         if (limpiarPedido) {
@@ -2093,9 +2406,15 @@
             setValue(id, '');
         });
 
-        if ($('#proveedor').length) {
-            $('#proveedor').val('').trigger('change');
+        if (limpiarPedido && $('#pedido').length) {
+            pedidosProductoActual = [];
+            lineasPedidoActual = [];
+            bloqueandoCambioPedido = true;
+            $('#pedido').empty().append(new Option('', '', false, false)).val('').trigger('change.select2');
+            bloqueandoCambioPedido = false;
         }
+
+        setValue('proveedor_codigo', $('#proveedor').val() || '');
     }
 
     function limpiarDatosProducto(limpiarCodigo = true) {
@@ -2105,7 +2424,8 @@
             'proveedor_codigo',
             'pedido',
             'cantidad_disponible',
-            'docentry'
+            'docentry',
+            'bl'
         ];
 
         if (limpiarCodigo) {
@@ -2116,9 +2436,18 @@
             setValue(id, '');
         });
 
+        if ($('#insumo').length) {
+            bloquearLimpiezaProducto = true;
+            $('#insumo').val('').trigger('change');
+            bloquearLimpiezaProducto = false;
+        }
+
         if ($('#proveedor').length) {
             $('#proveedor').val('').trigger('change');
         }
+
+        pedidosProductoActual = [];
+        lineasPedidoActual = [];
     }
 </script>
 {% endblock javascripts %}

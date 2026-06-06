@@ -4,6 +4,17 @@
 
 from .models import EMPRESA, USERS_EMPRESA
 
+EMPRESA_ACTIVA_PARAM = '_empresa_id'
+
+
+def obtener_empresa_request_id(request):
+    empresa_id = request.GET.get(EMPRESA_ACTIVA_PARAM) or request.POST.get(EMPRESA_ACTIVA_PARAM)
+
+    if empresa_id and str(empresa_id).isdigit():
+        return int(empresa_id)
+
+    return None
+
 
 def empresa_context(request):
     """
@@ -22,10 +33,16 @@ def empresa_context(request):
 
     try:
         if request.user.is_authenticated:
-            empresa_id = request.session.get('empresa_id')
+            empresa_id = obtener_empresa_request_id(request) or request.session.get('empresa_id')
 
             if empresa_id:
-                empresa_activa = EMPRESA.objects.filter(id=empresa_id).first()
+                tiene_acceso = USERS_EMPRESA.objects.filter(
+                    US_NID=request.user,
+                    EP_NID_id=empresa_id
+                ).exists()
+
+                if tiene_acceso:
+                    empresa_activa = EMPRESA.objects.filter(id=empresa_id).first()
 
             empresas_usuario = USERS_EMPRESA.objects.filter(
                 US_NID=request.user

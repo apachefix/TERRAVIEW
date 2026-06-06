@@ -134,7 +134,7 @@
                             </div>
                             <ul class="breadcrumb">
                                 <li class="breadcrumb-item"><a href="/"><i class="feather icon-home"></i></a></li>
-                                <li class="breadcrumb-item"><a href="/">Sistema Camiones</a></li>
+                                <li class="breadcrumb-item"><a href="/">TERRAVIEW</a></li>
                                 <li class="breadcrumb-item"><a href="{% if request.path == '/cit_listall_despachos/' %}{% url 'cit_listall_despachos' %}{% else %}{% url 'cit_listall_recepciones' %}{% endif %}">Citaciones</a></li>
                                 
                             </ul>
@@ -253,7 +253,11 @@
                                         {% for object in object_list %}
                                             <tr>
                                                 <td>
-                                                    {% if acceso_operacion_planta and object.operacion_planta_habilitada %}
+                                                    {% if guardia_ingreso %}
+                                                    <a class="btn btn-primary" href="{% url 'pla_listone' object.PL_NID_id %}?citacion={{ object.pk }}" title="Ingreso de camión">
+                                                        <i class="fas fa-truck"></i> Ingreso
+                                                    </a>
+                                                    {% elif acceso_operacion_planta and object.operacion_planta_habilitada %}
                                                     <a class="btn btn-success" href="{% url 'operacion_planta_citacion' object.pk %}" title="Gestionar operacion">
                                                         <i class="fas fa-truck-loading"></i> Operaci&oacute;n
                                                     </a>

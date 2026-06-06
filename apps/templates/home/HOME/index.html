@@ -11,6 +11,96 @@
     {% load humanize %} 
     {% load i18n %}
     {% load l10n %}
+    <style>
+        .plant-risk-card {
+            border: 1px solid rgba(11, 37, 69, 0.10);
+            border-radius: 8px;
+            box-shadow: 0 14px 34px rgba(11, 37, 69, 0.10);
+            overflow: hidden;
+        }
+
+        .plant-risk-card .card-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 16px;
+        }
+
+        .plant-risk-title {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .plant-risk-icon {
+            width: 42px;
+            height: 42px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 8px;
+            background: rgba(211, 107, 92, 0.12);
+            color: #D36B5C;
+            font-size: 18px;
+        }
+
+        .plant-risk-item {
+            display: grid;
+            grid-template-columns: 52px minmax(150px, 1.1fr) minmax(130px, 0.9fr) minmax(110px, 0.7fr) minmax(120px, 0.8fr);
+            gap: 14px;
+            align-items: center;
+            padding: 14px 0;
+            border-bottom: 1px solid rgba(11, 37, 69, 0.08);
+        }
+
+        .plant-risk-item:last-child {
+            border-bottom: 0;
+        }
+
+        .plant-risk-rank {
+            width: 38px;
+            height: 38px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 8px;
+            background: linear-gradient(135deg, #0B2545, #102f57);
+            color: #fff;
+            font-weight: 800;
+        }
+
+        .plant-risk-label {
+            display: block;
+            margin-bottom: 3px;
+            color: #6d7886;
+            font-size: 11px;
+            font-weight: 800;
+            text-transform: uppercase;
+        }
+
+        .plant-risk-value {
+            color: #0B2545;
+            font-weight: 800;
+            line-height: 1.25;
+        }
+
+        .plant-risk-time {
+            display: inline-flex;
+            align-items: center;
+            gap: 7px;
+            padding: 8px 11px;
+            border-radius: 8px;
+            background: rgba(211, 107, 92, 0.12);
+            color: #b95347;
+            font-weight: 900;
+        }
+
+        @media (max-width: 991.98px) {
+            .plant-risk-item {
+                grid-template-columns: 42px 1fr;
+            }
+        }
+    </style>
 {% endblock stylesheets %}
 
 {% block content %}	
@@ -30,25 +120,12 @@
                             </div>
                             <ul class="breadcrumb">
                                 <li class="breadcrumb-item"><a href="/"><i class="feather icon-home"></i></a></li>
-                                <li class="breadcrumb-item"><a href="/">Sistema Camiones</a></li>                                
+                                <li class="breadcrumb-item"><a href="/">TERRAVIEW</a></li>
                             </ul>
                         </div>
                     </div>
                 </div>
             </div>        
-            <div class="page-header">
-                <div class="page-block" style="height: 30px;">
-                    <div class="row align-items-center">
-                        <div class="col-md-12">
-                            <div class="text-right">
-                                <button type="button" class="btn btn-primary mb-3" id="btnActualizarIntervalo" title="Intervalo actual: {% if updateInterval %}{{ updateInterval }}{% else %}10{% endif %} segundos">
-                                    <i class="fa fa-clock"></i> Temporizador
-                                </button>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>     
             <!-- [ breadcrumb ] end -->
             <!-- [ Main Content ] start -->            
             <div class="row">
@@ -117,6 +194,58 @@
                                         <span style="color: #0a4c8b;">{{ camiones_mes }}</span>
                                     </p>
                                     <small class="d-block text-center"><span style="color: #0a4c8b;">Vehiculos</span></small>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="row">
+                        <div class="col-12">
+                            <div class="card plant-risk-card mb-3">
+                                <div class="card-header">
+                                    <div class="plant-risk-title">
+                                        <div class="plant-risk-icon">
+                                            <i class="fa-solid fa-hourglass-half"></i>
+                                        </div>
+                                        <div>
+                                            <h5 class="card-title mb-0">Camiones con mayor tiempo en planta</h5>
+                                            <small class="d-block">Top 3 activos desde autorizacion de ingreso</small>
+                                        </div>
+                                    </div>
+                                    <a href="{% url 'seguimiento_operacional' %}" class="btn btn-outline-primary btn-sm">
+                                        Ver seguimiento
+                                    </a>
+                                </div>
+                                <div class="card-body">
+                                    {% if top_camiones_tiempo_planta %}
+                                        {% for camion in top_camiones_tiempo_planta %}
+                                            <div class="plant-risk-item">
+                                                <div class="plant-risk-rank">#{{ forloop.counter }}</div>
+                                                <div>
+                                                    <span class="plant-risk-label">Patente / Citacion</span>
+                                                    <div class="plant-risk-value">{{ camion.patente }} · #{{ camion.citacion.id }}</div>
+                                                </div>
+                                                <div>
+                                                    <span class="plant-risk-label">Conductor</span>
+                                                    <div class="plant-risk-value">{{ camion.conductor }}</div>
+                                                </div>
+                                                <div>
+                                                    <span class="plant-risk-label">Etapa actual</span>
+                                                    <div class="plant-risk-value">{{ camion.estado_actual }}</div>
+                                                </div>
+                                                <div>
+                                                    <span class="plant-risk-label">Tiempo en planta</span>
+                                                    <div class="plant-risk-time">
+                                                        <i class="fa-solid fa-clock"></i>
+                                                        {{ camion.tiempo_planta }}
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        {% endfor %}
+                                    {% else %}
+                                        <div class="text-muted">
+                                            Sin camiones activos en planta por el momento. En produccion este bloque destacara los 3 camiones con mayor permanencia.
+                                        </div>
+                                    {% endif %}
                                 </div>
                             </div>
                         </div>
@@ -647,49 +776,6 @@
             iniciarActualizacion();
         };
 
-        document.getElementById("btnActualizarIntervalo").addEventListener("click", function() {
-            Swal.fire({
-                title: 'Modificar intervalo de actualización',
-                html: `
-                    <div class="form-group">
-                        <label for="nuevoIntervalo">Nuevo intervalo (segundos):</label>
-                        <input type="number" class="form-control" id="nuevoIntervalo" placeholder="Ingrese el nuevo intervalo">
-                    </div>
-                `,
-                showCancelButton: true,
-                confirmButtonText: 'Actualizar',
-                cancelButtonText: 'Cancelar',
-                preConfirm: () => {
-                    return new Promise((resolve, reject) => {
-                        var nuevoIntervalo = parseInt(document.getElementById('nuevoIntervalo').value);
-                        if (isNaN(nuevoIntervalo) || nuevoIntervalo <= 0) {
-                            Swal.showValidationMessage('Ingrese un valor numérico válido mayor que cero');
-                            reject(new Error('Ingrese un valor numérico válido mayor que cero'));
-                        } else {
-                            resolve(nuevoIntervalo);
-                        }
-                    });
-                }
-            }).then((result) => {
-                if (result.isConfirmed) {
-                    var nuevoIntervalo = result.value;
-                    updateInterval = nuevoIntervalo * 1000;
-                    detenerActualizacion();
-                    iniciarActualizacion();
-
-                    // Actualizar el título del botón con el nuevo intervalo
-                    document.getElementById("btnActualizarIntervalo").title = "Intervalo actual: " + nuevoIntervalo + " segundos";
-                    
-                    Swal.fire({
-                        position: 'center',
-                        icon: 'success',
-                        title: 'Intervalo de actualización modificado.\n' + 'Los datos se actualizaran cada: ' + nuevoIntervalo + ' segundos',                        
-                        showConfirmButton: false,
-                        timer: 3000
-                    });
-                }
-            });
-        });
     </script>
     <script>
         $(document).ready(function() {

@@ -1,32 +1,176 @@
 {% extends "layouts/base-fullscreen.html" %}
+{% load static %}
 
 {% block title %} Login {% endblock %}
 
-{% block content %} 
+{% block stylesheets %}
+<style>
+	body {
+		background: #0B2545 !important;
+	}
+
+	.auth-wrapper {
+		position: relative;
+		min-height: 100vh;
+		overflow: hidden;
+		background:
+			linear-gradient(110deg, rgba(7, 24, 45, 0.58), rgba(11, 37, 69, 0.24) 48%, rgba(11, 37, 69, 0.52)),
+			url("{% static 'assets/images/Logo_terraview/mar_2_azul.png' %}") center/cover no-repeat !important;
+	}
+
+	.auth-wrapper::before {
+		content: "";
+		position: absolute;
+		inset: 0;
+		pointer-events: none;
+	}
+
+	.auth-content {
+		position: relative;
+		z-index: 1;
+	}
+
+	.auth-content .card {
+		border: 1px solid rgba(232, 227, 200, 0.22);
+		border-radius: 12px;
+		background: rgba(255, 255, 255, 0.94);
+		box-shadow: 0 28px 70px rgba(0, 0, 0, 0.34);
+		backdrop-filter: blur(10px);
+	}
+
+	.auth-content .card-body {
+		padding: 46px 44px 38px !important;
+	}
+
+	.terraview-login-brand {
+		margin-bottom: 28px;
+		text-align: center;
+	}
+
+	.terraview-login-brand__name {
+		display: inline-flex;
+		align-items: baseline;
+		gap: 0;
+		font-size: 32px;
+		font-weight: 800;
+		line-height: 1;
+		letter-spacing: 0.08em;
+		color: #0B2545;
+	}
+
+	.terraview-login-brand__control {
+		color: #D36B5C;
+		margin-left: -0.03em;
+		text-shadow: 0 0 18px rgba(211, 107, 92, 0.28);
+	}
+
+	.terraview-login-brand__caption {
+		display: block;
+		margin-top: 8px;
+		font-size: 12px;
+		font-weight: 700;
+		letter-spacing: 0.12em;
+		text-transform: uppercase;
+		color: #6C8784;
+	}
+
+	.terraview-login-title {
+		margin-bottom: 8px;
+		color: #0B2545;
+		font-size: 23px;
+		font-weight: 800;
+		line-height: 1.2;
+	}
+
+	.terraview-login-subtitle {
+		display: block;
+		margin-bottom: 28px;
+		color: #526b68;
+		font-size: 14px;
+	}
+
+	.auth-content .input-group {
+		margin-bottom: 16px !important;
+		box-shadow: 0 10px 24px rgba(11, 37, 69, 0.08);
+	}
+
+	.auth-content .input-group-text {
+		min-width: 48px;
+		justify-content: center;
+		border-color: rgba(11, 37, 69, 0.16);
+		background: rgba(232, 227, 200, 0.34);
+		color: #0B2545;
+	}
+
+	.auth-content .form-control {
+		height: 46px;
+		border-color: rgba(11, 37, 69, 0.16);
+		color: #0B2545;
+		font-weight: 600;
+	}
+
+	.auth-content .form-control:focus {
+		border-color: #D36B5C;
+		box-shadow: 0 0 0 0.16rem rgba(211, 107, 92, 0.18);
+	}
+
+	.terraview-login-button {
+		height: 46px;
+		margin-top: 8px;
+		margin-bottom: 26px !important;
+		border: 0;
+		border-radius: 6px;
+		background: linear-gradient(135deg, #0B2545, #102f57 54%, #D36B5C) !important;
+		box-shadow: 0 14px 30px rgba(11, 37, 69, 0.25);
+		font-weight: 800;
+		letter-spacing: 0.02em;
+	}
+
+	.terraview-login-footer {
+		margin: 0;
+		color: #6C8784;
+		font-size: 12px;
+		font-weight: 700;
+		letter-spacing: 0.08em;
+		text-transform: uppercase;
+	}
+
+	@media (max-width: 575.98px) {
+		.auth-wrapper {
+			padding: 18px;
+		}
+
+		.auth-content .card-body {
+			padding: 38px 26px 32px !important;
+		}
+	}
+</style>
+{% endblock stylesheets %}
+
+{% block content %}
 
 	<div class="auth-content">
 		<div class="card">
 			<div class="row align-items-center text-center">
 				<div class="col-md-12">
-
 					<div class="card-body">
-						<h4 class="mb-3 f-w-400">
-							<a target="_blank" 
-							   href="#">Bienvenido(a) </a> - Iniciar Sesión
-						</h4>
-						<span class="mb-0 text-muted">
+						<div class="terraview-login-brand">
+							<span class="terraview-login-brand__name">TERRA<span class="terraview-login-brand__control">VIEW</span></span>
+							<span class="terraview-login-brand__caption">Plataforma log&iacute;stica</span>
+						</div>
+
+						<h4 class="terraview-login-title">Bienvenido(a)</h4>
+						<span class="terraview-login-subtitle">
 							{% if msg %}
 								{{ msg | safe }}
 							{% else %}
 								Ingrese sus credenciales
-							{% endif %} 
+							{% endif %}
 						</span>
-						<!-- dummy spacer -->
-						<p> <br /> </p>						
-						<form role="form" method="post" action="">
 
+						<form role="form" method="post" action="">
 							{% csrf_token %}
-							
+
 							<div class="input-group mb-3">
 								<div class="input-group-prepend">
 									<span class="input-group-text"><i class="feather icon-user"></i></span>
@@ -40,17 +184,13 @@
 								{{ form.password }}
 							</div>
 
-							<button type="submit" name="login" class="btn btn-block btn-primary mb-4">Iniciar Sesión</button>
-						
+							<button type="submit" name="login" class="btn btn-block btn-primary terraview-login-button">Iniciar Sesi&oacute;n</button>
 						</form>
-						<p class="mb-2 text-muted">
-							<br />
-							&copy; <a target="_blank" rel="noopener" href="https://terramar-chile.com/" class="f-w-400">Terramar Chile</a>
-							- Made with ♥ by  <a target="_blank" rel="noopener" href="https://www.neuronia.cl" class="f-w-400">Neuronia</a>
+
+						<p class="terraview-login-footer">
+							TERRAVIEW &copy; Plataforma log&iacute;stica Por By Terramar Chile
 						</p>
 					</div>
-
-
 				</div>
 			</div>
 		</div>
@@ -58,9 +198,6 @@
 
 {% endblock content %}
 
-<!-- Specific Page JS goes HERE  -->
 {% block javascripts %}
-
 	<script src="/static/assets/js/waves.min.js"></script>
-
-{% endblock javascripts %} 
+{% endblock javascripts %}

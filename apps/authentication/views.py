@@ -27,10 +27,12 @@ def login_view(request):
                 login(request, user)
                 # Verificar si el usuario tiene un objeto USERS_EXTENSION asociado
                 if hasattr(request.user, 'userv') and request.user.userv.UX_IS_PROVEEDOR:
-                    usuario_socionegocio = USUARIO_SOCIONEGOCIO.objects.get(US_NID_id = request.user.id)
-                    return redirect("/pro_listone/" + str(usuario_socionegocio.SN_NID_id))
+                    usuario_socionegocio = USUARIO_SOCIONEGOCIO.objects.filter(US_NID_id=request.user.id).first()
+                    if usuario_socionegocio:
+                        return redirect("/pro_listone/" + str(usuario_socionegocio.SN_NID_id))
                 else:
                     return redirect("/")
+                return redirect("/")
             else:
                 messages.warning(request, 'Usuario y/o contraseña invalidos')
                 msg = 'Credenciales inválidas'

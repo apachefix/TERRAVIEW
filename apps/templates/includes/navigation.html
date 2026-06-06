@@ -8,7 +8,7 @@
         <a class="mobile-menu" id="mobile-collapse" href="#!"><span></span></a>
 
         <a href="{% url 'home' %}" class="b-brand">
-            <img src="/static/assets/images/logo-terramar.png"
+            <img src="/static/assets/images/logo-terramar.png?v=20260527"
                  alt=""
                  style="width:150px;"
                  class="logo">
@@ -62,11 +62,12 @@
                     </label>
 
                     <select class="form-control form-control-sm"
-                            onchange="window.location.href=this.value"
+                            id="select-empresa-activa"
+                            onchange="cambiarEmpresaVentana(this.value)"
                             style="width:190px; height:32px; font-size:12px; padding:2px 8px; margin:0;">
 
                         {% for item in empresas_usuario %}
-                            <option value="{% url 'cambiar_empresa' item.EP_NID.id %}"
+                            <option value="{{ item.EP_NID.id }}"
                                     {% if empresa_activa.id == item.EP_NID.id %}selected{% endif %}>
 
                                 {% if item.EP_NID.id == 1 %}
@@ -186,6 +187,108 @@
             var empresa = $("#select-empresa").val();
             window.location.href = '/actualizar-empresa-usuario/' + empresa;
         }
+
+        (function () {
+            const EMPRESA_PARAM = '_empresa_id';
+            const empresaSelect = document.getElementById('select-empresa-activa');
+            const urlParams = new URLSearchParams(window.location.search);
+            let empresaVentana = urlParams.get(EMPRESA_PARAM) || sessionStorage.getItem('empresa_ventana_id');
+
+            if (!empresaVentana && empresaSelect && empresaSelect.value) {
+                empresaVentana = empresaSelect.value;
+            }
+
+            if (empresaVentana) {
+                sessionStorage.setItem('empresa_ventana_id', empresaVentana);
+            }
+
+            window.cambiarEmpresaVentana = function (empresaId) {
+                if (!empresaId) {
+                    return;
+                }
+
+                sessionStorage.setItem('empresa_ventana_id', empresaId);
+                const url = new URL(window.location.href);
+                url.searchParams.set(EMPRESA_PARAM, empresaId);
+                window.location.href = url.toString();
+            };
+
+            function agregarEmpresaUrl(urlOriginal) {
+                const empresaId = sessionStorage.getItem('empresa_ventana_id');
+
+                if (!empresaId || !urlOriginal) {
+                    return urlOriginal;
+                }
+
+                try {
+                    const url = new URL(urlOriginal, window.location.origin);
+
+                    if (url.origin !== window.location.origin) {
+                        return urlOriginal;
+                    }
+
+                    url.searchParams.set(EMPRESA_PARAM, empresaId);
+                    return url.pathname + url.search + url.hash;
+                } catch (e) {
+                    return urlOriginal;
+                }
+            }
+
+            document.addEventListener('click', function (event) {
+                const link = event.target.closest('a[href]');
+
+                if (!link || link.target === '_blank' || link.hasAttribute('download')) {
+                    return;
+                }
+
+                const href = link.getAttribute('href');
+
+                if (!href || href.indexOf('#') === 0 || href.indexOf('javascript:') === 0 || href.indexOf('mailto:') === 0) {
+                    return;
+                }
+
+                link.setAttribute('href', agregarEmpresaUrl(href));
+            }, true);
+
+            document.addEventListener('submit', function (event) {
+                const empresaId = sessionStorage.getItem('empresa_ventana_id');
+
+                if (!empresaId || !event.target || event.target.tagName !== 'FORM') {
+                    return;
+                }
+
+                let input = event.target.querySelector('input[name="' + EMPRESA_PARAM + '"]');
+
+                if (!input) {
+                    input = document.createElement('input');
+                    input.type = 'hidden';
+                    input.name = EMPRESA_PARAM;
+                    event.target.appendChild(input);
+                }
+
+                input.value = empresaId;
+            }, true);
+
+            if (window.jQuery) {
+                $.ajaxPrefilter(function (options) {
+                    const empresaId = sessionStorage.getItem('empresa_ventana_id');
+
+                    if (!empresaId) {
+                        return;
+                    }
+
+                    if (window.FormData && options.data instanceof FormData) {
+                        options.data.append(EMPRESA_PARAM, empresaId);
+                    } else if (typeof options.data === 'string') {
+                        options.data += (options.data ? '&' : '') + encodeURIComponent(EMPRESA_PARAM) + '=' + encodeURIComponent(empresaId);
+                    } else if (options.data && typeof options.data === 'object') {
+                        options.data[EMPRESA_PARAM] = empresaId;
+                    } else {
+                        options.data = encodeURIComponent(EMPRESA_PARAM) + '=' + encodeURIComponent(empresaId);
+                    }
+                });
+            }
+        })();
         
         // Búsqueda de patente
         $(document).ready(function() {

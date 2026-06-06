@@ -1,3 +1,4 @@
+{% load static %}
 <!DOCTYPE html>
 <html lang="en">
 
@@ -24,13 +25,17 @@
 
 	<!-- vendor css -->
 	<link rel="stylesheet" href="/static/assets/css/style.css">
+	<link rel="stylesheet" href="{% static 'assets/css/terraview-loader.css' %}?v=20260527-loader10">
 	<link type="text/css" href="/static/assets/sweetalert2/dist/sweetalert2.min.css" rel="stylesheet">
+	<script src="{% static 'assets/js/terraview-loader.js' %}?v=20260527-loader9" defer></script>
 
     <!-- Specific CSS goes HERE -->
     {% block stylesheets %}{% endblock stylesheets %}
 
 </head>
 <body>
+
+	{% include 'includes/terraview_loader.html' %}
 
     <!-- [ auth-signin ] start -->
     <div class="auth-wrapper {% block wrapper_class %}{% endblock %}">
@@ -45,7 +50,7 @@
 	<script src="/static/assets/js/waves.min.js"></script>
 
 	<!-- Specific Page JS goes HERE  -->
-    {% block javascripts %}{% endblock javascripts %} 
+	{% block javascripts %}{% endblock javascripts %}
 	<script src="//cdn.jsdelivr.net/npm/sweetalert2@11"></script>
 	{% if messages%}
         {% for m in messages %}

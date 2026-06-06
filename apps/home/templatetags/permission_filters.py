@@ -27,6 +27,10 @@ PERFILES_ASISTENTE_RECEPCION = {
     'AR',
 }
 
+USUARIOS_ASISTENTE_RECEPCION = {
+    'ASISTENTE RECEPCION',
+}
+
 PERFILES_ASISTENTE_CD = {
     'ASISTENTE C D',
     'ASISTENTE CD',
@@ -65,6 +69,11 @@ def _normalizar_texto(valor):
     texto = unicodedata.normalize('NFKD', texto)
     texto = ''.join(caracter for caracter in texto if not unicodedata.combining(caracter))
     return ' '.join(texto.replace('_', ' ').replace('-', ' ').split())
+
+
+@register.filter(name='es_usuario_maesc')
+def es_usuario_maesc(user):
+    return _normalizar_texto(getattr(user, 'username', '')) == 'MAESC'
 
 @register.filter(name='has_vista')
 def has_vista(user, vista_codigo):
@@ -141,6 +150,9 @@ def es_ingreso_camion(user):
         return False
 
     username_normalizado = _normalizar_texto(getattr(user, 'username', ''))
+
+    if username_normalizado in PERFILES_INGRESO_CAMION:
+        return True
 
     if username_normalizado in USUARIOS_ASISTENTE_CD:
         return True
@@ -220,6 +232,9 @@ def es_guardia_porteria(user):
 def es_asistente_recepcion(user):
     if getattr(user, 'is_superuser', False):
         return False
+
+    if _normalizar_texto(getattr(user, 'username', '')) in USUARIOS_ASISTENTE_RECEPCION:
+        return True
 
     perfiles_usuario = PERFIL_USUARIO.objects.select_related('PR_NID').filter(
         US_NID=user.id,
