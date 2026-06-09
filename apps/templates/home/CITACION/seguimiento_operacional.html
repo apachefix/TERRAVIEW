@@ -171,7 +171,15 @@
                                 <td><strong>{{ camion.patente }}</strong></td>
                                 <td>{{ camion.conductor }}</td>
                                 <td>{{ camion.producto }}</td>
-                                <td><span class="tracking-state"><i class="fas fa-route"></i>{{ camion.estado_actual }}</span></td>
+                                <td>
+                                    <span class="tracking-state"><i class="fas fa-route"></i>{{ camion.estado_actual }}</span>
+                                    {% if camion.estado_accion_toma_muestra %}
+                                        <div class="text-muted mt-1" style="font-size: 12px;">
+                                            <i class="fas {% if camion.estado_accion_toma_muestra.tipo == 'vapor' %}fa-fire{% else %}fa-flask{% endif %}"></i>
+                                            {{ camion.estado_accion_toma_muestra.estado_label }}
+                                        </div>
+                                    {% endif %}
+                                </td>
                                 <td>
                                     <div class="progress-steps">
                                         {% for paso in camion.pasos %}
@@ -298,11 +306,12 @@
                         <td>${escapeHtml(item.usuario)}</td>
                         <td>${escapeHtml(item.responsable)}</td>
                         <td>${escapeHtml(item.fecha)}</td>
+                        <td>${escapeHtml(item.duracion_etapa_legible || 'No disponible')}</td>
                         <td>${escapeHtml(item.estado)}</td>
                     </tr>
                 `;
             }).join('')
-            : '<tr><td colspan="5" class="text-center text-muted">Sin etapas completadas.</td></tr>';
+            : '<tr><td colspan="6" class="text-center text-muted">Sin etapas completadas.</td></tr>';
 
         $('#detalle_seguimiento_body').html(`
             <div class="row mb-3">
@@ -325,6 +334,7 @@
                             <th>Usuario</th>
                             <th>Responsable</th>
                             <th>Fecha/hora</th>
+                            <th>Tiempo en etapa</th>
                             <th>Estado</th>
                         </tr>
                     </thead>

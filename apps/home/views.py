@@ -38,6 +38,7 @@ from datetime import datetime, time
 from decimal import Decimal, InvalidOperation, ROUND_HALF_UP
 from googletrans import Translator
 from PIL import Image
+from pypdf import PdfReader
 
 import os
 import uuid
@@ -48,6 +49,10 @@ import pandas as pd
 import requests
 import logging
 import unicodedata
+import re
+import shutil
+
+logger = logging.getLogger(__name__)
 
 try:
     from weasyprint import HTML, CSS
@@ -3560,6 +3565,22 @@ def resolver_estado_operacional_visible(citacion, pasos_config, pasos_completado
     return next((paso for paso in nombres_pasos if paso not in pasos_completados), nombres_pasos[-1] if nombres_pasos else 'Sin flujo')
 
 
+def obtener_paso_activo_operacion(citacion, pasos_config=None):
+    if pasos_config is None:
+        _, pasos_config = obtener_pasos_operacion_citacion(citacion)
+    logs_completados = set(OPERACION_PLANTA_LOG.objects.filter(
+        CI_NID=citacion,
+        OPL_CESTADO=OPERACION_PLANTA_LOG.ESTADO_COMPLETADO
+    ).values_list('OPL_CPASO', flat=True))
+    paso_actual = resolver_estado_operacional_visible(citacion, pasos_config, logs_completados)
+    responsables_actuales = []
+    for nombre_paso, responsables in pasos_config:
+        if nombre_paso == paso_actual:
+            responsables_actuales = responsables
+            break
+    return paso_actual, responsables_actuales, logs_completados
+
+
 def construir_estado_pasos_operacion(nombres_pasos, paso_actual, pasos_completados):
     pasos = []
     paso_actual_index = nombres_pasos.index(paso_actual) if paso_actual in nombres_pasos else -1
@@ -3577,6 +3598,709 @@ def construir_estado_pasos_operacion(nombres_pasos, paso_actual, pasos_completad
         })
 
     return pasos
+
+
+TICKET_PESAJE_SHARED_PATH = r'\\172.16.1.144\ticket_pesaje'
+TICKET_PESAJE_LOCAL_PATH = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'tickets')
+TICKET_PESAJE_REQUIRED_MESSAGE = 'Debe obtener y guardar el ticket de pesaje antes de continuar.'
+PASO_TOMA_MUESTRA = 'Toma de muestra'
+PASO_ANALISIS_CALIDAD = 'Analisis y calidad'
+PASO_RESULTADO_CALIDAD = 'Resultado Calidad'
+CAMPO_TOMA_MUESTRA_ACCION = 'OP_TOMA_MUESTRA_ACCION'
+CAMPO_TOMA_MUESTRA_VAPOR_LEGACY = 'OP_TOMA_MUESTRA_VAPOR'
+CAMPO_RESULTADO_CALIDAD = 'OP_RESULTADO_CALIDAD'
+CAMPO_PREPARACION_DESCARGA = 'OP_PREPARACION_DESCARGA'
+TOMA_MUESTRA_ACCION_REQUIRED_MESSAGE = 'Debe registrar la accion principal antes de finalizar Toma de muestra.'
+FLUJOS_TOMA_MUESTRA_VAPOR = {
+    'RECEPCION ESTANQUE SBH',
+    'RECEPCION ESTANQUES SBH ALMACENAJE',
+}
+PASOS_OPERACION_PLANTA_TICKET = {
+    'Pesaje Entrada': 'ENT',
+    'Pesaje Salida': 'SAL',
+}
+
+
+def _normalizar_patente(valor):
+    texto = unicodedata.normalize('NFKD', str(valor or ''))
+    texto = ''.join(caracter for caracter in texto if not unicodedata.combining(caracter))
+    return re.sub(r'[^A-Z0-9]', '', texto.upper())
+
+
+def _debug_ticket_pesaje(mensaje, **datos):
+    detalle = ' | '.join(f'{clave}={valor}' for clave, valor in datos.items())
+    texto = f'[OP_TICKET_PESAJE] {mensaje}'
+    if detalle:
+        texto = f'{texto} | {detalle}'
+    logger.info(texto)
+    if getattr(settings, 'DEBUG', False):
+        print(texto)
+
+
+def _normalizar_observacion_ticket(valor):
+    return re.sub(r'[\s\-]+', '', str(valor or '').strip().upper())
+
+
+def _tipo_ticket_pesaje(paso_nombre):
+    return PASOS_OPERACION_PLANTA_TICKET.get(str(paso_nombre or '').strip())
+
+
+def _codigo_campo_ticket_pesaje(tipo_ticket):
+    return f'OP_TICKET_PESAJE_{tipo_ticket}'
+
+
+def _fecha_ticket_desde_nombre(nombre_archivo):
+    nombre = os.path.basename(str(nombre_archivo or ''))
+    match = re.search(
+        r'COM_(?:ENT|SAL)_[A-Z0-9]+_(\d{2})_(\d{2})_(\d{2})_(\d{2})_(\d{2})(?:_(\d{8})_(\d{6}))?\.pdf$',
+        nombre,
+        re.IGNORECASE
+    )
+    if not match:
+        return None
+    yy, mes, dia, hora, minuto, fecha_larga, hora_larga = match.groups()
+    try:
+        if fecha_larga and hora_larga:
+            return datetime.strptime(fecha_larga + hora_larga, '%Y%m%d%H%M%S')
+        return datetime(2000 + int(yy), int(mes), int(dia), int(hora), int(minuto))
+    except ValueError:
+        return None
+
+
+def _buscar_ticket_pesaje_mas_reciente(patente, tipo_ticket):
+    patente_normalizada = _normalizar_patente(patente)
+    _debug_ticket_pesaje(
+        'Inicio busqueda ticket',
+        patente_original=repr(patente),
+        patente_normalizada=patente_normalizada,
+        tipo_ticket=tipo_ticket
+    )
+    if not patente_normalizada or tipo_ticket not in {'ENT', 'SAL'}:
+        _debug_ticket_pesaje('Busqueda cancelada por patente o tipo invalido', patente=patente_normalizada, tipo_ticket=tipo_ticket)
+        return None
+
+    candidatos = []
+    patron_ticket = re.compile(
+        r'^COM_(ENT|SAL)_(.+?)_(\d{2})_(\d{2})_(\d{2})_(\d{2})_(\d{2})(?:_\d{8}_\d{6})?\.pdf$',
+        re.IGNORECASE
+    )
+    for carpeta in [TICKET_PESAJE_SHARED_PATH, TICKET_PESAJE_LOCAL_PATH]:
+        _debug_ticket_pesaje('Revisando carpeta tickets', carpeta=carpeta, existe=os.path.isdir(carpeta) if carpeta else False)
+        if not carpeta or not os.path.isdir(carpeta):
+            continue
+        try:
+            nombres_archivos = os.listdir(carpeta)
+        except OSError as e:
+            _debug_ticket_pesaje('No fue posible listar carpeta tickets', carpeta=carpeta, error=str(e))
+            continue
+        for nombre in nombres_archivos:
+            match = patron_ticket.match(nombre)
+            if not match:
+                continue
+            tipo_archivo = match.group(1).upper()
+            patente_archivo = _normalizar_patente(match.group(2))
+            if tipo_archivo != tipo_ticket or patente_archivo != patente_normalizada:
+                continue
+            ruta = os.path.join(carpeta, nombre)
+            if not os.path.isfile(ruta):
+                continue
+            fecha_nombre = _fecha_ticket_desde_nombre(nombre) or datetime.min
+            try:
+                fecha_modificacion = datetime.fromtimestamp(os.path.getmtime(ruta))
+            except OSError:
+                fecha_modificacion = datetime.min
+            candidatos.append((fecha_nombre, fecha_modificacion, ruta))
+            _debug_ticket_pesaje(
+                'Candidato ticket encontrado',
+                archivo=nombre,
+                patente_archivo=patente_archivo,
+                fecha_nombre=fecha_nombre,
+                fecha_modificacion=fecha_modificacion
+            )
+
+    if not candidatos:
+        _debug_ticket_pesaje('Sin candidatos ticket', patente=patente_normalizada, tipo_ticket=tipo_ticket)
+        return None
+    candidatos.sort(key=lambda item: (item[0], item[1]), reverse=True)
+    _debug_ticket_pesaje(
+        'Ticket seleccionado',
+        archivo=os.path.basename(candidatos[0][2]),
+        ruta=candidatos[0][2],
+        total_candidatos=len(candidatos)
+    )
+    return candidatos[0][2]
+
+
+def _peso_entero(valor):
+    texto = re.sub(r'[^0-9]', '', str(valor or ''))
+    return int(texto) if texto else 0
+
+
+def _extraer_folio_ticket_pesaje(lineas):
+    for indice, linea in enumerate(lineas):
+        if re.search(r'Folio\s+Nro', linea, re.IGNORECASE):
+            bloque = lineas[indice + 1:indice + 10]
+            for candidata in bloque:
+                texto = candidata.strip()
+                if re.fullmatch(r'\d{3,}', texto):
+                    return texto
+    texto_completo = '\n'.join(lineas)
+    folio_match = re.search(r'Folio\s*Nro\.?\s*:?\s*(\d{3,})', texto_completo, re.IGNORECASE)
+    return folio_match.group(1).strip() if folio_match else ''
+
+
+def _filas_fecha_pesaje_ticket(lineas):
+    filas = []
+    patron_fecha_peso = re.compile(r'^\d{2}-\d{2}-\d{4}\s+\d{2}:\d{2}\s+([\d\.,]+)\b')
+    for linea in lineas:
+        if linea.startswith('01-01-1900'):
+            continue
+        match = patron_fecha_peso.search(linea)
+        if match:
+            filas.append({
+                'linea': linea,
+                'peso': _peso_entero(match.group(1)),
+            })
+    return filas
+
+
+def _extraer_datos_ticket_pesaje(ruta_pdf, tipo_ticket):
+    texto_paginas = []
+    with open(ruta_pdf, 'rb') as archivo:
+        reader = PdfReader(archivo)
+        for page in reader.pages:
+            texto_paginas.append(page.extract_text() or '')
+    texto = '\n'.join(texto_paginas)
+    lineas = [linea.strip() for linea in texto.splitlines() if linea.strip()]
+
+    folio = _extraer_folio_ticket_pesaje(lineas)
+
+    peso = 0
+    filas_pesaje = _filas_fecha_pesaje_ticket(lineas)
+    if tipo_ticket == 'ENT':
+        if filas_pesaje:
+            peso = filas_pesaje[0]['peso']
+        if not peso:
+            for linea in lineas:
+                if re.search(r'\bEntrada\b', linea, re.IGNORECASE):
+                    numeros = re.findall(r'\d[\d\.,]*', linea)
+                    if numeros:
+                        peso = _peso_entero(numeros[-1])
+                        break
+    elif tipo_ticket == 'SAL':
+        pesos = []
+        for linea in lineas:
+            if re.search(r'Peso\s+Neto', linea, re.IGNORECASE) and not re.search(r'informado', linea, re.IGNORECASE):
+                numeros = re.findall(r'\d[\d\.,]*', linea)
+                if numeros:
+                    pesos.append(_peso_entero(numeros[-1]))
+        peso = next((valor for valor in reversed(pesos) if valor), 0)
+        if not peso and len(filas_pesaje) > 1:
+            peso = filas_pesaje[-1]['peso']
+
+    observacion_match = re.search(r'\b([A-Z]{3,4}\d{6,7}(?:-\d)?)\b', texto.upper())
+    observacion = _normalizar_observacion_ticket(observacion_match.group(1)) if observacion_match else ''
+
+    if not folio:
+        raise ValueError('No fue posible leer el folio del ticket de pesaje.')
+    if not peso:
+        raise ValueError('No fue posible leer un peso valido del ticket de pesaje.')
+
+    return {
+        'folio': folio,
+        'peso_neto': peso,
+        'observacion': observacion,
+    }
+
+
+def _ruta_ticket_permitida(ruta):
+    try:
+        ruta_real = os.path.realpath(os.path.abspath(ruta))
+        local_real = os.path.realpath(os.path.abspath(TICKET_PESAJE_LOCAL_PATH))
+        return ruta_real.startswith(local_real + os.sep) or ruta_real == local_real
+    except (TypeError, ValueError, OSError):
+        return False
+
+
+def _copiar_ticket_local_si_necesario(ruta_pdf):
+    os.makedirs(TICKET_PESAJE_LOCAL_PATH, exist_ok=True)
+    destino = os.path.join(TICKET_PESAJE_LOCAL_PATH, os.path.basename(ruta_pdf))
+    if os.path.realpath(os.path.abspath(ruta_pdf)) != os.path.realpath(os.path.abspath(destino)):
+        if not os.path.exists(destino):
+            shutil.copy2(ruta_pdf, destino)
+        return destino
+    return ruta_pdf
+
+
+def _obtener_campo_ticket_pesaje(citacion, tipo_ticket, usuario):
+    codigo = _codigo_campo_ticket_pesaje(tipo_ticket)
+    campo, _ = CAMPO.objects.get_or_create(
+        EP_NID=citacion.EP_NID,
+        CA_CCODIGO=codigo,
+        defaults={
+            'US_NID': usuario,
+            'CA_CTIPO': 'NUMERO',
+            'CA_CETIQUETA': f'Ticket pesaje {tipo_ticket}',
+            'CA_CPLACEMARK': 'Peso obtenido desde ticket',
+            'CA_BOBLIGATORIO': True,
+            'CA_BHABILITADO': True,
+            'CA_BASIGNARVALOR': False,
+        }
+    )
+    cambios = []
+    if not campo.CA_BHABILITADO:
+        campo.CA_BHABILITADO = True
+        cambios.append('CA_BHABILITADO')
+    if campo.CA_CTIPO != 'NUMERO':
+        campo.CA_CTIPO = 'NUMERO'
+        cambios.append('CA_CTIPO')
+    if cambios:
+        campo.save(update_fields=cambios)
+    return campo
+
+
+def _metadata_ticket_pesaje(citacion, paso, tipo_ticket, patente, ruta_local, datos, usuario):
+    fecha_ticket = _fecha_ticket_desde_nombre(os.path.basename(ruta_local))
+    return {
+        'folio': datos['folio'],
+        'peso_neto': datos['peso_neto'],
+        'observacion': datos.get('observacion') or '',
+        'ruta_real_pdf': os.path.abspath(ruta_local),
+        'nombre_archivo_pdf': os.path.basename(ruta_local),
+        'fecha_hora_ticket': fecha_ticket.isoformat() if fecha_ticket else '',
+        'patente': _normalizar_patente(patente),
+        'tipo_ticket': tipo_ticket,
+        'citacion_id': citacion.id,
+        'paso_operacion': paso,
+        'usuario_id': usuario.id,
+    }
+
+
+def _dato_ticket_pesaje(citacion, paso):
+    tipo_ticket = _tipo_ticket_pesaje(paso)
+    if not tipo_ticket:
+        return None
+    return DATO_OPERACION.objects.filter(
+        CI_NID=citacion,
+        CAMP_NID__CA_CCODIGO=_codigo_campo_ticket_pesaje(tipo_ticket)
+    ).select_related('CAMP_NID').order_by('-id').first()
+
+
+def _leer_metadata_ticket_dato(dato):
+    if not dato:
+        return None
+    try:
+        metadata = json.loads(dato.DO_CVALOR or '{}')
+    except (TypeError, ValueError):
+        return None
+    return metadata if isinstance(metadata, dict) else None
+
+
+def _ticket_pesaje_obligatorio_guardado(citacion, paso):
+    tipo_ticket = _tipo_ticket_pesaje(paso)
+    if not tipo_ticket:
+        return True
+    dato = _dato_ticket_pesaje(citacion, paso)
+    metadata = _leer_metadata_ticket_dato(dato)
+    if not metadata:
+        return False
+    ruta_pdf = metadata.get('ruta_real_pdf')
+    return all([
+        metadata.get('folio'),
+        int(metadata.get('peso_neto') or 0) > 0,
+        metadata.get('tipo_ticket') == tipo_ticket,
+        metadata.get('paso_operacion') == paso,
+        ruta_pdf,
+        os.path.isfile(ruta_pdf),
+        _ruta_ticket_permitida(ruta_pdf),
+    ])
+
+
+def _payload_ticket_pesaje_guardado(citacion, paso, request=None):
+    dato = _dato_ticket_pesaje(citacion, paso)
+    metadata = _leer_metadata_ticket_dato(dato)
+    if not dato or not metadata or not _ticket_pesaje_obligatorio_guardado(citacion, paso):
+        return None
+    download_url = reverse('ajax_operacion_planta_descargar_ticket_pesaje')
+    url = f'{download_url}?dato_id={dato.id}'
+    if request:
+        url = request.build_absolute_uri(url)
+    return {
+        'dato_id': dato.id,
+        'peso_neto': metadata.get('peso_neto') or dato.DO_NPESO,
+        'folio': metadata.get('folio') or '',
+        'observacion': metadata.get('observacion') or '',
+        'download_url': url,
+        'nombre_archivo_pdf': metadata.get('nombre_archivo_pdf') or '',
+        'tipo_ticket': metadata.get('tipo_ticket') or '',
+    }
+
+
+def _config_accion_toma_muestra(nombre_flujo):
+    flujo_normalizado = normalizar_nombre_flujo_operacion(nombre_flujo)
+    if flujo_normalizado in {normalizar_nombre_flujo_operacion(flujo) for flujo in FLUJOS_TOMA_MUESTRA_VAPOR}:
+        return {
+            'tipo': 'vapor',
+            'accion_label': 'Enviar a vapor',
+            'estado_label': 'Camion enviado a vapor',
+            'pendiente_label': 'Pendiente de envio a vapor',
+            'mensaje_guardado': 'Camion enviado a vapor.',
+            'log_operacion': 'TOMA_MUESTRA_ENVIA_VAPOR',
+            'log_mensaje': 'Camion enviado a vapor en Toma de muestra',
+        }
+    return {
+        'tipo': 'analisis',
+        'accion_label': 'Enviar a analisis',
+        'estado_label': 'Muestra enviada a analisis',
+        'pendiente_label': 'Pendiente de envio a analisis',
+        'mensaje_guardado': 'Muestra enviada a analisis.',
+        'log_operacion': 'TOMA_MUESTRA_ENVIA_ANALISIS',
+        'log_mensaje': 'Muestra enviada a analisis en Toma de muestra',
+    }
+
+
+def _obtener_campo_toma_muestra_accion(citacion, usuario):
+    campo, _ = CAMPO.objects.get_or_create(
+        EP_NID=citacion.EP_NID,
+        CA_CCODIGO=CAMPO_TOMA_MUESTRA_ACCION,
+        defaults={
+            'US_NID': usuario,
+            'CA_CTIPO': 'CHECK',
+            'CA_CETIQUETA': 'Accion toma de muestra',
+            'CA_CPLACEMARK': 'Evento operacional de toma de muestra',
+            'CA_BOBLIGATORIO': True,
+            'CA_BHABILITADO': True,
+            'CA_BASIGNARVALOR': False,
+        }
+    )
+    if not campo.CA_BHABILITADO:
+        campo.CA_BHABILITADO = True
+        campo.save(update_fields=['CA_BHABILITADO'])
+    return campo
+
+
+def _dato_toma_muestra_accion(citacion):
+    return DATO_OPERACION.objects.filter(
+        CI_NID=citacion,
+        CAMP_NID__CA_CCODIGO__in=[CAMPO_TOMA_MUESTRA_ACCION, CAMPO_TOMA_MUESTRA_VAPOR_LEGACY]
+    ).select_related('CAMP_NID').order_by('-id').first()
+
+
+def _leer_metadata_toma_muestra_accion(citacion):
+    dato = _dato_toma_muestra_accion(citacion)
+    if not dato:
+        return None
+    try:
+        metadata = json.loads(dato.DO_CVALOR or '{}')
+    except (TypeError, ValueError):
+        return None
+    if not isinstance(metadata, dict) or not (metadata.get('accion_registrada') or metadata.get('enviado_vapor')):
+        return None
+    if metadata.get('enviado_vapor') and not metadata.get('tipo_accion'):
+        metadata['tipo_accion'] = 'vapor'
+        metadata['mensaje'] = metadata.get('mensaje') or 'Camion enviado a vapor'
+    metadata['dato_id'] = dato.id
+    return metadata
+
+
+def _toma_muestra_accion_guardada(citacion):
+    return bool(_leer_metadata_toma_muestra_accion(citacion))
+
+
+def _payload_toma_muestra_accion(citacion, nombre_flujo):
+    config = _config_accion_toma_muestra(nombre_flujo)
+    metadata = _leer_metadata_toma_muestra_accion(citacion)
+    if not metadata:
+        return {
+            **config,
+            'registrada': False,
+            'usuario': '',
+            'fecha': '',
+            'observacion': '',
+        }
+    return {
+        **config,
+        'registrada': True,
+        'tipo': metadata.get('tipo_accion') or config['tipo'],
+        'usuario': metadata.get('usuario') or '',
+        'fecha': metadata.get('fecha') or '',
+        'observacion': metadata.get('observacion') or '',
+        'mensaje': metadata.get('mensaje') or config['estado_label'],
+    }
+
+
+def _registrar_toma_muestra_accion(citacion, usuario, nombre_flujo, observacion=''):
+    config = _config_accion_toma_muestra(nombre_flujo)
+    campo = _obtener_campo_toma_muestra_accion(citacion, usuario)
+    fecha = timezone.localtime(timezone.now())
+    metadata = {
+        'accion_registrada': True,
+        'tipo_accion': config['tipo'],
+        'citacion_id': citacion.id,
+        'paso_operacion': PASO_TOMA_MUESTRA,
+        'mensaje': config['estado_label'],
+        'observacion': observacion,
+        'usuario_id': usuario.id,
+        'usuario': usuario.username,
+        'fecha': fecha.strftime('%d/%m/%Y %H:%M'),
+        'fecha_iso': fecha.isoformat(),
+    }
+    dato, _ = DATO_OPERACION.objects.update_or_create(
+        CI_NID=citacion,
+        CAMP_NID=campo,
+        defaults={
+            'EP_NID': citacion.EP_NID,
+            'US_NID': usuario,
+            'SC_NID': citacion.SC_NID,
+            'ET_NID': citacion.ETAPA_ACTUAL,
+            'DO_CVALOR': json.dumps(metadata, ensure_ascii=False),
+            'DO_NPESO': None,
+            'DO_FFECHAREGISTRO': timezone.now(),
+        }
+    )
+    metadata['dato_id'] = dato.id
+    registrar_log_camion_no_planificado(
+        usuario,
+        citacion.EP_NID,
+        config['log_operacion'],
+        f'{config["log_mensaje"]} para citacion #{citacion.id}.',
+        citacion.id,
+        ''
+    )
+    return metadata
+
+
+def _obtener_campo_resultado_calidad(citacion, usuario):
+    campo, _ = CAMPO.objects.get_or_create(
+        EP_NID=citacion.EP_NID,
+        CA_CCODIGO=CAMPO_RESULTADO_CALIDAD,
+        defaults={
+            'US_NID': usuario,
+            'CA_CTIPO': 'TEXTO',
+            'CA_CETIQUETA': 'Resultado analisis y calidad',
+            'CA_CPLACEMARK': 'Metadata operacional de calidad',
+            'CA_BOBLIGATORIO': True,
+            'CA_BHABILITADO': True,
+            'CA_BASIGNARVALOR': False,
+        }
+    )
+    if not campo.CA_BHABILITADO:
+        campo.CA_BHABILITADO = True
+        campo.save(update_fields=['CA_BHABILITADO'])
+    return campo
+
+
+def _dato_resultado_calidad(citacion):
+    return DATO_OPERACION.objects.filter(
+        CI_NID=citacion,
+        CAMP_NID__CA_CCODIGO=CAMPO_RESULTADO_CALIDAD
+    ).select_related('CAMP_NID').order_by('-id').first()
+
+
+def _leer_metadata_resultado_calidad(citacion):
+    dato = _dato_resultado_calidad(citacion)
+    if not dato:
+        return None
+    try:
+        metadata = json.loads(dato.DO_CVALOR or '{}')
+    except (TypeError, ValueError):
+        return None
+    if not isinstance(metadata, dict) or metadata.get('resultado_calidad') not in {'APROBADO', 'RECHAZADO'}:
+        return None
+    metadata['dato_id'] = dato.id
+    return metadata
+
+
+def _payload_resultado_calidad(citacion):
+    metadata = _leer_metadata_resultado_calidad(citacion)
+    if not metadata:
+        return None
+    download_url = ''
+    if metadata.get('documento_ruta') and metadata.get('documento_nombre'):
+        download_url = reverse('ajax_operacion_planta_descargar_documento_calidad')
+        download_url = f'{download_url}?citacion_id={citacion.id}'
+    return {
+        'resultado_calidad': metadata.get('resultado_calidad') or '',
+        'comentario': metadata.get('comentario') or '',
+        'documento_nombre': metadata.get('documento_nombre') or '',
+        'documento_ruta': metadata.get('documento_ruta') or '',
+        'download_url': download_url,
+        'usuario': metadata.get('usuario') or '',
+        'fecha_hora': metadata.get('fecha_hora') or '',
+    }
+
+
+def _guardar_documento_resultado_calidad(citacion, archivo):
+    if not archivo:
+        return '', ''
+    carpeta = os.path.join(TICKET_PESAJE_LOCAL_PATH, 'calidad', str(citacion.id))
+    os.makedirs(carpeta, exist_ok=True)
+    nombre_base = get_valid_filename(os.path.basename(archivo.name or 'resultado_calidad'))
+    timestamp = timezone.localtime(timezone.now()).strftime('%Y%m%d_%H%M%S')
+    nombre_archivo = f'{timestamp}_{nombre_base}'
+    ruta_archivo = os.path.join(carpeta, nombre_archivo)
+    with open(ruta_archivo, 'wb+') as destino:
+        for chunk in archivo.chunks():
+            destino.write(chunk)
+    return nombre_archivo, ruta_archivo
+
+
+def _registrar_resultado_calidad(citacion, usuario, resultado, comentario='', archivo=None):
+    resultado = str(resultado or '').strip().upper()
+    if resultado not in {'APROBADO', 'RECHAZADO'}:
+        raise ValueError('Debe seleccionar Aprobado o Rechazado.')
+
+    campo = _obtener_campo_resultado_calidad(citacion, usuario)
+    nombre_documento, ruta_documento = _guardar_documento_resultado_calidad(citacion, archivo)
+    fecha = timezone.localtime(timezone.now())
+    metadata = {
+        'resultado_calidad': resultado,
+        'comentario': comentario,
+        'documento_nombre': nombre_documento,
+        'documento_ruta': ruta_documento,
+        'usuario_id': usuario.id,
+        'usuario': usuario.username,
+        'fecha_hora': fecha.strftime('%d/%m/%Y %H:%M'),
+        'fecha_iso': fecha.isoformat(),
+        'citacion_id': citacion.id,
+        'paso_operacion': PASO_ANALISIS_CALIDAD,
+    }
+    dato, _ = DATO_OPERACION.objects.update_or_create(
+        CI_NID=citacion,
+        CAMP_NID=campo,
+        defaults={
+            'EP_NID': citacion.EP_NID,
+            'US_NID': usuario,
+            'SC_NID': citacion.SC_NID,
+            'ET_NID': citacion.ETAPA_ACTUAL,
+            'DO_CVALOR': json.dumps(metadata, ensure_ascii=False),
+            'DO_NPESO': None,
+            'DO_FFECHAREGISTRO': timezone.now(),
+        }
+    )
+    metadata['dato_id'] = dato.id
+    return metadata
+
+
+def _obtener_estanque_destino_operacion(citacion):
+    dato_estanque = obtener_dato_estanque_operacional(citacion)
+    if dato_estanque and str(dato_estanque.DO_CVALOR or '').strip():
+        return str(dato_estanque.DO_CVALOR or '').strip()
+    detalle = obtener_detalle_operacional_citacion(citacion)
+    if detalle and str(detalle.CDO_CESTANQUE_DESTINO or '').strip():
+        return str(detalle.CDO_CESTANQUE_DESTINO or '').strip()
+    reserva = ESTANQUE_RESERVA.objects.filter(CI_NID=citacion).order_by('-ER_FFECHA_ASIGNACION').first()
+    if reserva and str(reserva.ER_CESTANQUE or '').strip():
+        return str(reserva.ER_CESTANQUE or '').strip()
+    return ''
+
+
+def _obtener_campo_preparacion_descarga(citacion, usuario):
+    campo, _ = CAMPO.objects.get_or_create(
+        EP_NID=citacion.EP_NID,
+        CA_CCODIGO=CAMPO_PREPARACION_DESCARGA,
+        defaults={
+            'US_NID': usuario,
+            'CA_CTIPO': 'TEXTO',
+            'CA_CETIQUETA': 'Preparacion descarga',
+            'CA_CPLACEMARK': 'Metadata operacional de preparacion de descarga',
+            'CA_BOBLIGATORIO': True,
+            'CA_BHABILITADO': True,
+            'CA_BASIGNARVALOR': False,
+        }
+    )
+    if not campo.CA_BHABILITADO:
+        campo.CA_BHABILITADO = True
+        campo.save(update_fields=['CA_BHABILITADO'])
+    return campo
+
+
+def _dato_preparacion_descarga(citacion):
+    return DATO_OPERACION.objects.filter(
+        CI_NID=citacion,
+        CAMP_NID__CA_CCODIGO=CAMPO_PREPARACION_DESCARGA
+    ).select_related('CAMP_NID').order_by('-id').first()
+
+
+def _leer_metadata_preparacion_descarga(citacion):
+    dato = _dato_preparacion_descarga(citacion)
+    if not dato:
+        return None
+    try:
+        metadata = json.loads(dato.DO_CVALOR or '{}')
+    except (TypeError, ValueError):
+        return None
+    return metadata if isinstance(metadata, dict) else None
+
+
+def _payload_preparacion_descarga(citacion):
+    metadata = _leer_metadata_preparacion_descarga(citacion)
+    if metadata:
+        return {
+            'sitio_descarga': metadata.get('sitio_descarga') or '',
+            'bomba_descarga': metadata.get('bomba_descarga') or '',
+            'estanque_destino': metadata.get('estanque_destino') or '',
+            'estanque_anterior': metadata.get('estanque_anterior') or '',
+            'observaciones_descarga': metadata.get('observaciones_descarga') or '',
+            'usuario': metadata.get('usuario') or '',
+            'fecha_hora': metadata.get('fecha_hora') or '',
+        }
+    return {
+        'sitio_descarga': '',
+        'bomba_descarga': '',
+        'estanque_destino': _obtener_estanque_destino_operacion(citacion),
+        'estanque_anterior': _obtener_estanque_destino_operacion(citacion),
+        'observaciones_descarga': '',
+        'usuario': '',
+        'fecha_hora': '',
+    }
+
+
+def _registrar_preparacion_descarga(citacion, usuario, sitio_descarga, bomba_descarga, estanque_destino, observaciones_descarga=''):
+    sitio_descarga = str(sitio_descarga or '').strip()
+    bomba_descarga = str(bomba_descarga or '').strip()
+    estanque_destino = str(estanque_destino or '').strip()
+    observaciones_descarga = str(observaciones_descarga or '').strip()
+
+    if sitio_descarga not in [f'Sitio {i}' for i in range(1, 7)]:
+        raise ValueError('Debe seleccionar sitio de descarga.')
+    if bomba_descarga not in [f'Bomba {i}' for i in range(1, 7)]:
+        raise ValueError('Debe seleccionar bomba de descarga.')
+    if not estanque_destino:
+        raise ValueError('Debe indicar estanque destino.')
+
+    campo = _obtener_campo_preparacion_descarga(citacion, usuario)
+    estanque_anterior = _obtener_estanque_destino_operacion(citacion)
+    fecha = timezone.localtime(timezone.now())
+    metadata = {
+        'sitio_descarga': sitio_descarga,
+        'bomba_descarga': bomba_descarga,
+        'estanque_destino': estanque_destino,
+        'estanque_anterior': estanque_anterior,
+        'estanque_modificado': normalizar_texto_reserva(estanque_destino) != normalizar_texto_reserva(estanque_anterior),
+        'observaciones_descarga': observaciones_descarga,
+        'usuario_id': usuario.id,
+        'usuario': usuario.username,
+        'fecha_hora': fecha.strftime('%d/%m/%Y %H:%M'),
+        'fecha_iso': fecha.isoformat(),
+        'citacion_id': citacion.id,
+        'paso_operacion': PASO_RESULTADO_CALIDAD,
+    }
+    dato, _ = DATO_OPERACION.objects.update_or_create(
+        CI_NID=citacion,
+        CAMP_NID=campo,
+        defaults={
+            'EP_NID': citacion.EP_NID,
+            'US_NID': usuario,
+            'SC_NID': citacion.SC_NID,
+            'ET_NID': citacion.ETAPA_ACTUAL,
+            'DO_CVALOR': json.dumps(metadata, ensure_ascii=False),
+            'DO_NPESO': None,
+            'DO_FFECHAREGISTRO': timezone.now(),
+        }
+    )
+    metadata['dato_id'] = dato.id
+    return metadata
 
 
 CAMPOS_INGRESO_CAMION_DEFAULT = [
@@ -9423,15 +10147,21 @@ def CITACION_LISTALL_RECEPCIONES(request):
             etapa_preoperacional = obtener_etapa_preoperacional_citacion(citacion)
             if etapa_preoperacional:
                 citacion.operacion_estado_visible = etapa_preoperacional
+                citacion.nombre_paso_activo = ''
+                citacion.paso_activo_usuario = False
+                citacion.requiere_accion_usuario = False
             elif citacion.operacion_planta_habilitada:
                 _, pasos_config = obtener_pasos_operacion_citacion(citacion)
-                logs_completados = set(OPERACION_PLANTA_LOG.objects.filter(
-                    CI_NID=citacion,
-                    OPL_CESTADO=OPERACION_PLANTA_LOG.ESTADO_COMPLETADO
-                ).values_list('OPL_CPASO', flat=True))
-                citacion.operacion_estado_visible = resolver_estado_operacional_visible(citacion, pasos_config, logs_completados)
+                paso_activo, responsables_activos, _ = obtener_paso_activo_operacion(citacion, pasos_config)
+                citacion.operacion_estado_visible = paso_activo
+                citacion.nombre_paso_activo = paso_activo
+                citacion.paso_activo_usuario = usuario_puede_paso_operacion(request.user, responsables_activos)
+                citacion.requiere_accion_usuario = citacion.paso_activo_usuario
             else:
                 citacion.operacion_estado_visible = citacion.ETAPA_ACTUAL.ET_CCODIGO if citacion.ETAPA_ACTUAL else ''
+                citacion.nombre_paso_activo = ''
+                citacion.paso_activo_usuario = False
+                citacion.requiere_accion_usuario = False
 
         filtrado = 1 if (
             fecha_desde or 
@@ -9509,12 +10239,7 @@ def OPERACION_PLANTA_CITACION(request, pk):
     logs = OPERACION_PLANTA_LOG.objects.select_related('US_NID').filter(
         CI_NID=citacion
     ).order_by('-OPL_FFECHAREGISTRO')
-    pasos_completados = {
-        log.OPL_CPASO
-        for log in logs
-        if log.OPL_CESTADO == OPERACION_PLANTA_LOG.ESTADO_COMPLETADO
-    }
-    paso_actual_visible = resolver_estado_operacional_visible(citacion, pasos_config, pasos_completados)
+    paso_actual_visible, _, pasos_completados = obtener_paso_activo_operacion(citacion, pasos_config)
     ultimo_log_por_paso = {}
     for log in logs:
         if log.OPL_CPASO not in ultimo_log_por_paso:
@@ -9524,12 +10249,29 @@ def OPERACION_PLANTA_CITACION(request, pk):
     for indice, (nombre_paso, responsables) in enumerate(pasos_config, start=1):
         log_paso = ultimo_log_por_paso.get(nombre_paso)
         puede_editar = usuario_puede_paso_operacion(request.user, responsables)
+        ticket_pesaje = _payload_ticket_pesaje_guardado(citacion, nombre_paso, request)
+        accion_toma_muestra = _payload_toma_muestra_accion(citacion, nombre_flujo) if nombre_paso == PASO_TOMA_MUESTRA else None
+        resultado_calidad = _payload_resultado_calidad(citacion) if nombre_paso == PASO_ANALISIS_CALIDAD else None
+        revision_resultado_calidad = _payload_resultado_calidad(citacion) if nombre_paso == PASO_RESULTADO_CALIDAD else None
+        preparacion_descarga = _payload_preparacion_descarga(citacion) if nombre_paso == PASO_RESULTADO_CALIDAD else None
         pasos.append({
             'orden': indice,
             'nombre': nombre_paso,
             'responsable': ' / '.join(responsables),
             'activo': nombre_paso == paso_actual_visible,
             'puede_editar': puede_editar,
+            'requiere_ticket_pesaje': nombre_paso in PASOS_OPERACION_PLANTA_TICKET,
+            'tipo_ticket_pesaje': _tipo_ticket_pesaje(nombre_paso) or '',
+            'ticket_pesaje': ticket_pesaje,
+            'requiere_accion_toma_muestra': nombre_paso == PASO_TOMA_MUESTRA,
+            'accion_toma_muestra': accion_toma_muestra,
+            'requiere_resultado_calidad': nombre_paso == PASO_ANALISIS_CALIDAD,
+            'resultado_calidad': resultado_calidad,
+            'requiere_preparacion_descarga': nombre_paso == PASO_RESULTADO_CALIDAD,
+            'revision_resultado_calidad': revision_resultado_calidad,
+            'preparacion_descarga': preparacion_descarga,
+            'sitios_descarga': [f'Sitio {i}' for i in range(1, 7)] if nombre_paso == PASO_RESULTADO_CALIDAD else [],
+            'bombas_descarga': [f'Bomba {i}' for i in range(1, 7)] if nombre_paso == PASO_RESULTADO_CALIDAD else [],
             'solo_lectura_msg': '' if puede_editar else f'Solo lectura: este paso corresponde a {" / ".join(responsables)}',
             'estado': log_paso.OPL_CESTADO if log_paso else 'PENDIENTE',
             'observacion': log_paso.OPL_COBSERVACION if log_paso else '',
@@ -9548,6 +10290,7 @@ def OPERACION_PLANTA_CITACION(request, pk):
         'telefono_conductor': texto_sin_informacion(valores_ingreso.get('celular_conductor')),
         'transportista': texto_sin_informacion(valores_ingreso.get('transportista')),
         'documentos_operacion': documentos_operacion,
+        'empresa_activa_id': Empresa,
     }
     return render(request, 'home/CITACION/operacion_planta.html', ctx)
 
@@ -9604,6 +10347,18 @@ def OPERACION_PLANTA_GUARDAR_PASO(request, pk):
             'message': f'Solo lectura: este paso corresponde a {" / ".join(responsables_paso)}'
         }, status=403)
 
+    if paso in PASOS_OPERACION_PLANTA_TICKET and not _ticket_pesaje_obligatorio_guardado(citacion, paso):
+        return JsonResponse({
+            'success': False,
+            'message': TICKET_PESAJE_REQUIRED_MESSAGE
+        }, status=400)
+
+    if paso == PASO_TOMA_MUESTRA and not _toma_muestra_accion_guardada(citacion):
+        return JsonResponse({
+            'success': False,
+            'message': TOMA_MUESTRA_ACCION_REQUIRED_MESSAGE
+        }, status=400)
+
     log = OPERACION_PLANTA_LOG.objects.create(
         US_NID=request.user,
         EP_NID=citacion.EP_NID,
@@ -9624,6 +10379,413 @@ def OPERACION_PLANTA_GUARDAR_PASO(request, pk):
     })
 
 
+def ajax_operacion_planta_registrar_accion_toma_muestra(request, pk):
+    if request.method != 'POST':
+        return JsonResponse({'success': False, 'message': 'Metodo no permitido.'}, status=405)
+
+    if not usuario_es_operacion_planta(request.user):
+        return JsonResponse({'success': False, 'message': 'No tiene permisos para Operacion Planta.'}, status=403)
+
+    Empresa = Verificar_empresa(request)
+    if Empresa is None:
+        return JsonResponse({'success': False, 'message': 'Debe seleccionar una empresa.'}, status=400)
+
+    try:
+        citacion = CITACION.objects.select_related('EP_NID', 'PL_NID', 'SC_NID').get(
+            pk=pk,
+            EP_NID_id=Empresa,
+            CI_BHABILITADO=True
+        )
+    except CITACION.DoesNotExist:
+        return JsonResponse({'success': False, 'message': 'Citacion no encontrada.'}, status=404)
+
+    if not citacion_habilitada_operacion(citacion):
+        return JsonResponse({'success': False, 'message': 'La citacion aun no esta habilitada para Operacion Planta.'}, status=400)
+
+    _, pasos_config = obtener_pasos_operacion_citacion(citacion)
+    paso_actual_visible, responsables_paso, _ = obtener_paso_activo_operacion(citacion, pasos_config)
+    if paso_actual_visible != PASO_TOMA_MUESTRA:
+        return JsonResponse({
+            'success': False,
+            'message': f'Solo puede registrar la accion durante la etapa activa: {PASO_TOMA_MUESTRA}.'
+        }, status=409)
+
+    if not usuario_puede_paso_operacion(request.user, responsables_paso):
+        return JsonResponse({
+            'success': False,
+            'message': f'Solo lectura: este paso corresponde a {" / ".join(responsables_paso)}'
+        }, status=403)
+
+    nombre_flujo, _ = obtener_pasos_operacion_citacion(citacion)
+    observacion = str(request.POST.get('observacion') or '').strip()
+    config = _config_accion_toma_muestra(nombre_flujo)
+    metadata = _registrar_toma_muestra_accion(citacion, request.user, nombre_flujo, observacion)
+    return JsonResponse({
+        'success': True,
+        'message': config['mensaje_guardado'],
+        'accion_toma_muestra': {
+            'registrada': True,
+            'tipo': metadata.get('tipo_accion') or config['tipo'],
+            'usuario': metadata.get('usuario') or '',
+            'fecha': metadata.get('fecha') or '',
+            'mensaje': metadata.get('mensaje') or config['estado_label'],
+            'observacion': metadata.get('observacion') or '',
+            'estado_label': config['estado_label'],
+            'accion_label': config['accion_label'],
+        }
+    })
+
+
+ajax_operacion_planta_enviar_vapor = ajax_operacion_planta_registrar_accion_toma_muestra
+
+
+def ajax_operacion_planta_registrar_resultado_calidad(request, pk):
+    if request.method != 'POST':
+        return JsonResponse({'success': False, 'message': 'Metodo no permitido.'}, status=405)
+
+    if not usuario_es_operacion_planta(request.user):
+        return JsonResponse({'success': False, 'message': 'No tiene permisos para Operacion Planta.'}, status=403)
+
+    Empresa = Verificar_empresa(request)
+    if Empresa is None:
+        return JsonResponse({'success': False, 'message': 'Debe seleccionar una empresa.'}, status=400)
+
+    try:
+        citacion = CITACION.objects.select_related('EP_NID', 'PL_NID', 'SC_NID').get(
+            pk=pk,
+            EP_NID_id=Empresa,
+            CI_BHABILITADO=True
+        )
+    except CITACION.DoesNotExist:
+        return JsonResponse({'success': False, 'message': 'Citacion no encontrada.'}, status=404)
+
+    if not citacion_habilitada_operacion(citacion):
+        return JsonResponse({'success': False, 'message': 'La citacion aun no esta habilitada para Operacion Planta.'}, status=400)
+
+    _, pasos_config = obtener_pasos_operacion_citacion(citacion)
+    paso_actual_visible, responsables_paso, _ = obtener_paso_activo_operacion(citacion, pasos_config)
+    if paso_actual_visible != PASO_ANALISIS_CALIDAD:
+        return JsonResponse({
+            'success': False,
+            'message': f'Solo puede registrar resultado durante la etapa activa: {PASO_ANALISIS_CALIDAD}.'
+        }, status=409)
+
+    if not usuario_puede_paso_operacion(request.user, responsables_paso):
+        return JsonResponse({
+            'success': False,
+            'message': f'Solo lectura: este paso corresponde a {" / ".join(responsables_paso)}'
+        }, status=403)
+
+    resultado = str(request.POST.get('resultado_calidad') or '').strip().upper()
+    comentario = str(request.POST.get('comentario') or '').strip()
+    archivo = request.FILES.get('documento_calidad')
+
+    try:
+        with transaction.atomic():
+            metadata = _registrar_resultado_calidad(citacion, request.user, resultado, comentario, archivo)
+            log = OPERACION_PLANTA_LOG.objects.create(
+                US_NID=request.user,
+                EP_NID=citacion.EP_NID,
+                PL_NID=citacion.PL_NID,
+                CI_NID=citacion,
+                OPL_CPASO=PASO_ANALISIS_CALIDAD,
+                OPL_CPERFIL_RESPONSABLE=' / '.join(responsables_paso),
+                OPL_CESTADO=OPERACION_PLANTA_LOG.ESTADO_COMPLETADO,
+                OPL_COBSERVACION=json.dumps(metadata, ensure_ascii=False)
+            )
+    except ValueError as e:
+        return JsonResponse({'success': False, 'message': str(e)}, status=400)
+    except Exception as e:
+        return JsonResponse({'success': False, 'message': f'No fue posible registrar resultado de calidad: {str(e)}'}, status=500)
+
+    return JsonResponse({
+        'success': True,
+        'message': f'Resultado de calidad {resultado} registrado.',
+        'resultado_calidad': metadata,
+        'paso': PASO_ANALISIS_CALIDAD,
+        'usuario': request.user.username,
+        'fecha': timezone.localtime(log.OPL_FFECHAREGISTRO).strftime('%d/%m/%Y %H:%M')
+    })
+
+
+def ajax_operacion_planta_guardar_preparacion_descarga(request, pk):
+    if request.method != 'POST':
+        return JsonResponse({'success': False, 'message': 'Metodo no permitido.'}, status=405)
+
+    if not usuario_es_operacion_planta(request.user):
+        return JsonResponse({'success': False, 'message': 'No tiene permisos para Operacion Planta.'}, status=403)
+
+    Empresa = Verificar_empresa(request)
+    if Empresa is None:
+        return JsonResponse({'success': False, 'message': 'Debe seleccionar una empresa.'}, status=400)
+
+    try:
+        citacion = CITACION.objects.select_related('EP_NID', 'PL_NID', 'SC_NID').get(
+            pk=pk,
+            EP_NID_id=Empresa,
+            CI_BHABILITADO=True
+        )
+    except CITACION.DoesNotExist:
+        return JsonResponse({'success': False, 'message': 'Citacion no encontrada.'}, status=404)
+
+    if not citacion_habilitada_operacion(citacion):
+        return JsonResponse({'success': False, 'message': 'La citacion aun no esta habilitada para Operacion Planta.'}, status=400)
+
+    if not _leer_metadata_resultado_calidad(citacion):
+        return JsonResponse({'success': False, 'message': 'No existe resultado de calidad registrado para revisar.'}, status=400)
+
+    _, pasos_config = obtener_pasos_operacion_citacion(citacion)
+    paso_actual_visible, responsables_paso, _ = obtener_paso_activo_operacion(citacion, pasos_config)
+    if paso_actual_visible != PASO_RESULTADO_CALIDAD:
+        return JsonResponse({
+            'success': False,
+            'message': f'Solo puede guardar durante la etapa activa: {PASO_RESULTADO_CALIDAD}.'
+        }, status=409)
+
+    if not usuario_puede_paso_operacion(request.user, responsables_paso):
+        return JsonResponse({
+            'success': False,
+            'message': f'Solo lectura: este paso corresponde a {" / ".join(responsables_paso)}'
+        }, status=403)
+
+    sitio_descarga = request.POST.get('sitio_descarga')
+    bomba_descarga = request.POST.get('bomba_descarga')
+    estanque_destino = request.POST.get('estanque_destino')
+    observaciones_descarga = request.POST.get('observaciones_descarga')
+
+    try:
+        with transaction.atomic():
+            metadata = _registrar_preparacion_descarga(
+                citacion,
+                request.user,
+                sitio_descarga,
+                bomba_descarga,
+                estanque_destino,
+                observaciones_descarga
+            )
+            log = OPERACION_PLANTA_LOG.objects.create(
+                US_NID=request.user,
+                EP_NID=citacion.EP_NID,
+                PL_NID=citacion.PL_NID,
+                CI_NID=citacion,
+                OPL_CPASO=PASO_RESULTADO_CALIDAD,
+                OPL_CPERFIL_RESPONSABLE=' / '.join(responsables_paso),
+                OPL_CESTADO=OPERACION_PLANTA_LOG.ESTADO_COMPLETADO,
+                OPL_COBSERVACION=json.dumps(metadata, ensure_ascii=False)
+            )
+    except ValueError as e:
+        return JsonResponse({'success': False, 'message': str(e)}, status=400)
+    except Exception as e:
+        return JsonResponse({'success': False, 'message': f'No fue posible guardar preparacion de descarga: {str(e)}'}, status=500)
+
+    return JsonResponse({
+        'success': True,
+        'message': 'Resultado confirmado y descarga preparada.',
+        'preparacion_descarga': metadata,
+        'paso': PASO_RESULTADO_CALIDAD,
+        'usuario': request.user.username,
+        'fecha': timezone.localtime(log.OPL_FFECHAREGISTRO).strftime('%d/%m/%Y %H:%M')
+    })
+
+
+def ajax_operacion_planta_descargar_documento_calidad(request):
+    citacion_id = request.GET.get('citacion_id')
+    if not citacion_id:
+        return JsonResponse({'success': False, 'message': 'Debe indicar citacion.'}, status=400)
+
+    Empresa = Verificar_empresa(request)
+    if Empresa is None:
+        return JsonResponse({'success': False, 'message': 'Debe seleccionar una empresa.'}, status=400)
+
+    try:
+        citacion = CITACION.objects.get(pk=citacion_id, EP_NID_id=Empresa, CI_BHABILITADO=True)
+    except CITACION.DoesNotExist:
+        return JsonResponse({'success': False, 'message': 'Citacion no encontrada.'}, status=404)
+
+    if not usuario_es_operacion_planta(request.user):
+        return JsonResponse({'success': False, 'message': 'No tiene permisos para descargar este documento.'}, status=403)
+
+    metadata = _leer_metadata_resultado_calidad(citacion)
+    ruta = metadata.get('documento_ruta') if metadata else ''
+    nombre = metadata.get('documento_nombre') if metadata else ''
+    if not ruta or not nombre or not os.path.isfile(ruta) or not _ruta_ticket_permitida(ruta):
+        return JsonResponse({'success': False, 'message': 'Documento de calidad no disponible.'}, status=404)
+
+    return FileResponse(
+        open(ruta, 'rb'),
+        as_attachment=False,
+        filename=nombre,
+        content_type='application/octet-stream'
+    )
+
+
+def _validar_operacion_planta_ticket_request(request, citacion_id, paso_nombre):
+    if not usuario_es_operacion_planta(request.user):
+        return None, None, JsonResponse({'valid': False, 'msg': 'No tiene permisos para Operacion Planta.'}, status=403)
+
+    Empresa = Verificar_empresa(request)
+    if Empresa is None:
+        return None, None, JsonResponse({'valid': False, 'msg': 'Debe seleccionar una empresa.'}, status=400)
+
+    try:
+        citacion = CITACION.objects.select_related('EP_NID', 'PL_NID', 'SC_NID', 'CA_NID').get(
+            pk=citacion_id,
+            EP_NID_id=Empresa,
+            CI_BHABILITADO=True
+        )
+    except CITACION.DoesNotExist:
+        return None, None, JsonResponse({'valid': False, 'msg': 'Citacion no encontrada.'}, status=404)
+
+    tipo_ticket = _tipo_ticket_pesaje(paso_nombre)
+    if not tipo_ticket:
+        return None, None, JsonResponse({'valid': False, 'msg': 'El paso indicado no requiere ticket de pesaje.'}, status=400)
+
+    _, pasos_config = obtener_pasos_operacion_citacion(citacion)
+    responsables_paso = None
+    for nombre_paso, responsables in pasos_config:
+        if nombre_paso == paso_nombre:
+            responsables_paso = responsables
+            break
+
+    if not responsables_paso:
+        return None, None, JsonResponse({'valid': False, 'msg': 'Paso operacional no valido.'}, status=400)
+    if not usuario_puede_paso_operacion(request.user, responsables_paso):
+        return None, None, JsonResponse({'valid': False, 'msg': f'Solo lectura: este paso corresponde a {" / ".join(responsables_paso)}'}, status=403)
+
+    logs_completados = set(OPERACION_PLANTA_LOG.objects.filter(
+        CI_NID=citacion,
+        OPL_CESTADO=OPERACION_PLANTA_LOG.ESTADO_COMPLETADO
+    ).values_list('OPL_CPASO', flat=True))
+    paso_actual_visible = resolver_estado_operacional_visible(citacion, pasos_config, logs_completados)
+    if paso_nombre != paso_actual_visible:
+        return None, None, JsonResponse({'valid': False, 'msg': f'Solo puede operar la etapa activa actual: {paso_actual_visible}.'}, status=409)
+
+    return citacion, tipo_ticket, None
+
+
+def ajax_operacion_planta_obtener_ticket_pesaje(request):
+    if request.method != 'GET':
+        return JsonResponse({'valid': False, 'msg': 'Metodo no permitido.'}, status=405)
+
+    citacion_id = request.GET.get('citacion_id')
+    paso_nombre = str(request.GET.get('paso_codigo') or request.GET.get('paso_nombre') or '').strip()
+    if not citacion_id or not paso_nombre:
+        return JsonResponse({'valid': False, 'msg': 'Debe indicar citacion y paso operacional.'}, status=400)
+
+    citacion, tipo_ticket, error_response = _validar_operacion_planta_ticket_request(request, citacion_id, paso_nombre)
+    if error_response:
+        return error_response
+
+    valores_ingreso = obtener_valores_ingreso_camion(citacion)
+    patente = valores_ingreso.get('patente') or (citacion.CA_NID.CAM_CPATENTE if citacion.CA_NID else '')
+    patente_normalizada = _normalizar_patente(patente)
+    _debug_ticket_pesaje(
+        'Patente obtenida para ticket',
+        citacion_id=citacion.id,
+        paso=paso_nombre,
+        tipo_ticket=tipo_ticket,
+        patente_original=repr(patente),
+        patente_normalizada=patente_normalizada
+    )
+    if not patente_normalizada:
+        return JsonResponse({'valid': False, 'msg': 'La citacion no tiene patente para buscar ticket de pesaje.'}, status=400)
+
+    try:
+        ruta_pdf = _buscar_ticket_pesaje_mas_reciente(patente_normalizada, tipo_ticket)
+        if not ruta_pdf:
+            return JsonResponse({'valid': False, 'msg': f'No se encontro ticket COM_{tipo_ticket} para la patente {patente_normalizada}.'}, status=404)
+
+        datos_ticket = _extraer_datos_ticket_pesaje(ruta_pdf, tipo_ticket)
+        ruta_local = _copiar_ticket_local_si_necesario(ruta_pdf)
+        if not _ruta_ticket_permitida(ruta_local):
+            return JsonResponse({'valid': False, 'msg': 'La ruta local del ticket no esta permitida.'}, status=400)
+
+        campo = _obtener_campo_ticket_pesaje(citacion, tipo_ticket, request.user)
+        metadata = _metadata_ticket_pesaje(
+            citacion,
+            paso_nombre,
+            tipo_ticket,
+            patente_normalizada,
+            ruta_local,
+            datos_ticket,
+            request.user
+        )
+        dato, _ = DATO_OPERACION.objects.update_or_create(
+            CI_NID=citacion,
+            SC_NID=citacion.SC_NID,
+            ET_NID=citacion.ETAPA_ACTUAL,
+            CAMP_NID=campo,
+            defaults={
+                'EP_NID': citacion.EP_NID,
+                'US_NID': request.user,
+                'DO_CVALOR': json.dumps(metadata, ensure_ascii=False),
+                'DO_NPESO': int(datos_ticket['peso_neto']),
+                'DO_FFECHAREGISTRO': timezone.now(),
+            }
+        )
+
+        registrar_log_camion_no_planificado(
+            request.user,
+            citacion.EP_NID,
+            f'TICKET_PESAJE_{tipo_ticket}',
+            f'Ticket {tipo_ticket} congelado para citacion #{citacion.id}. Folio: {datos_ticket["folio"]}. Peso: {datos_ticket["peso_neto"]}.',
+            citacion.id,
+            os.path.basename(ruta_local)
+        )
+
+        payload = _payload_ticket_pesaje_guardado(citacion, paso_nombre, request) or {}
+        return JsonResponse({
+            'valid': True,
+            'guardado': True,
+            'dato_id': dato.id,
+            'peso_neto': datos_ticket['peso_neto'],
+            'folio': datos_ticket['folio'],
+            'observacion': datos_ticket.get('observacion') or '',
+            'download_url': payload.get('download_url', ''),
+        })
+    except ValueError as e:
+        return JsonResponse({'valid': False, 'msg': str(e)}, status=400)
+    except Exception as e:
+        return JsonResponse({'valid': False, 'msg': f'Error al obtener ticket de pesaje: {str(e)}'}, status=500)
+
+
+def ajax_operacion_planta_descargar_ticket_pesaje(request):
+    dato_id = request.GET.get('dato_id')
+    if not dato_id:
+        return JsonResponse({'valid': False, 'msg': 'Debe indicar el dato del ticket.'}, status=400)
+
+    Empresa = Verificar_empresa(request)
+    if Empresa is None:
+        return JsonResponse({'valid': False, 'msg': 'Debe seleccionar una empresa.'}, status=400)
+
+    try:
+        dato = DATO_OPERACION.objects.select_related('CI_NID', 'CAMP_NID').get(
+            pk=dato_id,
+            EP_NID_id=Empresa,
+            CAMP_NID__CA_CCODIGO__in=[
+                _codigo_campo_ticket_pesaje('ENT'),
+                _codigo_campo_ticket_pesaje('SAL'),
+            ]
+        )
+    except DATO_OPERACION.DoesNotExist:
+        return JsonResponse({'valid': False, 'msg': 'Ticket no encontrado.'}, status=404)
+
+    if not usuario_es_operacion_planta(request.user):
+        return JsonResponse({'valid': False, 'msg': 'No tiene permisos para descargar este ticket.'}, status=403)
+
+    metadata = _leer_metadata_ticket_dato(dato)
+    ruta_pdf = metadata.get('ruta_real_pdf') if metadata else ''
+    if not ruta_pdf or not os.path.isfile(ruta_pdf) or not _ruta_ticket_permitida(ruta_pdf):
+        return JsonResponse({'valid': False, 'msg': 'El PDF congelado no existe o no esta permitido.'}, status=404)
+
+    return FileResponse(
+        open(ruta_pdf, 'rb'),
+        as_attachment=True,
+        filename=os.path.basename(ruta_pdf),
+        content_type='application/pdf'
+    )
+
+
 def formatear_duracion_planta(fecha_inicio):
     if not fecha_inicio:
         return 'No disponible'
@@ -9636,6 +10798,25 @@ def formatear_duracion_planta(fecha_inicio):
     if horas:
         return f'{horas}h {minutos}m'
     return f'{minutos}m'
+
+
+def formatear_duracion_operacional(delta):
+    if not delta:
+        return 'No disponible'
+
+    total_segundos = max(int(delta.total_seconds()), 0)
+    dias = total_segundos // 86400
+    horas = (total_segundos % 86400) // 3600
+    minutos = (total_segundos % 3600) // 60
+    segundos = total_segundos % 60
+
+    if dias:
+        return f'{dias}d {horas}h {minutos}m'
+    if horas:
+        return f'{horas}h {minutos:02d}m {segundos:02d}s'
+    if minutos:
+        return f'{minutos} min {segundos:02d} seg'
+    return f'{segundos} seg'
 
 
 def obtener_top_camiones_tiempo_planta(empresa_id, limite=3):
@@ -9748,6 +10929,7 @@ def SEGUIMIENTO_OPERACIONAL(request):
         nombre_flujo, pasos_config = obtener_pasos_operacion_citacion(citacion)
         nombres_pasos = [paso for paso, _ in pasos_config]
         etapa_actual = resolver_estado_operacional_visible(citacion, pasos_config, completados)
+        accion_toma_muestra = _payload_toma_muestra_accion(citacion, nombre_flujo) if etapa_actual == PASO_TOMA_MUESTRA else None
         ultimo_log = logs_pasos[-1] if logs_pasos else None
         log_autorizacion = autorizacion_por_citacion.get(str(citacion.id))
         logs_operacionales_completados = [
@@ -9765,17 +10947,27 @@ def SEGUIMIENTO_OPERACIONAL(request):
         pasos = construir_estado_pasos_operacion(nombres_pasos, etapa_actual, completados)
 
         historial = []
+        inicio_historial = log_autorizacion.LOG_FFECHAREGISTRO if log_autorizacion and log_autorizacion.LOG_FFECHAREGISTRO else None
         for log in logs_pasos:
             if log.OPL_CPASO == 'Habilitar Operacion Planta':
                 continue
+            fin_etapa = log.OPL_FFECHAREGISTRO
+            duracion_etapa = (
+                formatear_duracion_operacional(fin_etapa - inicio_historial)
+                if inicio_historial and fin_etapa
+                else 'No disponible'
+            )
             historial.append({
                 'paso': log.OPL_CPASO,
                 'usuario': log.US_NID.username if log.US_NID else '',
                 'responsable': log.OPL_CPERFIL_RESPONSABLE,
                 'fecha': timezone.localtime(log.OPL_FFECHAREGISTRO).strftime('%d/%m/%Y %H:%M') if log.OPL_FFECHAREGISTRO else '',
+                'duracion_etapa_legible': duracion_etapa,
                 'estado': log.OPL_CESTADO,
                 'observacion': log.OPL_COBSERVACION or '',
             })
+            if fin_etapa:
+                inicio_historial = fin_etapa
 
         rows.append({
             'citacion': citacion,
@@ -9784,6 +10976,7 @@ def SEGUIMIENTO_OPERACIONAL(request):
             'conductor': texto_sin_informacion(valores_ingreso.get('conductor')),
             'producto': item.IT_NID.IT_CNOMBRE if item and item.IT_NID else 'Sin producto',
             'estado_actual': etapa_actual,
+            'estado_accion_toma_muestra': accion_toma_muestra if accion_toma_muestra and accion_toma_muestra.get('registrada') else None,
             'pasos': pasos,
             'tiempo_planta': formatear_duracion_planta(log_autorizacion.LOG_FFECHAREGISTRO if log_autorizacion else None),
             'ingreso_autorizado_iso': log_autorizacion.LOG_FFECHAREGISTRO.isoformat() if log_autorizacion and log_autorizacion.LOG_FFECHAREGISTRO else '',
@@ -9801,6 +10994,7 @@ def SEGUIMIENTO_OPERACIONAL(request):
                 'ingreso_autorizado': timezone.localtime(log_autorizacion.LOG_FFECHAREGISTRO).strftime('%d/%m/%Y %H:%M') if log_autorizacion and log_autorizacion.LOG_FFECHAREGISTRO else '',
                 'tiempo_planta': formatear_duracion_planta(log_autorizacion.LOG_FFECHAREGISTRO if log_autorizacion else None),
                 'etapa_actual': etapa_actual,
+                'estado_accion_toma_muestra': accion_toma_muestra if accion_toma_muestra and accion_toma_muestra.get('registrada') else None,
                 'historial': historial,
             })
         })

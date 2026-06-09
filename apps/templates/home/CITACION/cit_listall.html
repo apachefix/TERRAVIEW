@@ -109,6 +109,39 @@
             font-weight: bold;
             color: #495057;
         }
+
+        .btn-operacion-alerta {
+            position: relative;
+            color: #fff !important;
+            border-color: #e5531d !important;
+            background: linear-gradient(180deg, #ff8b2f 0%, #e5531d 100%) !important;
+            box-shadow: 0 0 0 0 rgba(229, 83, 29, 0.72), 0 8px 18px rgba(229, 83, 29, 0.28);
+            animation: operacionPulse 1.6s ease-in-out infinite;
+        }
+
+        .btn-operacion-alerta:after {
+            content: "";
+            position: absolute;
+            top: -4px;
+            right: -4px;
+            width: 11px;
+            height: 11px;
+            border-radius: 50%;
+            background: #ff2f2f;
+            box-shadow: 0 0 0 3px rgba(255, 47, 47, 0.22);
+        }
+
+        @keyframes operacionPulse {
+            0% {
+                box-shadow: 0 0 0 0 rgba(229, 83, 29, 0.62), 0 8px 18px rgba(229, 83, 29, 0.28);
+            }
+            70% {
+                box-shadow: 0 0 0 9px rgba(229, 83, 29, 0), 0 8px 18px rgba(229, 83, 29, 0.28);
+            }
+            100% {
+                box-shadow: 0 0 0 0 rgba(229, 83, 29, 0), 0 8px 18px rgba(229, 83, 29, 0.28);
+            }
+        }
     </style>
 {% endblock stylesheets %}
 
@@ -260,7 +293,7 @@
                                             <tr>
                                                 <td>
                                                     {% if contexto_operacion_planta and object.operacion_planta_habilitada %}
-                                                    <a class="btn btn-success" href="{% url 'operacion_planta_citacion' object.pk %}?empresa_id={{ empresa_activa_id }}" title="Gestionar operacion">
+                                                    <a class="btn btn-success {% if object.requiere_accion_usuario %}btn-operacion-alerta{% endif %}" href="{% url 'operacion_planta_citacion' object.pk %}?empresa_id={{ empresa_activa_id }}" title="{% if object.requiere_accion_usuario %}Pendiente para usted: {{ object.nombre_paso_activo }}{% else %}Gestionar operacion{% endif %}">
                                                         <i class="fas fa-truck-loading"></i> Operaci&oacute;n
                                                     </a>
                                                     {% elif guardia_ingreso %}
@@ -268,7 +301,7 @@
                                                         <i class="fas fa-truck"></i> Ingreso
                                                     </a>
                                                     {% elif acceso_operacion_planta and object.operacion_planta_habilitada %}
-                                                    <a class="btn btn-success" href="{% url 'operacion_planta_citacion' object.pk %}?empresa_id={{ empresa_activa_id }}" title="Gestionar operacion">
+                                                    <a class="btn btn-success {% if object.requiere_accion_usuario %}btn-operacion-alerta{% endif %}" href="{% url 'operacion_planta_citacion' object.pk %}?empresa_id={{ empresa_activa_id }}" title="{% if object.requiere_accion_usuario %}Pendiente para usted: {{ object.nombre_paso_activo }}{% else %}Gestionar operacion{% endif %}">
                                                         <i class="fas fa-truck-loading"></i> Operaci&oacute;n
                                                     </a>
                                                     {% else %}
