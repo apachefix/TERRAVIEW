@@ -1,0 +1,159 @@
+{% extends "layouts/base.html" %}
+
+{% block title %}Biblioteca de citaciones{% endblock %}
+
+{% block stylesheets %}
+<style>
+    .eli-hero {
+        background: linear-gradient(135deg, #eef7fb 0%, #f7fbff 55%, #eef4f2 100%);
+        border: 1px solid #d6e4ea;
+        border-radius: 8px;
+        padding: 22px 24px;
+        box-shadow: 0 10px 28px rgba(31, 63, 84, .08);
+    }
+    .eli-title { color: #18384d; font-weight: 700; letter-spacing: 0; }
+    .eli-subtitle { color: #5f7180; margin-bottom: 0; }
+    .eli-status {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        padding: 6px 10px;
+        border-radius: 999px;
+        font-size: 12px;
+        font-weight: 700;
+        background: #e8f5ee;
+        color: #1f7a4c;
+        border: 1px solid #b9dfca;
+    }
+    .eli-status.preliminar {
+        background: #fff7e8;
+        color: #9a6512;
+        border-color: #f0d49f;
+    }
+</style>
+{% endblock stylesheets %}
+
+{% block content %}
+<section class="pcoded-main-container">
+    <div class="pcoded-content">
+        <div class="page-header">
+            <div class="page-block">
+                <div class="row align-items-center">
+                    <div class="col-md-12">
+                        <div class="page-header-title">
+                            <h5 class="m-b-10">Biblioteca de citaciones</h5>
+                        </div>
+                        <ul class="breadcrumb">
+                            <li class="breadcrumb-item"><a href="/"><i class="feather icon-home"></i></a></li>
+                            <li class="breadcrumb-item"><a href="{% url 'expediente_citacion_list' %}">Biblioteca de citaciones</a></li>
+                            <li class="breadcrumb-item">Archivo E.L.I.</li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="eli-hero mb-4">
+            <h4 class="eli-title mb-1">ARCHIVO E.L.I. - Expediente Log&iacute;stico Integral</h4>
+            <p class="eli-subtitle">Consulta de informes finales y preliminares construidos desde la trazabilidad documental y operacional de cada citaci&oacute;n.</p>
+        </div>
+
+        <div class="card">
+            <div class="card-header">
+                <h5>Buscar citaci&oacute;n</h5>
+            </div>
+            <div class="card-body">
+                <form method="get" class="row align-items-end">
+                    <div class="form-group col-md-3">
+                        <label>Numero de citacion</label>
+                        <input type="text" name="citacion" value="{{ filtros.citacion }}" class="form-control" placeholder="Ej: 38530">
+                    </div>
+                    <div class="form-group col-md-3">
+                        <button type="submit" class="btn btn-primary mr-2"><i class="fas fa-search mr-1"></i> Buscar</button>
+                        <a href="{% url 'eli_listall' %}" class="btn btn-secondary"><i class="fas fa-eraser mr-1"></i> Limpiar</a>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        <div class="card">
+            <div class="card-header">
+                <h5>Informes disponibles</h5>
+            </div>
+            <div class="card-body">
+                <div class="dt-responsive table-responsive">
+                    <table class="table table-striped table-bordered nowrap">
+                        <thead>
+                            <tr>
+                                <th>Citacion</th>
+                                <th>Tipo</th>
+                                <th>Estado</th>
+                                <th>Fecha citacion</th>
+                                <th>Patente</th>
+                                <th>Transportista</th>
+                                <th>Conductor</th>
+                                <th>Producto</th>
+                                <th>Cliente/proveedor</th>
+                                <th>Estado E.L.I.</th>
+                                <th>Acciones</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for row in rows %}
+                            <tr>
+                                <td>{{ row.citacion.id }}</td>
+                                <td>{{ row.citacion.CI_CTIPO|default:'' }}</td>
+                                <td>{{ row.citacion.CI_CESTADO|default:'' }}</td>
+                                <td>{{ row.citacion.CI_FFECHACITACION|date:'d/m/Y' }}</td>
+                                <td>{{ row.patente|default:'' }}</td>
+                                <td>{{ row.transportista|default:'' }}</td>
+                                <td>{{ row.conductor|default:'' }}</td>
+                                <td>{{ row.producto|default:'' }}</td>
+                                <td>{{ row.cliente_proveedor|default:'' }}</td>
+                                <td>
+                                    <span class="eli-status {% if not row.pdf_disponible %}preliminar{% endif %}">
+                                        {% if row.pdf_disponible %}<i class="fas fa-check-circle"></i>{% else %}<i class="fas fa-hourglass-half"></i>{% endif %}
+                                        {{ row.estado_eli }}
+                                    </span>
+                                </td>
+                                <td>
+                                    <a class="btn btn-sm btn-primary" href="{% url 'eli_listone' row.citacion.id %}">
+                                        <i class="fas fa-folder-open mr-1"></i> Ver Archivo E.L.I.
+                                    </a>
+                                    {% if row.pdf_disponible %}
+                                    <a class="btn btn-sm btn-success" href="{% url 'eli_pdf' row.citacion.id %}">
+                                        <i class="fas fa-file-pdf mr-1"></i> Generar PDF
+                                    </a>
+                                    {% else %}
+                                    <button type="button" class="btn btn-sm btn-outline-secondary" disabled>
+                                        PDF despues de Autorizar Salida
+                                    </button>
+                                    {% endif %}
+                                </td>
+                            </tr>
+                            {% empty %}
+                            <tr>
+                                <td colspan="11" class="text-center">Sin informes para los filtros seleccionados.</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                {% if page_obj.has_other_pages %}
+                <nav>
+                    <ul class="pagination mb-0">
+                        {% if page_obj.has_previous %}
+                        <li class="page-item"><a class="page-link" href="?{% if querystring %}{{ querystring }}&{% endif %}page={{ page_obj.previous_page_number }}">Anterior</a></li>
+                        {% endif %}
+                        <li class="page-item active"><span class="page-link">{{ page_obj.number }} / {{ page_obj.paginator.num_pages }}</span></li>
+                        {% if page_obj.has_next %}
+                        <li class="page-item"><a class="page-link" href="?{% if querystring %}{{ querystring }}&{% endif %}page={{ page_obj.next_page_number }}">Siguiente</a></li>
+                        {% endif %}
+                    </ul>
+                </nav>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</section>
+{% endblock content %}

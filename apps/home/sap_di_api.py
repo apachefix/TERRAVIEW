@@ -170,7 +170,21 @@ def consultar_clientes_sap():
     }
 
 
-def consultar_productos_sap():
+def consultar_productos_sap(busqueda=None):
+    busqueda = (busqueda or '').strip()
+    filtros = ''
+    params = []
+
+    if busqueda:
+        termino = f'%{busqueda.upper()}%'
+        filtros = '''
+          AND (
+              UPPER(T1."ItemCode") LIKE ?
+              OR UPPER(T1."Dscription") LIKE ?
+          )
+        '''
+        params = [termino, termino]
+
     sql = '''
         SELECT
             TOP 50
@@ -184,10 +198,11 @@ def consultar_productos_sap():
             ON T0."DocEntry" = T1."DocEntry"
         WHERE T0."DocStatus" = 'O'
           AND T1."OpenQty" > 0
+          {filtros}
         ORDER BY T0."DocNum" DESC
-    '''
+    '''.format(filtros=filtros)
 
-    pedidos_abiertos = _rows(sql)
+    pedidos_abiertos = _rows(sql, params)
     productos = []
     itemcodes = set()
 
@@ -291,6 +306,7 @@ def consultar_pedido_sap(pedido, codigo, proveedor_codigo=''):
             T0."DocNum",
             T0."CardCode",
             T0."CardName",
+            T3."Number" AS "ContratoSap",
             T1."ItemCode",
             T1."Dscription",
             T1."OpenQty",
@@ -298,6 +314,8 @@ def consultar_pedido_sap(pedido, codigo, proveedor_codigo=''):
         FROM OPOR T0
         INNER JOIN POR1 T1
             ON T0."DocEntry" = T1."DocEntry"
+        LEFT JOIN OOAT T3
+            ON T1."AgrNo" = T3."AbsID"
         WHERE T0."DocStatus" = 'O'
           AND T1."OpenQty" > 0
           AND T0."DocNum" = ?
@@ -315,8 +333,10 @@ def consultar_pedido_sap(pedido, codigo, proveedor_codigo=''):
             'cardcode': row['CardCode'],
             'cardname': row['CardName'],
             'proveedor_codigo': row['CardCode'],
+            'codigo_proveedor_sap': row['CardCode'],
             'proveedor_nombre': row['CardName'],
             'proveedor': row['CardName'],
+            'contrato_sap': row.get('ContratoSap') or '',
             'itemcode': row['ItemCode'],
             'descripcion': row['Dscription'],
             'producto': row['Dscription'],
@@ -387,8 +407,10 @@ def _pedido_row_to_dict(row):
         'cardcode': row['CardCode'],
         'cardname': row['CardName'],
         'proveedor_codigo': row['CardCode'],
+        'codigo_proveedor_sap': row['CardCode'],
         'proveedor_nombre': row['CardName'],
         'proveedor': row['CardName'],
+        'contrato_sap': row.get('ContratoSap') or '',
         'itemcode': row['ItemCode'],
         'codigo': row['ItemCode'],
         'descripcion': row['Dscription'],
@@ -417,6 +439,7 @@ def consultar_pedidos_por_producto_sap(codigo):
             T0."DocNum",
             T0."CardCode",
             T0."CardName",
+            T3."Number" AS "ContratoSap",
             T1."ItemCode",
             T1."Dscription",
             T1."OpenQty",
@@ -424,6 +447,8 @@ def consultar_pedidos_por_producto_sap(codigo):
         FROM OPOR T0
         INNER JOIN POR1 T1
             ON T0."DocEntry" = T1."DocEntry"
+        LEFT JOIN OOAT T3
+            ON T1."AgrNo" = T3."AbsID"
         WHERE T0."DocStatus" = 'O'
           AND T1."OpenQty" > 0
           AND T1."ItemCode" = ?
@@ -459,6 +484,7 @@ def consultar_detalle_pedido_sap(pedido):
             T0."DocNum",
             T0."CardCode",
             T0."CardName",
+            T3."Number" AS "ContratoSap",
             T1."ItemCode",
             T1."Dscription",
             T1."OpenQty",
@@ -466,6 +492,8 @@ def consultar_detalle_pedido_sap(pedido):
         FROM OPOR T0
         INNER JOIN POR1 T1
             ON T0."DocEntry" = T1."DocEntry"
+        LEFT JOIN OOAT T3
+            ON T1."AgrNo" = T3."AbsID"
         WHERE T0."DocStatus" = 'O'
           AND T1."OpenQty" > 0
           AND T0."DocNum" = ?

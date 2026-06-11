@@ -414,6 +414,32 @@
         background: #fff8e1;
     }
 
+    .acciones-devolucion-guardia {
+        display: grid;
+        grid-template-columns: 36px 36px 220px;
+        align-items: center;
+        width: 304px;
+        column-gap: 6px;
+    }
+
+    .acciones-devolucion-guardia > button:nth-of-type(1) {
+        grid-column: 1;
+    }
+
+    .acciones-devolucion-guardia > button:nth-of-type(2) {
+        grid-column: 2;
+    }
+
+    .acciones-devolucion-guardia .estado-envio-asistente {
+        grid-column: 3;
+        margin-top: 0;
+    }
+
+    .estado-devolucion-guardia {
+        border-left-color: #dc3545;
+        background: #fff1f1;
+    }
+
     #basic-btn td:first-child,
     #basic-btn1 td:first-child {
         white-space: normal !important;
@@ -438,6 +464,17 @@
         transform: scale(1.05);
     }
 
+    .fila-devuelta-guardia {
+        animation: pulseFilaDevueltaGuardia 1.4s infinite;
+        background-color: #fff1f1 !important;
+        box-shadow: inset 4px 0 0 #dc3545;
+    }
+
+    .fila-devuelta-guardia .btn-enviar-asistente {
+        animation: pulseBotonDevolucionGuardia 1s infinite;
+        transform: scale(1.05);
+    }
+
     @keyframes pulseFilaPendienteEnvio {
         0% {
             background-color: #e8f7ff;
@@ -450,6 +487,18 @@
         }
     }
 
+    @keyframes pulseFilaDevueltaGuardia {
+        0% {
+            background-color: #fff1f1;
+        }
+        50% {
+            background-color: #ffdede;
+        }
+        100% {
+            background-color: #fff1f1;
+        }
+    }
+
     @keyframes pulseBotonEnviarAsistente {
         0% {
             box-shadow: 0 0 0 0 rgba(32, 201, 151, 0.6);
@@ -459,6 +508,18 @@
         }
         100% {
             box-shadow: 0 0 0 0 rgba(32, 201, 151, 0);
+        }
+    }
+
+    @keyframes pulseBotonDevolucionGuardia {
+        0% {
+            box-shadow: 0 0 0 0 rgba(220, 53, 69, 0.55);
+        }
+        70% {
+            box-shadow: 0 0 0 8px rgba(220, 53, 69, 0);
+        }
+        100% {
+            box-shadow: 0 0 0 0 rgba(220, 53, 69, 0);
         }
     }
 
@@ -677,9 +738,9 @@
                                             </thead>
                                             <tbody>
                                                 {% for object in despachos %}
-                                                    <tr id="citacion-row-{{ object.0 }}" class="{% if object.40 %}fila-pendiente-envio{% elif object.37 %}citacion-enviada-siguiente{% elif object.34 %}citacion-enviada-siguiente{% elif object.30 %}citacion-enviada-siguiente{% elif object.27 %}citacion-estanque-asignado{% elif object.24 %}citacion-aprobada-asistente{% elif object.21 %}citacion-enviada-asistente{% endif %}">
+                                                    <tr id="citacion-row-{{ object.0 }}" class="{% if object.43 %}fila-devuelta-guardia{% elif object.40 %}fila-pendiente-envio{% elif object.37 %}citacion-enviada-siguiente{% elif object.34 %}citacion-enviada-siguiente{% elif object.30 %}citacion-enviada-siguiente{% elif object.27 %}citacion-estanque-asignado{% elif object.24 %}citacion-aprobada-asistente{% elif object.21 %}citacion-enviada-asistente{% endif %}">
                                                         <td>
-                                                            <div class="pulse-button-container {% if request.user|es_guardia and object.40 %}acciones-enviada acciones-pendiente-envio{% elif request.user|es_guardia and object.34 %}acciones-enviada{% elif request.user|es_guardia and object.21 %}acciones-enviada{% elif request.user|es_asistente_recepcion and object.24 %}acciones-enviada{% elif request.user|es_asistente_recepcion and object.21 %}acciones-enviada{% elif request.user|es_asistente_cd and object.30 %}acciones-enviada{% elif request.user|es_asistente_cd %}acciones-enviada{% endif %}">
+                                                            <div class="pulse-button-container {% if request.user|es_guardia and object.43 %}acciones-enviada acciones-devolucion-guardia{% elif request.user|es_guardia and object.40 %}acciones-enviada acciones-pendiente-envio{% elif request.user|es_guardia and object.34 %}acciones-enviada{% elif request.user|es_guardia and object.21 %}acciones-enviada{% elif request.user|es_asistente_recepcion and object.24 %}acciones-enviada{% elif request.user|es_asistente_recepcion and object.21 %}acciones-enviada{% elif request.user|es_asistente_cd and object.30 %}acciones-enviada{% elif request.user|es_asistente_cd %}acciones-enviada{% endif %}">
                                                                 {% if request.user|es_guardia_porteria and object.37 %}
                                                                     <button type="button" class="btn btn-outline-primary btn-sm" onclick="openRevisionAsistenteModal({{ object.0 }})" title="Ver autorizacion ingreso a planta">
                                                                         <i class="fas fa-eye"></i>
@@ -698,6 +759,20 @@
                                                                         <span class="badge badge-warning">Pendiente autorizacion ingreso a planta</span>
                                                                         <div>Patente: {{ object.16|default:'No registrada' }}</div>
                                                                         <div>Fecha: {% if object.36 %}{{ object.36|date:'d/m/Y H:i' }}{% else %}No registrada{% endif %}</div>
+                                                                    </div>
+                                                                {% elif request.user|es_guardia and object.43 %}
+                                                                    <button type="button" class="btn btn-warning btn-sm" onclick="openIngresoCamionModal({{ object.0 }})" title="Modificar ingreso">
+                                                                        <i class="fas fa-edit"></i>
+                                                                    </button>
+                                                                    <button type="button" class="btn btn-success btn-sm ml-1 btn-enviar-asistente" data-accion="reenviar" onclick="avanzarIngresoCamionAsistente({{ object.0 }}, true)" title="Corregir y reenviar a Asistente Recepción">
+                                                                        <i class="fas fa-arrow-right"></i>
+                                                                    </button>
+                                                                    <div class="estado-envio-asistente estado-devolucion-guardia">
+                                                                        <span class="badge badge-danger">Requiere su atención</span>
+                                                                        <div>Devuelto por Asistente_Recepción</div>
+                                                                        <div><strong>Motivo:</strong> {{ object.44|default:'Sin motivo registrado' }}</div>
+                                                                        <div>Fecha: {% if object.46 %}{{ object.46|date:'d/m/Y H:i' }}{% else %}No registrada{% endif %}</div>
+                                                                        <div>Corregir y reenviar a Asistente Recepción</div>
                                                                     </div>
                                                                 {% elif request.user|es_guardia and object.40 %}
                                                                     <button type="button" class="btn btn-primary btn-sm" onclick="openCitationSummaryModal({{ object.0 }})" title="Ver ingreso guardado">
@@ -824,7 +899,7 @@
                                                                     <button type="button" class="btn btn-warning btn-sm" onclick="openEditModal({{ object.0 }})" title="Editar">
                                                                         <i class="fas fa-edit"></i>
                                                                     </button>
-                                                                    <a class="btn btn-danger btn-sm delete_citacion" data-href="{% url 'cit_delete' object.0 %}" id="delete_citacion">
+                                                                    <a href="#" class="btn btn-danger btn-sm delete_citacion" data-href="{% url 'cit_delete' object.0 %}" data-citacion-id="{{ object.0 }}">
                                                                         <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-trash" viewBox="0 0 16 16">
                                                                             <path d="M5.5 5.5A.5.5 0 0 1 6 6v6a.5.5 0 0 1-1 0V6a.5.5 0 0 1 .5-.5zm2.5 0a.5.5 0 0 1 .5.5v6a.5.5 0 0 1-1 0V6a.5.5 0 0 1 .5-.5zm3 .5a.5.5 0 0 0-1 0v6a.5.5 0 0 0 1 0V6z" />
                                                                             <path fill-rule="evenodd"d="M14.5 3a1 1 0 0 1-1 1H13v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V4h-.5a1 1 0 0 1-1-1V2a1 1 0 0 1 1-1H6a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1h3.5a1 1 0 0 1 1 1v1zM4.118 4 4 4.059V13a1 1 0 0 0 1 1h6a1 1 0 0 0 1-1V4.059L11.882 4H4.118zM2.5 3V2h11v1h-11z" />
@@ -885,9 +960,9 @@
                                             </thead>
                                             <tbody>
                                                 {% for object in recepciones %}
-                                                    <tr id="citacion-row-{{ object.0 }}" class="{% if object.34 %}fila-pendiente-envio{% elif object.31 %}citacion-enviada-siguiente{% elif object.28 %}citacion-enviada-siguiente{% elif object.24 %}citacion-enviada-siguiente{% elif object.21 %}citacion-estanque-asignado{% elif object.18 %}citacion-aprobada-asistente{% elif object.15 %}citacion-enviada-asistente{% endif %}">
+                                                    <tr id="citacion-row-{{ object.0 }}" class="{% if object.37 %}fila-devuelta-guardia{% elif object.34 %}fila-pendiente-envio{% elif object.31 %}citacion-enviada-siguiente{% elif object.28 %}citacion-enviada-siguiente{% elif object.24 %}citacion-enviada-siguiente{% elif object.21 %}citacion-estanque-asignado{% elif object.18 %}citacion-aprobada-asistente{% elif object.15 %}citacion-enviada-asistente{% endif %}">
                                                         <td>
-                                                            <div class="pulse-button-container {% if request.user|es_guardia and object.34 %}acciones-enviada acciones-pendiente-envio{% elif request.user|es_guardia and object.28 %}acciones-enviada{% elif request.user|es_guardia and object.15 %}acciones-enviada{% elif request.user|es_asistente_recepcion and object.18 %}acciones-enviada{% elif request.user|es_asistente_recepcion and object.15 %}acciones-enviada{% elif request.user|es_asistente_cd and object.24 %}acciones-enviada{% elif request.user|es_asistente_cd %}acciones-enviada{% endif %}">
+                                                            <div class="pulse-button-container {% if request.user|es_guardia and object.37 %}acciones-enviada acciones-devolucion-guardia{% elif request.user|es_guardia and object.34 %}acciones-enviada acciones-pendiente-envio{% elif request.user|es_guardia and object.28 %}acciones-enviada{% elif request.user|es_guardia and object.15 %}acciones-enviada{% elif request.user|es_asistente_recepcion and object.18 %}acciones-enviada{% elif request.user|es_asistente_recepcion and object.15 %}acciones-enviada{% elif request.user|es_asistente_cd and object.24 %}acciones-enviada{% elif request.user|es_asistente_cd %}acciones-enviada{% endif %}">
                                                                 {% if request.user|es_guardia_porteria and object.31 %}
                                                                     <button type="button" class="btn btn-outline-primary btn-sm" onclick="openRevisionAsistenteModal({{ object.0 }})" title="Ver autorizacion ingreso a planta">
                                                                         <i class="fas fa-eye"></i>
@@ -906,6 +981,20 @@
                                                                         <span class="badge badge-warning">Pendiente autorizacion ingreso a planta</span>
                                                                         <div>Patente: {{ object.8|default:'No registrada' }}</div>
                                                                         <div>Fecha: {% if object.30 %}{{ object.30|date:'d/m/Y H:i' }}{% else %}No registrada{% endif %}</div>
+                                                                    </div>
+                                                                {% elif request.user|es_guardia and object.37 %}
+                                                                    <button type="button" class="btn btn-warning btn-sm" onclick="openIngresoCamionModal({{ object.0 }})" title="Modificar ingreso">
+                                                                        <i class="fas fa-edit"></i>
+                                                                    </button>
+                                                                    <button type="button" class="btn btn-success btn-sm ml-1 btn-enviar-asistente" data-accion="reenviar" onclick="avanzarIngresoCamionAsistente({{ object.0 }}, true)" title="Corregir y reenviar a Asistente Recepción">
+                                                                        <i class="fas fa-arrow-right"></i>
+                                                                    </button>
+                                                                    <div class="estado-envio-asistente estado-devolucion-guardia">
+                                                                        <span class="badge badge-danger">Requiere su atención</span>
+                                                                        <div>Devuelto por Asistente_Recepción</div>
+                                                                        <div><strong>Motivo:</strong> {{ object.38|default:'Sin motivo registrado' }}</div>
+                                                                        <div>Fecha: {% if object.40 %}{{ object.40|date:'d/m/Y H:i' }}{% else %}No registrada{% endif %}</div>
+                                                                        <div>Corregir y reenviar a Asistente Recepción</div>
                                                                     </div>
                                                                 {% elif request.user|es_guardia and object.34 %}
                                                                     <button type="button" class="btn btn-primary btn-sm" onclick="openCitationSummaryModal({{ object.0 }})" title="Ver ingreso guardado">
@@ -1032,7 +1121,7 @@
                                                                 <button type="button" class="btn btn-warning btn-sm" onclick="openEditModal({{ object.0 }})" title="Editar">
                                                                     <i class="fas fa-edit"></i>
                                                                 </button>
-                                                                <a class="btn btn-danger btn-sm delete_citacion" data-href="{% url 'cit_delete' object.0 %}" id="delete_citacion">
+                                                                <a href="#" class="btn btn-danger btn-sm delete_citacion" data-href="{% url 'cit_delete' object.0 %}" data-citacion-id="{{ object.0 }}">
                                                                     <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-trash" viewBox="0 0 16 16">
                                                                         <path d="M5.5 5.5A.5.5 0 0 1 6 6v6a.5.5 0 0 1-1 0V6a.5.5 0 0 1 .5-.5zm2.5 0a.5.5 0 0 1 .5.5v6a.5.5 0 0 1-1 0V6a.5.5 0 0 1 .5-.5zm3 .5a.5.5 0 0 0-1 0v6a.5.5 0 0 0 1 0V6z" />
                                                                         <path fill-rule="evenodd"d="M14.5 3a1 1 0 0 1-1 1H13v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V4h-.5a1 1 0 0 1-1-1V2a1 1 0 0 1 1-1H6a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1h3.5a1 1 0 0 1 1 1v1zM4.118 4 4 4.059V13a1 1 0 0 0 1 1h6a1 1 0 0 0 1-1V4.059L11.882 4H4.118zM2.5 3V2h11v1h-11z" />
@@ -1560,6 +1649,11 @@
                     <input type="hidden" id="edit_origen" name="origen">
                     <input type="hidden" id="edit_sap_opor_id" name="sap_opor_id">
                     <input type="hidden" id="edit_proveedor_codigo" name="proveedor_codigo">
+                    <input type="hidden" id="edit_cliente_codigo" name="cliente_codigo">
+                    <input type="hidden" id="edit_cliente_nombre" name="cliente_nombre">
+                    <input type="hidden" id="edit_proveedor_value" name="proveedor">
+                    <input type="hidden" id="edit_proveedor_nombre" name="proveedor_sap">
+                    <input type="hidden" id="edit_insumo_nombre" name="insumo">
 
                     <div class="form-row">
                         <div class="form-group col-md-4">
@@ -1613,18 +1707,33 @@
                         </div>
                         <div class="form-group col-md-4">
                             <label for="edit_pedido">Pedido SAP</label>
-                            <input type="text" class="form-control" id="edit_pedido" name="pedido">
+                            <select class="form-control" id="edit_pedido" name="pedido"></select>
                         </div>
                     </div>
 
                     <div class="form-row">
                         <div class="form-group col-md-6">
-                            <label for="edit_insumo">Insumo / Producto</label>
-                            <input type="text" class="form-control" id="edit_insumo" name="insumo">
+                            <label for="id_cliente">Cliente</label>
+                            <select class="form-control" id="id_cliente" name="id_cliente"></select>
                         </div>
                         <div class="form-group col-md-6">
+                            <label for="edit_insumo_sap">Insumo / Producto</label>
+                            <select class="form-control" id="edit_insumo_sap"></select>
+                        </div>
+                    </div>
+
+                    <div class="form-row">
+                        <div class="form-group col-md-6">
                             <label for="id_proveedor">Proveedor</label>
-                            <select class="form-control" id="id_proveedor" name="id_proveedor"></select>
+                            <select class="form-control" id="id_proveedor" disabled></select>
+                        </div>
+                        <div class="form-group col-md-3">
+                            <label for="edit_contrato_sap">Contrato SAP</label>
+                            <input type="text" class="form-control" id="edit_contrato_sap" name="contrato_sap">
+                        </div>
+                        <div class="form-group col-md-3">
+                            <label for="edit_codigo_proveedor_sap">Codigo proveedor SAP</label>
+                            <input type="text" class="form-control" id="edit_codigo_proveedor_sap" name="codigo_proveedor_sap">
                         </div>
                     </div>
 
@@ -1825,6 +1934,562 @@
 
     function normalizarIdHtml(value) {
         return String(value ?? '').replace(/[^a-zA-Z0-9_-]/g, '_');
+    }
+
+    function empresaIdActiva() {
+        return new URLSearchParams(window.location.search).get('_empresa_id') || '{{ empresa_id|default:"" }}';
+    }
+
+    let editProductosSapCargados = false;
+    let editClientesSapCargados = false;
+    let editPedidosProductoActual = [];
+    let editLineasPedidoActual = [];
+    let editBloqueandoCambioPedido = false;
+    let editBloquearLimpiezaProducto = false;
+
+    function editSetValue(id, value) {
+        const element = document.getElementById(id);
+        if (element) {
+            element.value = value || '';
+        }
+    }
+
+    function editSetOption(selectId, value, text, selected) {
+        const $select = $(selectId);
+        if (!$select.length || !value) {
+            return;
+        }
+        let option = $select.find('option[value="' + String(value).replace(/"/g, '\\"') + '"]');
+        if (!option.length) {
+            option = $(new Option(text || value, value, !!selected, !!selected));
+            $select.append(option);
+        } else if (text) {
+            option.text(text);
+        }
+        if (selected) {
+            $select.val(value).trigger('change.select2');
+        }
+    }
+
+    function editInsumoNombreSeleccionado() {
+        const option = $('#edit_insumo_sap option:selected');
+        const nombre = option.attr('data-itemname') || option.text() || '';
+        return nombre.replace(/\s+-\s+[^-]+$/, '').trim();
+    }
+
+    function editPedidoTexto(item) {
+        const cantidad = item.openqty !== null && item.openqty !== undefined ? item.openqty : item.cantidad_disponible || '';
+        return `${item.docnum || item.pedido} - ${item.cardname || item.proveedor_nombre || ''} - ${cantidad}`;
+    }
+
+    function editLineaPedidoTexto(item) {
+        const cantidad = item.openqty !== null && item.openqty !== undefined ? item.openqty : item.cantidad_disponible || '';
+        return `${item.descripcion || item.producto || ''} - ${item.itemcode || item.codigo || ''} - ${cantidad} - ${item.cardname || item.proveedor_nombre || ''}`;
+    }
+
+    function editSetPedidoOptions(items, seleccion) {
+        const pedidoSelect = $('#edit_pedido');
+        editBloqueandoCambioPedido = true;
+        pedidoSelect.empty().append(new Option('', '', false, false));
+        let seleccionEncontrada = false;
+        let valorSeleccionado = '';
+
+        (items || []).forEach(function (item, index) {
+            const docnum = String(item.docnum || item.pedido || '');
+            const value = `${docnum}__${index}`;
+            const selected = value === String(seleccion || '') || (docnum && docnum === String(seleccion || ''));
+            if (selected) {
+                seleccionEncontrada = true;
+                valorSeleccionado = value;
+            }
+            const option = new Option(editPedidoTexto(item), value, false, selected);
+            $(option).attr('data-line-index', index);
+            $(option).attr('data-docnum', docnum);
+            pedidoSelect.append(option);
+        });
+
+        if (seleccion && !seleccionEncontrada && !pedidoSelect.find('option[value="' + String(seleccion).replace(/"/g, '\\"') + '"]').length) {
+            pedidoSelect.append(new Option(seleccion, seleccion, true, true));
+            seleccionEncontrada = true;
+            valorSeleccionado = seleccion;
+        }
+
+        if (seleccionEncontrada) {
+            pedidoSelect.val(valorSeleccionado).trigger('change.select2');
+        } else {
+            pedidoSelect.val('').trigger('change.select2');
+        }
+        editBloqueandoCambioPedido = false;
+    }
+
+    function editLimpiarProveedorSap() {
+        $('#id_proveedor').empty().append(new Option('Proveedor desde Pedido SAP', '', false, false)).val('').trigger('change.select2');
+        editSetValue('edit_proveedor_value', '');
+        editSetValue('edit_proveedor_nombre', '');
+        editSetValue('edit_proveedor_codigo', '');
+        editSetValue('edit_codigo_proveedor_sap', '');
+    }
+
+    function editLimpiarDatosPedido(limpiarPedido) {
+        if (limpiarPedido) {
+            editSetPedidoOptions([]);
+        }
+        editSetValue('edit_sap_opor_id', '');
+        editSetValue('edit_bl', '');
+        editSetValue('edit_cantidad_disponible', '');
+        editSetValue('edit_docentry', '');
+        editSetValue('edit_contrato_sap', '');
+        editSetValue('edit_codigo_proveedor_sap', '');
+    }
+
+    function editCargarProveedorSapEnSelect(codigo, nombre) {
+        const proveedorSelect = $('#id_proveedor');
+        proveedorSelect.empty();
+        if (codigo) {
+            proveedorSelect.append(new Option(nombre || codigo, codigo, true, true));
+            proveedorSelect.val(codigo).trigger('change.select2');
+        } else {
+            proveedorSelect.append(new Option('Proveedor desde Pedido SAP', '', false, false)).val('').trigger('change.select2');
+        }
+        editSetValue('edit_proveedor_value', codigo || '');
+        editSetValue('edit_proveedor_codigo', codigo || '');
+        editSetValue('edit_codigo_proveedor_sap', codigo || '');
+        editSetValue('edit_proveedor_nombre', nombre || '');
+    }
+
+    function editCargarProductoSapEnSelect(codigo, nombre) {
+        if (!codigo) {
+            return;
+        }
+        const texto = nombre ? `${nombre} - ${codigo}` : codigo;
+        editSetOption('#edit_insumo_sap', codigo, texto, true);
+        $('#edit_insumo_sap option[value="' + String(codigo).replace(/"/g, '\\"') + '"]').attr('data-itemname', nombre || '');
+        editSetValue('edit_codigo', codigo);
+        editSetValue('edit_insumo_nombre', nombre || editInsumoNombreSeleccionado());
+    }
+
+    function editCargarDatosPedidoSap(item) {
+        const docnum = item.docnum || item.pedido || $('#edit_pedido').val();
+        editSetValue('edit_sap_opor_id', item.docentry || '');
+        editBloqueandoCambioPedido = true;
+        if (docnum) {
+            editSetOption('#edit_pedido', String(docnum), String(docnum), true);
+        }
+        editBloqueandoCambioPedido = false;
+
+        editSetValue('edit_cantidad_disponible', item.openqty !== null && item.openqty !== undefined ? item.openqty : item.cantidad_disponible || '');
+        editSetValue('edit_docentry', item.docentry || '');
+        editSetValue('edit_bl', item.contenedor || item.bl || item.bl_contenedor || '');
+        editSetValue('edit_contrato_sap', item.contrato_sap || '');
+        editSetValue('edit_codigo_proveedor_sap', item.codigo_proveedor_sap || item.cardcode || item.proveedor_codigo || '');
+        editSetValue('edit_proveedor_codigo', item.cardcode || item.proveedor_codigo || '');
+
+        if (item.itemcode || item.codigo) {
+            editBloquearLimpiezaProducto = true;
+            editCargarProductoSapEnSelect(item.itemcode || item.codigo, item.descripcion || item.producto || '');
+            editBloquearLimpiezaProducto = false;
+        }
+
+        editCargarProveedorSapEnSelect(
+            item.cardcode || item.proveedor_codigo || '',
+            item.cardname || item.proveedor_nombre || item.proveedor || ''
+        );
+    }
+
+    function editCargarPedidosPorProducto(codigo, seleccion) {
+        editPedidosProductoActual = [];
+        editLineasPedidoActual = [];
+        editSetPedidoOptions([], seleccion || '');
+        if (!codigo) {
+            return;
+        }
+        $.ajax({
+            url: '/api/sap/pedidos-por-producto/',
+            type: 'GET',
+            data: { codigo: codigo },
+            success: function (response) {
+                if (!response.ok) {
+                    return;
+                }
+                editPedidosProductoActual = response.pedidos || [];
+                editSetPedidoOptions(editPedidosProductoActual, seleccion || '');
+            }
+        });
+    }
+
+    function editMostrarLineasPedidoSap(lineas) {
+        const pedidoSelect = $('#edit_pedido');
+        editBloqueandoCambioPedido = true;
+        pedidoSelect.empty().append(new Option('', '', false, false));
+        (lineas || []).forEach(function (item, index) {
+            const value = `${item.docnum || item.pedido || ''}__${index}`;
+            const option = new Option(editLineaPedidoTexto(item), value, false, false);
+            $(option).attr('data-line-index', index);
+            pedidoSelect.append(option);
+        });
+        pedidoSelect.val('').trigger('change.select2');
+        editBloqueandoCambioPedido = false;
+        pedidoSelect.select2('open');
+    }
+
+    function editConsultarDetallePedidoSap(pedido) {
+        editSetValue('edit_cantidad_disponible', 'Buscando...');
+        $.ajax({
+            url: '/api/sap/pedido-detalle/',
+            type: 'GET',
+            data: { pedido: pedido },
+            success: function (response) {
+                if (!response.ok || !response.lineas || response.lineas.length === 0) {
+                    editLimpiarDatosPedido(false);
+                    Swal.fire('Sin registros', response.mensaje || response.message || 'No existe pedido abierto con saldo disponible.', 'info');
+                    return;
+                }
+                if (response.lineas.length === 1) {
+                    editCargarDatosPedidoSap(response.lineas[0]);
+                    return;
+                }
+                editLineasPedidoActual = response.lineas;
+                editMostrarLineasPedidoSap(editLineasPedidoActual);
+            },
+            error: function (xhr) {
+                const response = xhr.responseJSON || {};
+                editLimpiarDatosPedido(false);
+                Swal.fire('Error', response.mensaje || response.message || 'Ocurrió un error al consultar el Pedido SAP.', 'error');
+            }
+        });
+    }
+
+    function editResolverPedidoSapSeleccionado(pedido) {
+        const pedidoLimpio = String(pedido || '').trim();
+        editLimpiarDatosPedido(false);
+        if (!pedidoLimpio) {
+            return;
+        }
+        if (pedidoLimpio.indexOf('__') > -1) {
+            const partes = pedidoLimpio.split('__');
+            const index = Number(partes[1]);
+            if (!Number.isNaN(index) && editPedidosProductoActual[index]) {
+                editCargarDatosPedidoSap(editPedidosProductoActual[index]);
+                return;
+            }
+            if (!Number.isNaN(index) && editLineasPedidoActual[index]) {
+                editCargarDatosPedidoSap(editLineasPedidoActual[index]);
+                return;
+            }
+        }
+        const pedidoDesdeProducto = editPedidosProductoActual.filter(function (item) {
+            return String(item.docnum || item.pedido || '') === pedidoLimpio;
+        });
+        if (pedidoDesdeProducto.length === 1) {
+            editCargarDatosPedidoSap(pedidoDesdeProducto[0]);
+            return;
+        }
+        if (pedidoDesdeProducto.length > 1) {
+            editLineasPedidoActual = pedidoDesdeProducto;
+            editMostrarLineasPedidoSap(editLineasPedidoActual);
+            return;
+        }
+        editConsultarDetallePedidoSap(pedidoLimpio);
+    }
+
+    function editCargarProductosSap(seleccion, nombreSeleccion) {
+        const productoSelect = $('#edit_insumo_sap');
+        if (!productoSelect.length || (editProductosSapCargados && !seleccion)) {
+            return;
+        }
+        productoSelect.prop('disabled', true);
+        productoSelect.empty().append(new Option('Cargando productos SAP...', '', false, false)).trigger('change.select2');
+        $.ajax({
+            url: '/api/sap/productos/',
+            type: 'GET',
+            success: function (response) {
+                productoSelect.empty().append(new Option('Seleccione producto', '', false, false));
+                if (!response.ok) {
+                    Swal.fire('Error', response.mensaje || response.message || 'No fue posible cargar productos SAP.', 'error');
+                    return;
+                }
+                (response.productos || []).forEach(function (producto) {
+                    const texto = (producto.itemname || producto.itemcode) + ' - ' + producto.itemcode;
+                    const option = new Option(texto, producto.itemcode, false, false);
+                    $(option).attr('data-itemname', producto.itemname || '');
+                    productoSelect.append(option);
+                });
+                editProductosSapCargados = true;
+                if (seleccion) {
+                    editCargarProductoSapEnSelect(seleccion, nombreSeleccion || '');
+                    editCargarPedidosPorProducto(seleccion, $('#edit_pedido').val() || '');
+                }
+            },
+            complete: function () {
+                productoSelect.prop('disabled', false).trigger('change.select2');
+            }
+        });
+    }
+
+    function editCargarClientesSap(seleccion, textoSeleccion) {
+        const clienteSelect = $('#id_cliente');
+        clienteSelect.prop('disabled', true);
+        clienteSelect.empty().append(new Option('Cargando clientes SAP...', '', false, false)).trigger('change.select2');
+        $.ajax({
+            url: '/api/sap/clientes/',
+            type: 'GET',
+            success: function (response) {
+                clienteSelect.empty().append(new Option('Seleccione cliente', '', false, false));
+                if (!response.ok) {
+                    Swal.fire('Error', response.mensaje || response.message || 'No fue posible cargar clientes SAP.', 'error');
+                    return;
+                }
+                (response.clientes || []).forEach(function (cliente) {
+                    const option = new Option(cliente.cardname || cliente.cardcode, cliente.cardcode, false, false);
+                    $(option).attr('data-cardname', cliente.cardname || '');
+                    clienteSelect.append(option);
+                });
+                editClientesSapCargados = true;
+                if (seleccion) {
+                    editSetOption('#id_cliente', seleccion, textoSeleccion || seleccion, true);
+                    $('#id_cliente option[value="' + String(seleccion).replace(/"/g, '\\"') + '"]').attr('data-cardname', textoSeleccion || '');
+                }
+                editSetValue('edit_cliente_codigo', clienteSelect.val() || '');
+                editSetValue('edit_cliente_nombre', $('#id_cliente option:selected').attr('data-cardname') || $('#id_cliente option:selected').text() || '');
+            },
+            complete: function () {
+                clienteSelect.prop('disabled', false).trigger('change.select2');
+            }
+        });
+    }
+
+    function inicializarSelectSocioEdicion(selector, url) {
+        const $select = $(selector);
+        if (!$select.length || !$select.select2) {
+            return;
+        }
+
+        if ($select.data('select2')) {
+            $select.select2('destroy');
+        }
+
+        $select.select2({
+            dropdownParent: $('#editCitationModal'),
+            width: '100%',
+            placeholder: 'Seleccione',
+            allowClear: true,
+            ajax: {
+                url: url,
+                dataType: 'json',
+                delay: 250,
+                data: function (params) {
+                    return {
+                        q: params.term || '',
+                        empresa_id: empresaIdActiva()
+                    };
+                },
+                processResults: function (data) {
+                    return {
+                        results: (data.items || []).map(function (item) {
+                            return { id: item.id, text: item.text };
+                        })
+                    };
+                }
+            }
+        });
+    }
+
+    function setSelectActual(selector, item) {
+        const $select = $(selector);
+        $select.empty();
+        if (item && item.id) {
+            const option = new Option(item.text || item.id, item.id, true, true);
+            $select.append(option).trigger('change');
+        } else {
+            $select.val(null).trigger('change');
+        }
+    }
+
+    function openEditModal(citacionId) {
+        $('#updateCitationForm')[0].reset();
+        $('#citation_id').val(citacionId);
+        $('#editCitationModal').modal('show');
+
+        if ($('#id_cliente').data('select2')) {
+            $('#id_cliente').select2('destroy');
+        }
+        $('#id_cliente').select2({
+            placeholder: 'Buscar cliente...',
+            allowClear: true,
+            width: '100%',
+            dropdownParent: $('#editCitationModal')
+        });
+
+        if ($('#id_proveedor').data('select2')) {
+            $('#id_proveedor').select2('destroy');
+        }
+        $('#id_proveedor').select2({
+            placeholder: 'Proveedor desde Pedido SAP',
+            allowClear: false,
+            width: '100%',
+            dropdownParent: $('#editCitationModal')
+        });
+
+        if ($('#edit_insumo_sap').data('select2')) {
+            $('#edit_insumo_sap').select2('destroy');
+        }
+        $('#edit_insumo_sap').select2({
+            placeholder: 'Buscar producto...',
+            allowClear: true,
+            width: '100%',
+            dropdownParent: $('#editCitationModal')
+        });
+
+        if ($('#edit_pedido').data('select2')) {
+            $('#edit_pedido').select2('destroy');
+        }
+        $('#edit_pedido').select2({
+            placeholder: 'Seleccione o escriba Pedido SAP',
+            allowClear: true,
+            tags: true,
+            width: '100%',
+            dropdownParent: $('#editCitationModal'),
+            createTag: function (params) {
+                const term = $.trim(params.term);
+                if (!term || !/^\d+$/.test(term)) {
+                    return null;
+                }
+                return { id: term, text: term, nuevo: true };
+            }
+        });
+
+        $('#id_cliente')
+            .off('change.editClienteSap')
+            .on('change.editClienteSap', function () {
+                editSetValue('edit_cliente_codigo', $(this).val() || '');
+                editSetValue('edit_cliente_nombre', $('#id_cliente option:selected').attr('data-cardname') || $('#id_cliente option:selected').text() || '');
+            });
+
+        $('#edit_insumo_sap')
+            .off('change.editProductoSap')
+            .on('change.editProductoSap', function () {
+                const codigo = $(this).val() || '';
+                editSetValue('edit_codigo', codigo);
+                editSetValue('edit_insumo_nombre', editInsumoNombreSeleccionado());
+                if (!editBloquearLimpiezaProducto) {
+                    editLimpiarProveedorSap();
+                    editLimpiarDatosPedido(true);
+                    editCargarPedidosPorProducto(codigo);
+                }
+            });
+
+        $('#edit_pedido')
+            .off('change.editPedidoSap')
+            .on('change.editPedidoSap', function () {
+                if (editBloqueandoCambioPedido) {
+                    return;
+                }
+                editResolverPedidoSapSeleccionado($(this).val() || '');
+            });
+
+        $.ajax({
+            url: `/get_citation_data/${citacionId}/`,
+            type: 'GET',
+            success: function (data) {
+                if (data.error || data.success === false || data.editable === false) {
+                    $('#editCitationModal').modal('hide');
+                    console.error('get_citation_data no editable:', data);
+                    Swal.fire('No editable', data.error, 'warning');
+                    return;
+                }
+
+                const detalle = data.detalle_operacional || {};
+                $('#tipo_documento').html(data.tipos_documento || '');
+                $('#id_secuencia').html(data.secuencias || '');
+                $('#citation_id').val(citacionId);
+                $('#edit_origen').val(detalle.origen || 'planificacion');
+                $('#edit_fecha_llegada').val(data.fecha_llegada || '');
+                $('#edit_tipo_operacion').val(data.tipo_operacion || data.tipo_citacion || '');
+                $('#edit_tipo_carga').val(data.tipo_carga || '');
+                $('#numero_documento').val(data.numero_documento || '');
+                $('#edit_inf_24hrs').val(detalle.inf_24hrs || '');
+                $('#edit_codigo').val(detalle.codigo || '');
+                $('#edit_insumo_nombre').val(detalle.insumo || '');
+                $('#edit_bl').val(detalle.bl || '');
+                $('#edit_cantidad_disponible').val(detalle.cantidad_disponible || '');
+                $('#edit_docentry').val(detalle.docentry || '');
+                $('#edit_sap_opor_id').val(detalle.sap_opor_id || detalle.docentry || '');
+                $('#edit_proveedor_codigo').val(detalle.proveedor_codigo || detalle.codigo_proveedor_sap || '');
+                $('#edit_contrato_sap').val(detalle.contrato_sap || '');
+                $('#edit_codigo_proveedor_sap').val(detalle.codigo_proveedor_sap || detalle.proveedor_codigo || '');
+                $('#edit_proveedor_value').val(detalle.codigo_proveedor_sap || detalle.proveedor_codigo || '');
+                $('#edit_proveedor_nombre').val(detalle.proveedor_sap || '');
+                $('#edit_almacen_destino').val(detalle.almacen_destino || '');
+                poblarEstanqueDestinoPorAlmacen('#edit_almacen_destino', '#edit_estanque_destino');
+                $('#edit_estanque_destino').val(detalle.estanque_destino || '');
+                $('#observacion').val(data.observacion || detalle.observacion || '');
+
+                editCargarClientesSap(
+                    (data.cliente && (data.cliente.codigo || data.cliente.id)) || '',
+                    data.cliente ? data.cliente.text : ''
+                );
+                editCargarProductosSap(detalle.codigo || '', detalle.insumo || '');
+                editSetPedidoOptions([], detalle.pedido || '');
+                if (detalle.pedido) {
+                    editSetOption('#edit_pedido', detalle.pedido, detalle.pedido, true);
+                }
+                editCargarProveedorSapEnSelect(
+                    detalle.codigo_proveedor_sap || detalle.proveedor_codigo || '',
+                    detalle.proveedor_sap || ''
+                );
+            },
+            error: function (xhr) {
+                $('#editCitationModal').modal('hide');
+                console.error('Error get_citation_data:', xhr.status, xhr.responseText);
+                const message = xhr.responseJSON && xhr.responseJSON.error
+                    ? xhr.responseJSON.error
+                    : 'No fue posible cargar la citación para edición.';
+                Swal.fire('No editable', message, 'warning');
+            }
+        });
+    }
+
+    function updateCitation() {
+        const citacionId = $('#citation_id').val();
+        if (!citacionId) {
+            Swal.fire('Falta citación', 'No se encontró la citación a actualizar.', 'warning');
+            return;
+        }
+
+        editSetValue('edit_insumo_nombre', editInsumoNombreSeleccionado() || $('#edit_insumo_nombre').val());
+        editSetValue('edit_cliente_codigo', $('#id_cliente').val() || $('#edit_cliente_codigo').val());
+        editSetValue('edit_cliente_nombre', $('#id_cliente option:selected').attr('data-cardname') || $('#id_cliente option:selected').text() || $('#edit_cliente_nombre').val());
+        editSetValue('edit_proveedor_value', $('#edit_proveedor_codigo').val() || $('#edit_codigo_proveedor_sap').val());
+        const pedidoOption = $('#edit_pedido option:selected');
+        const pedidoDocnum = pedidoOption.attr('data-docnum') || String($('#edit_pedido').val() || '').split('__')[0];
+        if (pedidoDocnum) {
+            editBloqueandoCambioPedido = true;
+            editSetOption('#edit_pedido', pedidoDocnum, pedidoDocnum, true);
+            editBloqueandoCambioPedido = false;
+        }
+
+        $.ajax({
+            url: `/update_citation/${citacionId}/`,
+            type: 'POST',
+            data: $('#updateCitationForm').serialize(),
+            success: function (response) {
+                if (!response.valid) {
+                    Swal.fire('No actualizado', response.msg || 'No fue posible actualizar la citación.', 'warning');
+                    return;
+                }
+
+                Swal.fire('Actualizado', 'La citación fue actualizada correctamente.', 'success')
+                    .then(function () {
+                        location.reload();
+                    });
+            },
+            error: function (xhr) {
+                const message = xhr.responseJSON && xhr.responseJSON.msg
+                    ? xhr.responseJSON.msg
+                    : 'No fue posible actualizar la citación.';
+                Swal.fire('No actualizado', message, 'warning');
+            }
+        });
     }
 
     function renderCitationSummarySection(title, items) {
@@ -2917,8 +3582,9 @@ function inicializarConductoresIngresoCamion(limpiarActual) {
         }
 
         $('#ingreso_camion_campos').html('<div class="text-center p-3">Cargando...</div>');
-        $('#ingreso_camion_alert').hide().text('');
+        $('#ingreso_camion_alert').removeClass('alert-warning').addClass('alert-info').hide().text('');
         $('#ingreso_camion_subtitulo').text('');
+        $('#ModalIngresoCamionLabel').text('Ingreso de camión');
 
         $('#ModalIngresoCamion').modal('show');
 
@@ -2934,6 +3600,20 @@ function inicializarConductoresIngresoCamion(limpiarActual) {
 
                 const subtitulo = `Citación #${response.citacion.id} | Etapa: ${response.etapa.codigo} - ${response.etapa.nombre}`;
                 $('#ingreso_camion_subtitulo').text(subtitulo);
+                const devolucionGuardia = response.devolucion_guardia || {};
+                if (devolucionGuardia.observacion) {
+                    $('#ModalIngresoCamionLabel').text('Modificar ingreso');
+                    $('#ingreso_camion_alert')
+                        .removeClass('alert-info')
+                        .addClass('alert-warning')
+                        .show()
+                        .html(
+                            `<strong>Requiere su atención:</strong> citación devuelta por Asistente_Recepción.<br>` +
+                            `<strong>Motivo devolución:</strong> ${escapeHtml(devolucionGuardia.observacion)}`
+                        );
+                } else {
+                    $('#ModalIngresoCamionLabel').text('Ingreso de camión');
+                }
 
                 if (!response.campos || response.campos.length === 0) {
                     $('#ingreso_camion_campos').empty();
@@ -3008,8 +3688,8 @@ function inicializarConductoresIngresoCamion(limpiarActual) {
 
                 Swal.fire({
                     icon: 'success',
-                    title: 'Ingreso registrado',
-                    text: response.message || 'Datos guardados correctamente.'
+                    title: response.modo === 'edicion' ? 'Ingreso actualizado' : 'Ingreso registrado',
+                    text: response.message || 'Datos guardados correctamente. Presione la flecha para enviar a Asistente Recepcion.'
                 }).then(function () {
                     sessionStorage.setItem('citacion_pendiente_envio', ingresoCamionCitacionId);
                     location.reload();
@@ -3040,11 +3720,11 @@ function inicializarConductoresIngresoCamion(limpiarActual) {
             const texto = item.texto || valor;
             const option = $('<option></option>')
                 .val(valor)
-                .text(texto);
-
-            if (!item.disponible && !item.seleccionado) {
-                option.prop('disabled', true);
-            }
+                .text(texto)
+                .attr('data-ocupado', item.ocupado ? 'true' : 'false')
+                .attr('data-citacion-ocupante', item.citacion_ocupante || '')
+                .attr('data-patente-ocupante', item.patente_ocupante || '')
+                .attr('data-etapa-ocupante', item.etapa_ocupante || '');
 
             if (item.seleccionado || valor === estanqueActual) {
                 option.prop('selected', true);
@@ -3148,7 +3828,7 @@ function inicializarConductoresIngresoCamion(limpiarActual) {
                     bloquearControlesEstanqueCamion(!puedeEditar || !!bloqueo, bloqueo);
                 }
 
-                $('#btn_enviar_estanque').prop('disabled', !puedeEditar || !response.estanque_actual || !response.estanque_actual_disponible);
+                $('#btn_enviar_estanque').prop('disabled', !puedeEditar || !response.estanque_actual);
 
                 if (response.enviado_siguiente) {
                     $('#estanque_camion_alert').show().text('Esta citación ya fue enviada a la siguiente etapa.');
@@ -3181,44 +3861,71 @@ function inicializarConductoresIngresoCamion(limpiarActual) {
             return;
         }
 
-        $.ajax({
-            url: `/pla-citacion-estanque/${estanqueCamionCitacionId}/`,
-            type: 'POST',
-            data: { estanque: estanque },
-            headers: {
-                'X-CSRFToken': '{{ csrf_token }}'
-            },
-            success: function (response) {
-                if (!response.success) {
+        const opcionSeleccionada = $('#estanque_operacional option:selected');
+        const ocupado = opcionSeleccionada.attr('data-ocupado') === 'true';
+        const citacionOcupante = opcionSeleccionada.attr('data-citacion-ocupante') || '';
+        const patenteOcupante = opcionSeleccionada.attr('data-patente-ocupante') || 'No registrada';
+        const etapaOcupante = opcionSeleccionada.attr('data-etapa-ocupante') || '';
+
+        const ejecutarGuardado = function () {
+            $.ajax({
+                url: `/pla-citacion-estanque/${estanqueCamionCitacionId}/`,
+                type: 'POST',
+                data: { estanque: estanque },
+                headers: {
+                    'X-CSRFToken': '{{ csrf_token }}'
+                },
+                success: function (response) {
+                    if (!response.success) {
+                        Swal.fire({
+                            icon: 'error',
+                            title: 'No se pudo guardar',
+                            text: response.message || 'No fue posible guardar el estanque.'
+                        });
+                        return;
+                    }
+
+                    $('#btn_enviar_estanque').prop('disabled', false);
+                    $(`#citacion-row-${estanqueCamionCitacionId}`).addClass('citacion-estanque-asignado');
+
                     Swal.fire({
-                        icon: 'error',
-                        title: 'No se pudo guardar',
-                        text: response.message || 'No fue posible guardar el estanque.'
+                        icon: 'success',
+                        title: 'Estanque guardado',
+                        text: response.message || 'Estanque guardado correctamente.'
                     });
-                    return;
+                },
+                error: function (xhr) {
+                    const message = xhr.responseJSON && xhr.responseJSON.message
+                        ? xhr.responseJSON.message
+                        : 'No fue posible guardar el estanque.';
+
+                    Swal.fire({
+                        icon: 'warning',
+                        title: 'No se pudo guardar',
+                        text: message
+                    });
                 }
+            });
+        };
 
-                $('#btn_enviar_estanque').prop('disabled', false);
-                $(`#citacion-row-${estanqueCamionCitacionId}`).addClass('citacion-estanque-asignado');
+        if (ocupado) {
+            const detalleEtapa = etapaOcupante ? ` / etapa ${etapaOcupante}` : '';
+            Swal.fire({
+                icon: 'warning',
+                title: 'Estanque tomado',
+                text: `Este estanque está tomado por la citación ${citacionOcupante}, patente ${patenteOcupante}${detalleEtapa}. ¿Desea asignarlo igualmente?`,
+                showCancelButton: true,
+                confirmButtonText: 'Asignar igualmente',
+                cancelButtonText: 'Cancelar'
+            }).then(function (result) {
+                if (result.isConfirmed) {
+                    ejecutarGuardado();
+                }
+            });
+            return;
+        }
 
-                Swal.fire({
-                    icon: 'success',
-                    title: 'Estanque guardado',
-                    text: response.message || 'Estanque guardado correctamente.'
-                });
-            },
-            error: function (xhr) {
-                const message = xhr.responseJSON && xhr.responseJSON.message
-                    ? xhr.responseJSON.message
-                    : 'No fue posible guardar el estanque.';
-
-                Swal.fire({
-                    icon: 'warning',
-                    title: 'No se pudo guardar',
-                    text: message
-                });
-            }
-        });
+        ejecutarGuardado();
     }
 
     function enviarEstanqueSiguienteEtapa() {
@@ -3316,13 +4023,86 @@ function inicializarConductoresIngresoCamion(limpiarActual) {
         marcarFilaPendienteEnvio(citacionId, false);
     }
 
-    function avanzarIngresoCamionAsistente(citacionId) {
+    $(document)
+        .off('click.deleteCitacion', '.delete_citacion')
+        .on('click.deleteCitacion', '.delete_citacion', function (event) {
+            event.preventDefault();
+
+            const boton = $(this);
+            const url = boton.data('href');
+            const citacionId = boton.data('citacion-id') || '';
+
+            if (!url) {
+                Swal.fire({
+                    icon: 'error',
+                    title: 'No se puede eliminar',
+                    text: 'No se encontró la URL de eliminación de la citación.'
+                });
+                return;
+            }
+
+            Swal.fire({
+                icon: 'warning',
+                title: 'Eliminar citación',
+                text: `Esta acción eliminará la citación ${citacionId}. Solo se permite si no tiene avance operativo crítico.`,
+                showCancelButton: true,
+                confirmButtonText: 'Eliminar',
+                cancelButtonText: 'Cancelar',
+                confirmButtonColor: '#d33'
+            }).then(function (result) {
+                if (!result.isConfirmed) {
+                    return;
+                }
+
+                boton.addClass('disabled').attr('aria-disabled', 'true');
+
+                $.ajax({
+                    url: url,
+                    type: 'POST',
+                    headers: {
+                        'X-CSRFToken': '{{ csrf_token }}',
+                        'X-Requested-With': 'XMLHttpRequest'
+                    },
+                    success: function (response) {
+                        if (!response.success) {
+                            Swal.fire({
+                                icon: 'warning',
+                                title: 'No se pudo eliminar',
+                                text: response.message || 'La citación no cumple las condiciones para ser eliminada.'
+                            });
+                            return;
+                        }
+
+                        Swal.fire({
+                            icon: 'success',
+                            title: 'Citación eliminada',
+                            text: response.message || 'La citación fue eliminada correctamente.'
+                        }).then(function () {
+                            location.reload();
+                        });
+                    },
+                    error: function (xhr) {
+                        const response = xhr.responseJSON || {};
+                        Swal.fire({
+                            icon: 'error',
+                            title: 'No se pudo eliminar',
+                            text: response.message || xhr.responseText || 'Ocurrió un error al eliminar la citación.'
+                        });
+                    },
+                    complete: function () {
+                        boton.removeClass('disabled').removeAttr('aria-disabled');
+                    }
+                });
+            });
+        });
+
+    function avanzarIngresoCamionAsistente(citacionId, esCorreccion) {
         Swal.fire({
             icon: 'question',
-            title: 'Enviar a Asistente Recepción',
-            text: 'Se validarán los datos mínimos antes de avanzar la etapa.',
+            title: esCorreccion ? 'Corregir y reenviar a Asistente Recepción' : 'Enviar a Asistente Recepción',
+            text: esCorreccion ? 'Se reenviará la citación corregida al Asistente de Recepción.' : 'Se validarán los datos mínimos antes de avanzar la etapa.',
             showCancelButton: true,
-            confirmButtonText: 'Enviar',
+            confirmButtonText: esCorreccion ? 'Reenviar' : 'Enviar',
             cancelButtonText: 'Cancelar'
         }).then(function (result) {
             if (!result.isConfirmed) {

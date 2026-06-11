@@ -7,7 +7,7 @@ from django.contrib import messages
 from django.core.paginator import Paginator, PageNotAnInteger, EmptyPage
 from django.utils import timezone
 from django.utils.translation import gettext_lazy as _
-from django.utils.dateparse import parse_date
+from django.utils.dateparse import parse_date, parse_datetime
 from django.utils.text import get_valid_filename
 from django.views.generic import FormView
 from django.contrib.auth import update_session_auth_hash, authenticate, logout
@@ -186,10 +186,12 @@ def CREAR_PLANIFICACION_CITACION(request):
         citaciones_creadas = []
 
         for i, item in enumerate(citaciones_data):
-            cliente_codigo = item.get('cliente', '').strip()
+            cliente_codigo = item.get('cliente_codigo', '').strip()
             proveedor_codigo = item.get('proveedor', '').strip()
             proveedor_codigo_hidden = item.get('proveedor_codigo', '').strip()
-            proveedor_codigo_final = proveedor_codigo_hidden or proveedor_codigo
+            codigo_proveedor_sap = item.get('codigo_proveedor_sap', '').strip()
+            proveedor_codigo_final = codigo_proveedor_sap or proveedor_codigo_hidden or proveedor_codigo
+            proveedor_sap = item.get('proveedor_sap') or item.get('proveedor_nombre') or ''
             secuencia_item_id = item.get('secuencia_id') or secuencia_id
             secuencia_item = secuencia
 
@@ -201,19 +203,21 @@ def CREAR_PLANIFICACION_CITACION(request):
                     SE_BHABILITADO=True
                 ).first() or secuencia
 
-            cliente_sn = SOCIONEGOCIO.objects.filter(
-                EP_NID_id=Empresa,
-                SN_CCODIGO_SAP=cliente_codigo,
-                SN_CTIPO='C',
-                SN_BHABILITADO=True
-            ).first()
+            cliente_sn = resolver_socio_negocio_planificacion(
+                Empresa,
+                'C',
+                valor=item.get('cliente'),
+                codigo=cliente_codigo,
+                nombre=item.get('cliente_nombre')
+            )
 
-            proveedor_sn = SOCIONEGOCIO.objects.filter(
-                EP_NID_id=Empresa,
-                SN_CCODIGO_SAP=proveedor_codigo_final,
-                SN_CTIPO='S',
-                SN_BHABILITADO=True
-            ).first()
+            proveedor_sn = resolver_socio_negocio_planificacion(
+                Empresa,
+                'S',
+                valor=proveedor_codigo,
+                codigo=proveedor_codigo_final,
+                nombre=proveedor_sap or item.get('proveedor_nombre')
+            )
 
             citacion = CITACION.objects.create(
                 US_NID=usuario,
@@ -246,10 +250,11 @@ def CREAR_PLANIFICACION_CITACION(request):
 
             guardar_detalle_operacional_citacion(
                 citacion,
-                item,
+                {**item, 'proveedor_sap': proveedor_sap},
                 usuario=usuario,
                 origen_default='planificacion'
             )
+            guardar_datos_planificacion_operacional(citacion, {**item, 'proveedor_sap': proveedor_sap}, usuario, proveedor_sn=proveedor_sn)
 
             citaciones_creadas.append(citacion.id)
 
@@ -315,24 +320,27 @@ def CREAR_CITACION_NO_PLANIFICADA(request, pk):
                 'message': 'No quedan sobrecupos disponibles para esta planificaciÃ³n.'
             })
 
-        cliente_codigo = request.POST.get('cliente', '').strip()
+        cliente_codigo = request.POST.get('cliente_codigo', '').strip()
         proveedor_codigo = request.POST.get('proveedor', '').strip()
         proveedor_codigo_hidden = request.POST.get('proveedor_codigo', '').strip()
-        proveedor_codigo_final = proveedor_codigo_hidden or proveedor_codigo
+        codigo_proveedor_sap = request.POST.get('codigo_proveedor_sap', '').strip()
+        proveedor_codigo_final = codigo_proveedor_sap or proveedor_codigo_hidden or proveedor_codigo
 
-        cliente_sn = SOCIONEGOCIO.objects.filter(
-            EP_NID_id=Empresa,
-            SN_CCODIGO_SAP=cliente_codigo,
-            SN_CTIPO='C',
-            SN_BHABILITADO=True
-        ).first()
+        cliente_sn = resolver_socio_negocio_planificacion(
+            Empresa,
+            'C',
+            valor=request.POST.get('cliente'),
+            codigo=cliente_codigo,
+            nombre=request.POST.get('cliente_nombre')
+        )
 
-        proveedor_sn = SOCIONEGOCIO.objects.filter(
-            EP_NID_id=Empresa,
-            SN_CCODIGO_SAP=proveedor_codigo_final,
-            SN_CTIPO='S',
-            SN_BHABILITADO=True
-        ).first()
+        proveedor_sn = resolver_socio_negocio_planificacion(
+            Empresa,
+            'S',
+            valor=proveedor_codigo,
+            codigo=proveedor_codigo_final,
+            nombre=request.POST.get('proveedor_sap') or request.POST.get('proveedor_nombre')
+        )
 
         fecha_citacion = datetime.strptime(fecha_llegada, '%Y-%m-%d')
         numero_cupo = CITACION.objects.filter(PL_NID=planificacion).count() + 1
@@ -367,6 +375,9 @@ def CREAR_CITACION_NO_PLANIFICADA(request, pk):
             'pedido': request.POST.get('pedido', ''),
             'sap_opor_id': request.POST.get('sap_opor_id', ''),
             'proveedor_codigo': proveedor_codigo_final,
+            'proveedor_sap': request.POST.get('proveedor_sap') or request.POST.get('proveedor_nombre', ''),
+            'codigo_proveedor_sap': codigo_proveedor_sap,
+            'contrato_sap': request.POST.get('contrato_sap', ''),
             'bl': request.POST.get('bl', ''),
             'cantidad_disponible': request.POST.get('cantidad_disponible', ''),
             'docentry': request.POST.get('docentry', ''),
@@ -410,6 +421,7 @@ def CREAR_CITACION_NO_PLANIFICADA(request, pk):
             usuario=request.user,
             origen_default='camion_no_planificado'
         )
+        guardar_datos_planificacion_operacional(citacion, detalle_operacional_data, request.user, proveedor_sn=proveedor_sn)
 
         planificacion.PL_NSOBRECUPO = True
         planificacion.PL_NCANTIDADSOBRECUPO = max(sobrecupos_disponibles - 1, 0)
@@ -793,6 +805,30 @@ def PLANIFICACION_CITACION_INGRESO_CAMION(request, pk):
         ).get(pk=pk, EP_NID_id=Empresa, CI_BHABILITADO=True)
 
         etapa_actual = citacion.ETAPA_ACTUAL
+        detalle_actual = DETALLE_SECUENCIA.objects.filter(
+            SC_NID=citacion.SC_NID,
+            ET_NID=etapa_actual,
+            SE_BHABILITADO=True
+        ).first()
+        enviado_asistente = SYSLOGGER.objects.filter(
+            LOG_COPERACION='AVANZA_AR',
+            LOG_CADD1=str(citacion.id)
+        ).exists()
+        devolucion_guardia = obtener_devolucion_guardia_pendiente(citacion)
+        if (
+            citacion.CI_CESTADO == CIT_TERMINADO
+            or (
+                not devolucion_guardia
+                and (
+                    enviado_asistente
+                    or (detalle_actual and detalle_actual.SE_NPASO > 1)
+                )
+            )
+        ):
+            return JsonResponse({
+                'success': False,
+                'message': 'El ingreso de camion ya fue enviado a la siguiente etapa. Solo puede revisar el resumen.'
+            }, status=409)
 
         if request.method == 'GET':
             campos = obtener_campos_operacion_etapa(citacion, etapa_actual, request.user)
@@ -823,7 +859,8 @@ def PLANIFICACION_CITACION_INGRESO_CAMION(request, pk):
                     'codigo': etapa_actual.ET_CCODIGO,
                     'nombre': etapa_actual.ET_CNOMBRE,
                 },
-                'campos': campos
+                'campos': campos,
+                'devolucion_guardia': devolucion_guardia or {}
             })
 
         if request.method == 'POST':
@@ -832,7 +869,10 @@ def PLANIFICACION_CITACION_INGRESO_CAMION(request, pk):
             return JsonResponse({
                 'success': True,
                 'message': 'Ingreso de camion actualizado correctamente.' if fue_edicion else 'Ingreso de camion registrado correctamente.',
-                'modo': 'edicion' if fue_edicion else 'creacion'
+                'modo': 'edicion' if fue_edicion else 'creacion',
+                'pendiente_envio': True,
+                'avanzado': False,
+                'requiere_flecha': True
             })
 
         return JsonResponse({
@@ -1209,6 +1249,7 @@ def AVANZAR_INGRESO_CAMION_ASISTENTE(request, pk):
                 'message': 'Esta citacion ya fue enviada al Asistente de recepcion.'
             }, status=409)
 
+        devolucion_guardia = obtener_devolucion_guardia_pendiente(citacion)
         faltantes, valores = validar_ingreso_camion_minimo(citacion, etapa_actual)
 
         if faltantes:
@@ -1283,14 +1324,20 @@ def AVANZAR_INGRESO_CAMION_ASISTENTE(request, pk):
             request.user,
             citacion.EP_NID,
             'AVANZA_AR',
-            f'Citacion #{citacion.id} enviada a asistente desde etapa {etapa_actual.ET_CCODIGO} a {siguiente_etapa.ET_NID.ET_CCODIGO}. Notificados: {len(asistentes)}',
+            (
+                f'Citacion #{citacion.id} corregida y reenviada a asistente desde etapa {etapa_actual.ET_CCODIGO} '
+                f'a {siguiente_etapa.ET_NID.ET_CCODIGO}. Motivo devolucion atendido: {devolucion_guardia.get("observacion", "")}. '
+                f'Notificados: {len(asistentes)}'
+                if devolucion_guardia
+                else f'Citacion #{citacion.id} enviada a asistente desde etapa {etapa_actual.ET_CCODIGO} a {siguiente_etapa.ET_NID.ET_CCODIGO}. Notificados: {len(asistentes)}'
+            ),
             citacion.id,
             valores.get('ING_PATENTE', '')
         )
 
         return JsonResponse({
             'success': True,
-            'message': 'Citacion enviada al asistente de recepcion.',
+            'message': 'Correccion enviada al asistente de recepcion.' if devolucion_guardia else 'Citacion enviada al asistente de recepcion.',
             'notificados': len(asistentes),
             'siguiente_etapa': siguiente_etapa.ET_NID.ET_CCODIGO
         })
@@ -1454,6 +1501,56 @@ def obtener_reserva_ocupada_citacion(citacion):
     ).order_by('-ER_FFECHA_ASIGNACION').first()
 
 
+def liberar_reservas_estanque_citacion(citacion, usuario=None, observacion=''):
+    reservas = ESTANQUE_RESERVA.objects.filter(
+        CI_NID=citacion,
+        ER_CESTADO=ESTANQUE_RESERVA.ESTADO_OCUPADO
+    )
+    ahora = timezone.now()
+    total = reservas.update(
+        ER_CESTADO=ESTANQUE_RESERVA.ESTADO_LIBERADO,
+        ER_FFECHA_LIBERACION=ahora,
+        US_LIBERA_NID=usuario,
+        ER_COBSERVACION=observacion or 'Reserva liberada'
+    )
+    return total
+
+
+def sincronizar_liberacion_estanques_pesaje_salida(empresa):
+    citaciones_con_pesaje_salida = OPERACION_PLANTA_LOG.objects.filter(
+        EP_NID=empresa,
+        OPL_CPASO='Pesaje Salida',
+        OPL_CESTADO=OPERACION_PLANTA_LOG.ESTADO_COMPLETADO
+    ).values_list('CI_NID_id', flat=True)
+    reservas = ESTANQUE_RESERVA.objects.filter(
+        EP_NID=empresa,
+        ER_CESTADO=ESTANQUE_RESERVA.ESTADO_OCUPADO,
+        CI_NID_id__in=citaciones_con_pesaje_salida
+    )
+    ahora = timezone.now()
+    return reservas.update(
+        ER_CESTADO=ESTANQUE_RESERVA.ESTADO_LIBERADO,
+        ER_FFECHA_LIBERACION=ahora,
+        ER_COBSERVACION='Reserva liberada automaticamente al completar Pesaje Salida'
+    )
+
+
+def descripcion_reserva_estanque_ocupada(reserva):
+    if not reserva:
+        return ''
+    citacion_id = reserva.CI_NID_id or ''
+    patente = reserva.ER_CPATENTE or 'No registrada'
+    etapa = ''
+    try:
+        etapa = obtener_etapa_actual_operacional_citacion(reserva.CI_NID) if reserva.CI_NID else ''
+    except Exception:
+        etapa = ''
+    texto = f'Tomado por citacion {citacion_id} / patente {patente}'
+    if etapa:
+        texto = f'{texto} / etapa {etapa}'
+    return texto
+
+
 def reservar_estanque_citacion(citacion, almacen, estanque, usuario, patente=None):
     almacen_normalizado = normalizar_texto_reserva(almacen)
     estanque_normalizado = normalizar_texto_reserva(estanque)
@@ -1495,6 +1592,7 @@ def reservar_estanque_citacion(citacion, almacen, estanque, usuario, patente=Non
 def construir_opciones_estanque_reserva(citacion, almacen, opciones_estanque, estanque_actual=''):
     opciones = []
     almacen_normalizado = normalizar_texto_reserva(almacen)
+    sincronizar_liberacion_estanques_pesaje_salida(citacion.EP_NID)
     reservas = ESTANQUE_RESERVA.objects.select_related('CI_NID').filter(
         EP_NID=citacion.EP_NID,
         ER_CALMACEN=almacen_normalizado,
@@ -1512,16 +1610,19 @@ def construir_opciones_estanque_reserva(citacion, almacen, opciones_estanque, es
         reserva = reservas_por_estanque.get(estanque_normalizado)
         ocupado_por_otra = bool(reserva and reserva.CI_NID_id != citacion.id)
         texto = estanque
+        etapa_ocupante = ''
         if ocupado_por_otra:
-            texto = f'{estanque} - Ocupado por patente {reserva.ER_CPATENTE or "No registrada"}'
+            etapa_ocupante = obtener_etapa_actual_operacional_citacion(reserva.CI_NID) if reserva.CI_NID else ''
+            texto = f'{estanque} - {descripcion_reserva_estanque_ocupada(reserva)}'
 
         opciones.append({
             'valor': estanque,
             'texto': texto,
-            'disponible': not ocupado_por_otra,
+            'disponible': True,
             'ocupado': ocupado_por_otra,
             'patente_ocupante': reserva.ER_CPATENTE if ocupado_por_otra else '',
             'citacion_ocupante': reserva.CI_NID_id if ocupado_por_otra else None,
+            'etapa_ocupante': etapa_ocupante,
             'seleccionado': estanque_normalizado == estanque_actual_normalizado,
         })
 
@@ -1547,7 +1648,156 @@ def decimal_or_none(value):
         return None
 
 
+def normalizar_texto_busqueda_socio(valor):
+    texto = str(valor or '').strip()
+    if not texto:
+        return ''
+    return texto.split('(', 1)[0].strip()
+
+
+def resolver_socio_negocio_planificacion(empresa_id, tipo, valor=None, codigo=None, nombre=None):
+    candidatos_codigo = []
+    for candidato in [codigo, valor]:
+        candidato = str(candidato or '').strip()
+        if candidato and candidato not in candidatos_codigo:
+            candidatos_codigo.append(candidato)
+
+    base = SOCIONEGOCIO.objects.filter(
+        EP_NID_id=empresa_id,
+        SN_CTIPO=tipo,
+        SN_BHABILITADO=True
+    )
+
+    for candidato in candidatos_codigo:
+        socio = base.filter(SN_CCODIGO_SAP__iexact=candidato).first()
+        if socio:
+            return socio
+
+    valor = str(valor or '').strip()
+    if valor.isdigit():
+        socio = base.filter(id=int(valor)).first()
+        if socio:
+            return socio
+
+    for candidato in [nombre, valor]:
+        nombre_limpio = normalizar_texto_busqueda_socio(candidato)
+        if not nombre_limpio:
+            continue
+        socio = base.filter(SN_CRAZONSOCIAL__iexact=nombre_limpio).first()
+        if socio:
+            return socio
+
+    return None
+
+
+def observacion_con_metadata_sap(data):
+    return str(data.get('observacion') or '').strip()
+
+
+def observacion_planificacion_visible(valor):
+    texto = str(valor or '').strip()
+    if not texto:
+        return ''
+
+    etiquetas_automaticas = {
+        'CONTRATO SAP',
+        'CODIGO PROVEEDOR SAP',
+        'CODIGO PROVEEDOR',
+    }
+    partes_visibles = []
+    for parte in texto.split('|'):
+        parte = parte.strip()
+        etiqueta = parte.split(':', 1)[0].strip().upper()
+        if etiqueta in etiquetas_automaticas:
+            continue
+        partes_visibles.append(parte)
+    return ' | '.join(partes_visibles)
+
+
+def obtener_contrato_sap_visible_por_pedido(pedido):
+    pedido = str(pedido or '').strip()
+    if not pedido:
+        return ''
+
+    try:
+        resultado = consultar_detalle_pedido_sap(pedido)
+    except Exception:
+        return ''
+
+    if not resultado.get('ok'):
+        return ''
+
+    for linea in resultado.get('lineas') or []:
+        contrato = str(linea.get('contrato_sap') or '').strip()
+        if contrato:
+            return contrato
+    return 'Sin contrato'
+
+
+def datos_operacionales_resumen_visible(detalle_operacional):
+    resumen = {}
+    contrato_sap = obtener_contrato_sap_visible_por_pedido(detalle_operacional.get('pedido'))
+
+    for llave, valor in detalle_operacional.items():
+        if llave == 'sap_opor_id':
+            resumen['contrato_sap'] = contrato_sap
+            continue
+        if llave == 'observacion':
+            resumen[llave] = observacion_planificacion_visible(valor)
+            continue
+        resumen[llave] = valor
+
+    return resumen
+
+
+def valor_dato_operacion(datos_operacion, codigo):
+    dato = datos_operacion.get(codigo)
+    return dato.DO_CVALOR if dato else ''
+
+
+def datos_operacionales_resumen_planificacion(citacion, detalle_operacional, datos_operacion=None):
+    datos_operacion = datos_operacion or {}
+    contrato_sap = (
+        valor_dato_operacion(datos_operacion, 'PLAN_CONTRATO_SAP')
+        or obtener_contrato_sap_visible_por_pedido(detalle_operacional.get('pedido'))
+    )
+    proveedor_sap = (
+        detalle_operacional.get('proveedor_sap')
+        or valor_dato_operacion(datos_operacion, 'PLAN_PROVEEDOR_SAP')
+        or (citacion.PRO_NID.SN_CRAZONSOCIAL if citacion.PRO_NID else '')
+    )
+    codigo_proveedor = (
+        valor_dato_operacion(datos_operacion, 'PLAN_CODIGO_PROVEEDOR_SAP')
+        or detalle_operacional.get('proveedor_codigo')
+    )
+    almacen_estanque = (
+        detalle_operacional.get('almacen_destino')
+        or detalle_operacional.get('estanque_destino')
+    )
+
+    return [
+        {'label': 'Origen', 'value': detalle_operacional.get('origen')},
+        {'label': 'Inf 24 hrs', 'value': detalle_operacional.get('inf_24hrs')},
+        {'label': 'Codigo SAP', 'value': detalle_operacional.get('codigo')},
+        {'label': 'Insumo SAP', 'value': detalle_operacional.get('insumo')},
+        {'label': 'Pedido SAP', 'value': detalle_operacional.get('pedido')},
+        {'label': 'Proveedor SAP', 'value': proveedor_sap},
+        {'label': 'Codigo proveedor SAP', 'value': codigo_proveedor},
+        {'label': 'Contrato SAP', 'value': contrato_sap},
+        {'label': 'Cantidad disponible', 'value': detalle_operacional.get('cantidad_disponible')},
+        {'label': 'DocEntry SAP', 'value': detalle_operacional.get('docentry') or detalle_operacional.get('sap_opor_id')},
+        {'label': 'Almacen/estanque destino', 'value': almacen_estanque},
+        {'label': 'Observacion planificacion', 'value': observacion_planificacion_visible(detalle_operacional.get('observacion'))},
+    ]
+
+
 def guardar_detalle_operacional_citacion(citacion, data, usuario=None, origen_default='planificacion'):
+    proveedor_sap = (
+        data.get('proveedor_sap')
+        or data.get('proveedor_nombre')
+        or data.get('cardname')
+        or ''
+    )
     detalle, _ = CITACION_DETALLE_OPERACIONAL.objects.update_or_create(
         CI_NID=citacion,
         defaults={
@@ -1559,14 +1809,14 @@ def guardar_detalle_operacional_citacion(citacion, data, usuario=None, origen_de
             'CDO_CINSUMO': data.get('insumo') or '',
             'CDO_CPEDIDO_SAP': data.get('pedido') or data.get('pedido_sap') or '',
             'CDO_CSAP_OPOR_ID': data.get('sap_opor_id') or '',
-            'CDO_CPROVEEDOR_CODIGO': data.get('proveedor_codigo') or '',
+            'CDO_CPROVEEDOR_CODIGO': data.get('codigo_proveedor_sap') or data.get('proveedor_codigo') or '',
             'CDO_CBL_CONTENEDOR': data.get('bl') or data.get('bl_contenedor') or '',
             'CDO_NCANTIDAD_DISPONIBLE': decimal_or_none(data.get('cantidad_disponible')),
             'CDO_CDOCENTRY': data.get('docentry') or '',
-            'CDO_CPRODUCTOR': '',
+            'CDO_CPRODUCTOR': proveedor_sap,
             'CDO_CALMACEN_DESTINO': data.get('almacen_destino') or data.get('estanque_destino') or '',
             'CDO_CESTANQUE_DESTINO': data.get('estanque_destino') or '',
-            'CDO_COBSERVACION': data.get('observacion') or '',
+            'CDO_COBSERVACION': observacion_con_metadata_sap(data),
         }
     )
     return detalle
@@ -1601,6 +1851,7 @@ def detalle_operacional_dict(citacion):
         'pedido': detalle.CDO_CPEDIDO_SAP,
         'sap_opor_id': detalle.CDO_CSAP_OPOR_ID,
         'proveedor_codigo': detalle.CDO_CPROVEEDOR_CODIGO,
+        'proveedor_sap': detalle.CDO_CPRODUCTOR,
         'bl': detalle.CDO_CBL_CONTENEDOR,
         'cantidad_disponible': detalle.CDO_NCANTIDAD_DISPONIBLE,
         'docentry': detalle.CDO_CDOCENTRY,
@@ -1643,7 +1894,13 @@ def PLANIFICACION_CITACION_RESUMEN(request, pk):
         valores_ingreso = obtener_valores_ingreso_camion(citacion)
         datos_operacion, documentos = obtener_datos_operacion_citacion(citacion)
         dato_estanque = obtener_dato_estanque_operacional(citacion)
+        etapa_visible_resumen = obtener_etapa_visible_resumen_citacion(citacion)
         etapa_actual = citacion.ETAPA_ACTUAL
+        detalle_operacional_resumen = datos_operacionales_resumen_planificacion(
+            citacion,
+            detalle_operacional,
+            datos_operacion
+        )
 
         def dato_operacion(codigo):
             registro = datos_operacion.get(codigo)
@@ -1675,11 +1932,11 @@ def PLANIFICACION_CITACION_RESUMEN(request, pk):
                 {'label': 'Tipo citacion', 'value': citacion.CI_CTIPO},
                 {'label': 'Estado', 'value': citacion.CI_CESTADO},
                 {'label': 'Secuencia', 'value': citacion.SC_NID.SE_CNOMBRE if citacion.SC_NID else ''},
-                {'label': 'Etapa actual', 'value': etapa_actual.ET_CNOMBRE if etapa_actual else ''},
+                {'label': 'Etapa actual', 'value': etapa_visible_resumen},
                 {'label': 'Tipo documento', 'value': citacion.CI_CTIPODOCUMENTO},
                 {'label': 'Numero documento', 'value': citacion.CI_CNUMERODOCUMENTO},
                 {'label': 'Tipo flete', 'value': citacion.CI_CTIPO_FLETE},
-                {'label': 'Producto', 'value': citacion_item.IT_NID.IT_CNOMBRE if citacion_item and citacion_item.IT_NID else ''},
+                {'label': 'Insumo SAP', 'value': detalle_operacional.get('insumo') or (citacion_item.IT_NID.IT_CNOMBRE if citacion_item and citacion_item.IT_NID else '')},
                 {'label': 'Cliente', 'value': socio_texto(citacion.SN_NID)},
                 {'label': 'Transportista', 'value': texto_sin_informacion(valores_ingreso.get('transportista'))},
                 {'label': 'Conductor', 'value': texto_sin_informacion(valores_ingreso.get('conductor'))},
@@ -1693,9 +1950,11 @@ def PLANIFICACION_CITACION_RESUMEN(request, pk):
                 {'label': 'Observacion', 'value': citacion.CI_CCOMENTARIO},
             ],
             'datos_operacionales': [
-                {'label': str(k).replace('_', ' ').title(), 'value': v}
-                for k, v in detalle_operacional.items()
-                if v not in [None, '']
+                {
+                    'label': item['label'],
+                    'value': item['value'] if item['value'] not in [None, ''] else 'Sin informacion'
+                }
+                for item in detalle_operacional_resumen
             ],
             'ingreso_camion': [
                 {'label': 'Numero guia', 'value': dato_operacion('CI_CNUMERODOCUMENTO') or citacion.CI_CNUMERODOCUMENTO},
@@ -1790,6 +2049,82 @@ def guardar_dato_operacion_codigo(citacion, codigo, valor, usuario, etiqueta=Non
         DO_CVALOR=valor,
         DO_FFECHAREGISTRO=timezone.now(),
     )
+
+
+def guardar_datos_planificacion_operacional(citacion, data, usuario, proveedor_sn=None):
+    proveedor_nombre = (
+        data.get('proveedor_sap')
+        or data.get('proveedor_nombre')
+        or (proveedor_sn.SN_CRAZONSOCIAL if proveedor_sn else '')
+    )
+    valores = {
+        'PLAN_PROVEEDOR_SAP': ('Proveedor SAP', proveedor_nombre),
+        'PLAN_CODIGO_PROVEEDOR_SAP': (
+            'Codigo proveedor SAP',
+            data.get('codigo_proveedor_sap') or data.get('proveedor_codigo')
+        ),
+        'PLAN_CONTRATO_SAP': ('Contrato SAP', data.get('contrato_sap')),
+    }
+
+    for codigo, (etiqueta, valor) in valores.items():
+        if valor not in [None, '']:
+            guardar_dato_operacion_codigo(citacion, codigo, valor, usuario, etiqueta=etiqueta)
+
+
+def citacion_tiene_avance_operativo_critico(citacion):
+    if OPERACION_PLANTA_LOG.objects.filter(CI_NID=citacion).exists():
+        return True
+
+    codigos_dato_critico = [
+        CAMPO_TOMA_MUESTRA_ACCION,
+        CAMPO_TOMA_MUESTRA_VAPOR_LEGACY,
+        CAMPO_VALIDACION_CALIDAD,
+        CAMPO_RESULTADO_CALIDAD,
+        CAMPO_PREPARACION_DESCARGA,
+        CAMPO_CICLO_DESCARGA,
+        CAMPO_AUTORIZAR_SALIDA,
+        'OP_TICKET_PESAJE_ENT',
+        'OP_TICKET_PESAJE_SAL',
+    ]
+    datos_operativos_criticos = DATO_OPERACION.objects.filter(
+        CI_NID=citacion
+    ).filter(
+        Q(CAMP_NID__CA_CCODIGO__in=codigos_dato_critico)
+        | Q(CAMP_NID__CA_CCODIGO__startswith='AR_')
+        | Q(CAMP_NID__CA_CCODIGO__startswith='OP_')
+    )
+    if datos_operativos_criticos.exists():
+        return True
+
+    if ETAPA_LOG.objects.filter(CI_NID=citacion, EL_FFECHAFIN__isnull=False).exists():
+        return True
+
+    operaciones_criticas = [
+        'GUARDIA_INGRESO',
+        'AVANZA_AR',
+        'APRUEBA_AR',
+        'DEVUELVE_AR',
+        'ENVIA_CD_NEXT',
+        'ENVIA_GUARDIA_PORT',
+        'AUTORIZA_INGRESO',
+        'OP_PLANTA',
+    ]
+    return SYSLOGGER.objects.filter(
+        LOG_CADD1=str(citacion.id),
+        LOG_COPERACION__in=operaciones_criticas
+    ).exists()
+
+
+def citacion_puede_editar_planificacion(citacion):
+    estados_iniciales = {
+        'INSUMO PROGRAMADO',
+        'CAMION PROGRAMADO',
+        'CAMIÓN PROGRAMADO',
+    }
+    estado = normalizar_nombre_perfil(citacion.CI_CESTADO or '')
+    if estado not in {normalizar_nombre_perfil(e) for e in estados_iniciales}:
+        return False
+    return not citacion_tiene_avance_operativo_critico(citacion)
 
 
 def obtener_valores_ingreso_camion(citacion):
@@ -2141,6 +2476,31 @@ def devolver_citacion_a_etapa_guardia(citacion, usuario=None, observacion=''):
     return etapa_actual, detalle_guardia.ET_NID
 
 
+def obtener_devolucion_guardia_pendiente(citacion):
+    devolucion = ETAPA_LOG.objects.select_related('US_INICIO_ID').filter(
+        CI_NID=citacion,
+        SC_NID=citacion.SC_NID,
+        EL_CACCION='DEVUELVE_GUARDIA',
+        EL_FFECHAFIN=None
+    ).order_by('-EL_FFECHAINICIO', '-id').first()
+
+    if not devolucion:
+        return None
+
+    if SYSLOGGER.objects.filter(
+        LOG_COPERACION='AVANZA_AR',
+        LOG_CADD1=str(citacion.id),
+        LOG_FFECHAREGISTRO__gt=devolucion.EL_FFECHAINICIO
+    ).exists():
+        return None
+
+    return {
+        'observacion': devolucion.EL_COBSERVACION or '',
+        'usuario': devolucion.US_INICIO_ID.username if devolucion.US_INICIO_ID else '',
+        'fecha': devolucion.EL_FFECHAINICIO,
+    }
+
+
 def PLANIFICACION_CITACION_REVISION_ASISTENTE(request, pk):
     if request.method != 'GET':
         return JsonResponse({'success': False, 'message': 'Metodo no permitido.'}, status=405)
@@ -2213,6 +2573,21 @@ def PLANIFICACION_CITACION_REVISION_ASISTENTE(request, pk):
             EL_FFECHAFIN=None
         ).exists()
         aprobado_asistente = citacion.CI_CESTADO == CIT_TERMINADO or not etapa_abierta or bool(detalle_actual and detalle_actual.SE_NPASO > 2)
+        validacion_asistente_guardada = bool(
+            dato('AR_RUTA_TRANSPORTISTA')
+            or dato('AR_RUTA_ID')
+            or dato('AR_TARIFA_ID')
+        )
+        validacion_asistente = {}
+        if validacion_asistente_guardada:
+            validacion_asistente = {
+                'BL validado': dato('AR_BL_VALIDADO') or bl,
+                'Lote / Contenedor validado': dato('AR_LOTE_CONTENEDOR') or dato('ING_LOTE_CONTENEDOR'),
+                'Ruta seleccionada': dato('AR_RUTA_TRANSPORTISTA') or ruta_seleccionada_texto,
+                'RUT_NID': dato('AR_RUTA_ID') or (str(citacion.RUT_NID_id) if citacion.RUT_NID_id else ''),
+                'TAR_NID': dato('AR_TARIFA_ID') or (str(citacion.TAR_NID_id) if citacion.TAR_NID_id else ''),
+                'Tarifa transportista': tarifa_seleccionada_texto,
+            }
 
         payload = {
             'success': True,
@@ -2228,7 +2603,6 @@ def PLANIFICACION_CITACION_REVISION_ASISTENTE(request, pk):
                 'Fecha planificacion': citacion.PL_NID.PL_FFECHAINICIO.strftime('%d/%m/%Y %H:%M') if citacion.PL_NID and citacion.PL_NID.PL_FFECHAINICIO else '',
                 'Cliente': citacion.SN_NID.SN_CRAZONSOCIAL if citacion.SN_NID else '',
                 'Transportista': texto_sin_informacion(valores_ingreso.get('transportista')),
-                'Ruta tarifa transportista': ruta_seleccionada_texto,
                 'Insumo': citacion_item.IT_NID.IT_CNOMBRE if citacion_item and citacion_item.IT_NID else detalle_operacional.get('insumo', ''),
                 'Pedido': detalle_operacional.get('pedido', ''),
                 'BL': bl,
@@ -2242,7 +2616,7 @@ def PLANIFICACION_CITACION_REVISION_ASISTENTE(request, pk):
                 'Fecha citacion': citacion.CI_FFECHACITACION.strftime('%d/%m/%Y %H:%M') if citacion.CI_FFECHACITACION else '',
                 'Tipo documento': citacion.CI_CTIPODOCUMENTO,
                 'Numero documento': citacion.CI_CNUMERODOCUMENTO,
-                'Etapa actual': citacion.ETAPA_ACTUAL.ET_CNOMBRE if citacion.ETAPA_ACTUAL else '',
+                'Etapa actual': obtener_etapa_actual_operacional_citacion(citacion),
                 'Secuencia actual': citacion.SC_NID.SE_CNOMBRE if citacion.SC_NID else '',
                 'Estado': citacion.CI_CESTADO,
                 'Tipo flujo': citacion.CI_CTIPO,
@@ -2259,14 +2633,7 @@ def PLANIFICACION_CITACION_REVISION_ASISTENTE(request, pk):
                 'Lote-contenedor': dato('ING_LOTE_CONTENEDOR'),
                 'Observacion': dato('ING_OBSERVACION') or valor_detalle('observacion') or citacion.CI_CCOMENTARIO or '',
             },
-            'validacion_asistente': {
-                'BL validado': dato('AR_BL_VALIDADO') or bl,
-                'Lote / Contenedor validado': dato('AR_LOTE_CONTENEDOR') or dato('ING_LOTE_CONTENEDOR'),
-                'Ruta seleccionada': dato('AR_RUTA_TRANSPORTISTA') or ruta_seleccionada_texto,
-                'RUT_NID': dato('AR_RUTA_ID') or (str(citacion.RUT_NID_id) if citacion.RUT_NID_id else ''),
-                'TAR_NID': dato('AR_TARIFA_ID') or (str(citacion.TAR_NID_id) if citacion.TAR_NID_id else ''),
-                'Tarifa transportista': tarifa_seleccionada_texto,
-            },
+            'validacion_asistente': validacion_asistente,
             'rutas_transportista': {
                 'options': ruta_tarifa_transportista.get('opciones', []),
                 'message': '' if ruta_tarifa_transportista.get('opciones') else 'El transportista no tiene rutas configuradas.',
@@ -2650,7 +3017,7 @@ def ENVIAR_GUARDIA_PORTERIA(request, pk):
                 USER_RECEIVER_ID=request.user,
                 NOT_BREAD=False,
                 NOT_BHABILITADO=True,
-                NOT_CCONTENIDO__icontains='autorizado ingreso a planta',
+                NOT_CCONTENIDO__icontains='debe ingresar a planta',
                 NOT_CURL__endswith=f'citacion={citacion.id}'
             ).update(
                 NOT_BREAD=True,
@@ -2713,7 +3080,7 @@ def ENVIAR_GUARDIA_PORTERIA(request, pk):
             NOT_FFECHALEIDO=timezone.now()
         )
 
-        mensaje_porteria = f'Patente: {patente} autorizado ingreso a planta'
+        mensaje_porteria = f'Patente {patente} debe ingresar a planta'
         guardias_porteria = obtener_usuarios_guardia_porteria()
         for guardia_porteria in guardias_porteria:
             NOTIFICACION.objects.create(
@@ -2807,6 +3174,7 @@ def PLANIFICACION_CITACION_ESTANQUE(request, pk):
                 return JsonResponse({'success': False, 'message': 'El estanque seleccionado no corresponde al almacen definido.'}, status=400)
 
             with transaction.atomic():
+                reserva_ocupada = None
                 if almacen != 'TRASVASIJE':
                     reserva, reserva_ocupada = reservar_estanque_citacion(
                         citacion,
@@ -2816,12 +3184,11 @@ def PLANIFICACION_CITACION_ESTANQUE(request, pk):
                         patente=patente
                     )
                     if reserva_ocupada:
-                        return JsonResponse({
-                            'success': False,
-                            'message': 'El estanque seleccionado ya está ocupado por otra citación activa.',
-                            'ocupado_por_patente': reserva_ocupada.ER_CPATENTE,
-                            'ocupado_por_citacion': reserva_ocupada.CI_NID_id,
-                        }, status=409)
+                        liberar_reservas_estanque_citacion(
+                            citacion,
+                            request.user,
+                            'Reserva propia liberada por seleccion de estanque tomado por otra citacion'
+                        )
 
                 campo_estanque = obtener_campo_estanque_operacional(citacion, request.user)
                 DATO_OPERACION.objects.update_or_create(
@@ -2837,6 +3204,7 @@ def PLANIFICACION_CITACION_ESTANQUE(request, pk):
                     }
                 )
 
+            ocupacion_info = descripcion_reserva_estanque_ocupada(reserva_ocupada) if reserva_ocupada else ''
             registrar_log_camion_no_planificado(
                 request.user,
                 citacion.EP_NID,
@@ -2845,7 +3213,8 @@ def PLANIFICACION_CITACION_ESTANQUE(request, pk):
                     f'Asistente_C_D confirma destino {estanque} para citacion #{citacion.id}.\n'
                     f'Patente: {patente}\n'
                     f'Almacen: {almacen}\n'
-                    f'Estado reserva: {"No aplica" if almacen == "TRASVASIJE" else ESTANQUE_RESERVA.ESTADO_OCUPADO}'
+                    f'Estado reserva: {"No aplica" if almacen == "TRASVASIJE" else (ESTANQUE_RESERVA.ESTADO_OCUPADO if not reserva_ocupada else "Tomado por otra citacion")}\n'
+                    f'Ocupacion informada: {ocupacion_info}'
                 ),
                 citacion.id,
                 estanque
@@ -2853,9 +3222,20 @@ def PLANIFICACION_CITACION_ESTANQUE(request, pk):
 
             return JsonResponse({
                 'success': True,
-                'message': 'Destino confirmado correctamente.' if almacen == 'TRASVASIJE' else 'Estanque guardado y reservado correctamente.',
+                'message': (
+                    'Destino confirmado correctamente.'
+                    if almacen == 'TRASVASIJE'
+                    else (
+                        f'Estanque guardado. Aviso: {ocupacion_info}.'
+                        if reserva_ocupada
+                        else 'Estanque guardado y reservado correctamente.'
+                    )
+                ),
                 'estanque': estanque,
-                'reserva_estado': 'NO_APLICA' if almacen == 'TRASVASIJE' else ESTANQUE_RESERVA.ESTADO_OCUPADO
+                'reserva_estado': 'NO_APLICA' if almacen == 'TRASVASIJE' else ('TOMADO_POR_OTRA_CITACION' if reserva_ocupada else ESTANQUE_RESERVA.ESTADO_OCUPADO),
+                'ocupado_por_patente': reserva_ocupada.ER_CPATENTE if reserva_ocupada else '',
+                'ocupado_por_citacion': reserva_ocupada.CI_NID_id if reserva_ocupada else None,
+                'ocupacion_info': ocupacion_info
             })
 
         citacion_item = CITACION_ITEM.objects.filter(CI_NID=citacion).select_related('IT_NID').first()
@@ -2909,7 +3289,7 @@ def PLANIFICACION_CITACION_ESTANQUE(request, pk):
             'citacion': {
                 'Numero citacion': citacion.id,
                 'Estado': citacion.CI_CESTADO,
-                'Etapa actual': citacion.ETAPA_ACTUAL.ET_CNOMBRE if citacion.ETAPA_ACTUAL else '',
+                'Etapa actual': obtener_etapa_actual_operacional_citacion(citacion),
                 'Secuencia actual': citacion.SC_NID.SE_CNOMBRE if citacion.SC_NID else '',
                 'Empresa': citacion.EP_NID.EP_CRAZONSOCIAL if citacion.EP_NID else '',
             },
@@ -3009,12 +3389,14 @@ def AVANZAR_ESTANQUE_SIGUIENTE_ETAPA(request, pk):
                     patente=patente
                 )
                 if reserva_ocupada:
-                    return JsonResponse({
-                        'success': False,
-                        'message': 'El estanque seleccionado ya está ocupado por otra citación activa.',
-                        'ocupado_por_patente': reserva_ocupada.ER_CPATENTE,
-                        'ocupado_por_citacion': reserva_ocupada.CI_NID_id,
-                    }, status=409)
+                    liberar_reservas_estanque_citacion(
+                        citacion,
+                        request.user,
+                        'Reserva propia liberada por envio con estanque tomado por otra citacion'
+                    )
+        else:
+            reserva_ocupada = None
+        ocupacion_info = descripcion_reserva_estanque_ocupada(reserva_ocupada) if reserva_ocupada else ''
 
         detalle_operacional = detalle_operacional_dict(citacion)
         fecha_envio = timezone.localtime(timezone.now()).strftime('%d/%m/%Y %H:%M:%S')
@@ -3048,7 +3430,8 @@ def AVANZAR_ESTANQUE_SIGUIENTE_ETAPA(request, pk):
             f'Lote/contenedor: {valor_operacion("ING_LOTE_CONTENEDOR")}\n'
             f'Almacen: {almacen or "No registrado"}\n'
             f'Estanque: {estanque_asignado}\n'
-            f'Estado reserva estanque: {"No aplica" if almacen == "TRASVASIJE" else ESTANQUE_RESERVA.ESTADO_OCUPADO}\n'
+            f'Estado reserva estanque: {"No aplica" if almacen == "TRASVASIJE" else (ESTANQUE_RESERVA.ESTADO_OCUPADO if not reserva_ocupada else "Tomado por otra citacion")}\n'
+            f'Ocupacion informada: {ocupacion_info}\n'
             f'Observacion: {valor_operacion("ING_OBSERVACION") or detalle_operacional.get("observacion", "") or ""}\n'
             f'Usuario responsable: {request.user.username}\n'
             f'Fecha/hora envio: {fecha_envio}\n'
@@ -3069,7 +3452,8 @@ def AVANZAR_ESTANQUE_SIGUIENTE_ETAPA(request, pk):
             'success': True,
             'message': 'Citacion enviada a Guardia.',
             'estanque': estanque_asignado,
-            'reserva_estado': 'NO_APLICA' if almacen == 'TRASVASIJE' else ESTANQUE_RESERVA.ESTADO_OCUPADO,
+            'reserva_estado': 'NO_APLICA' if almacen == 'TRASVASIJE' else ('TOMADO_POR_OTRA_CITACION' if reserva_ocupada else ESTANQUE_RESERVA.ESTADO_OCUPADO),
+            'ocupacion_info': ocupacion_info,
             'notificados_guardia': len(guardias)
         })
 
@@ -3134,11 +3518,18 @@ PERFILES_GUARDIA_PORTERIA = {
 PERFILES_ASISTENTE_RECEPCION = {
     'ASISTENTE DE RECEPCION',
     'ASISTENTE RECEPCION',
+    'ASISTENTE_RECEPCION',
+    'ASISTENTE_RECEPCIÓN',
+    'ASISTENTE RECEPCIÓN',
     'AR',
 }
 
 USUARIOS_ASISTENTE_RECEPCION = {
     'ASISTENTE RECEPCION',
+    'ASISTENTE DE RECEPCION',
+    'ASISTENTE_RECEPCION',
+    'ASISTENTE_RECEPCIÓN',
+    'ASISTENTE RECEPCIÓN',
 }
 
 PERFILES_ASISTENTE_CD = {
@@ -3187,7 +3578,7 @@ PASOS_RECEPCION_CON_CALIDAD = [
     ('Toma de muestra', ['ASISTENTE C D']),
     ('Analisis y calidad', ['CALIDAD']),
     ('Resultado Calidad', ['ASISTENTE C D']),
-    ('Ciclo Descarga', ['GUARDIA PORTERIA']),
+    ('Ciclo Descarga', ['SALA CONTROL']),
     ('Pesaje Salida', ['OPERADOR ROMANA']),
     ('Autorizar Salida', ['ASISTENTE DE RECEPCION']),
     ('Confirmar Salida', ['GUARDIA PORTERIA']),
@@ -3195,7 +3586,7 @@ PASOS_RECEPCION_CON_CALIDAD = [
 
 PASOS_RECEPCION_SIN_CALIDAD = [
     ('Pesaje Entrada', ['OPERADOR ROMANA']),
-    ('Ciclo Descarga', ['GUARDIA PORTERIA']),
+    ('Ciclo Descarga', ['SALA CONTROL']),
     ('Pesaje Salida', ['OPERADOR ROMANA']),
     ('Autorizar Salida', ['ASISTENTE DE RECEPCION']),
     ('Confirmar Salida', ['GUARDIA PORTERIA']),
@@ -3209,7 +3600,7 @@ FLUJOS_OPERACION_PLANTA = {
     'RECEPCION PATIO LF SIN CALIDAD': PASOS_RECEPCION_SIN_CALIDAD,
     'RECEPCION CONTENEDOR A PISO': [
         ('Pesaje Entrada', ['OPERADOR ROMANA']),
-        ('Ciclo Descarga', ['GUARDIA PORTERIA']),
+        ('Ciclo Descarga', ['SALA CONTROL']),
         ('Pesaje Salida', ['OPERADOR ROMANA']),
         ('Autorizar Salida', ['ASISTENTE DE RECEPCION']),
         ('Confirmar Salida', ['GUARDIA PORTERIA']),
@@ -3219,7 +3610,7 @@ FLUJOS_OPERACION_PLANTA = {
         ('Toma de muestra', ['ASISTENTE C D']),
         ('Analisis y calidad', ['CALIDAD']),
         ('Resultado Calidad', ['ASISTENTE C D']),
-        ('Ciclo Descarga', ['GUARDIA PORTERIA']),
+        ('Ciclo Descarga', ['SALA CONTROL']),
         ('Pesaje Salida', ['OPERADOR ROMANA']),
         ('Autorizar Salida', ['ASISTENTE DE RECEPCION']),
         ('Confirmar Salida', ['GUARDIA PORTERIA']),
@@ -3229,7 +3620,7 @@ FLUJOS_OPERACION_PLANTA = {
         ('Toma de muestra', ['ASISTENTE C D']),
         ('Analisis y calidad', ['CALIDAD']),
         ('Resultado Calidad', ['ASISTENTE C D']),
-        ('Ciclo Descarga', ['GUARDIA PORTERIA']),
+        ('Ciclo Descarga', ['SALA CONTROL']),
         ('Pesaje Salida', ['OPERADOR ROMANA']),
         ('Autorizar Salida', ['ASISTENTE DE RECEPCION']),
         ('Confirmar Salida', ['GUARDIA PORTERIA']),
@@ -3265,8 +3656,10 @@ MAPEO_ETAPA_TECNICA_BOTON_OPERACIONAL = {
     'CONFIRMAR SALIDA': 'Confirmar Salida',
 }
 
-NOMBRE_ETAPA_DOCUMENTACION_APROBADA = 'Documentacion Aprobada'
-NOMBRE_ETAPA_AUTORIZACION_INGRESO = 'Autorizacion Ingreso'
+NOMBRE_ETAPA_INSUMO_PROGRAMADO = 'Insumo Programado'
+NOMBRE_ETAPA_AUTORIZACION_INGRESO = 'Autorización de ingreso'
+NOMBRE_ETAPA_DOCUMENTACION_APROBADA = 'Documentación aprobada'
+NOMBRE_ETAPA_AUTORIZACION_INGRESO_PLANTA = 'Autorización ingreso a planta'
 
 
 def normalizar_nombre_perfil(valor):
@@ -3274,6 +3667,17 @@ def normalizar_nombre_perfil(valor):
     texto = unicodedata.normalize('NFKD', texto)
     texto = ''.join(caracter for caracter in texto if not unicodedata.combining(caracter))
     return ' '.join(texto.replace('_', ' ').replace('-', ' ').split())
+
+
+def expandir_aliases_perfiles_operacion(perfiles):
+    perfiles_expandidos = {normalizar_nombre_perfil(perfil) for perfil in perfiles if perfil}
+    if perfiles_expandidos & {'ASISTENTE DE RECEPCION', 'ASISTENTE RECEPCION', 'AR'}:
+        perfiles_expandidos.update({'ASISTENTE DE RECEPCION', 'ASISTENTE RECEPCION', 'AR'})
+    if perfiles_expandidos & {'ASISTENTE C D', 'ASISTENTE CD'}:
+        perfiles_expandidos.update({'ASISTENTE C D', 'ASISTENTE CD'})
+    if perfiles_expandidos & {'GUARDIA PORTERIA'}:
+        perfiles_expandidos.add('GUARDIA PORTERIA')
+    return perfiles_expandidos
 
 
 def usuario_es_operador_romana(user):
@@ -3469,19 +3873,19 @@ def perfiles_normalizados_usuario(user):
         # TODO tecnico: crear perfil dedicado Operador Romana con permisos minimos y evitar heredar vistas amplias de OP/REC.
         perfiles.add('OPERADOR ROMANA')
 
-    return perfiles
+    return expandir_aliases_perfiles_operacion(perfiles)
 
 
 def usuario_es_operacion_planta(user):
     if getattr(user, 'is_superuser', False):
         return True
-    return bool(perfiles_normalizados_usuario(user) & PERFILES_OPERACION_PLANTA)
+    return bool(perfiles_normalizados_usuario(user) & expandir_aliases_perfiles_operacion(PERFILES_OPERACION_PLANTA))
 
 
 def usuario_puede_paso_operacion(user, responsables):
     if getattr(user, 'is_superuser', False):
         return True
-    responsables_normalizados = {normalizar_nombre_perfil(responsable) for responsable in responsables}
+    responsables_normalizados = expandir_aliases_perfiles_operacion(responsables)
     return bool(perfiles_normalizados_usuario(user) & responsables_normalizados)
 
 
@@ -3497,10 +3901,47 @@ def obtener_etapa_preoperacional_citacion(citacion):
     if SYSLOGGER.objects.filter(LOG_COPERACION='AUTORIZA_INGRESO_PLANTA', LOG_CADD1=citacion_id).exists():
         return ''
     if SYSLOGGER.objects.filter(LOG_COPERACION='ENVIA_GUARDIA_PORTERIA', LOG_CADD1=citacion_id).exists():
-        return NOMBRE_ETAPA_AUTORIZACION_INGRESO
+        return NOMBRE_ETAPA_AUTORIZACION_INGRESO_PLANTA
     if SYSLOGGER.objects.filter(LOG_COPERACION='ENVIA_CD_NEXT', LOG_CADD1=citacion_id).exists():
-        return NOMBRE_ETAPA_DOCUMENTACION_APROBADA
+        return NOMBRE_ETAPA_AUTORIZACION_INGRESO
     return ''
+
+
+def obtener_etapa_visible_resumen_citacion(citacion):
+    etapa_legacy = citacion.ETAPA_ACTUAL.ET_CNOMBRE if citacion.ETAPA_ACTUAL else ''
+    if citacion.CI_CTIPO != CIT_RECEPCION:
+        return etapa_legacy
+
+    return obtener_etapa_actual_operacional_citacion(citacion)
+
+
+def obtener_etapa_actual_operacional_citacion(citacion):
+    if not citacion:
+        return ''
+
+    etapa_legacy = citacion.ETAPA_ACTUAL.ET_CNOMBRE if citacion.ETAPA_ACTUAL else ''
+    if citacion.CI_CTIPO != CIT_RECEPCION:
+        return etapa_legacy
+
+    citacion_id = str(citacion.id)
+    if SYSLOGGER.objects.filter(LOG_COPERACION='AUTORIZA_INGRESO_PLANTA', LOG_CADD1=citacion_id).exists():
+        _, pasos_config = obtener_pasos_operacion_citacion(citacion)
+        paso_actual, _, _ = obtener_paso_activo_operacion(citacion, pasos_config)
+        return paso_actual or 'Inicia Ciclo Romana / Pesaje Entrada'
+
+    if SYSLOGGER.objects.filter(LOG_COPERACION='ENVIA_GUARDIA_PORTERIA', LOG_CADD1=citacion_id).exists():
+        return NOMBRE_ETAPA_AUTORIZACION_INGRESO_PLANTA
+
+    if SYSLOGGER.objects.filter(LOG_COPERACION='ENVIA_CD_NEXT', LOG_CADD1=citacion_id).exists():
+        return NOMBRE_ETAPA_AUTORIZACION_INGRESO
+
+    if SYSLOGGER.objects.filter(LOG_COPERACION='APRUEBA_AR', LOG_CADD1=citacion_id).exists():
+        return NOMBRE_ETAPA_DOCUMENTACION_APROBADA
+
+    if SYSLOGGER.objects.filter(LOG_COPERACION__in=['AVANZA_AR', 'GUARDIA_INGRESO'], LOG_CADD1=citacion_id).exists():
+        return NOMBRE_ETAPA_AUTORIZACION_INGRESO
+
+    return NOMBRE_ETAPA_INSUMO_PROGRAMADO
 
 
 def normalizar_nombre_flujo_operacion(valor):
@@ -3606,11 +4047,23 @@ TICKET_PESAJE_REQUIRED_MESSAGE = 'Debe obtener y guardar el ticket de pesaje ant
 PASO_TOMA_MUESTRA = 'Toma de muestra'
 PASO_ANALISIS_CALIDAD = 'Analisis y calidad'
 PASO_RESULTADO_CALIDAD = 'Resultado Calidad'
+PASO_CICLO_DESCARGA = 'Ciclo Descarga'
+PASO_AUTORIZAR_SALIDA = 'Autorizar Salida'
+PASO_CONFIRMAR_SALIDA = 'Confirmar Salida'
 CAMPO_TOMA_MUESTRA_ACCION = 'OP_TOMA_MUESTRA_ACCION'
 CAMPO_TOMA_MUESTRA_VAPOR_LEGACY = 'OP_TOMA_MUESTRA_VAPOR'
+CAMPO_VALIDACION_CALIDAD = 'OP_VALIDACION_CALIDAD'
 CAMPO_RESULTADO_CALIDAD = 'OP_RESULTADO_CALIDAD'
 CAMPO_PREPARACION_DESCARGA = 'OP_PREPARACION_DESCARGA'
+CAMPO_CICLO_DESCARGA = 'OP_CICLO_DESCARGA'
+CAMPO_AUTORIZAR_SALIDA = 'OP_AUTORIZAR_SALIDA'
 TOMA_MUESTRA_ACCION_REQUIRED_MESSAGE = 'Debe registrar la accion principal antes de finalizar Toma de muestra.'
+TIPOS_CICLO_DESCARGA = (
+    'Descarga Estanque',
+    'Envio Bodega Externa',
+    'Descarga en Cisterna',
+    'Descarga Patio LF',
+)
 FLUJOS_TOMA_MUESTRA_VAPOR = {
     'RECEPCION ESTANQUE SBH',
     'RECEPCION ESTANQUES SBH ALMACENAJE',
@@ -3936,6 +4389,21 @@ def _payload_ticket_pesaje_guardado(citacion, paso, request=None):
     }
 
 
+def _observacion_cierre_ticket_pesaje(citacion, paso):
+    ticket = _payload_ticket_pesaje_guardado(citacion, paso)
+    if not ticket:
+        return ''
+
+    folio = ticket.get('folio') or 'Sin folio'
+    peso = ticket.get('peso_neto') or ''
+    archivo = ticket.get('nombre_archivo_pdf') or 'Sin archivo'
+    if paso == 'Pesaje Salida':
+        return f'Pesaje salida informado. Ticket: {folio} | Peso: {peso} | Archivo: {archivo}'
+    if paso == 'Pesaje Entrada':
+        return f'Pesaje entrada informado. Ticket: {folio} | Peso: {peso} | Archivo: {archivo}'
+    return ''
+
+
 def _config_accion_toma_muestra(nombre_flujo):
     flujo_normalizado = normalizar_nombre_flujo_operacion(nombre_flujo)
     if flujo_normalizado in {normalizar_nombre_flujo_operacion(flujo) for flujo in FLUJOS_TOMA_MUESTRA_VAPOR}:
@@ -4001,6 +4469,84 @@ def _leer_metadata_toma_muestra_accion(citacion):
         metadata['mensaje'] = metadata.get('mensaje') or 'Camion enviado a vapor'
     metadata['dato_id'] = dato.id
     return metadata
+
+
+def _actualizar_observacion_toma_muestra_accion(citacion, observacion):
+    dato = _dato_toma_muestra_accion(citacion)
+    if not dato:
+        return
+    try:
+        metadata = json.loads(dato.DO_CVALOR or '{}')
+    except (TypeError, ValueError):
+        return
+    if not isinstance(metadata, dict):
+        return
+    metadata['observacion'] = str(observacion or '').strip()
+    dato.DO_CVALOR = json.dumps(metadata, ensure_ascii=False)
+    dato.save(update_fields=['DO_CVALOR'])
+
+
+def _observacion_toma_muestra_visible(citacion, log_toma_muestra=None):
+    observacion_log = _observacion_visible_operacion(
+        PASO_TOMA_MUESTRA,
+        log_toma_muestra.OPL_COBSERVACION if log_toma_muestra else ''
+    )
+    if observacion_log:
+        return observacion_log
+
+    metadata = _leer_metadata_toma_muestra_accion(citacion) or {}
+    return str(metadata.get('observacion') or '').strip()
+
+
+def _insumo_operacion_planta(citacion):
+    detalle = obtener_detalle_operacional_citacion(citacion)
+    if detalle and detalle.CDO_CINSUMO:
+        return detalle.CDO_CINSUMO
+    citacion_item = CITACION_ITEM.objects.select_related('IT_NID').filter(CI_NID=citacion).first()
+    if citacion_item and citacion_item.IT_NID:
+        return citacion_item.IT_NID.IT_CNOMBRE or ''
+    return ''
+
+
+def _codigo_sap_operacion_planta(citacion):
+    detalle = obtener_detalle_operacional_citacion(citacion)
+    if detalle and detalle.CDO_CCODIGO_SAP:
+        return detalle.CDO_CCODIGO_SAP
+    citacion_item = CITACION_ITEM.objects.select_related('IT_NID').filter(CI_NID=citacion).first()
+    if citacion_item and citacion_item.IT_NID:
+        return citacion_item.IT_NID.IT_CCODIGO or ''
+    return ''
+
+
+def _fecha_ingreso_operacion_planta(citacion):
+    log_ingreso = SYSLOGGER.objects.filter(
+        LOG_COPERACION='AUTORIZA_INGRESO_PLANTA',
+        LOG_CADD1=str(citacion.id)
+    ).order_by('-LOG_FFECHAREGISTRO').first()
+    fecha = (
+        log_ingreso.LOG_FFECHAREGISTRO if log_ingreso and log_ingreso.LOG_FFECHAREGISTRO
+        else (citacion.CI_FFECHAINICIO or citacion.CI_FFECHACITACION)
+    )
+    if fecha and timezone.is_naive(fecha):
+        fecha = timezone.make_aware(fecha, timezone.get_current_timezone())
+    return timezone.localtime(fecha).strftime('%d/%m/%Y %H:%M') if fecha else ''
+
+
+def _guia_operacion_planta_url(citacion, documentos_operacion):
+    documento_guia = CITACION_DOCUMENTO.objects.filter(
+        CI_NID=citacion,
+        EP_NID=citacion.EP_NID,
+        CD_CTIPO=CITACION_DOCUMENTO.TIPO_GUIA,
+        CD_BACTIVO=True
+    ).order_by('-CD_FFECHASUBIDA', '-id').first()
+    if documento_guia:
+        return reverse('expediente_citacion_documento_ver', args=[documento_guia.id])
+
+    for documento in documentos_operacion:
+        etiqueta = f"{documento.get('label', '')} {documento.get('nombre_archivo', '')}".lower()
+        if 'guia' in etiqueta or 'guía' in etiqueta:
+            return documento.get('download_url') or ''
+    return ''
 
 
 def _toma_muestra_accion_guardada(citacion):
@@ -4090,6 +4636,97 @@ def _obtener_campo_resultado_calidad(citacion, usuario):
     return campo
 
 
+def _obtener_campo_validacion_calidad(citacion, usuario):
+    campo, _ = CAMPO.objects.get_or_create(
+        EP_NID=citacion.EP_NID,
+        CA_CCODIGO=CAMPO_VALIDACION_CALIDAD,
+        defaults={
+            'US_NID': usuario,
+            'CA_CTIPO': 'CHECK',
+            'CA_CETIQUETA': 'Validacion previa calidad',
+            'CA_CPLACEMARK': 'Insumo y guia revisados antes de resultado calidad',
+            'CA_BOBLIGATORIO': True,
+            'CA_BHABILITADO': True,
+            'CA_BASIGNARVALOR': False,
+        }
+    )
+    if not campo.CA_BHABILITADO:
+        campo.CA_BHABILITADO = True
+        campo.save(update_fields=['CA_BHABILITADO'])
+    return campo
+
+
+def _dato_validacion_calidad(citacion):
+    return DATO_OPERACION.objects.filter(
+        CI_NID=citacion,
+        CAMP_NID__CA_CCODIGO=CAMPO_VALIDACION_CALIDAD
+    ).select_related('CAMP_NID').order_by('-id').first()
+
+
+def _leer_metadata_validacion_calidad(citacion):
+    dato = _dato_validacion_calidad(citacion)
+    if not dato:
+        return None
+    try:
+        metadata = json.loads(dato.DO_CVALOR or '{}')
+    except (TypeError, ValueError):
+        return None
+    if not isinstance(metadata, dict) or not metadata.get('validacion_realizada'):
+        return None
+    metadata['dato_id'] = dato.id
+    return metadata
+
+
+def _payload_validacion_calidad(citacion):
+    metadata = _leer_metadata_validacion_calidad(citacion)
+    if not metadata:
+        return {
+            'registrada': False,
+            'usuario': '',
+            'fecha_hora': '',
+            'insumo': _insumo_operacion_planta(citacion) or 'Sin insumo',
+            'fecha_ingreso': _fecha_ingreso_operacion_planta(citacion) or 'Sin fecha',
+        }
+    return {
+        'registrada': True,
+        'usuario': metadata.get('usuario') or '',
+        'fecha_hora': metadata.get('fecha_hora') or '',
+        'insumo': metadata.get('insumo') or metadata.get('producto') or _insumo_operacion_planta(citacion) or 'Sin insumo',
+        'fecha_ingreso': metadata.get('fecha_ingreso') or _fecha_ingreso_operacion_planta(citacion) or 'Sin fecha',
+    }
+
+
+def _registrar_validacion_calidad(citacion, usuario, insumo='', fecha_ingreso=''):
+    campo = _obtener_campo_validacion_calidad(citacion, usuario)
+    fecha = timezone.localtime(timezone.now())
+    metadata = {
+        'validacion_realizada': True,
+        'insumo': insumo or _insumo_operacion_planta(citacion) or 'Sin insumo',
+        'fecha_ingreso': fecha_ingreso or _fecha_ingreso_operacion_planta(citacion) or 'Sin fecha',
+        'citacion_id': citacion.id,
+        'paso_operacion': PASO_ANALISIS_CALIDAD,
+        'usuario_id': usuario.id,
+        'usuario': usuario.username,
+        'fecha_hora': fecha.strftime('%d/%m/%Y %H:%M'),
+        'fecha_iso': fecha.isoformat(),
+    }
+    dato, _ = DATO_OPERACION.objects.update_or_create(
+        CI_NID=citacion,
+        CAMP_NID=campo,
+        defaults={
+            'EP_NID': citacion.EP_NID,
+            'US_NID': usuario,
+            'SC_NID': citacion.SC_NID,
+            'ET_NID': citacion.ETAPA_ACTUAL,
+            'DO_CVALOR': json.dumps(metadata, ensure_ascii=False),
+            'DO_NPESO': None,
+            'DO_FFECHAREGISTRO': timezone.now(),
+        }
+    )
+    metadata['dato_id'] = dato.id
+    return metadata
+
+
 def _dato_resultado_calidad(citacion):
     return DATO_OPERACION.objects.filter(
         CI_NID=citacion,
@@ -4128,6 +4765,29 @@ def _payload_resultado_calidad(citacion):
         'usuario': metadata.get('usuario') or '',
         'fecha_hora': metadata.get('fecha_hora') or '',
     }
+
+
+def _observacion_visible_operacion(nombre_paso, observacion):
+    observacion = str(observacion or '').strip()
+    if not observacion:
+        return ''
+
+    try:
+        metadata = json.loads(observacion)
+    except (TypeError, ValueError):
+        return observacion
+
+    if not isinstance(metadata, dict):
+        return observacion
+
+    if nombre_paso == PASO_ANALISIS_CALIDAD:
+        return str(metadata.get('comentario') or '').strip()
+
+    for llave in ('comentario', 'observaciones_descarga', 'observacion'):
+        valor = metadata.get(llave)
+        if valor:
+            return str(valor).strip()
+    return ''
 
 
 def _guardar_documento_resultado_calidad(citacion, archivo):
@@ -4271,7 +4931,15 @@ def _registrar_preparacion_descarga(citacion, usuario, sitio_descarga, bomba_des
 
     campo = _obtener_campo_preparacion_descarga(citacion, usuario)
     estanque_anterior = _obtener_estanque_destino_operacion(citacion)
-    fecha = timezone.localtime(timezone.now())
+    ahora = timezone.now()
+    fecha = timezone.localtime(ahora)
+    log_inicio_espera = OPERACION_PLANTA_LOG.objects.filter(
+        CI_NID=citacion,
+        OPL_CPASO=PASO_ANALISIS_CALIDAD,
+        OPL_CESTADO=OPERACION_PLANTA_LOG.ESTADO_COMPLETADO
+    ).order_by('-OPL_FFECHAREGISTRO').first()
+    inicio_espera = log_inicio_espera.OPL_FFECHAREGISTRO if log_inicio_espera else None
+    duracion_espera = ahora - inicio_espera if inicio_espera else None
     metadata = {
         'sitio_descarga': sitio_descarga,
         'bomba_descarga': bomba_descarga,
@@ -4283,6 +4951,10 @@ def _registrar_preparacion_descarga(citacion, usuario, sitio_descarga, bomba_des
         'usuario': usuario.username,
         'fecha_hora': fecha.strftime('%d/%m/%Y %H:%M'),
         'fecha_iso': fecha.isoformat(),
+        'espera_descarga_inicio_iso': inicio_espera.isoformat() if inicio_espera else '',
+        'espera_descarga_fin_iso': ahora.isoformat(),
+        'espera_descarga_duracion_segundos': max(int(duracion_espera.total_seconds()), 0) if duracion_espera else None,
+        'espera_descarga_duracion_legible': formatear_duracion_operacional(duracion_espera) if duracion_espera else '',
         'citacion_id': citacion.id,
         'paso_operacion': PASO_RESULTADO_CALIDAD,
     }
@@ -4297,6 +4969,340 @@ def _registrar_preparacion_descarga(citacion, usuario, sitio_descarga, bomba_des
             'DO_CVALOR': json.dumps(metadata, ensure_ascii=False),
             'DO_NPESO': None,
             'DO_FFECHAREGISTRO': timezone.now(),
+        }
+    )
+    metadata['dato_id'] = dato.id
+    return metadata
+
+
+def _payload_espera_descarga(log_inicio, log_fin=None):
+    inicio = log_inicio.OPL_FFECHAREGISTRO if log_inicio else None
+    fin = log_fin.OPL_FFECHAREGISTRO if log_fin else None
+    if not inicio:
+        return {
+            'disponible': False,
+            'activa': False,
+            'finalizada': False,
+            'inicio_iso': '',
+            'fin_iso': '',
+            'duracion_legible': '',
+        }
+
+    delta = (fin or timezone.now()) - inicio
+    return {
+        'disponible': True,
+        'activa': fin is None,
+        'finalizada': fin is not None,
+        'inicio_iso': inicio.isoformat(),
+        'fin_iso': fin.isoformat() if fin else '',
+        'duracion_legible': formatear_duracion_operacional(delta),
+    }
+
+
+def _obtener_campo_ciclo_descarga(citacion, usuario):
+    campo, _ = CAMPO.objects.get_or_create(
+        EP_NID=citacion.EP_NID,
+        CA_CCODIGO=CAMPO_CICLO_DESCARGA,
+        defaults={
+            'US_NID': usuario,
+            'CA_CTIPO': 'TEXTO',
+            'CA_CETIQUETA': 'Ciclo descarga',
+            'CA_CPLACEMARK': 'Metadata operacional de ciclo descarga',
+            'CA_BOBLIGATORIO': False,
+            'CA_BHABILITADO': True,
+            'CA_BASIGNARVALOR': False,
+        }
+    )
+    cambios = []
+    if not campo.CA_BHABILITADO:
+        campo.CA_BHABILITADO = True
+        cambios.append('CA_BHABILITADO')
+    if campo.CA_CTIPO != 'TEXTO':
+        campo.CA_CTIPO = 'TEXTO'
+        cambios.append('CA_CTIPO')
+    if cambios:
+        campo.save(update_fields=cambios)
+    return campo
+
+
+def _dato_ciclo_descarga(citacion):
+    return DATO_OPERACION.objects.filter(
+        CI_NID=citacion,
+        CAMP_NID__CA_CCODIGO=CAMPO_CICLO_DESCARGA
+    ).select_related('CAMP_NID').order_by('-id').first()
+
+
+def _leer_metadata_ciclo_descarga(citacion):
+    dato = _dato_ciclo_descarga(citacion)
+    if not dato:
+        return None
+    try:
+        metadata = json.loads(dato.DO_CVALOR or '{}')
+    except (TypeError, ValueError):
+        return None
+    if not isinstance(metadata, dict):
+        return None
+    metadata['dato_id'] = dato.id
+    return metadata
+
+
+def _parse_iso_operacion(valor):
+    if not valor:
+        return None
+    fecha = parse_datetime(str(valor))
+    if fecha and timezone.is_naive(fecha):
+        fecha = timezone.make_aware(fecha, timezone.get_current_timezone())
+    return fecha
+
+
+def _payload_ciclo_descarga(citacion):
+    metadata = _leer_metadata_ciclo_descarga(citacion) or {}
+    inicio = _parse_iso_operacion(metadata.get('inicio_descarga'))
+    fin = _parse_iso_operacion(metadata.get('fin_descarga'))
+    duracion_segundos = metadata.get('duracion_segundos')
+    duracion_legible = metadata.get('duracion_legible') or ''
+    if not duracion_legible and inicio:
+        duracion_legible = formatear_duracion_operacional((fin or timezone.now()) - inicio)
+
+    return {
+        'tipo_descarga': metadata.get('tipo_descarga') or '',
+        'inicio_descarga': metadata.get('inicio_descarga') or '',
+        'inicio_descarga_legible': timezone.localtime(inicio).strftime('%d/%m/%Y %H:%M') if inicio else '',
+        'fin_descarga': metadata.get('fin_descarga') or '',
+        'fin_descarga_legible': timezone.localtime(fin).strftime('%d/%m/%Y %H:%M') if fin else '',
+        'duracion_segundos': duracion_segundos,
+        'duracion_legible': duracion_legible,
+        'usuario_inicio': metadata.get('usuario_inicio') or '',
+        'usuario_fin': metadata.get('usuario_fin') or '',
+        'en_proceso': bool(inicio and not fin),
+        'finalizada': bool(inicio and fin),
+        'iniciada': bool(inicio),
+    }
+
+
+def _guardar_metadata_ciclo_descarga(citacion, usuario, metadata):
+    campo = _obtener_campo_ciclo_descarga(citacion, usuario)
+    dato, _ = DATO_OPERACION.objects.update_or_create(
+        CI_NID=citacion,
+        CAMP_NID=campo,
+        defaults={
+            'EP_NID': citacion.EP_NID,
+            'US_NID': usuario,
+            'SC_NID': citacion.SC_NID,
+            'ET_NID': citacion.ETAPA_ACTUAL,
+            'DO_CVALOR': json.dumps(metadata, ensure_ascii=False),
+            'DO_NPESO': None,
+            'DO_FFECHAREGISTRO': timezone.now(),
+        }
+    )
+    metadata['dato_id'] = dato.id
+    return metadata
+
+
+def _iniciar_ciclo_descarga(citacion, usuario, tipo_descarga):
+    tipo_descarga = str(tipo_descarga or '').strip()
+    if tipo_descarga not in TIPOS_CICLO_DESCARGA:
+        raise ValueError('Debe seleccionar un tipo de descarga valido.')
+
+    metadata = _leer_metadata_ciclo_descarga(citacion) or {}
+    if metadata.get('fin_descarga'):
+        raise ValueError('La descarga ya fue finalizada.')
+    if metadata.get('inicio_descarga'):
+        return metadata
+
+    ahora = timezone.now()
+    metadata = {
+        'tipo_descarga': tipo_descarga,
+        'inicio_descarga': ahora.isoformat(),
+        'fin_descarga': '',
+        'duracion_segundos': None,
+        'duracion_legible': '',
+        'usuario_inicio': usuario.username,
+        'usuario_fin': '',
+        'usuario_inicio_id': usuario.id,
+        'usuario_fin_id': None,
+        'citacion_id': citacion.id,
+        'paso_operacion': PASO_CICLO_DESCARGA,
+    }
+    metadata = _guardar_metadata_ciclo_descarga(citacion, usuario, metadata)
+    OPERACION_PLANTA_LOG.objects.create(
+        US_NID=usuario,
+        EP_NID=citacion.EP_NID,
+        PL_NID=citacion.PL_NID,
+        CI_NID=citacion,
+        OPL_CPASO='INICIA_DESCARGA',
+        OPL_CPERFIL_RESPONSABLE='SALA CONTROL',
+        OPL_CESTADO=OPERACION_PLANTA_LOG.ESTADO_COMPLETADO,
+        OPL_COBSERVACION=f'Tipo descarga: {tipo_descarga}'
+    )
+    return metadata
+
+
+def _finalizar_ciclo_descarga(citacion, usuario):
+    metadata = _leer_metadata_ciclo_descarga(citacion)
+    if not metadata or not metadata.get('inicio_descarga'):
+        raise ValueError('Debe iniciar la descarga antes de finalizar.')
+    if metadata.get('fin_descarga'):
+        return metadata, None
+
+    inicio = _parse_iso_operacion(metadata.get('inicio_descarga'))
+    ahora = timezone.now()
+    duracion = ahora - inicio if inicio else None
+    metadata.update({
+        'fin_descarga': ahora.isoformat(),
+        'duracion_segundos': max(int(duracion.total_seconds()), 0) if duracion else None,
+        'duracion_legible': formatear_duracion_operacional(duracion) if duracion else '',
+        'usuario_fin': usuario.username,
+        'usuario_fin_id': usuario.id,
+    })
+    metadata = _guardar_metadata_ciclo_descarga(citacion, usuario, metadata)
+    observacion = (
+        f'Tipo descarga: {metadata.get("tipo_descarga") or "Sin tipo"} | '
+        f'Inicio: {_payload_ciclo_descarga(citacion).get("inicio_descarga_legible") or "Sin inicio"} | '
+        f'Fin: {timezone.localtime(ahora).strftime("%d/%m/%Y %H:%M")} | '
+        f'Duracion: {metadata.get("duracion_legible") or "No disponible"} | '
+        f'Usuario inicio: {metadata.get("usuario_inicio") or ""} | '
+        f'Usuario fin: {metadata.get("usuario_fin") or ""}'
+    )
+    log = OPERACION_PLANTA_LOG.objects.create(
+        US_NID=usuario,
+        EP_NID=citacion.EP_NID,
+        PL_NID=citacion.PL_NID,
+        CI_NID=citacion,
+        OPL_CPASO=PASO_CICLO_DESCARGA,
+        OPL_CPERFIL_RESPONSABLE='SALA CONTROL',
+        OPL_CESTADO=OPERACION_PLANTA_LOG.ESTADO_COMPLETADO,
+        OPL_COBSERVACION=observacion
+    )
+    return metadata, log
+
+
+def _obtener_campo_autorizar_salida(citacion, usuario):
+    campo, _ = CAMPO.objects.get_or_create(
+        EP_NID=citacion.EP_NID,
+        CA_CCODIGO=CAMPO_AUTORIZAR_SALIDA,
+        defaults={
+            'US_NID': usuario,
+            'CA_CTIPO': 'TEXTO',
+            'CA_CETIQUETA': 'Autorizar salida',
+            'CA_CPLACEMARK': 'Metadata operacional de autorizacion de salida',
+            'CA_BOBLIGATORIO': True,
+            'CA_BHABILITADO': True,
+            'CA_BASIGNARVALOR': False,
+        }
+    )
+    cambios = []
+    if not campo.CA_BHABILITADO:
+        campo.CA_BHABILITADO = True
+        cambios.append('CA_BHABILITADO')
+    if campo.CA_CTIPO != 'TEXTO':
+        campo.CA_CTIPO = 'TEXTO'
+        cambios.append('CA_CTIPO')
+    if cambios:
+        campo.save(update_fields=cambios)
+    return campo
+
+
+def _dato_autorizar_salida(citacion):
+    return DATO_OPERACION.objects.filter(
+        CI_NID=citacion,
+        CAMP_NID__CA_CCODIGO=CAMPO_AUTORIZAR_SALIDA
+    ).select_related('CAMP_NID').order_by('-id').first()
+
+
+def _leer_metadata_autorizar_salida(citacion):
+    dato = _dato_autorizar_salida(citacion)
+    if not dato:
+        return None
+    try:
+        metadata = json.loads(dato.DO_CVALOR or '{}')
+    except (TypeError, ValueError):
+        return None
+    if not isinstance(metadata, dict):
+        return None
+    metadata['dato_id'] = dato.id
+    return metadata
+
+
+def _referencia_observacion_descarga_salida(citacion):
+    preparacion = _payload_preparacion_descarga(citacion)
+    observacion = str(preparacion.get('observaciones_descarga') or '').strip()
+    if observacion:
+        return observacion
+
+    ciclo = _payload_ciclo_descarga(citacion)
+    if ciclo.get('tipo_descarga') or ciclo.get('duracion_legible'):
+        partes = []
+        if ciclo.get('tipo_descarga'):
+            partes.append(f'Tipo descarga: {ciclo.get("tipo_descarga")}')
+        if ciclo.get('duracion_legible'):
+            partes.append(f'Duracion descarga: {ciclo.get("duracion_legible")}')
+        return ' | '.join(partes)
+    return ''
+
+
+def _payload_autorizar_salida(citacion):
+    metadata = _leer_metadata_autorizar_salida(citacion)
+    referencia = _referencia_observacion_descarga_salida(citacion)
+    if metadata:
+        return {
+            'registrada': True,
+            'recepcion_conforme': metadata.get('recepcion_conforme') or '',
+            'observacion_descarga': metadata.get('observacion_descarga') or '',
+            'observacion_referencia': metadata.get('observacion_referencia') or referencia,
+            'usuario': metadata.get('usuario') or '',
+            'usuario_id': metadata.get('usuario_id'),
+            'fecha_hora': metadata.get('fecha_hora') or '',
+            'fecha_iso': metadata.get('fecha_iso') or '',
+        }
+    return {
+        'registrada': False,
+        'recepcion_conforme': '',
+        'observacion_descarga': referencia,
+        'observacion_referencia': referencia,
+        'usuario': '',
+        'usuario_id': None,
+        'fecha_hora': '',
+        'fecha_iso': '',
+    }
+
+
+def _registrar_autorizar_salida(citacion, usuario, recepcion_conforme, observacion_descarga=''):
+    recepcion_conforme = str(recepcion_conforme or '').strip().upper()
+    if recepcion_conforme in {'SI', 'SÍ'}:
+        recepcion_conforme = 'SI'
+    elif recepcion_conforme == 'NO':
+        recepcion_conforme = 'NO'
+    else:
+        raise ValueError('Debe seleccionar Recepcion Conforme: Si o No.')
+
+    observacion_descarga = str(observacion_descarga or '').strip()
+    referencia = _referencia_observacion_descarga_salida(citacion)
+    ahora = timezone.now()
+    fecha = timezone.localtime(ahora)
+    metadata = {
+        'recepcion_conforme': recepcion_conforme,
+        'observacion_descarga': observacion_descarga,
+        'observacion_referencia': referencia,
+        'usuario_id': usuario.id,
+        'usuario': usuario.username,
+        'fecha_hora': fecha.strftime('%d/%m/%Y %H:%M'),
+        'fecha_iso': fecha.isoformat(),
+        'citacion_id': citacion.id,
+        'paso_operacion': PASO_AUTORIZAR_SALIDA,
+    }
+    campo = _obtener_campo_autorizar_salida(citacion, usuario)
+    dato, _ = DATO_OPERACION.objects.update_or_create(
+        CI_NID=citacion,
+        CAMP_NID=campo,
+        defaults={
+            'EP_NID': citacion.EP_NID,
+            'US_NID': usuario,
+            'SC_NID': citacion.SC_NID,
+            'ET_NID': citacion.ETAPA_ACTUAL,
+            'DO_CVALOR': json.dumps(metadata, ensure_ascii=False),
+            'DO_NPESO': None,
+            'DO_FFECHAREGISTRO': ahora,
         }
     )
     metadata['dato_id'] = dato.id
@@ -4662,6 +5668,20 @@ def guardar_operacion_etapa(citacion, request):
     empresa = citacion.EP_NID
     secuencia = citacion.SC_NID
     etapa_actual = citacion.ETAPA_ACTUAL
+    detalle_secuencia_actual = DETALLE_SECUENCIA.objects.filter(
+        SC_NID=secuencia,
+        ET_NID=etapa_actual,
+        SE_BHABILITADO=True
+    ).first()
+
+    if not detalle_secuencia_actual:
+        raise Exception('La etapa actual no esta habilitada en la secuencia.')
+    devolucion_guardia = obtener_devolucion_guardia_pendiente(citacion)
+    if (not devolucion_guardia and detalle_secuencia_actual.SE_NPASO > 1) or citacion.CI_CESTADO == CIT_TERMINADO:
+        raise Exception('El ingreso de camion ya fue enviado a la siguiente etapa.')
+    if not devolucion_guardia and SYSLOGGER.objects.filter(LOG_COPERACION='AVANZA_AR', LOG_CADD1=str(citacion.id)).exists():
+        raise Exception('El ingreso de camion ya fue enviado al Asistente de recepcion.')
+
     tuvo_datos_previos = DATO_OPERACION.objects.filter(
         CI_NID=citacion,
         SC_NID=secuencia,
@@ -4689,15 +5709,6 @@ def guardar_operacion_etapa(citacion, request):
         etapa_log_ingreso.US_INICIO_ID = request.user
         etapa_log_ingreso.EL_CACCION = etapa_log_ingreso.EL_CACCION or 'INGRESO_CAMION'
         etapa_log_ingreso.save(update_fields=['US_INICIO_ID', 'EL_CACCION'])
-
-    detalle_secuencia_actual = DETALLE_SECUENCIA.objects.filter(
-        SC_NID=secuencia,
-        ET_NID=etapa_actual,
-        SE_BHABILITADO=True
-    ).first()
-
-    if not detalle_secuencia_actual:
-        raise Exception('La etapa actual no esta habilitada en la secuencia.')
 
     campos_etapa = obtener_campos_operacion_etapa(citacion, etapa_actual, request.user)
 
@@ -4763,8 +5774,13 @@ def guardar_operacion_etapa(citacion, request):
     registrar_log_camion_no_planificado(
         request.user,
         empresa,
-        'ING_CAMION',
-        f'{"Edicion" if tuvo_datos_previos else "Registro"} ingreso camion citacion #{citacion.id} etapa {etapa_actual.ET_CCODIGO}',
+        'CORRIGE_DEV_GUA' if devolucion_guardia else 'ING_CAMION',
+        (
+            f'Correccion ingreso camion citacion #{citacion.id} por devolucion de Asistente Recepcion. '
+            f'Motivo devolucion: {devolucion_guardia.get("observacion", "")}'
+            if devolucion_guardia
+            else f'{"Edicion" if tuvo_datos_previos else "Registro"} ingreso camion citacion #{citacion.id} etapa {etapa_actual.ET_CCODIGO}'
+        ),
         citacion.id,
         etapa_actual.ET_CCODIGO
     )
@@ -4952,7 +5968,7 @@ def API_SAP_PRODUCTO(request):
 
 def API_SAP_PRODUCTOS(request):
     try:
-        data = consultar_productos_sap()
+        data = consultar_productos_sap(request.GET.get('q', ''))
         return JsonResponse(data)
     except SapDiApiError as e:
         return JsonResponse({'ok': False, 'mensaje': str(e), 'message': str(e)}, status=503)
@@ -5086,7 +6102,9 @@ def BUSCAR_OPOR_POR_PEDIDO(request):
             'cantidad_disponible': resultado.get('cantidad_disponible', ''),
             'docentry': resultado.get('docentry', ''),
             'proveedor_codigo': resultado.get('cardcode', ''),
+            'codigo_proveedor_sap': resultado.get('codigo_proveedor_sap') or resultado.get('cardcode', ''),
             'proveedor_nombre': resultado.get('cardname', ''),
+            'contrato_sap': resultado.get('contrato_sap', ''),
             'bl': resultado.get('contenedor', '') or resultado.get('bl', ''),
             'bl_contenedor': resultado.get('contenedor', '') or resultado.get('bl_contenedor', ''),
             'contenedor': resultado.get('contenedor', ''),
@@ -8477,7 +9495,13 @@ def PLANIFICACION_LISTONE(request, pk):
             if usuario_es_asistente_recepcion(request.user) and detalle_secuencia.SE_NPASO <= 1:
                 continue
 
-            enviado_asistente = detalle_secuencia.SE_NPASO > 1
+            devolucion_guardia = obtener_devolucion_guardia_pendiente(row)
+            devuelto_guardia = bool(devolucion_guardia)
+            motivo_devolucion_guardia = devolucion_guardia.get('observacion', '') if devolucion_guardia else ''
+            devolucion_guardia_usuario = devolucion_guardia.get('usuario', '') if devolucion_guardia else ''
+            devolucion_guardia_fecha = devolucion_guardia.get('fecha') if devolucion_guardia else None
+
+            enviado_asistente = detalle_secuencia.SE_NPASO > 1 and not devuelto_guardia
             log_envio_asistente = None
             if enviado_asistente:
                 log_envio_asistente = SYSLOGGER.objects.select_related('US_NID').filter(
@@ -8613,17 +9637,22 @@ def PLANIFICACION_LISTONE(request, pk):
                     planta_autorizada_fecha,
                     pendiente_envio_asistente,
                     ingreso_guardia_usuario,
-                    ingreso_guardia_fecha
+                    ingreso_guardia_fecha,
+                    devuelto_guardia,
+                    motivo_devolucion_guardia,
+                    devolucion_guardia_usuario,
+                    devolucion_guardia_fecha
                 ])
 
             elif row.CI_CTIPO == CIT_RECEPCION:
+                etapa_visible_operacional = obtener_etapa_actual_operacional_citacion(row)
                 recepciones.append([
                     row.pk,
                     row.CI_FFECHACITACION,
                     row.CI_CTIPODOCUMENTO,
                     row.CI_CNUMERODOCUMENTO,
                     secuencia.SE_CNOMBRE,
-                    etapa.ET_CNOMBRE,
+                    etapa_visible_operacional,
                     citacion_item.IT_NID.IT_CNOMBRE,
                     transportista_operacional,
                     patente_operacional,
@@ -8654,7 +9683,11 @@ def PLANIFICACION_LISTONE(request, pk):
                     planta_autorizada_fecha,
                     pendiente_envio_asistente,
                     ingreso_guardia_usuario,
-                    ingreso_guardia_fecha
+                    ingreso_guardia_fecha,
+                    devuelto_guardia,
+                    motivo_devolucion_guardia,
+                    devolucion_guardia_usuario,
+                    devolucion_guardia_fecha
                 ])
 
         ctx = {
@@ -10246,15 +11279,28 @@ def OPERACION_PLANTA_CITACION(request, pk):
             ultimo_log_por_paso[log.OPL_CPASO] = log
 
     pasos = []
+    paso_pesaje_activo_alt = None
     for indice, (nombre_paso, responsables) in enumerate(pasos_config, start=1):
         log_paso = ultimo_log_por_paso.get(nombre_paso)
         puede_editar = usuario_puede_paso_operacion(request.user, responsables)
         ticket_pesaje = _payload_ticket_pesaje_guardado(citacion, nombre_paso, request)
         accion_toma_muestra = _payload_toma_muestra_accion(citacion, nombre_flujo) if nombre_paso == PASO_TOMA_MUESTRA else None
         resultado_calidad = _payload_resultado_calidad(citacion) if nombre_paso == PASO_ANALISIS_CALIDAD else None
-        revision_resultado_calidad = _payload_resultado_calidad(citacion) if nombre_paso == PASO_RESULTADO_CALIDAD else None
+        validacion_calidad = _payload_validacion_calidad(citacion) if nombre_paso == PASO_ANALISIS_CALIDAD else None
+        observacion_toma_muestra = _observacion_toma_muestra_visible(
+            citacion,
+            ultimo_log_por_paso.get(PASO_TOMA_MUESTRA)
+        ) if nombre_paso == PASO_ANALISIS_CALIDAD else ''
+        revision_resultado_calidad = _payload_resultado_calidad(citacion) if nombre_paso in {PASO_RESULTADO_CALIDAD, PASO_CICLO_DESCARGA} else None
         preparacion_descarga = _payload_preparacion_descarga(citacion) if nombre_paso == PASO_RESULTADO_CALIDAD else None
-        pasos.append({
+        preparacion_descarga_ciclo = _payload_preparacion_descarga(citacion) if nombre_paso == PASO_CICLO_DESCARGA else None
+        ciclo_descarga = _payload_ciclo_descarga(citacion) if nombre_paso == PASO_CICLO_DESCARGA else None
+        autorizar_salida = _payload_autorizar_salida(citacion) if nombre_paso == PASO_AUTORIZAR_SALIDA else None
+        espera_descarga = _payload_espera_descarga(
+            ultimo_log_por_paso.get(PASO_ANALISIS_CALIDAD),
+            ultimo_log_por_paso.get(PASO_RESULTADO_CALIDAD)
+        ) if nombre_paso == PASO_RESULTADO_CALIDAD else None
+        paso_ctx = {
             'orden': indice,
             'nombre': nombre_paso,
             'responsable': ' / '.join(responsables),
@@ -10267,20 +11313,41 @@ def OPERACION_PLANTA_CITACION(request, pk):
             'accion_toma_muestra': accion_toma_muestra,
             'requiere_resultado_calidad': nombre_paso == PASO_ANALISIS_CALIDAD,
             'resultado_calidad': resultado_calidad,
+            'validacion_calidad': validacion_calidad,
+            'observacion_toma_muestra': observacion_toma_muestra,
             'requiere_preparacion_descarga': nombre_paso == PASO_RESULTADO_CALIDAD,
             'revision_resultado_calidad': revision_resultado_calidad,
             'preparacion_descarga': preparacion_descarga,
+            'espera_descarga': espera_descarga,
+            'requiere_ciclo_descarga': nombre_paso == PASO_CICLO_DESCARGA,
+            'preparacion_descarga_ciclo': preparacion_descarga_ciclo,
+            'ciclo_descarga': ciclo_descarga,
+            'requiere_autorizar_salida': nombre_paso == PASO_AUTORIZAR_SALIDA,
+            'requiere_confirmar_salida': nombre_paso == PASO_CONFIRMAR_SALIDA,
+            'autorizar_salida': autorizar_salida,
+            'tipos_ciclo_descarga': TIPOS_CICLO_DESCARGA if nombre_paso == PASO_CICLO_DESCARGA else [],
             'sitios_descarga': [f'Sitio {i}' for i in range(1, 7)] if nombre_paso == PASO_RESULTADO_CALIDAD else [],
             'bombas_descarga': [f'Bomba {i}' for i in range(1, 7)] if nombre_paso == PASO_RESULTADO_CALIDAD else [],
             'solo_lectura_msg': '' if puede_editar else f'Solo lectura: este paso corresponde a {" / ".join(responsables)}',
             'estado': log_paso.OPL_CESTADO if log_paso else 'PENDIENTE',
-            'observacion': log_paso.OPL_COBSERVACION if log_paso else '',
+            'observacion': _observacion_visible_operacion(nombre_paso, log_paso.OPL_COBSERVACION if log_paso else ''),
             'usuario': log_paso.US_NID.username if log_paso and log_paso.US_NID else '',
             'fecha': log_paso.OPL_FFECHAREGISTRO if log_paso else None,
-        })
+        }
+        pasos.append(paso_ctx)
+        if (
+            paso_ctx['activo']
+            and paso_ctx['puede_editar']
+            and paso_ctx['requiere_ticket_pesaje']
+        ):
+            paso_pesaje_activo_alt = paso_ctx
 
     valores_ingreso = obtener_valores_ingreso_camion(citacion)
     _, documentos_operacion = obtener_datos_operacion_citacion(citacion)
+    insumo_operacion = _insumo_operacion_planta(citacion)
+    codigo_sap_operacion = _codigo_sap_operacion_planta(citacion)
+    fecha_ingreso_operacion = _fecha_ingreso_operacion_planta(citacion)
+    guia_operacion_url = _guia_operacion_planta_url(citacion, documentos_operacion)
     ctx = {
         'citacion': citacion,
         'nombre_flujo': nombre_flujo,
@@ -10291,20 +11358,50 @@ def OPERACION_PLANTA_CITACION(request, pk):
         'transportista': texto_sin_informacion(valores_ingreso.get('transportista')),
         'documentos_operacion': documentos_operacion,
         'empresa_activa_id': Empresa,
+        'paso_pesaje_activo_alt': paso_pesaje_activo_alt,
+        'insumo_operacion': insumo_operacion or 'Sin insumo',
+        'codigo_sap_operacion': codigo_sap_operacion,
+        'fecha_ingreso_operacion': fecha_ingreso_operacion,
+        'guia_operacion_url': guia_operacion_url,
     }
     return render(request, 'home/CITACION/operacion_planta.html', ctx)
 
 
 def OPERACION_PLANTA_GUARDAR_PASO(request, pk):
+    if request.method == 'POST':
+        logger.warning(
+            "POST OPERACION_PLANTA_GUARDAR_PASO user=%s method=%s pk=%s POST=%s",
+            request.user,
+            request.method,
+            pk,
+            dict(request.POST)
+        )
+    origen_post = request.POST.get('origen')
+    post_tradicional = origen_post in {'pesaje_alt', 'confirmar_salida'}
+
+    def respuesta_error(message, status=400, citacion_obj=None):
+        if post_tradicional:
+            messages.error(request, message)
+            if citacion_obj:
+                return redirect(f"{reverse('operacion_planta_citacion', args=[citacion_obj.id])}?{EMPRESA_ACTIVA_PARAM}={citacion_obj.EP_NID_id}")
+            return redirect('/')
+        return JsonResponse({'success': False, 'message': message}, status=status)
+
+    def respuesta_ok(message, payload, citacion_obj):
+        if post_tradicional:
+            messages.success(request, message)
+            return redirect(f"{reverse('operacion_planta_citacion', args=[citacion_obj.id])}?{EMPRESA_ACTIVA_PARAM}={citacion_obj.EP_NID_id}")
+        return JsonResponse(payload)
+
     if request.method != 'POST':
-        return JsonResponse({'success': False, 'message': 'Metodo no permitido.'}, status=405)
+        return respuesta_error('Metodo no permitido.', status=405)
 
     if not usuario_es_operacion_planta(request.user):
-        return JsonResponse({'success': False, 'message': 'No tiene permisos para Operacion Planta.'}, status=403)
+        return respuesta_error('No tiene permisos para Operacion Planta.', status=403)
 
     Empresa = Verificar_empresa(request)
     if Empresa is None:
-        return JsonResponse({'success': False, 'message': 'Debe seleccionar una empresa.'}, status=400)
+        return respuesta_error('Debe seleccionar una empresa.', status=400)
 
     try:
         citacion = CITACION.objects.select_related('EP_NID', 'PL_NID', 'SC_NID').get(
@@ -10313,10 +11410,17 @@ def OPERACION_PLANTA_GUARDAR_PASO(request, pk):
             CI_BHABILITADO=True
         )
     except CITACION.DoesNotExist:
-        return JsonResponse({'success': False, 'message': 'Citacion no encontrada.'}, status=404)
+        return respuesta_error('Citacion no encontrada.', status=404)
 
     if not citacion_habilitada_operacion(citacion):
-        return JsonResponse({'success': False, 'message': 'La citacion aun no esta habilitada para Operacion Planta.'}, status=400)
+        return respuesta_error('La citacion aun no esta habilitada para Operacion Planta.', status=400, citacion_obj=citacion)
+
+    if post_tradicional:
+        citacion_id_post = str(request.POST.get('citacion_id') or '').strip()
+        if not citacion_id_post:
+            return respuesta_error('Falta citacion_id en el cierre operacional.', status=400, citacion_obj=citacion)
+        if citacion_id_post != str(citacion.id):
+            return respuesta_error('La citacion enviada no coincide con la URL de cierre operacional.', status=400, citacion_obj=citacion)
 
     paso = str(request.POST.get('paso') or '').strip()
     observacion = str(request.POST.get('observacion') or '').strip()
@@ -10328,7 +11432,7 @@ def OPERACION_PLANTA_GUARDAR_PASO(request, pk):
             break
 
     if not responsables_paso:
-        return JsonResponse({'success': False, 'message': 'Paso operacional no valido.'}, status=400)
+        return respuesta_error('Paso operacional no valido.', status=400, citacion_obj=citacion)
 
     logs_completados = set(OPERACION_PLANTA_LOG.objects.filter(
         CI_NID=citacion,
@@ -10336,28 +11440,66 @@ def OPERACION_PLANTA_GUARDAR_PASO(request, pk):
     ).values_list('OPL_CPASO', flat=True))
     paso_actual_visible = resolver_estado_operacional_visible(citacion, pasos_config, logs_completados)
     if paso != paso_actual_visible:
-        return JsonResponse({
-            'success': False,
-            'message': f'Solo puede guardar la etapa activa actual: {paso_actual_visible}.'
-        }, status=409)
+        return respuesta_error(f'Solo puede guardar la etapa activa actual: {paso_actual_visible}.', status=409, citacion_obj=citacion)
 
     if not usuario_puede_paso_operacion(request.user, responsables_paso):
-        return JsonResponse({
-            'success': False,
-            'message': f'Solo lectura: este paso corresponde a {" / ".join(responsables_paso)}'
-        }, status=403)
+        return respuesta_error(f'Solo lectura: este paso corresponde a {" / ".join(responsables_paso)}', status=403, citacion_obj=citacion)
 
     if paso in PASOS_OPERACION_PLANTA_TICKET and not _ticket_pesaje_obligatorio_guardado(citacion, paso):
-        return JsonResponse({
-            'success': False,
-            'message': TICKET_PESAJE_REQUIRED_MESSAGE
-        }, status=400)
+        return respuesta_error(TICKET_PESAJE_REQUIRED_MESSAGE, status=400, citacion_obj=citacion)
 
     if paso == PASO_TOMA_MUESTRA and not _toma_muestra_accion_guardada(citacion):
-        return JsonResponse({
-            'success': False,
-            'message': TOMA_MUESTRA_ACCION_REQUIRED_MESSAGE
-        }, status=400)
+        return respuesta_error(TOMA_MUESTRA_ACCION_REQUIRED_MESSAGE, status=400, citacion_obj=citacion)
+
+    if paso == PASO_TOMA_MUESTRA:
+        metadata_toma_muestra = _leer_metadata_toma_muestra_accion(citacion) or {}
+        observacion_metadata = str(metadata_toma_muestra.get('observacion') or '').strip()
+        if observacion:
+            if observacion != observacion_metadata:
+                _actualizar_observacion_toma_muestra_accion(citacion, observacion)
+        else:
+            observacion = observacion_metadata
+
+    if paso == PASO_CICLO_DESCARGA:
+        ciclo_descarga = _payload_ciclo_descarga(citacion)
+        if not ciclo_descarga.get('finalizada'):
+            return respuesta_error('Debe iniciar y finalizar la descarga desde el panel Ciclo Descarga.', status=400, citacion_obj=citacion)
+
+    if paso == PASO_AUTORIZAR_SALIDA:
+        return respuesta_error('Debe autorizar la salida desde el panel Autorizar Salida.', status=400, citacion_obj=citacion)
+
+    log_existente = OPERACION_PLANTA_LOG.objects.filter(
+        CI_NID=citacion,
+        OPL_CPASO=paso,
+        OPL_CESTADO=OPERACION_PLANTA_LOG.ESTADO_COMPLETADO
+    ).order_by('-OPL_FFECHAREGISTRO').first()
+    if log_existente:
+        if paso == 'Pesaje Salida':
+            liberar_reservas_estanque_citacion(
+                citacion,
+                request.user,
+                'Reserva liberada automaticamente al detectar Pesaje Salida completado'
+            )
+        if paso == PASO_CONFIRMAR_SALIDA and citacion.CI_CESTADO != CIT_TERMINADO:
+            citacion.CI_CESTADO = CIT_TERMINADO
+            citacion.CI_FFECHATERMINO = timezone.now()
+            citacion.save(update_fields=['CI_CESTADO', 'CI_FFECHATERMINO'])
+        return respuesta_ok('Paso operacional ya estaba registrado.', {
+            'success': True,
+            'message': 'Paso operacional ya estaba registrado.',
+            'paso': paso,
+            'usuario': log_existente.US_NID.username if log_existente.US_NID else '',
+            'fecha': timezone.localtime(log_existente.OPL_FFECHAREGISTRO).strftime('%d/%m/%Y %H:%M')
+        }, citacion)
+
+    if paso in PASOS_OPERACION_PLANTA_TICKET:
+        observacion_ticket = _observacion_cierre_ticket_pesaje(citacion, paso)
+        if not observacion_ticket:
+            return respuesta_error(TICKET_PESAJE_REQUIRED_MESSAGE, status=400, citacion_obj=citacion)
+        observacion = observacion_ticket
+
+    if paso == PASO_CONFIRMAR_SALIDA:
+        observacion = f'Camion salio de planta. Observacion: {observacion or "Sin observacion"}'
 
     log = OPERACION_PLANTA_LOG.objects.create(
         US_NID=request.user,
@@ -10370,13 +11512,24 @@ def OPERACION_PLANTA_GUARDAR_PASO(request, pk):
         OPL_COBSERVACION=observacion
     )
 
-    return JsonResponse({
+    if paso == PASO_CONFIRMAR_SALIDA:
+        citacion.CI_CESTADO = CIT_TERMINADO
+        citacion.CI_FFECHATERMINO = log.OPL_FFECHAREGISTRO
+        citacion.save(update_fields=['CI_CESTADO', 'CI_FFECHATERMINO'])
+    elif paso == 'Pesaje Salida':
+        liberar_reservas_estanque_citacion(
+            citacion,
+            request.user,
+            'Reserva liberada automaticamente al completar Pesaje Salida'
+        )
+
+    return respuesta_ok('Paso operacional registrado.', {
         'success': True,
         'message': 'Paso operacional registrado.',
         'paso': paso,
         'usuario': request.user.username,
         'fecha': timezone.localtime(log.OPL_FFECHAREGISTRO).strftime('%d/%m/%Y %H:%M')
-    })
+    }, citacion)
 
 
 def ajax_operacion_planta_registrar_accion_toma_muestra(request, pk):
@@ -10439,6 +11592,64 @@ def ajax_operacion_planta_registrar_accion_toma_muestra(request, pk):
 ajax_operacion_planta_enviar_vapor = ajax_operacion_planta_registrar_accion_toma_muestra
 
 
+def ajax_operacion_planta_validar_calidad(request, pk):
+    if request.method != 'POST':
+        return JsonResponse({'success': False, 'message': 'Metodo no permitido.'}, status=405)
+
+    if not usuario_es_operacion_planta(request.user):
+        return JsonResponse({'success': False, 'message': 'No tiene permisos para Operacion Planta.'}, status=403)
+
+    Empresa = Verificar_empresa(request)
+    if Empresa is None:
+        return JsonResponse({'success': False, 'message': 'Debe seleccionar una empresa.'}, status=400)
+
+    try:
+        citacion = CITACION.objects.select_related('EP_NID', 'PL_NID', 'SC_NID').get(
+            pk=pk,
+            EP_NID_id=Empresa,
+            CI_BHABILITADO=True
+        )
+    except CITACION.DoesNotExist:
+        return JsonResponse({'success': False, 'message': 'Citacion no encontrada.'}, status=404)
+
+    if not citacion_habilitada_operacion(citacion):
+        return JsonResponse({'success': False, 'message': 'La citacion aun no esta habilitada para Operacion Planta.'}, status=400)
+
+    _, pasos_config = obtener_pasos_operacion_citacion(citacion)
+    paso_actual_visible, responsables_paso, _ = obtener_paso_activo_operacion(citacion, pasos_config)
+    if paso_actual_visible != PASO_ANALISIS_CALIDAD:
+        return JsonResponse({
+            'success': False,
+            'message': f'Solo puede validar durante la etapa activa: {PASO_ANALISIS_CALIDAD}.'
+        }, status=409)
+
+    if not usuario_puede_paso_operacion(request.user, responsables_paso):
+        return JsonResponse({
+            'success': False,
+            'message': f'Solo lectura: este paso corresponde a {" / ".join(responsables_paso)}'
+        }, status=403)
+
+    if _leer_metadata_resultado_calidad(citacion):
+        return JsonResponse({
+            'success': False,
+            'message': 'El resultado de calidad ya fue registrado.'
+        }, status=409)
+
+    metadata = _registrar_validacion_calidad(
+        citacion,
+        request.user,
+        insumo=_insumo_operacion_planta(citacion),
+        fecha_ingreso=_fecha_ingreso_operacion_planta(citacion)
+    )
+    return JsonResponse({
+        'success': True,
+        'message': 'Validacion realizada: insumo y guia revisados.',
+        'validacion_calidad': metadata,
+        'usuario': request.user.username,
+        'fecha': metadata.get('fecha_hora') or '',
+    })
+
+
 def ajax_operacion_planta_registrar_resultado_calidad(request, pk):
     if request.method != 'POST':
         return JsonResponse({'success': False, 'message': 'Metodo no permitido.'}, status=405)
@@ -10476,6 +11687,12 @@ def ajax_operacion_planta_registrar_resultado_calidad(request, pk):
             'message': f'Solo lectura: este paso corresponde a {" / ".join(responsables_paso)}'
         }, status=403)
 
+    if not _leer_metadata_validacion_calidad(citacion):
+        return JsonResponse({
+            'success': False,
+            'message': 'Debe validar insumo y guia antes de aprobar o rechazar calidad.'
+        }, status=400)
+
     resultado = str(request.POST.get('resultado_calidad') or '').strip().upper()
     comentario = str(request.POST.get('comentario') or '').strip()
     archivo = request.FILES.get('documento_calidad')
@@ -10491,7 +11708,7 @@ def ajax_operacion_planta_registrar_resultado_calidad(request, pk):
                 OPL_CPASO=PASO_ANALISIS_CALIDAD,
                 OPL_CPERFIL_RESPONSABLE=' / '.join(responsables_paso),
                 OPL_CESTADO=OPERACION_PLANTA_LOG.ESTADO_COMPLETADO,
-                OPL_COBSERVACION=json.dumps(metadata, ensure_ascii=False)
+                OPL_COBSERVACION=metadata.get('comentario') or ''
             )
     except ValueError as e:
         return JsonResponse({'success': False, 'message': str(e)}, status=400)
@@ -10571,7 +11788,7 @@ def ajax_operacion_planta_guardar_preparacion_descarga(request, pk):
                 OPL_CPASO=PASO_RESULTADO_CALIDAD,
                 OPL_CPERFIL_RESPONSABLE=' / '.join(responsables_paso),
                 OPL_CESTADO=OPERACION_PLANTA_LOG.ESTADO_COMPLETADO,
-                OPL_COBSERVACION=json.dumps(metadata, ensure_ascii=False)
+                OPL_COBSERVACION=metadata.get('observaciones_descarga') or ''
             )
     except ValueError as e:
         return JsonResponse({'success': False, 'message': str(e)}, status=400)
@@ -10583,6 +11800,172 @@ def ajax_operacion_planta_guardar_preparacion_descarga(request, pk):
         'message': 'Resultado confirmado y descarga preparada.',
         'preparacion_descarga': metadata,
         'paso': PASO_RESULTADO_CALIDAD,
+        'usuario': request.user.username,
+        'fecha': timezone.localtime(log.OPL_FFECHAREGISTRO).strftime('%d/%m/%Y %H:%M')
+    })
+
+
+def _obtener_citacion_operacion_planta_ajax(request, pk):
+    Empresa = Verificar_empresa(request)
+    if Empresa is None:
+        return None, JsonResponse({'success': False, 'message': 'Debe seleccionar una empresa.'}, status=400)
+    try:
+        citacion = CITACION.objects.select_related('EP_NID', 'PL_NID', 'SC_NID').get(
+            pk=pk,
+            EP_NID_id=Empresa,
+            CI_BHABILITADO=True
+        )
+    except CITACION.DoesNotExist:
+        return None, JsonResponse({'success': False, 'message': 'Citacion no encontrada.'}, status=404)
+    if not citacion_habilitada_operacion(citacion):
+        return None, JsonResponse({'success': False, 'message': 'La citacion aun no esta habilitada para Operacion Planta.'}, status=400)
+    return citacion, None
+
+
+def _validar_accion_ciclo_descarga(request, citacion):
+    _, pasos_config = obtener_pasos_operacion_citacion(citacion)
+    paso_actual_visible, responsables_paso, _ = obtener_paso_activo_operacion(citacion, pasos_config)
+    if paso_actual_visible != PASO_CICLO_DESCARGA:
+        return None, JsonResponse({
+            'success': False,
+            'message': f'Solo puede operar durante la etapa activa: {PASO_CICLO_DESCARGA}.'
+        }, status=409)
+    if not usuario_puede_paso_operacion(request.user, responsables_paso):
+        return None, JsonResponse({
+            'success': False,
+            'message': f'Solo lectura: este paso corresponde a {" / ".join(responsables_paso)}'
+        }, status=403)
+    return responsables_paso, None
+
+
+def ajax_operacion_planta_iniciar_ciclo_descarga(request, pk):
+    if request.method != 'POST':
+        return JsonResponse({'success': False, 'message': 'Metodo no permitido.'}, status=405)
+    if not usuario_es_operacion_planta(request.user):
+        return JsonResponse({'success': False, 'message': 'No tiene permisos para Operacion Planta.'}, status=403)
+
+    citacion, error_response = _obtener_citacion_operacion_planta_ajax(request, pk)
+    if error_response:
+        return error_response
+    _, error_response = _validar_accion_ciclo_descarga(request, citacion)
+    if error_response:
+        return error_response
+
+    tipo_descarga = request.POST.get('tipo_descarga')
+    try:
+        metadata = _iniciar_ciclo_descarga(citacion, request.user, tipo_descarga)
+    except ValueError as e:
+        return JsonResponse({'success': False, 'message': str(e)}, status=400)
+    except Exception as e:
+        return JsonResponse({'success': False, 'message': f'No fue posible iniciar descarga: {str(e)}'}, status=500)
+
+    return JsonResponse({
+        'success': True,
+        'message': 'Descarga iniciada.',
+        'ciclo_descarga': _payload_ciclo_descarga(citacion),
+        'metadata': metadata,
+    })
+
+
+def ajax_operacion_planta_finalizar_ciclo_descarga(request, pk):
+    if request.method != 'POST':
+        return JsonResponse({'success': False, 'message': 'Metodo no permitido.'}, status=405)
+    if not usuario_es_operacion_planta(request.user):
+        return JsonResponse({'success': False, 'message': 'No tiene permisos para Operacion Planta.'}, status=403)
+
+    citacion, error_response = _obtener_citacion_operacion_planta_ajax(request, pk)
+    if error_response:
+        return error_response
+    _, error_response = _validar_accion_ciclo_descarga(request, citacion)
+    if error_response:
+        return error_response
+
+    try:
+        metadata, log = _finalizar_ciclo_descarga(citacion, request.user)
+    except ValueError as e:
+        return JsonResponse({'success': False, 'message': str(e)}, status=400)
+    except Exception as e:
+        return JsonResponse({'success': False, 'message': f'No fue posible finalizar descarga: {str(e)}'}, status=500)
+
+    return JsonResponse({
+        'success': True,
+        'message': 'Descarga finalizada. La citacion avanzo a Pesaje Salida.',
+        'ciclo_descarga': _payload_ciclo_descarga(citacion),
+        'metadata': metadata,
+        'paso': PASO_CICLO_DESCARGA,
+        'usuario': request.user.username,
+        'fecha': timezone.localtime(log.OPL_FFECHAREGISTRO).strftime('%d/%m/%Y %H:%M') if log else '',
+    })
+
+
+def ajax_operacion_planta_autorizar_salida(request, pk):
+    if request.method != 'POST':
+        return JsonResponse({'success': False, 'message': 'Metodo no permitido.'}, status=405)
+    if not usuario_es_operacion_planta(request.user):
+        return JsonResponse({'success': False, 'message': 'No tiene permisos para Operacion Planta.'}, status=403)
+
+    citacion, error_response = _obtener_citacion_operacion_planta_ajax(request, pk)
+    if error_response:
+        return error_response
+
+    log_existente = OPERACION_PLANTA_LOG.objects.filter(
+        CI_NID=citacion,
+        OPL_CPASO=PASO_AUTORIZAR_SALIDA,
+        OPL_CESTADO=OPERACION_PLANTA_LOG.ESTADO_COMPLETADO
+    ).order_by('-OPL_FFECHAREGISTRO').first()
+    if log_existente:
+        return JsonResponse({
+            'success': True,
+            'message': 'Salida ya autorizada. La citacion avanzo a Confirmar Salida.',
+            'autorizar_salida': _payload_autorizar_salida(citacion),
+            'paso': PASO_AUTORIZAR_SALIDA,
+            'usuario': getattr(log_existente.US_NID, 'username', '') if log_existente.US_NID_id else '',
+            'fecha': timezone.localtime(log_existente.OPL_FFECHAREGISTRO).strftime('%d/%m/%Y %H:%M')
+        })
+
+    _, pasos_config = obtener_pasos_operacion_citacion(citacion)
+    paso_actual_visible, responsables_paso, _ = obtener_paso_activo_operacion(citacion, pasos_config)
+    if paso_actual_visible != PASO_AUTORIZAR_SALIDA:
+        return JsonResponse({
+            'success': False,
+            'message': f'Solo puede autorizar durante la etapa activa: {PASO_AUTORIZAR_SALIDA}.'
+        }, status=409)
+    if not usuario_puede_paso_operacion(request.user, responsables_paso):
+        return JsonResponse({
+            'success': False,
+            'message': f'Solo lectura: este paso corresponde a {" / ".join(responsables_paso)}'
+        }, status=403)
+
+    try:
+        with transaction.atomic():
+            metadata = _registrar_autorizar_salida(
+                citacion,
+                request.user,
+                request.POST.get('recepcion_conforme'),
+                request.POST.get('observacion_descarga')
+            )
+            recepcion_label = 'Si' if metadata.get('recepcion_conforme') == 'SI' else 'No'
+            observacion_log = metadata.get('observacion_descarga') or 'Sin observacion'
+            log = OPERACION_PLANTA_LOG.objects.create(
+                US_NID=request.user,
+                EP_NID=citacion.EP_NID,
+                PL_NID=citacion.PL_NID,
+                CI_NID=citacion,
+                OPL_CPASO=PASO_AUTORIZAR_SALIDA,
+                OPL_CPERFIL_RESPONSABLE=' / '.join(responsables_paso),
+                OPL_CESTADO=OPERACION_PLANTA_LOG.ESTADO_COMPLETADO,
+                OPL_COBSERVACION=f'Recepcion conforme: {recepcion_label} | Observacion: {observacion_log}'
+            )
+    except ValueError as e:
+        return JsonResponse({'success': False, 'message': str(e)}, status=400)
+    except Exception as e:
+        return JsonResponse({'success': False, 'message': f'No fue posible autorizar salida: {str(e)}'}, status=500)
+
+    return JsonResponse({
+        'success': True,
+        'message': 'Salida autorizada. La citacion avanzo a Confirmar Salida.',
+        'autorizar_salida': metadata,
+        'paso': PASO_AUTORIZAR_SALIDA,
         'usuario': request.user.username,
         'fecha': timezone.localtime(log.OPL_FFECHAREGISTRO).strftime('%d/%m/%Y %H:%M')
     })
@@ -10742,6 +12125,7 @@ def ajax_operacion_planta_obtener_ticket_pesaje(request):
             'folio': datos_ticket['folio'],
             'observacion': datos_ticket.get('observacion') or '',
             'download_url': payload.get('download_url', ''),
+            'nombre_archivo_pdf': payload.get('nombre_archivo_pdf', os.path.basename(ruta_local)),
         })
     except ValueError as e:
         return JsonResponse({'valid': False, 'msg': str(e)}, status=400)
@@ -10930,6 +12314,7 @@ def SEGUIMIENTO_OPERACIONAL(request):
         nombres_pasos = [paso for paso, _ in pasos_config]
         etapa_actual = resolver_estado_operacional_visible(citacion, pasos_config, completados)
         accion_toma_muestra = _payload_toma_muestra_accion(citacion, nombre_flujo) if etapa_actual == PASO_TOMA_MUESTRA else None
+        ciclo_descarga_actual = _payload_ciclo_descarga(citacion) if etapa_actual == PASO_CICLO_DESCARGA else None
         ultimo_log = logs_pasos[-1] if logs_pasos else None
         log_autorizacion = autorizacion_por_citacion.get(str(citacion.id))
         logs_operacionales_completados = [
@@ -10977,6 +12362,7 @@ def SEGUIMIENTO_OPERACIONAL(request):
             'producto': item.IT_NID.IT_CNOMBRE if item and item.IT_NID else 'Sin producto',
             'estado_actual': etapa_actual,
             'estado_accion_toma_muestra': accion_toma_muestra if accion_toma_muestra and accion_toma_muestra.get('registrada') else None,
+            'estado_ciclo_descarga': ciclo_descarga_actual if ciclo_descarga_actual and ciclo_descarga_actual.get('en_proceso') else None,
             'pasos': pasos,
             'tiempo_planta': formatear_duracion_planta(log_autorizacion.LOG_FFECHAREGISTRO if log_autorizacion else None),
             'ingreso_autorizado_iso': log_autorizacion.LOG_FFECHAREGISTRO.isoformat() if log_autorizacion and log_autorizacion.LOG_FFECHAREGISTRO else '',
@@ -10995,6 +12381,7 @@ def SEGUIMIENTO_OPERACIONAL(request):
                 'tiempo_planta': formatear_duracion_planta(log_autorizacion.LOG_FFECHAREGISTRO if log_autorizacion else None),
                 'etapa_actual': etapa_actual,
                 'estado_accion_toma_muestra': accion_toma_muestra if accion_toma_muestra and accion_toma_muestra.get('registrada') else None,
+                'estado_ciclo_descarga': ciclo_descarga_actual if ciclo_descarga_actual and ciclo_descarga_actual.get('en_proceso') else None,
                 'historial': historial,
             })
         })
@@ -11884,8 +13271,12 @@ def get_citation_data(request, pk):
         citacion = CITACION.objects.get(id=pk)
         if not request.user.is_superuser and not usuario_es_planificador(request.user) and not validar_perfiles_activos(request.user.id, "pla_listone"):
             return JsonResponse({'error': 'No tiene permisos para editar esta citacion.'}, status=403)
+        if not citacion_puede_editar_planificacion(citacion):
+            return JsonResponse({'error': 'La citacion ya tiene avance operativo y no puede editarse desde planificacion.'}, status=403)
         empresa = citacion.EP_NID
         citacion_item = CITACION_ITEM.objects.filter(CI_NID=citacion).select_related('IT_NID').first()
+        detalle_operacional = detalle_operacional_dict(citacion)
+        datos_operacion, _ = obtener_datos_operacion_citacion(citacion)
 
         # Obtener la lista de documentos
         ltsDocumento = LISTADO_DOCUMENTO.objects.filter(EP_NID=empresa, LIS_BHABILITADO=True, LIS_CGRUPO='Citacion')
@@ -11901,6 +13292,8 @@ def get_citation_data(request, pk):
         proveedor = citacion.PRO_NID
 
         data = {
+            'success': True,
+            'editable': True,
             'tipos_documento': render_to_string('home/partials/select_options.html', {
                 'options': [{'id': doc.LIS_CNOMBREDOCUMENTO, 'name': doc.LIS_CNOMBREDOCUMENTO} for doc in ltsDocumento],
                 'selected': citacion.CI_CTIPODOCUMENTO
@@ -11908,10 +13301,12 @@ def get_citation_data(request, pk):
             'numero_documento': citacion.CI_CNUMERODOCUMENTO,
             'proveedor': {
                 'id': citacion.PRO_NID.id if citacion.PRO_NID else '',
+                'codigo': citacion.PRO_NID.SN_CCODIGO_SAP if citacion.PRO_NID else '',
                 'text': f"{citacion.PRO_NID.SN_CRAZONSOCIAL} ({citacion.PRO_NID.SN_CRUT})" if citacion.PRO_NID else ''
             },
             'cliente': {
                 'id': citacion.SN_NID.id if citacion.SN_NID else None,
+                'codigo': citacion.SN_NID.SN_CCODIGO_SAP if citacion.SN_NID else '',
                 'text': f"{citacion.SN_NID.SN_CRAZONSOCIAL} ({citacion.SN_NID.SN_CRUT})" if citacion.SN_NID else None
             },
             'tipo_citacion': citacion.CI_CTIPO,
@@ -11931,7 +13326,22 @@ def get_citation_data(request, pk):
             'fecha_llegada': citacion.CI_FFECHACITACION.strftime('%Y-%m-%d') if citacion.CI_FFECHACITACION else '',
             'tipo_operacion': citacion.CI_CTIPO,
             'tipo_carga': citacion.CI_CTIPO_FLETE or '',
-            'detalle_operacional': detalle_operacional_dict(citacion),
+            'detalle_operacional': {
+                **detalle_operacional,
+                'contrato_sap': (
+                    valor_dato_operacion(datos_operacion, 'PLAN_CONTRATO_SAP')
+                    or obtener_contrato_sap_visible_por_pedido(detalle_operacional.get('pedido'))
+                ),
+                'codigo_proveedor_sap': (
+                    valor_dato_operacion(datos_operacion, 'PLAN_CODIGO_PROVEEDOR_SAP')
+                    or detalle_operacional.get('proveedor_codigo')
+                ),
+                'proveedor_sap': (
+                    detalle_operacional.get('proveedor_sap')
+                    or valor_dato_operacion(datos_operacion, 'PLAN_PROVEEDOR_SAP')
+                    or (citacion.PRO_NID.SN_CRAZONSOCIAL if citacion.PRO_NID else '')
+                ),
+            },
             'productos': render_to_string('home/partials/select_options.html', {
                 'options': [{'id': item.id, 'name': item.IT_CNOMBRE} for item in ltsItems],
                 'selected': citacion_item.IT_NID.id if citacion_item and citacion_item.IT_NID else ''
@@ -11946,7 +13356,12 @@ def get_citation_data(request, pk):
         }
         return JsonResponse(data)
     except Exception as e:
-        return JsonResponse({'error': str(e)}, status=400)
+        logger.exception("Error get_citation_data pk=%s user=%s", pk, request.user)
+        return JsonResponse({
+            'success': False,
+            'editable': False,
+            'error': str(e),
+        }, status=400)
 
 def get_proveedor_data(request, proveedor_id):
     try:
@@ -11996,6 +13411,8 @@ def update_citation(request, pk):
             citacion = CITACION.objects.get(id=pk)
             if not request.user.is_superuser and not usuario_es_planificador(request.user) and not validar_perfiles_activos(request.user.id, "pla_listone"):
                 return JsonResponse({'valid': False, 'msg': 'No tiene permisos para editar esta citacion.'}, status=403)
+            if not citacion_puede_editar_planificacion(citacion):
+                return JsonResponse({'valid': False, 'msg': 'La citacion ya tiene avance operativo y no puede editarse desde planificacion.'}, status=403)
             
             # Update citation fields
             citacion.CI_CTIPODOCUMENTO = request.POST.get('tipo_documento')
@@ -12003,19 +13420,24 @@ def update_citation(request, pk):
             if request.POST.get('tipo_operacion'):
                 citacion.CI_CTIPO = request.POST.get('tipo_operacion')
             citacion.CI_CTIPO_FLETE = request.POST.get('tipo_carga') or citacion.CI_CTIPO_FLETE
-            proveedor_id = request.POST.get('id_proveedor')
-            citacion.PRO_NID = SOCIONEGOCIO.objects.get(id=proveedor_id) if proveedor_id else None
-            
-            # Actualizar cliente solo si es un despacho
-            if citacion.CI_CTIPO == CIT_DESPACHO:
-                cliente_id = request.POST.get('id_cliente')
-                if cliente_id:
-                    try:
-                        citacion.SN_NID = SOCIONEGOCIO.objects.get(id=cliente_id)
-                    except SOCIONEGOCIO.DoesNotExist:
-                        return JsonResponse({'valid': False, 'msg': 'El cliente seleccionado no existe'})
-                else:
-                    citacion.SN_NID = None
+            proveedor_sn = resolver_socio_negocio_planificacion(
+                citacion.EP_NID_id,
+                'S',
+                valor=request.POST.get('id_proveedor') or request.POST.get('proveedor'),
+                codigo=request.POST.get('codigo_proveedor_sap') or request.POST.get('proveedor_codigo'),
+                nombre=request.POST.get('proveedor_sap') or request.POST.get('proveedor_nombre')
+            )
+            citacion.PRO_NID = proveedor_sn
+
+            if 'id_cliente' in request.POST or 'cliente' in request.POST or 'cliente_codigo' in request.POST:
+                cliente_sn = resolver_socio_negocio_planificacion(
+                    citacion.EP_NID_id,
+                    'C',
+                    valor=request.POST.get('id_cliente') or request.POST.get('cliente'),
+                    codigo=request.POST.get('cliente_codigo'),
+                    nombre=request.POST.get('cliente_nombre')
+                )
+                citacion.SN_NID = cliente_sn
             
             if 'id_conductor' in request.POST:
                 conductor_id = request.POST.get('id_conductor')
@@ -12079,6 +13501,9 @@ def update_citation(request, pk):
                 'pedido': request.POST.get('pedido'),
                 'sap_opor_id': request.POST.get('sap_opor_id'),
                 'proveedor_codigo': request.POST.get('proveedor_codigo'),
+                'proveedor_sap': request.POST.get('proveedor_sap') or request.POST.get('proveedor_nombre'),
+                'codigo_proveedor_sap': request.POST.get('codigo_proveedor_sap'),
+                'contrato_sap': request.POST.get('contrato_sap'),
                 'bl': request.POST.get('bl'),
                 'cantidad_disponible': request.POST.get('cantidad_disponible'),
                 'docentry': request.POST.get('docentry'),
@@ -12101,6 +13526,7 @@ def update_citation(request, pk):
                     usuario=request.user,
                     origen_default='planificacion'
                 )
+                guardar_datos_planificacion_operacional(citacion, detalle_data, request.user, proveedor_sn=proveedor_sn)
             
             # Update or create CITACION_ITEM
             producto_id = request.POST.get('id_producto')
@@ -12115,28 +13541,117 @@ def update_citation(request, pk):
             return JsonResponse({'valid': False, 'msg': str(e)})
     return JsonResponse({'valid': False, 'msg': 'Invalid request method'})
 
+def respuesta_eliminar_citacion(request, success, message, redirect_url='/', status=200):
+    if request.headers.get('x-requested-with') == 'XMLHttpRequest':
+        return JsonResponse({
+            'success': success,
+            'message': message,
+            'redirect_url': redirect_url,
+        }, status=status)
+
+    if success:
+        messages.success(request, message)
+    else:
+        messages.error(request, message)
+    return redirect(redirect_url)
+
+
 def CITACION_DELETE(request, pk):
+    citacion = None
+    redirect_path = '/'
     try:
-        citacion = CITACION.objects.get(id = pk)
-        proforma = CITACION_PROFORMA.objects.filter(CI_NID = citacion)
-        referer = request.META.get('HTTP_REFERER', '')
+        citacion = CITACION.objects.get(id=pk)
         planificacion_path = f'/pla_listone/{citacion.PL_NID_id}' if citacion.PL_NID_id else ''
-        redirect_path = planificacion_path if planificacion_path and planificacion_path in referer else None
-        if proforma:
-            messages.error(request, 'No se puede eliminar la citación porque está asociada a una proforma.')
-            if redirect_path:
-                return redirect(redirect_path)
-            return redirect(f'/cit_listall_despachos/')
-        citacion.CI_BHABILITADO = False
-        citacion.save()
-        messages.success(request, 'Citación eliminada correctamente.')
-        path = redirect_path or ('/cit_listall_despachos/' if citacion.CI_CTIPO == CIT_DESPACHO else '/cit_listall_recepciones/')
-        return redirect(path)
+        referer = request.META.get('HTTP_REFERER', '')
+        redirect_path = planificacion_path if planificacion_path and planificacion_path in referer else (
+            planificacion_path or ('/cit_listall_despachos/' if citacion.CI_CTIPO == CIT_DESPACHO else '/cit_listall_recepciones/')
+        )
+
+        if request.method not in ['POST', 'DELETE']:
+            return respuesta_eliminar_citacion(
+                request,
+                False,
+                'Debe confirmar la eliminación de la citación.',
+                redirect_path,
+                status=405
+            )
+
+        if not request.user.is_superuser and not usuario_es_planificador(request.user) and not validar_perfiles_activos(request.user.id, "pla_listone"):
+            return respuesta_eliminar_citacion(
+                request,
+                False,
+                'No tiene permisos para eliminar esta citación.',
+                redirect_path,
+                status=403
+            )
+
+        empresa_activa = Verificar_empresa(request)
+        if empresa_activa and citacion.EP_NID_id != int(empresa_activa):
+            return respuesta_eliminar_citacion(
+                request,
+                False,
+                'La citación no pertenece a la empresa activa.',
+                redirect_path,
+                status=403
+            )
+
+        if CITACION_PROFORMA.objects.filter(CI_NID=citacion).exists():
+            return respuesta_eliminar_citacion(
+                request,
+                False,
+                'No se puede eliminar la citación porque está asociada a una proforma.',
+                redirect_path,
+                status=409
+            )
+
+        if not citacion_puede_editar_planificacion(citacion):
+            return respuesta_eliminar_citacion(
+                request,
+                False,
+                'No se puede eliminar: la citación ya tiene avance operativo.',
+                redirect_path,
+                status=409
+            )
+
+        with transaction.atomic():
+            extras_ids = list(CITACION_EXTRA.objects.filter(CI_NID=citacion).values_list('id', flat=True))
+            if extras_ids:
+                EXTRA_PROFORMA.objects.filter(CIE_NID_id__in=extras_ids).delete()
+
+            DATO_ACCION.objects.filter(CI_NID=citacion).delete()
+            ETAPA_ACCION.objects.filter(CI_NID=citacion).delete()
+            CITACION_DOCUMENTO.objects.filter(CI_NID=citacion).delete()
+            DATO_OPERACION.objects.filter(CI_NID=citacion).delete()
+            ETAPA_LOG.objects.filter(CI_NID=citacion).delete()
+            ESTANQUE_RESERVA.objects.filter(CI_NID=citacion).delete()
+            CITACION_DETALLE_OPERACIONAL.objects.filter(CI_NID=citacion).delete()
+            CITACION_ITEM.objects.filter(CI_NID=citacion).delete()
+            CITACION_EXTRA.objects.filter(CI_NID=citacion).delete()
+            citacion.delete()
+
+        return respuesta_eliminar_citacion(
+            request,
+            True,
+            'Citación eliminada correctamente.',
+            redirect_path
+        )
+    except CITACION.DoesNotExist:
+        return respuesta_eliminar_citacion(
+            request,
+            False,
+            'La citación no existe o ya fue eliminada.',
+            redirect_path,
+            status=404
+        )
     except Exception as e:
-        print(e)
-        path = '/cit_listall_despachos/' if citacion.CI_CTIPO == CIT_DESPACHO else '/cit_listall_recepciones/'
-        messages.error(request, f'Error, {str(e)}')
-        return redirect(path)
+        logger.exception('Error eliminando citación %s', pk)
+        return respuesta_eliminar_citacion(
+            request,
+            False,
+            f'Error al eliminar la citación: {str(e)}',
+            redirect_path,
+            status=500
+        )
 
 def CITACION_INICIAR_SECUENCIA(request, pk):
     try:
@@ -12630,6 +14145,7 @@ def DOWNLOAD_DATO_OPERACION_FILE(request, pk):
 def aplicar_filtros_expediente_citacion(queryset, params):
     citacion = str(params.get('citacion') or '').strip()
     producto_sap = str(params.get('producto_sap') or '').strip()
+    patente = str(params.get('patente') or '').strip()
     codigo_sap = str(params.get('codigo_sap') or '').strip()
     pedido_sap = str(params.get('pedido_sap') or '').strip()
     cliente = str(params.get('cliente') or '').strip()
@@ -12639,26 +14155,34 @@ def aplicar_filtros_expediente_citacion(queryset, params):
     tipo_documento = str(params.get('tipo_documento') or '').strip()
 
     if citacion and citacion.isdigit():
-        queryset = queryset.filter(CI_NID_id=citacion)
+        queryset = queryset.filter(id=citacion)
     elif citacion:
         queryset = queryset.none()
     if producto_sap:
-        queryset = queryset.filter(CI_NID__detalle_operacional__CDO_CINSUMO__icontains=producto_sap)
+        queryset = queryset.filter(
+            Q(detalle_operacional__CDO_CINSUMO__icontains=producto_sap)
+            | Q(citacion_item__IT_NID__IT_CNOMBRE__icontains=producto_sap)
+        )
+    if patente:
+        queryset = queryset.filter(
+            Q(CA_NID__CAM_CPATENTE__icontains=patente)
+            | Q(dato_operacion__CAMP_NID__CA_CCODIGO='ING_PATENTE', dato_operacion__DO_CVALOR__icontains=patente)
+        )
     if codigo_sap:
-        queryset = queryset.filter(CI_NID__detalle_operacional__CDO_CCODIGO_SAP__icontains=codigo_sap)
+        queryset = queryset.filter(detalle_operacional__CDO_CCODIGO_SAP__icontains=codigo_sap)
     if pedido_sap:
-        queryset = queryset.filter(CI_NID__detalle_operacional__CDO_CPEDIDO_SAP__icontains=pedido_sap)
+        queryset = queryset.filter(detalle_operacional__CDO_CPEDIDO_SAP__icontains=pedido_sap)
     if cliente:
-        queryset = queryset.filter(CI_NID__SN_NID__SN_CRAZONSOCIAL__icontains=cliente)
+        queryset = queryset.filter(SN_NID__SN_CRAZONSOCIAL__icontains=cliente)
     if proveedor:
-        queryset = queryset.filter(CI_NID__PRO_NID__SN_CRAZONSOCIAL__icontains=proveedor)
+        queryset = queryset.filter(PRO_NID__SN_CRAZONSOCIAL__icontains=proveedor)
     if fecha_desde:
-        queryset = queryset.filter(CI_NID__CI_FFECHACITACION__date__gte=fecha_desde)
+        queryset = queryset.filter(CI_FFECHACITACION__date__gte=fecha_desde)
     if fecha_hasta:
-        queryset = queryset.filter(CI_NID__CI_FFECHACITACION__date__lte=fecha_hasta)
+        queryset = queryset.filter(CI_FFECHACITACION__date__lte=fecha_hasta)
     if tipo_documento:
-        queryset = queryset.filter(CD_CTIPO=tipo_documento)
-    return queryset
+        queryset = queryset.filter(documentos_expediente__CD_CTIPO=tipo_documento, documentos_expediente__CD_BACTIVO=True)
+    return queryset.distinct()
 
 
 def EXPEDIENTE_CITACION_LIST(request):
@@ -12668,32 +14192,64 @@ def EXPEDIENTE_CITACION_LIST(request):
         return redirect('/')
 
     sincronizar_expedientes_legacy_empresa(empresa)
-    documentos = CITACION_DOCUMENTO.objects.select_related(
-        'CI_NID',
-        'CI_NID__SN_NID',
-        'CI_NID__PRO_NID',
-        'CI_NID__detalle_operacional',
-        'US_SUBE_NID'
+    citaciones = CITACION.objects.select_related(
+        'SN_NID',
+        'PRO_NID',
+        'CA_NID',
+        'detalle_operacional',
     ).filter(
         EP_NID_id=empresa,
-        CD_BACTIVO=True
+        CI_BHABILITADO=True,
+        documentos_expediente__CD_BACTIVO=True
     )
-    documentos = aplicar_filtros_expediente_citacion(documentos, request.GET)
-    documentos = documentos.order_by('-CI_NID__CI_FFECHACITACION', '-CD_FFECHASUBIDA')
+    citaciones = aplicar_filtros_expediente_citacion(citaciones, request.GET)
+    citaciones = citaciones.order_by('-CI_FFECHACITACION', '-id')
 
-    paginator = Paginator(documentos, 50)
+    paginator = Paginator(citaciones, 30)
     page_number = request.GET.get('page')
     page_obj = paginator.get_page(page_number)
     querystring = request.GET.copy()
     querystring.pop('page', None)
 
+    citaciones_pagina = list(page_obj.object_list)
+    documentos_por_citacion = {}
+    documentos = CITACION_DOCUMENTO.objects.select_related('US_SUBE_NID').filter(
+        CI_NID_id__in=[citacion.id for citacion in citaciones_pagina],
+        EP_NID_id=empresa,
+        CD_BACTIVO=True
+    ).order_by('CD_CTIPO', '-CD_FFECHASUBIDA')
+    tipo_documento = str(request.GET.get('tipo_documento') or '').strip()
+    if tipo_documento:
+        documentos = documentos.filter(CD_CTIPO=tipo_documento)
+    for documento in documentos:
+        documentos_por_citacion.setdefault(documento.CI_NID_id, []).append(documento)
+
+    expedientes = []
+    for citacion in citaciones_pagina:
+        valores_ingreso = obtener_valores_ingreso_camion(citacion)
+        item = CITACION_ITEM.objects.select_related('IT_NID').filter(CI_NID=citacion).first()
+        detalle = getattr(citacion, 'detalle_operacional', None)
+        proveedor_sap = (detalle.CDO_CPRODUCTOR if detalle else '') or (citacion.PRO_NID.SN_CRAZONSOCIAL if citacion.PRO_NID else '')
+        expedientes.append({
+            'citacion': citacion,
+            'detalle': detalle,
+            'producto': (detalle.CDO_CINSUMO if detalle else '') or (item.IT_NID.IT_CNOMBRE if item and item.IT_NID else ''),
+            'codigo_sap': detalle.CDO_CCODIGO_SAP if detalle else '',
+            'pedido_sap': detalle.CDO_CPEDIDO_SAP if detalle else '',
+            'patente': valores_ingreso.get('patente') or '',
+            'cliente': citacion.SN_NID.SN_CRAZONSOCIAL if citacion.SN_NID else '',
+            'proveedor': proveedor_sap,
+            'documentos': documentos_por_citacion.get(citacion.id, []),
+        })
+
     return render(request, 'home/EXPEDIENTE/expediente_list.html', {
         'page_obj': page_obj,
-        'object_list': page_obj.object_list,
+        'expedientes': expedientes,
         'tipos_documento': EXPEDIENTE_TIPO_LABELS.items(),
         'filtros': request.GET,
         'querystring': querystring.urlencode(),
         'puede_administrar': usuario_puede_administrar_expediente(request.user),
+        'empresa_query_param': request.GET.get(EMPRESA_ACTIVA_PARAM) or request.GET.get('empresa_id') or empresa,
     })
 
 
@@ -12728,9 +14284,11 @@ def EXPEDIENTE_CITACION_DETAIL(request, pk):
         })
 
     detalle = getattr(citacion, 'detalle_operacional', None)
+    proveedor_sap = (detalle.CDO_CPRODUCTOR if detalle else '') or (citacion.PRO_NID.SN_CRAZONSOCIAL if citacion.PRO_NID else '')
     return render(request, 'home/EXPEDIENTE/expediente_detail.html', {
         'citacion': citacion,
         'detalle': detalle,
+        'proveedor_sap': proveedor_sap,
         'documentos': documentos,
         'historial': historial,
         'puede_administrar': usuario_puede_administrar_expediente(request.user),
@@ -12812,6 +14370,567 @@ def EXPEDIENTE_CITACION_DOCUMENTO_REEMPLAZAR(request, pk):
     )
     messages.success(request, 'Documento reemplazado correctamente')
     return redirect('expediente_citacion_detail', pk=documento.CI_NID_id)
+
+
+def usuario_puede_ver_archivo_eli(user):
+    if getattr(user, 'is_superuser', False):
+        return True
+    return (
+        usuario_es_operacion_planta(user)
+        or usuario_es_planificador(user)
+        or validar_perfiles_activos(user.id, "cit_listone")
+        or validar_perfiles_activos(user.id, "pla_listone")
+    )
+
+
+def eli_texto(valor, defecto='No disponible'):
+    if valor is None or valor == '':
+        return defecto
+    return str(valor)
+
+
+def eli_fecha(valor, defecto='No disponible'):
+    if not valor:
+        return defecto
+    try:
+        return timezone.localtime(valor).strftime('%d/%m/%Y %H:%M:%S')
+    except Exception:
+        return defecto
+
+
+def eli_usuario(usuario):
+    if not usuario:
+        return 'No disponible'
+    nombre = f'{getattr(usuario, "first_name", "")} {getattr(usuario, "last_name", "")}'.strip()
+    return nombre or getattr(usuario, 'username', '') or f'Usuario ID {getattr(usuario, "id", "")}'
+
+
+def eli_texto_vacio(valor):
+    if valor in [None, '']:
+        return ''
+    return str(valor)
+
+
+def eli_fecha_vacia(valor):
+    if not valor:
+        return ''
+    try:
+        return timezone.localtime(valor).strftime('%d/%m/%Y %H:%M:%S')
+    except Exception:
+        return ''
+
+
+def eli_fecha_solo_dia_vacia(valor):
+    if not valor:
+        return ''
+    try:
+        return timezone.localtime(valor).strftime('%d/%m/%Y')
+    except Exception:
+        return ''
+
+
+def eli_usuario_vacio(usuario):
+    if not usuario:
+        return ''
+    nombre = f'{getattr(usuario, "first_name", "")} {getattr(usuario, "last_name", "")}'.strip()
+    return nombre or getattr(usuario, 'username', '') or ''
+
+
+def eli_estado_auditoria(log):
+    if not log:
+        return 'Pendiente'
+    estado = str(getattr(log, 'OPL_CESTADO', '') or '').strip()
+    return estado.title() if estado else 'Completado'
+
+
+def eli_auditoria_operacion(log, responsable=''):
+    return {
+        'responsable': responsable or (log.OPL_CPERFIL_RESPONSABLE if log else ''),
+        'usuario_responsable': eli_usuario_vacio(log.US_NID) if log else '',
+        'usuario_aprobador': eli_usuario_vacio(log.US_NID) if log else '',
+        'fecha_inicio': eli_fecha_vacia(log.OPL_FFECHAREGISTRO) if log else '',
+        'fecha_termino': eli_fecha_vacia(log.OPL_FFECHAREGISTRO) if log else '',
+        'fecha': eli_fecha_vacia(log.OPL_FFECHAREGISTRO) if log else '',
+        'estado': eli_estado_auditoria(log),
+    }
+
+
+def eli_fila(label, value):
+    return {'label': label, 'value': eli_texto_vacio(value)}
+
+
+def eli_etapa(numero, titulo, datos, auditoria):
+    return {
+        'numero': numero,
+        'titulo': titulo,
+        'datos': datos,
+        'auditoria': auditoria,
+    }
+
+
+def eli_parse_json_seguro(valor):
+    texto = str(valor or '').strip()
+    if not texto or not (texto.startswith('{') or texto.startswith('[')):
+        return None
+    try:
+        data = json.loads(texto)
+    except (TypeError, ValueError):
+        return None
+    return data if isinstance(data, (dict, list)) else None
+
+
+def eli_metadata_rows(metadata):
+    if not isinstance(metadata, dict):
+        return []
+    etiquetas = {
+        'peso_neto': 'Peso neto',
+        'folio': 'Folio',
+        'nombre_archivo_pdf': 'Archivo PDF',
+        'fecha_hora_ticket': 'Fecha ticket',
+        'resultado_calidad': 'Resultado calidad',
+        'comentario': 'Comentario',
+        'documento_nombre': 'Documento',
+        'sitio_descarga': 'Sitio descarga',
+        'bomba_descarga': 'Bomba descarga',
+        'estanque_destino': 'Estanque destino',
+        'tipo_descarga': 'Tipo descarga',
+        'inicio_descarga': 'Inicio descarga',
+        'fin_descarga': 'Fin descarga',
+        'duracion_legible': 'Duracion',
+        'recepcion_conforme': 'Recepcion conforme',
+        'observacion_descarga': 'Observacion descarga',
+        'paso_operacion': 'Paso operacion',
+        'usuario': 'Usuario',
+        'usuario_inicio': 'Usuario inicio',
+        'usuario_fin': 'Usuario fin',
+        'fecha_hora': 'Fecha/hora',
+        'fecha_iso': 'Fecha ISO',
+    }
+    rows = []
+    for llave, etiqueta in etiquetas.items():
+        valor = metadata.get(llave)
+        if valor not in [None, '']:
+            rows.append({'label': etiqueta, 'value': valor})
+    return rows
+
+
+def eli_duracion(inicio, fin):
+    if not inicio or not fin:
+        return 'No disponible'
+    try:
+        total = max(int((fin - inicio).total_seconds()), 0)
+    except Exception:
+        return 'No disponible'
+    dias = total // 86400
+    horas = (total % 86400) // 3600
+    minutos = (total % 3600) // 60
+    segundos = total % 60
+    if dias:
+        return f'{dias} dias {horas:02d}:{minutos:02d}:{segundos:02d}'
+    return f'{horas:02d}:{minutos:02d}:{segundos:02d}'
+
+
+def eli_primer_log_operacion(logs, paso):
+    for log in logs:
+        if log.OPL_CPASO == paso:
+            return log
+    return None
+
+
+def eli_dato_metadata(datos_por_codigo, codigo):
+    dato = datos_por_codigo.get(codigo)
+    if not dato:
+        return {}
+    metadata = eli_parse_json_seguro(dato.DO_CVALOR)
+    return metadata if isinstance(metadata, dict) else {}
+
+
+def construir_archivo_eli(citacion, request=None):
+    sincronizar_expediente_legacy_citacion(citacion)
+    detalle = obtener_detalle_operacional_citacion(citacion)
+    detalle_dict = detalle_operacional_dict(citacion)
+    valores_ingreso = obtener_valores_ingreso_camion(citacion)
+    item = CITACION_ITEM.objects.select_related('IT_NID').filter(CI_NID=citacion).first()
+    datos_operacion_qs = DATO_OPERACION.objects.select_related('CAMP_NID', 'US_NID', 'ET_NID').filter(
+        CI_NID=citacion
+    ).order_by('DO_FFECHAREGISTRO', 'id')
+    datos_operacion = list(datos_operacion_qs)
+    datos_por_codigo = {}
+    for dato in datos_operacion:
+        codigo = dato.CAMP_NID.CA_CCODIGO if dato.CAMP_NID else f'DATO_{dato.id}'
+        datos_por_codigo[codigo] = dato
+
+    documentos = []
+    for documento in CITACION_DOCUMENTO.objects.select_related('US_SUBE_NID').filter(
+        CI_NID=citacion,
+        EP_NID=citacion.EP_NID,
+        CD_BACTIVO=True
+    ).order_by('CD_CTIPO', '-CD_FFECHASUBIDA'):
+        documentos.append({
+            'id': documento.id,
+            'tipo': documento.get_CD_CTIPO_display(),
+            'codigo': documento.CD_CTIPO,
+            'archivo': os.path.basename(documento.CD_CNOMBRE_ARCHIVO or documento.CD_CRUTA_ARCHIVO or ''),
+            'fecha': eli_fecha(documento.CD_FFECHASUBIDA),
+            'usuario': eli_usuario(documento.US_SUBE_NID),
+        })
+
+    etapa_logs = []
+    for idx, log in enumerate(ETAPA_LOG.objects.select_related(
+        'ET_NID', 'US_INICIO_ID', 'US_FIN_ID'
+    ).filter(CI_NID=citacion).order_by('EL_FFECHAINICIO', 'id'), start=1):
+        etapa_logs.append({
+            'numero': idx,
+            'accion': log.EL_CACCION or (log.ET_NID.ET_CNOMBRE if log.ET_NID else ''),
+            'etapa': log.ET_NID.ET_CNOMBRE if log.ET_NID else '',
+            'usuario_inicio': eli_usuario(log.US_INICIO_ID),
+            'usuario_fin': eli_usuario(log.US_FIN_ID),
+            'inicio': eli_fecha(log.EL_FFECHAINICIO),
+            'fin': eli_fecha(log.EL_FFECHAFIN),
+            'observacion': log.EL_COBSERVACION or '',
+            'duracion': eli_duracion(log.EL_FFECHAINICIO, log.EL_FFECHAFIN),
+        })
+
+    logs_operacion = list(OPERACION_PLANTA_LOG.objects.select_related('US_NID').filter(
+        CI_NID=citacion
+    ).order_by('OPL_FFECHAREGISTRO', 'id'))
+    seguimiento = []
+    for idx, log in enumerate(logs_operacion, start=1):
+        metadata_log = eli_parse_json_seguro(log.OPL_COBSERVACION)
+        detalle_rows = eli_metadata_rows(metadata_log) if isinstance(metadata_log, dict) else []
+        codigo_por_paso = {
+            'Pesaje Entrada': _codigo_campo_ticket_pesaje('ENT'),
+            'Pesaje Salida': _codigo_campo_ticket_pesaje('SAL'),
+            PASO_TOMA_MUESTRA: CAMPO_TOMA_MUESTRA_ACCION,
+            PASO_ANALISIS_CALIDAD: CAMPO_RESULTADO_CALIDAD,
+            PASO_RESULTADO_CALIDAD: CAMPO_PREPARACION_DESCARGA,
+            PASO_CICLO_DESCARGA: CAMPO_CICLO_DESCARGA,
+            PASO_AUTORIZAR_SALIDA: CAMPO_AUTORIZAR_SALIDA,
+        }.get(log.OPL_CPASO)
+        if codigo_por_paso:
+            metadata_dato = eli_dato_metadata(datos_por_codigo, codigo_por_paso)
+            detalle_rows = eli_metadata_rows(metadata_dato) or detalle_rows
+        seguimiento.append({
+            'numero': idx,
+            'paso': log.OPL_CPASO,
+            'perfil': log.OPL_CPERFIL_RESPONSABLE,
+            'estado': log.OPL_CESTADO,
+            'usuario': eli_usuario(log.US_NID),
+            'fecha': eli_fecha(log.OPL_FFECHAREGISTRO),
+            'observacion': log.OPL_COBSERVACION or '',
+            'detalles': detalle_rows,
+        })
+
+    datos_operacion_rows = []
+    for dato in datos_operacion:
+        metadata = eli_parse_json_seguro(dato.DO_CVALOR)
+        datos_operacion_rows.append({
+            'codigo': dato.CAMP_NID.CA_CCODIGO if dato.CAMP_NID else f'DATO_{dato.id}',
+            'etiqueta': dato.CAMP_NID.CA_CETIQUETA if dato.CAMP_NID else '',
+            'valor': '' if isinstance(metadata, dict) else dato.DO_CVALOR,
+            'detalles': eli_metadata_rows(metadata) if isinstance(metadata, dict) else [],
+            'usuario': eli_usuario(dato.US_NID),
+            'fecha': eli_fecha(dato.DO_FFECHAREGISTRO),
+        })
+
+    ticket_ent = eli_dato_metadata(datos_por_codigo, _codigo_campo_ticket_pesaje('ENT'))
+    ticket_sal = eli_dato_metadata(datos_por_codigo, _codigo_campo_ticket_pesaje('SAL'))
+    calidad = eli_dato_metadata(datos_por_codigo, CAMPO_RESULTADO_CALIDAD)
+    preparacion = eli_dato_metadata(datos_por_codigo, CAMPO_PREPARACION_DESCARGA)
+    autorizacion = eli_dato_metadata(datos_por_codigo, CAMPO_AUTORIZAR_SALIDA)
+    ciclo = eli_dato_metadata(datos_por_codigo, CAMPO_CICLO_DESCARGA)
+
+    log_habilita = eli_primer_log_operacion(logs_operacion, 'Habilitar Operacion Planta')
+    log_pesaje_entrada = eli_primer_log_operacion(logs_operacion, 'Pesaje Entrada')
+    log_toma_muestra = eli_primer_log_operacion(logs_operacion, PASO_TOMA_MUESTRA)
+    log_analisis = eli_primer_log_operacion(logs_operacion, PASO_ANALISIS_CALIDAD)
+    log_resultado = eli_primer_log_operacion(logs_operacion, PASO_RESULTADO_CALIDAD)
+    log_inicio_descarga = eli_primer_log_operacion(logs_operacion, 'INICIA_DESCARGA')
+    log_ciclo = eli_primer_log_operacion(logs_operacion, PASO_CICLO_DESCARGA)
+    log_pesaje_salida = eli_primer_log_operacion(logs_operacion, 'Pesaje Salida')
+    log_autorizar = eli_primer_log_operacion(logs_operacion, PASO_AUTORIZAR_SALIDA)
+    log_confirmar = eli_primer_log_operacion(logs_operacion, PASO_CONFIRMAR_SALIDA)
+
+    tiempos = [
+        {'nombre': 'Tiempo total del proceso', 'valor': eli_duracion(citacion.CI_FFECHAREGISTRO or citacion.CI_FFECHACITACION, log_confirmar.OPL_FFECHAREGISTRO if log_confirmar else citacion.CI_FFECHATERMINO)},
+        {'nombre': 'Ingreso camion hasta habilitar operacion planta', 'valor': eli_duracion(citacion.CI_FFECHAINICIO or citacion.CI_FFECHAREGISTRO, log_habilita.OPL_FFECHAREGISTRO if log_habilita else None)},
+        {'nombre': 'Pesaje Entrada a Toma de muestra', 'valor': eli_duracion(log_pesaje_entrada.OPL_FFECHAREGISTRO if log_pesaje_entrada else None, log_toma_muestra.OPL_FFECHAREGISTRO if log_toma_muestra else None)},
+        {'nombre': 'Toma de muestra a Analisis Calidad', 'valor': eli_duracion(log_toma_muestra.OPL_FFECHAREGISTRO if log_toma_muestra else None, log_analisis.OPL_FFECHAREGISTRO if log_analisis else None)},
+        {'nombre': 'Analisis Calidad a Resultado Calidad', 'valor': eli_duracion(log_analisis.OPL_FFECHAREGISTRO if log_analisis else None, log_resultado.OPL_FFECHAREGISTRO if log_resultado else None)},
+        {'nombre': 'Resultado Calidad a Inicio Descarga', 'valor': eli_duracion(log_resultado.OPL_FFECHAREGISTRO if log_resultado else None, log_inicio_descarga.OPL_FFECHAREGISTRO if log_inicio_descarga else None)},
+        {'nombre': 'Duracion real Ciclo Descarga', 'valor': ciclo.get('duracion_legible') or (log_ciclo and log_ciclo.OPL_COBSERVACION) or 'No disponible'},
+        {'nombre': 'Pesaje Salida a Autorizar Salida', 'valor': eli_duracion(log_pesaje_salida.OPL_FFECHAREGISTRO if log_pesaje_salida else None, log_autorizar.OPL_FFECHAREGISTRO if log_autorizar else None)},
+        {'nombre': 'Autorizar Salida a Confirmar Salida', 'valor': eli_duracion(log_autorizar.OPL_FFECHAREGISTRO if log_autorizar else None, log_confirmar.OPL_FFECHAREGISTRO if log_confirmar else None)},
+        {'nombre': 'Tiempo total en planta', 'valor': eli_duracion(log_habilita.OPL_FFECHAREGISTRO if log_habilita else None, log_confirmar.OPL_FFECHAREGISTRO if log_confirmar else None)},
+    ]
+
+    datos_camion = [
+        {'label': 'Transportista', 'value': valores_ingreso.get('transportista')},
+        {'label': 'Conductor', 'value': valores_ingreso.get('conductor')},
+        {'label': 'Patente', 'value': valores_ingreso.get('patente')},
+        {'label': 'Ejes', 'value': valores_ingreso.get('cantidad_ejes')},
+        {'label': 'Telefono', 'value': valores_ingreso.get('celular_conductor')},
+        {'label': 'Guia', 'value': citacion.CI_CNUMERODOCUMENTO},
+        {'label': 'Contenedor / BL', 'value': valores_ingreso.get('bl') or detalle_dict.get('bl')},
+        {'label': 'Estanque destino', 'value': detalle_dict.get('estanque_destino') or ciclo.get('estanque_destino')},
+    ]
+    proveedor_sap_eli = (
+        detalle_dict.get('proveedor_sap')
+        or valor_dato_operacion(datos_por_codigo, 'PLAN_PROVEEDOR_SAP')
+        or (citacion.PRO_NID.SN_CRAZONSOCIAL if citacion.PRO_NID else '')
+    )
+    codigo_proveedor_sap_eli = (
+        detalle_dict.get('proveedor_codigo')
+        or valor_dato_operacion(datos_por_codigo, 'PLAN_CODIGO_PROVEEDOR_SAP')
+    )
+    contrato_sap = (
+        valor_dato_operacion(datos_por_codigo, 'PLAN_CONTRATO_SAP')
+        or obtener_contrato_sap_visible_por_pedido(detalle_dict.get('pedido'))
+    )
+
+    datos_planificacion = [
+        {'label': 'Insumo SAP', 'value': detalle_dict.get('insumo') or (item.IT_NID.IT_CNOMBRE if item and item.IT_NID else '')},
+        {'label': 'Codigo SAP', 'value': detalle_dict.get('codigo')},
+        {'label': 'Pedido SAP', 'value': detalle_dict.get('pedido')},
+        {'label': 'Proveedor SAP', 'value': proveedor_sap_eli},
+        {'label': 'Codigo proveedor SAP', 'value': codigo_proveedor_sap_eli},
+        {'label': 'Contrato SAP', 'value': contrato_sap},
+        {'label': 'BL/contenedor', 'value': detalle_dict.get('bl')},
+        {'label': 'Cantidad', 'value': detalle_dict.get('cantidad_disponible')},
+        {'label': 'Planta/almacen', 'value': detalle_dict.get('almacen_destino')},
+        {'label': 'Ruta/tarifa', 'value': (citacion.TAR_NID.TAR_CNOMBRETARIFA if citacion.TAR_NID else '')},
+        {'label': 'Tipo flete', 'value': citacion.CI_CTIPO_FLETE},
+        {'label': 'Fecha planificacion', 'value': eli_fecha(citacion.PL_NID.PL_FFECHAINICIO if citacion.PL_NID else None)},
+    ]
+
+    insumo_sap = detalle_dict.get('insumo') or (item.IT_NID.IT_CNOMBRE if item and item.IT_NID else '')
+    numero_documento = citacion.CI_CNUMERODOCUMENTO or ''
+    tipo_documento = str(citacion.CI_CTIPODOCUMENTO or '').upper()
+    guia = numero_documento if 'FACT' not in tipo_documento else ''
+    factura = numero_documento if 'FACT' in tipo_documento else ''
+    observacion_toma_muestra = _observacion_toma_muestra_visible(citacion, log_toma_muestra)
+    peso_entrada = ticket_ent.get('peso_neto')
+    peso_salida = ticket_sal.get('peso_neto')
+    diferencia_peso = ''
+    try:
+        if peso_entrada not in [None, ''] and peso_salida not in [None, '']:
+            diferencia_peso = Decimal(str(peso_entrada)) - Decimal(str(peso_salida))
+    except (InvalidOperation, ValueError):
+        diferencia_peso = ''
+
+    encabezado_eli = [
+        eli_fila('Numero citacion', citacion.id),
+        eli_fila('Fecha citacion', eli_fecha_solo_dia_vacia(citacion.CI_FFECHACITACION)),
+        eli_fila('Cliente', citacion.SN_NID.SN_CRAZONSOCIAL if citacion.SN_NID else ''),
+        eli_fila('Proveedor', proveedor_sap_eli),
+        eli_fila('Tipo recepcion', citacion.CI_CTIPO),
+        eli_fila('Flujo', citacion.SC_NID.SE_CNOMBRE if citacion.SC_NID else ''),
+        eli_fila('Patente', valores_ingreso.get('patente')),
+        eli_fila('Conductor', valores_ingreso.get('conductor')),
+        eli_fila('Transportista', valores_ingreso.get('transportista')),
+    ]
+
+    etapas_eli = [
+        eli_etapa(1, 'Revision documental', [
+            eli_fila('Guia', guia),
+            eli_fila('Factura', factura),
+            eli_fila('Cliente', citacion.SN_NID.SN_CRAZONSOCIAL if citacion.SN_NID else ''),
+            eli_fila('Codigo SAP', detalle_dict.get('codigo')),
+            eli_fila('Pedido SAP', detalle_dict.get('pedido')),
+            eli_fila('Contrato SAP', contrato_sap),
+            eli_fila('Insumo SAP', insumo_sap),
+            eli_fila('Cantidad neta', detalle_dict.get('cantidad_disponible')),
+            eli_fila('Transportista', valores_ingreso.get('transportista')),
+            eli_fila('Patente', valores_ingreso.get('patente')),
+            eli_fila('Conductor', valores_ingreso.get('conductor')),
+        ], eli_auditoria_operacion(None, 'Asistente Recepcion')),
+        eli_etapa(2, 'Ingreso a planta', [
+            eli_fila('Fecha ingreso', eli_fecha_vacia(log_habilita.OPL_FFECHAREGISTRO if log_habilita else None)),
+            eli_fila('Usuario que autorizo ingreso', eli_usuario_vacio(log_habilita.US_NID) if log_habilita else ''),
+            eli_fila('Observaciones', log_habilita.OPL_COBSERVACION if log_habilita else ''),
+        ], eli_auditoria_operacion(log_habilita, 'Guardia Porteria')),
+        eli_etapa(3, 'Inspeccion transporte', [
+            eli_fila('Estado camion', ''),
+            eli_fila('Estado carga', ''),
+            eli_fila('Sellos', ''),
+            eli_fila('Contaminacion', ''),
+            eli_fila('Observaciones', ''),
+        ], eli_auditoria_operacion(None, '')),
+        eli_etapa(4, 'Toma de muestra', [
+            eli_fila('Observacion toma de muestra', observacion_toma_muestra),
+        ], eli_auditoria_operacion(log_toma_muestra, 'Asistente C_D')),
+        eli_etapa(5, 'Analisis y calidad', [
+            eli_fila('Resultado calidad', calidad.get('resultado_calidad')),
+            eli_fila('Observacion calidad', calidad.get('comentario')),
+            eli_fila('Documento laboratorio', calidad.get('documento_nombre')),
+        ], eli_auditoria_operacion(log_analisis, 'Calidad')),
+        eli_etapa(6, 'Autorizacion descarga', [
+            eli_fila('Autoriza descarga', preparacion.get('autoriza_descarga')),
+            eli_fila('Observaciones', preparacion.get('observaciones_descarga')),
+        ], eli_auditoria_operacion(log_resultado, 'Asistente C_D')),
+        eli_etapa(7, 'Descarga', [
+            eli_fila('Numero sellos', ''),
+            eli_fila('Estado camion', ''),
+            eli_fila('Facil apertura', ''),
+            eli_fila('Observaciones', ''),
+        ], eli_auditoria_operacion(log_ciclo or log_inicio_descarga, 'Sala Control')),
+        eli_etapa(8, 'Cierre operacional', [
+            eli_fila('Pesaje entrada', peso_entrada),
+            eli_fila('Pesaje salida', peso_salida),
+            eli_fila('Diferencia', diferencia_peso),
+            eli_fila('Fecha salida planta', eli_fecha_vacia(log_confirmar.OPL_FFECHAREGISTRO if log_confirmar else None)),
+        ], eli_auditoria_operacion(log_confirmar, 'Guardia Porteria')),
+    ]
+
+    pdf_disponible = bool(log_autorizar)
+    return {
+        'citacion': citacion,
+        'detalle': detalle,
+        'item': item,
+        'encabezado_eli': encabezado_eli,
+        'etapas_eli': etapas_eli,
+        'documentos': documentos,
+        'etapa_logs': etapa_logs,
+        'seguimiento': seguimiento,
+        'datos_operacion': datos_operacion_rows,
+        'tiempos': tiempos,
+        'datos_camion': datos_camion,
+        'datos_planificacion': datos_planificacion,
+        'pdf_disponible': pdf_disponible,
+        'estado_eli': 'Final disponible' if pdf_disponible else 'Preliminar',
+        'resumen': {
+            'producto': insumo_sap,
+            'patente': valores_ingreso.get('patente'),
+            'transportista': valores_ingreso.get('transportista'),
+            'conductor': valores_ingreso.get('conductor'),
+            'peso_entrada': peso_entrada,
+            'peso_salida': peso_salida,
+            'diferencia_peso': diferencia_peso,
+            'resultado_calidad': calidad.get('resultado_calidad'),
+            'recepcion_conforme': autorizacion.get('recepcion_conforme'),
+            'estado_final': citacion.CI_CESTADO,
+            'usuario_autoriza': log_autorizar.US_NID.username if log_autorizar and log_autorizar.US_NID else '',
+            'usuario_confirma': log_confirmar.US_NID.username if log_confirmar and log_confirmar.US_NID else '',
+        },
+    }
+
+
+def ELI_LISTALL(request):
+    empresa = Verificar_empresa(request)
+    if empresa is None:
+        messages.error(request, 'Debe seleccionar una empresa activa')
+        return redirect('/')
+    if not usuario_puede_ver_archivo_eli(request.user):
+        messages.error(request, 'No tiene permisos para Archivo E.L.I.')
+        return redirect('/')
+
+    autorizadas_ids = OPERACION_PLANTA_LOG.objects.filter(
+        EP_NID_id=empresa,
+        OPL_CPASO=PASO_AUTORIZAR_SALIDA,
+        OPL_CESTADO=OPERACION_PLANTA_LOG.ESTADO_COMPLETADO
+    ).values_list('CI_NID_id', flat=True)
+    citaciones = CITACION.objects.select_related(
+        'EP_NID', 'PL_NID', 'SN_NID', 'PRO_NID', 'CON_NID', 'CA_NID', 'detalle_operacional'
+    ).filter(
+        EP_NID_id=empresa,
+        CI_BHABILITADO=True
+    ).filter(Q(CI_CESTADO=CIT_TERMINADO) | Q(id__in=autorizadas_ids))
+
+    citacion_filtro = str(request.GET.get('citacion') or '').strip()
+    if citacion_filtro:
+        if citacion_filtro.isdigit():
+            citaciones = citaciones.filter(id=citacion_filtro)
+        else:
+            citaciones = citaciones.none()
+
+    citaciones = citaciones.order_by('-CI_FFECHACITACION', '-id')
+    paginator = Paginator(citaciones, 30)
+    page_obj = paginator.get_page(request.GET.get('page'))
+    querystring = request.GET.copy()
+    querystring.pop('page', None)
+
+    rows = []
+    autorizadas_set = set(autorizadas_ids)
+    for citacion in page_obj.object_list:
+        valores = obtener_valores_ingreso_camion(citacion)
+        item = CITACION_ITEM.objects.select_related('IT_NID').filter(CI_NID=citacion).first()
+        detalle = getattr(citacion, 'detalle_operacional', None)
+        proveedor_sap = (detalle.CDO_CPRODUCTOR if detalle else '') or (citacion.PRO_NID.SN_CRAZONSOCIAL if citacion.PRO_NID else '')
+        rows.append({
+            'citacion': citacion,
+            'patente': valores.get('patente'),
+            'transportista': valores.get('transportista'),
+            'conductor': valores.get('conductor'),
+            'producto': (detalle.CDO_CINSUMO if detalle else '') or (item.IT_NID.IT_CNOMBRE if item and item.IT_NID else ''),
+            'cliente_proveedor': proveedor_sap or (citacion.SN_NID.SN_CRAZONSOCIAL if citacion.SN_NID else ''),
+            'estado_eli': 'Final disponible' if citacion.id in autorizadas_set else 'Preliminar',
+            'pdf_disponible': citacion.id in autorizadas_set,
+        })
+
+    return render(request, 'home/ELI/eli_listall.html', {
+        'page_obj': page_obj,
+        'rows': rows,
+        'filtros': request.GET,
+        'querystring': querystring.urlencode(),
+    })
+
+
+def ELI_LISTONE(request, pk):
+    empresa = Verificar_empresa(request)
+    if empresa is None:
+        messages.error(request, 'Debe seleccionar una empresa activa')
+        return redirect('/')
+    if not usuario_puede_ver_archivo_eli(request.user):
+        messages.error(request, 'No tiene permisos para Archivo E.L.I.')
+        return redirect('/')
+    citacion = get_object_or_404(
+        CITACION.objects.select_related('EP_NID', 'PL_NID', 'SN_NID', 'PRO_NID', 'RUT_NID', 'TAR_NID', 'SC_NID'),
+        pk=pk,
+        EP_NID_id=empresa,
+        CI_BHABILITADO=True
+    )
+    expediente = construir_archivo_eli(citacion, request=request)
+    return render(request, 'home/ELI/eli_listone.html', {'expediente': expediente})
+
+
+def ELI_PDF(request, pk):
+    empresa = Verificar_empresa(request)
+    if empresa is None:
+        messages.error(request, 'Debe seleccionar una empresa activa')
+        return redirect('/')
+    if not usuario_puede_ver_archivo_eli(request.user):
+        messages.error(request, 'No tiene permisos para Archivo E.L.I.')
+        return redirect('/')
+    citacion = get_object_or_404(
+        CITACION.objects.select_related('EP_NID', 'PL_NID', 'SN_NID', 'PRO_NID', 'RUT_NID', 'TAR_NID', 'SC_NID'),
+        pk=pk,
+        EP_NID_id=empresa,
+        CI_BHABILITADO=True
+    )
+    expediente = construir_archivo_eli(citacion, request=request)
+    if not expediente['pdf_disponible']:
+        messages.warning(request, 'PDF final disponible despues de Autorizar Salida.')
+        return redirect('eli_listone', pk=citacion.id)
+    if not WEASYPRINT_AVAILABLE:
+        messages.error(request, 'WeasyPrint no esta disponible para generar PDF.')
+        return redirect('eli_listone', pk=citacion.id)
+
+    html = render_to_string('home/ELI/eli_pdf.html', {
+        'expediente': expediente,
+        'fecha_generacion': eli_fecha(timezone.now()),
+        'usuario_genera': eli_usuario(request.user),
+    }, request=request)
+    response = HttpResponse(content_type='application/pdf')
+    response['Content-Disposition'] = f'attachment; filename="ELI_CITACION_{citacion.id}.pdf"'
+    try:
+        HTML(string=html, base_url=request.build_absolute_uri('/')).write_pdf(
+            response,
+            stylesheets=[CSS(string='@page { size: A4; margin: 1.2cm; }')]
+        )
+    except Exception as e:
+        messages.error(request, f'Error al generar PDF E.L.I.: {str(e)}')
+        return redirect('eli_listone', pk=citacion.id)
+    return response
 
 
 def ajax_listar_archivos_tickets(request):
@@ -16164,7 +18283,7 @@ def asegurar_notificaciones_guardia_porteria_pendientes(user):
         if NOTIFICACION.objects.filter(
             USER_RECEIVER_ID=user,
             NOT_CURL=notificacion_url,
-            NOT_CCONTENIDO__icontains='autorizado ingreso a planta',
+            NOT_CCONTENIDO__icontains='debe ingresar a planta',
             NOT_BHABILITADO=True
         ).exists():
             continue
@@ -16175,7 +18294,7 @@ def asegurar_notificaciones_guardia_porteria_pendientes(user):
             USER_SENDER_ID=log_envio.US_NID,
             USER_RECEIVER_ID=user,
             EP_NID=citacion.EP_NID,
-            NOT_CCONTENIDO=f'Patente: {patente} autorizado ingreso a planta',
+            NOT_CCONTENIDO=f'Patente {patente} debe ingresar a planta',
             NOT_CURL=notificacion_url
         )
 
@@ -16188,7 +18307,7 @@ def cerrar_notificaciones_guardia_porteria_incorrectas(user):
         USER_RECEIVER_ID=user,
         NOT_BREAD=False,
         NOT_BHABILITADO=True,
-        NOT_CCONTENIDO__icontains='debe ingresar a Planta'
+        NOT_CCONTENIDO__icontains='autorizado ingreso a planta'
     ).update(
         NOT_BREAD=True,
         NOT_FFECHALEIDO=timezone.now()

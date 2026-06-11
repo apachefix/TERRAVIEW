@@ -18,7 +18,7 @@
     </li>
 
     <li class="nav-item">
-        <a href="{% url 'expediente_citacion_list' %}" class="nav-link "><span class="pcoded-micon"><i class="fas fa-folder-open"></i></span><span class="pcoded-mtext">Expediente de Citaci&oacute;n</span></a>
+        <a href="{% url 'expediente_citacion_list' %}" class="nav-link "><span class="pcoded-micon"><i class="fas fa-folder-open"></i></span><span class="pcoded-mtext">Biblioteca de citaciones</span></a>
     </li>
     {% else %}
     
@@ -141,7 +141,7 @@
         <a href="{% url 'seguimiento_operacional' %}" class="nav-link "><span class="pcoded-micon"><i class="fas fa-route"></i></span><span class="pcoded-mtext">Seguimiento Operacional</span></a>
     </li>
     <li class="nav-item">
-        <a href="{% url 'expediente_citacion_list' %}" class="nav-link "><span class="pcoded-micon"><i class="fas fa-folder-open"></i></span><span class="pcoded-mtext">Expediente de Citaci&oacute;n</span></a>
+        <a href="{% url 'expediente_citacion_list' %}" class="nav-link "><span class="pcoded-micon"><i class="fas fa-folder-open"></i></span><span class="pcoded-mtext">Biblioteca de citaciones</span></a>
     </li>
     
     {% if not request.user|es_usuario_maesc %}

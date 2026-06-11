@@ -953,6 +953,29 @@
                             </div>
                         </div>
 
+                        <div class="col-lg-4 col-md-6">
+                            <div class="form-group">
+                                <label>Contrato SAP</label>
+                                <input type="text"
+                                       class="form-control"
+                                       id="contrato_sap"
+                                       name="contrato_sap"
+                                       readonly
+                                       placeholder="Sin contrato">
+                            </div>
+                        </div>
+
+                        <div class="col-lg-4 col-md-6">
+                            <div class="form-group">
+                                <label>C&oacute;digo Proveedor SAP</label>
+                                <input type="text"
+                                       class="form-control"
+                                       id="codigo_proveedor_sap"
+                                       name="codigo_proveedor_sap"
+                                       readonly>
+                            </div>
+                        </div>
+
                     </div>
 
                     <div class="form-section-title">Datos de destino</div>
@@ -965,7 +988,7 @@
                                     <option value="">Seleccione destino</option>
                                     <option value="PROSESA">PROSESA</option>
                                     <option value="SBH">SBH</option>
-                                    <option value="Trasvasije">Trasvasije</option>
+                                    <option value="Trasvasije">TRASVASIJE</option>
                                 </select>
                             </div>
                         </div>
@@ -1206,7 +1229,49 @@
                 placeholder: 'Buscar producto...',
                 allowClear: true,
                 width: '100%',
-                dropdownParent: $('#ModalCrearCitacion')
+                dropdownParent: $('#ModalCrearCitacion'),
+                minimumInputLength: 2,
+                ajax: {
+                    url: '/api/sap/productos/',
+                    dataType: 'json',
+                    delay: 250,
+                    data: function (params) {
+                        return {
+                            q: params.term || ''
+                        };
+                    },
+                    processResults: function (response) {
+                        return {
+                            results: (response.productos || []).map(function (producto) {
+                                return {
+                                    id: producto.itemcode,
+                                    text: (producto.itemname || producto.itemcode) + ' - ' + producto.itemcode,
+                                    itemname: producto.itemname || ''
+                                };
+                            })
+                        };
+                    }
+                },
+                language: {
+                    inputTooShort: function () {
+                        return 'Ingrese al menos 2 caracteres';
+                    },
+                    noResults: function () {
+                        return 'No se encontraron productos SAP';
+                    },
+                    searching: function () {
+                        return 'Buscando productos SAP...';
+                    }
+                }
+            });
+
+            $('#insumo').on('select2:select', function (event) {
+                const data = event.params.data || {};
+                if (data.element) {
+                    $(data.element).attr('data-itemname', data.itemname || '');
+                } else {
+                    $('#insumo option:selected').attr('data-itemname', data.itemname || '');
+                }
             });
 
             $('#insumo').on('change', function () {
@@ -1838,6 +1903,8 @@
         setValue('docentry', item.docentry || '');
         setValue('bl', item.contenedor || item.bl || item.bl_contenedor || '');
         setValue('proveedor_codigo', item.cardcode || item.proveedor_codigo || '');
+        setValue('codigo_proveedor_sap', item.codigo_proveedor_sap || item.cardcode || item.proveedor_codigo || '');
+        setValue('contrato_sap', item.contrato_sap || '');
 
         if (item.descripcion) {
             bloquearLimpiezaProducto = true;
@@ -1961,6 +2028,8 @@
                 proveedor: proveedorSelect.val() || '',
                 proveedor_nombre: proveedorSelect.find('option:selected').text().trim(),
                 proveedor_codigo: getValue('proveedor_codigo'),
+                codigo_proveedor_sap: getValue('codigo_proveedor_sap'),
+                contrato_sap: getValue('contrato_sap'),
 
                 bl: getValue('bl'),
                 cantidad_disponible: getValue('cantidad_disponible'),
@@ -2396,6 +2465,8 @@
             'sap_opor_id',
             'cantidad_disponible',
             'docentry',
+            'contrato_sap',
+            'codigo_proveedor_sap',
             'bl'
         ];
 
@@ -2423,6 +2494,8 @@
             'sap_opor_id',
             'insumo',
             'proveedor_codigo',
+            'codigo_proveedor_sap',
+            'contrato_sap',
             'pedido',
             'cantidad_disponible',
             'docentry',

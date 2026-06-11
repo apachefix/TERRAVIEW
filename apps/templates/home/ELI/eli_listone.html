@@ -1,0 +1,244 @@
+{% extends "layouts/base.html" %}
+
+{% block title %}Archivo E.L.I. citaci&oacute;n {{ expediente.citacion.id }}{% endblock %}
+
+{% block stylesheets %}
+<style>
+    .eli-header {
+        background: linear-gradient(135deg, #eef7fb 0%, #f8fbff 60%, #eef4f2 100%);
+        border: 1px solid #d8e6ec;
+        border-radius: 8px;
+        padding: 24px;
+        box-shadow: 0 12px 28px rgba(31, 63, 84, .08);
+    }
+    .eli-title { color: #17384e; font-weight: 800; letter-spacing: 0; }
+    .eli-subtitle { color: #5d7180; margin-bottom: 0; }
+    .eli-badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        border-radius: 999px;
+        padding: 7px 12px;
+        font-size: 12px;
+        font-weight: 700;
+        border: 1px solid #b9dfca;
+        background: #e8f5ee;
+        color: #1f7a4c;
+    }
+    .eli-badge.preliminar {
+        border-color: #f0d49f;
+        background: #fff7e8;
+        color: #9a6512;
+    }
+    .eli-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+        gap: 12px;
+    }
+    .eli-field {
+        border: 1px solid #e4ebef;
+        border-radius: 8px;
+        padding: 12px;
+        background: #fbfdff;
+        min-height: 72px;
+    }
+    .eli-field label {
+        display: block;
+        color: #647888;
+        font-size: 11px;
+        font-weight: 800;
+        text-transform: uppercase;
+        margin-bottom: 5px;
+    }
+    .eli-field span {
+        color: #1d3446;
+        font-weight: 650;
+        overflow-wrap: anywhere;
+    }
+    .eli-stage {
+        border: 1px solid #dfe8ee;
+        border-radius: 8px;
+        box-shadow: 0 8px 22px rgba(31, 63, 84, .06);
+        overflow: hidden;
+        margin-bottom: 16px;
+        background: #fff;
+    }
+    .eli-stage-head {
+        display: flex;
+        justify-content: space-between;
+        gap: 12px;
+        align-items: center;
+        padding: 15px 18px;
+        background: #f5f9fb;
+        border-bottom: 1px solid #dfe8ee;
+    }
+    .eli-stage-title {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        color: #17384e;
+        font-weight: 800;
+        margin: 0;
+        letter-spacing: 0;
+    }
+    .eli-stage-number {
+        width: 30px;
+        height: 30px;
+        border-radius: 50%;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        background: #2f80ed;
+        color: #fff;
+        font-size: 13px;
+        font-weight: 800;
+    }
+    .eli-stage-body { padding: 18px; }
+    .eli-audit {
+        margin-top: 16px;
+        border-top: 1px dashed #d7e3ea;
+        padding-top: 14px;
+    }
+    .eli-audit-title {
+        color: #526879;
+        font-size: 12px;
+        font-weight: 800;
+        text-transform: uppercase;
+        margin-bottom: 10px;
+    }
+    .eli-doc-table th {
+        background: #edf4f7;
+        color: #17384e;
+        font-size: 12px;
+    }
+</style>
+{% endblock stylesheets %}
+
+{% block content %}
+<section class="pcoded-main-container">
+    <div class="pcoded-content">
+        <div class="page-header">
+            <div class="page-block">
+                <div class="row align-items-center">
+                    <div class="col-md-12">
+                        <div class="page-header-title">
+                            <h5 class="m-b-10">ARCHIVO E.L.I. - Expediente Log&iacute;stico Integral</h5>
+                        </div>
+                        <ul class="breadcrumb">
+                            <li class="breadcrumb-item"><a href="/"><i class="feather icon-home"></i></a></li>
+                            <li class="breadcrumb-item"><a href="{% url 'expediente_citacion_list' %}">Biblioteca de citaciones</a></li>
+                            <li class="breadcrumb-item">Archivo E.L.I.</li>
+                            <li class="breadcrumb-item">Citaci&oacute;n {{ expediente.citacion.id }}</li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="eli-header mb-4">
+            <div class="row align-items-center">
+                <div class="col-md-8">
+                    <h3 class="eli-title mb-1">Expediente Log&iacute;stico Integral</h3>
+                    <p class="eli-subtitle">Documento de auditor&iacute;a operacional construido desde la trazabilidad de la citaci&oacute;n {{ expediente.citacion.id }}.</p>
+                    <span class="eli-badge mt-3 {% if not expediente.pdf_disponible %}preliminar{% endif %}">
+                        {% if expediente.pdf_disponible %}<i class="fas fa-check-circle"></i>{% else %}<i class="fas fa-hourglass-half"></i>{% endif %}
+                        {{ expediente.estado_eli }}
+                    </span>
+                </div>
+                <div class="col-md-4 text-md-right mt-3 mt-md-0">
+                    <a href="{% url 'expediente_citacion_list' %}" class="btn btn-outline-secondary mr-2"><i class="fas fa-arrow-left mr-1"></i> Biblioteca</a>
+                    {% if expediente.pdf_disponible %}
+                    <a href="{% url 'eli_pdf' expediente.citacion.id %}" class="btn btn-success"><i class="fas fa-file-pdf mr-1"></i> Generar PDF</a>
+                    {% else %}
+                    <button type="button" class="btn btn-outline-secondary" disabled>PDF final disponible despu&eacute;s de Autorizar Salida</button>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+
+        <div class="card">
+            <div class="card-header"><h5>Informaci&oacute;n General</h5></div>
+            <div class="card-body">
+                <div class="eli-grid">
+                    {% for item in expediente.encabezado_eli %}
+                    <div class="eli-field"><label>{{ item.label }}</label><span>{{ item.value|default:'' }}</span></div>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+
+        <div class="card">
+            <div class="card-header"><h5>Documentos de la citaci&oacute;n</h5></div>
+            <div class="card-body table-responsive">
+                <table class="table table-sm table-striped mb-0 eli-doc-table">
+                    <thead>
+                        <tr>
+                            <th>Documento</th>
+                            <th>Archivo</th>
+                            <th>Fecha carga</th>
+                            <th>Usuario</th>
+                            <th>Acciones</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td><strong>ARCHIVO E.L.I.</strong><br><span class="text-muted">Expediente Log&iacute;stico Integral</span></td>
+                            <td>Generado desde trazabilidad operacional</td>
+                            <td></td>
+                            <td></td>
+                            <td>
+                                {% if expediente.pdf_disponible %}
+                                <a class="btn btn-sm btn-success" href="{% url 'eli_pdf' expediente.citacion.id %}" title="Generar PDF"><i class="fas fa-file-pdf"></i></a>
+                                {% else %}
+                                <button class="btn btn-sm btn-outline-secondary" type="button" disabled><i class="fas fa-file-pdf"></i></button>
+                                {% endif %}
+                            </td>
+                        </tr>
+                        {% for doc in expediente.documentos %}
+                        <tr>
+                            <td>{{ doc.tipo }}</td>
+                            <td>{{ doc.archivo }}</td>
+                            <td>{{ doc.fecha }}</td>
+                            <td>{{ doc.usuario }}</td>
+                            <td>
+                                <a class="btn btn-sm btn-outline-primary" href="{% url 'expediente_citacion_documento_ver' doc.id %}" target="_blank" title="Ver"><i class="fas fa-eye"></i></a>
+                                <a class="btn btn-sm btn-outline-success" href="{% url 'expediente_citacion_documento_descargar' doc.id %}" title="Descargar"><i class="fas fa-download"></i></a>
+                            </td>
+                        </tr>
+                        {% empty %}
+                        <tr><td colspan="5" class="text-center">Sin documentos asociados.</td></tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        {% for etapa in expediente.etapas_eli %}
+        <div class="eli-stage">
+            <div class="eli-stage-head">
+                <h5 class="eli-stage-title"><span class="eli-stage-number">{{ etapa.numero }}</span>{{ etapa.titulo }}</h5>
+                <span class="eli-badge {% if etapa.auditoria.estado == 'Pendiente' %}preliminar{% endif %}">{{ etapa.auditoria.estado }}</span>
+            </div>
+            <div class="eli-stage-body">
+                <div class="eli-grid">
+                    {% for item in etapa.datos %}
+                    <div class="eli-field"><label>{{ item.label }}</label><span>{{ item.value|default:'' }}</span></div>
+                    {% endfor %}
+                </div>
+                <div class="eli-audit">
+                    <div class="eli-audit-title">Trazabilidad y auditor&iacute;a</div>
+                    <div class="eli-grid">
+                        <div class="eli-field"><label>Responsable</label><span>{{ etapa.auditoria.responsable|default:'' }}</span></div>
+                        <div class="eli-field"><label>Usuario responsable</label><span>{{ etapa.auditoria.usuario_responsable|default:'' }}</span></div>
+                        <div class="eli-field"><label>Fecha inicio</label><span>{{ etapa.auditoria.fecha_inicio|default:'' }}</span></div>
+                        <div class="eli-field"><label>Fecha t&eacute;rmino</label><span>{{ etapa.auditoria.fecha_termino|default:'' }}</span></div>
+                        <div class="eli-field"><label>Aprobado por</label><span>{{ etapa.auditoria.usuario_aprobador|default:'' }}</span></div>
+                        <div class="eli-field"><label>Estado</label><span>{{ etapa.auditoria.estado|default:'' }}</span></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+</section>
+{% endblock content %}

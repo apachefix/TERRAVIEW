@@ -1,9 +1,46 @@
 {% extends "layouts/base.html" %}
 
-{% block title %}Expediente de Citaci&oacute;n{% endblock %}
+{% block title %}Biblioteca de citaciones{% endblock %}
 
 {% block stylesheets %}
 <link rel="stylesheet" href="/static/assets/css/plugins/dataTables.bootstrap4.min.css">
+<style>
+    .exp-citacion-card {
+        border: 1px solid #dfe8ee;
+        border-radius: 8px;
+        box-shadow: 0 8px 22px rgba(31, 63, 84, .06);
+        margin-bottom: 14px;
+        overflow: hidden;
+    }
+    .exp-citacion-head {
+        background: #f6fafc;
+        border-bottom: 1px solid #dfe8ee;
+        padding: 14px 16px;
+    }
+    .exp-citacion-title {
+        color: #17384e;
+        font-weight: 700;
+        margin-bottom: 4px;
+    }
+    .exp-citacion-meta {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+        gap: 8px 14px;
+        color: #41586a;
+        font-size: 13px;
+    }
+    .exp-citacion-meta strong {
+        display: block;
+        color: #718391;
+        font-size: 11px;
+        text-transform: uppercase;
+    }
+    .exp-doc-table th {
+        background: #edf4f7;
+        color: #17384e;
+        font-size: 12px;
+    }
+</style>
 {% endblock stylesheets %}
 
 {% block content %}
@@ -14,11 +51,11 @@
                 <div class="row align-items-center">
                     <div class="col-md-12">
                         <div class="page-header-title">
-                            <h5 class="m-b-10">Expediente de Citaci&oacute;n</h5>
+                            <h5 class="m-b-10">Biblioteca de citaciones</h5>
                         </div>
                         <ul class="breadcrumb">
                             <li class="breadcrumb-item"><a href="/"><i class="feather icon-home"></i></a></li>
-                            <li class="breadcrumb-item"><a href="{% url 'expediente_citacion_list' %}">Expediente de Citaci&oacute;n</a></li>
+                            <li class="breadcrumb-item"><a href="{% url 'expediente_citacion_list' %}">Biblioteca de citaciones</a></li>
                         </ul>
                     </div>
                 </div>
@@ -33,6 +70,9 @@
                     </div>
                     <div class="card-body">
                         <form method="get" class="row">
+                            {% if empresa_query_param %}
+                            <input type="hidden" name="_empresa_id" value="{{ empresa_query_param }}">
+                            {% endif %}
                             <div class="form-group col-md-2">
                                 <label>N&uacute;m. citaci&oacute;n</label>
                                 <input type="text" name="citacion" value="{{ filtros.citacion }}" class="form-control">
@@ -40,6 +80,10 @@
                             <div class="form-group col-md-3">
                                 <label>Producto SAP</label>
                                 <input type="text" name="producto_sap" value="{{ filtros.producto_sap }}" class="form-control">
+                            </div>
+                            <div class="form-group col-md-2">
+                                <label>Patente cami&oacute;n</label>
+                                <input type="text" name="patente" value="{{ filtros.patente }}" class="form-control">
                             </div>
                             <div class="form-group col-md-2">
                                 <label>C&oacute;digo SAP</label>
@@ -76,7 +120,7 @@
                             </div>
                             <div class="form-group col-md-2 d-flex align-items-end">
                                 <button type="submit" class="btn btn-primary mr-2"><i class="fas fa-search"></i></button>
-                                <a href="{% url 'expediente_citacion_list' %}" class="btn btn-secondary"><i class="fas fa-eraser"></i></a>
+                                <a href="{% url 'expediente_citacion_list' %}{% if empresa_query_param %}?_empresa_id={{ empresa_query_param }}{% endif %}" class="btn btn-secondary"><i class="fas fa-eraser"></i></a>
                             </div>
                         </form>
                     </div>
@@ -84,53 +128,78 @@
 
                 <div class="card">
                     <div class="card-header">
-                        <h5>Documentos</h5>
+                        <h5>Biblioteca de documentos por citaci&oacute;n</h5>
                     </div>
                     <div class="card-body">
-                        <div class="dt-responsive table-responsive">
-                            <table class="table table-striped table-bordered nowrap">
-                                <thead>
-                                    <tr>
-                                        <th>Acciones</th>
-                                        <th>Citaci&oacute;n</th>
-                                        <th>Fecha</th>
-                                        <th>Tipo</th>
-                                        <th>Producto SAP</th>
-                                        <th>C&oacute;digo SAP</th>
-                                        <th>Pedido SAP</th>
-                                        <th>Cliente</th>
-                                        <th>Proveedor</th>
-                                        <th>Archivo</th>
-                                        <th>Subido por</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    {% for documento in object_list %}
-                                    <tr>
-                                        <td>
-                                            <a class="btn btn-sm btn-primary" href="{% url 'expediente_citacion_documento_ver' documento.id %}" target="_blank" title="Ver"><i class="fas fa-eye"></i></a>
-                                            <a class="btn btn-sm btn-success" href="{% url 'expediente_citacion_documento_descargar' documento.id %}" title="Descargar"><i class="fas fa-download"></i></a>
-                                            <a class="btn btn-sm btn-info" href="{% url 'expediente_citacion_detail' documento.CI_NID_id %}" title="Ver citaci&oacute;n"><i class="fas fa-folder-open"></i></a>
-                                        </td>
-                                        <td>{{ documento.CI_NID_id }}</td>
-                                        <td>{{ documento.CI_NID.CI_FFECHACITACION|date:'d/m/Y' }}</td>
-                                        <td>{{ documento.get_CD_CTIPO_display }}</td>
-                                        <td>{{ documento.CI_NID.detalle_operacional.CDO_CINSUMO|default:'' }}</td>
-                                        <td>{{ documento.CI_NID.detalle_operacional.CDO_CCODIGO_SAP|default:'' }}</td>
-                                        <td>{{ documento.CI_NID.detalle_operacional.CDO_CPEDIDO_SAP|default:'' }}</td>
-                                        <td>{{ documento.CI_NID.SN_NID.SN_CRAZONSOCIAL|default:'' }}</td>
-                                        <td>{{ documento.CI_NID.PRO_NID.SN_CRAZONSOCIAL|default:'' }}</td>
-                                        <td>{{ documento.CD_CNOMBRE_ARCHIVO }}</td>
-                                        <td>{{ documento.US_SUBE_NID.username|default:'' }}</td>
-                                    </tr>
-                                    {% empty %}
-                                    <tr>
-                                        <td colspan="11" class="text-center">Sin documentos para los filtros seleccionados.</td>
-                                    </tr>
-                                    {% endfor %}
-                                </tbody>
-                            </table>
+                        {% for expediente in expedientes %}
+                        <div class="exp-citacion-card">
+                            <div class="exp-citacion-head">
+                                <div class="d-flex flex-wrap justify-content-between align-items-start">
+                                    <div>
+                                        <h5 class="exp-citacion-title">Citaci&oacute;n {{ expediente.citacion.id }}</h5>
+                                        <div class="text-muted">{{ expediente.citacion.CI_CTIPO|default:'-' }} | {{ expediente.citacion.CI_CESTADO|default:'-' }}</div>
+                                    </div>
+                                    <a class="btn btn-sm btn-info mt-2 mt-md-0" href="{% url 'expediente_citacion_detail' expediente.citacion.id %}" title="Abrir biblioteca">
+                                        <i class="fas fa-folder-open mr-1"></i> Abrir biblioteca
+                                    </a>
+                                </div>
+                                <div class="exp-citacion-meta mt-3">
+                                    <div><strong>Fecha</strong>{{ expediente.citacion.CI_FFECHACITACION|date:'d/m/Y' }}</div>
+                                    <div><strong>Producto SAP</strong>{{ expediente.producto|default:'Sin informaci&oacute;n' }}</div>
+                                    <div><strong>C&oacute;digo SAP</strong>{{ expediente.codigo_sap|default:'Sin informaci&oacute;n' }}</div>
+                                    <div><strong>Pedido SAP</strong>{{ expediente.pedido_sap|default:'Sin informaci&oacute;n' }}</div>
+                                    <div><strong>Patente cami&oacute;n</strong>{{ expediente.patente|default:'Sin informaci&oacute;n' }}</div>
+                                    <div><strong>Cliente</strong>{{ expediente.cliente|default:'Sin informaci&oacute;n' }}</div>
+                                    <div><strong>Proveedor</strong>{{ expediente.proveedor|default:'Sin informaci&oacute;n' }}</div>
+                                </div>
+                            </div>
+                            <div class="table-responsive">
+                                <table class="table table-sm table-striped mb-0 exp-doc-table">
+                                    <thead>
+                                        <tr>
+                                            <th>Tipo documento</th>
+                                            <th>Archivo</th>
+                                            <th>Fecha carga</th>
+                                            <th>Subido por</th>
+                                            <th>Acciones</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        <tr>
+                                            <td><strong>ARCHIVO E.L.I.</strong><br><span class="text-muted">Expediente Log&iacute;stico Integral</span></td>
+                                            <td>Generado desde trazabilidad operacional</td>
+                                            <td></td>
+                                            <td></td>
+                                            <td>
+                                                <a class="btn btn-sm btn-primary" href="{% url 'eli_listone' expediente.citacion.id %}" title="Ver Archivo E.L.I."><i class="fas fa-eye"></i></a>
+                                                <a class="btn btn-sm btn-success" href="{% url 'eli_pdf' expediente.citacion.id %}" title="PDF Archivo E.L.I."><i class="fas fa-file-pdf"></i></a>
+                                                <a class="btn btn-sm btn-info" href="{% url 'eli_listone' expediente.citacion.id %}" title="Abrir informe"><i class="fas fa-folder-open"></i></a>
+                                            </td>
+                                        </tr>
+                                        {% for documento in expediente.documentos %}
+                                        <tr>
+                                            <td>{{ documento.get_CD_CTIPO_display }}</td>
+                                            <td>{{ documento.CD_CNOMBRE_ARCHIVO }}</td>
+                                            <td>{{ documento.CD_FFECHASUBIDA|date:'d/m/Y H:i' }}</td>
+                                            <td>{{ documento.US_SUBE_NID.username|default:'' }}</td>
+                                            <td>
+                                                <a class="btn btn-sm btn-primary" href="{% url 'expediente_citacion_documento_ver' documento.id %}" target="_blank" title="Ver"><i class="fas fa-eye"></i></a>
+                                                <a class="btn btn-sm btn-success" href="{% url 'expediente_citacion_documento_descargar' documento.id %}" title="Descargar"><i class="fas fa-download"></i></a>
+                                                <a class="btn btn-sm btn-info" href="{% url 'expediente_citacion_detail' expediente.citacion.id %}" title="Abrir biblioteca"><i class="fas fa-folder-open"></i></a>
+                                            </td>
+                                        </tr>
+                                        {% empty %}
+                                        <tr>
+                                            <td colspan="5" class="text-center">Sin documentos asociados.</td>
+                                        </tr>
+                                        {% endfor %}
+                                    </tbody>
+                                </table>
+                            </div>
                         </div>
+                        {% empty %}
+                        <div class="text-center text-muted py-4">Sin citaciones con documentos para los filtros seleccionados.</div>
+                        {% endfor %}
 
                         {% if page_obj.has_other_pages %}
                         <nav>

@@ -156,7 +156,6 @@
                         <thead>
                             <tr>
                                 <th>Patente</th>
-                                <th>Nombre conductor</th>
                                 <th>Nombre producto</th>
                                 <th>Estado del proceso</th>
                                 <th>Progreso operacional</th>
@@ -169,7 +168,6 @@
                             {% for camion in camiones %}
                             <tr>
                                 <td><strong>{{ camion.patente }}</strong></td>
-                                <td>{{ camion.conductor }}</td>
                                 <td>{{ camion.producto }}</td>
                                 <td>
                                     <span class="tracking-state"><i class="fas fa-route"></i>{{ camion.estado_actual }}</span>
@@ -177,6 +175,12 @@
                                         <div class="text-muted mt-1" style="font-size: 12px;">
                                             <i class="fas {% if camion.estado_accion_toma_muestra.tipo == 'vapor' %}fa-fire{% else %}fa-flask{% endif %}"></i>
                                             {{ camion.estado_accion_toma_muestra.estado_label }}
+                                        </div>
+                                    {% endif %}
+                                    {% if camion.estado_ciclo_descarga %}
+                                        <div class="text-muted mt-1" style="font-size: 12px;">
+                                            <i class="fas fa-hourglass-half"></i>
+                                            Descarga en proceso - {{ camion.estado_ciclo_descarga.tipo_descarga }}
                                         </div>
                                     {% endif %}
                                 </td>
@@ -215,7 +219,7 @@
                             </tr>
                             {% empty %}
                             <tr>
-                                <td colspan="8" class="text-center text-muted py-4">No hay camiones activos dentro de planta.</td>
+                                <td colspan="7" class="text-center text-muted py-4">No hay camiones activos dentro de planta.</td>
                             </tr>
                             {% endfor %}
                         </tbody>
@@ -308,10 +312,11 @@
                         <td>${escapeHtml(item.fecha)}</td>
                         <td>${escapeHtml(item.duracion_etapa_legible || 'No disponible')}</td>
                         <td>${escapeHtml(item.estado)}</td>
+                        <td>${escapeHtml(item.observacion || '')}</td>
                     </tr>
                 `;
             }).join('')
-            : '<tr><td colspan="6" class="text-center text-muted">Sin etapas completadas.</td></tr>';
+            : '<tr><td colspan="7" class="text-center text-muted">Sin etapas completadas.</td></tr>';
 
         $('#detalle_seguimiento_body').html(`
             <div class="row mb-3">
@@ -324,7 +329,10 @@
                 <div class="col-md-4"><strong>Ingreso autorizado</strong><br>${escapeHtml(detalle.ingreso_autorizado)}</div>
                 <div class="col-md-4"><strong>Tiempo total en planta</strong><br>${escapeHtml(detalle.tiempo_planta)}</div>
             </div>
-            <div class="mb-3"><strong>Etapa actual</strong><br><span class="tracking-state">${escapeHtml(detalle.etapa_actual)}</span></div>
+            <div class="mb-3">
+                <strong>Etapa actual</strong><br><span class="tracking-state">${escapeHtml(detalle.etapa_actual)}</span>
+                ${detalle.estado_ciclo_descarga ? `<div class="text-muted mt-1"><i class="fas fa-hourglass-half"></i> Descarga en proceso - ${escapeHtml(detalle.estado_ciclo_descarga.tipo_descarga || '')}</div>` : ''}
+            </div>
             <h6>Historial de etapas completadas</h6>
             <div class="table-responsive detail-history">
                 <table class="table table-sm table-bordered">
@@ -336,6 +344,7 @@
                             <th>Fecha/hora</th>
                             <th>Tiempo en etapa</th>
                             <th>Estado</th>
+                            <th>Detalle</th>
                         </tr>
                     </thead>
                     <tbody>${historialHtml}</tbody>

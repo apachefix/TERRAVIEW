@@ -130,45 +130,215 @@
     }
 
     .operacion-ticket-pesaje {
-        background: #f8fafc;
-        border: 1px solid #d8e1ec;
+        position: relative;
+        overflow: hidden;
+        background:
+            linear-gradient(180deg, rgba(247, 251, 255, 0.96) 0%, rgba(232, 242, 252, 0.96) 100%),
+            repeating-linear-gradient(135deg, rgba(0, 87, 217, 0.045) 0 1px, transparent 1px 13px);
+        border: 1px solid rgba(0, 87, 217, 0.18);
         border-radius: 8px;
-        padding: 16px;
+        padding: 18px;
+        margin-bottom: 16px;
+        box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.86), 0 12px 28px rgba(11, 37, 69, 0.10);
+    }
+
+    .operacion-ticket-pesaje.is-sal {
+        background:
+            linear-gradient(180deg, rgba(246, 253, 250, 0.96) 0%, rgba(234, 242, 255, 0.96) 100%),
+            repeating-linear-gradient(135deg, rgba(21, 131, 69, 0.045) 0 1px, transparent 1px 13px);
+        border-color: rgba(21, 131, 69, 0.22);
+    }
+
+    .op-alt-pesaje-close {
+        position: relative;
+        z-index: 60;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 14px;
+        margin: 0 0 18px;
+        padding: 14px 16px;
+        border: 1px solid rgba(21, 131, 69, 0.22);
+        border-radius: 8px;
+        background: #f6fff9;
+        box-shadow: 0 8px 18px rgba(11, 37, 69, 0.08);
+    }
+
+    .op-alt-pesaje-close strong {
+        display: block;
+        color: #0b2545;
+        font-size: 14px;
+    }
+
+    .op-alt-pesaje-close span {
+        color: #52616f;
+        font-size: 13px;
+        font-weight: 700;
+    }
+
+    .op-alt-pesaje-close form {
+        margin: 0;
+    }
+
+    .op-alt-pesaje-close button {
+        pointer-events: auto !important;
+        cursor: pointer !important;
+        min-width: 220px;
+        font-weight: 800;
+    }
+
+    .operacion-ticket-header {
+        display: flex;
+        align-items: flex-start;
+        justify-content: space-between;
+        gap: 14px;
         margin-bottom: 16px;
     }
 
     .operacion-ticket-title {
+        display: flex;
+        align-items: center;
+        gap: 10px;
         color: #0b2545;
         font-size: 15px;
+        font-weight: 900;
+        margin-bottom: 6px;
+        text-transform: uppercase;
+    }
+
+    .operacion-ticket-title-icon {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 38px;
+        height: 38px;
+        flex: 0 0 38px;
+        border-radius: 50%;
+        color: #fff;
+        background: linear-gradient(135deg, #4fb2ff 0%, #0057d9 100%);
+        box-shadow: inset 0 2px 0 rgba(255, 255, 255, 0.30), 0 8px 16px rgba(0, 87, 217, 0.20);
+    }
+
+    .operacion-ticket-pesaje.is-sal .operacion-ticket-title-icon {
+        background: linear-gradient(135deg, #44c979 0%, #35329b 100%);
+        box-shadow: inset 0 2px 0 rgba(255, 255, 255, 0.30), 0 8px 16px rgba(21, 131, 69, 0.18);
+    }
+
+    .operacion-ticket-subtitle {
+        color: #607080;
+        font-size: 13px;
         font-weight: 800;
-        margin-bottom: 12px;
+    }
+
+    .operacion-ticket-badge {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        min-width: 52px;
+        padding: 8px 12px;
+        border-radius: 999px;
+        color: #fff;
+        background: linear-gradient(90deg, #4fb2ff 0%, #0057d9 100%);
+        font-size: 13px;
+        font-weight: 900;
+        box-shadow: inset 0 2px 0 rgba(255, 255, 255, 0.28), 0 8px 18px rgba(0, 87, 217, 0.18);
+    }
+
+    .operacion-ticket-pesaje.is-sal .operacion-ticket-badge {
+        background: linear-gradient(90deg, #44c979 0%, #35329b 100%);
+        box-shadow: inset 0 2px 0 rgba(255, 255, 255, 0.28), 0 8px 18px rgba(21, 131, 69, 0.18);
     }
 
     .operacion-ticket-info {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 8px;
         color: #52616f;
         font-size: 13px;
-        margin-top: 10px;
+        font-weight: 800;
+        margin-top: 14px;
+        padding: 10px 12px;
+        border: 1px solid rgba(11, 37, 69, 0.08);
+        border-radius: 8px;
+        background: rgba(255, 255, 255, 0.66);
+        text-align: center;
+    }
+
+    .operacion-ticket-info.is-frozen {
+        color: #158345;
+        background: rgba(233, 249, 239, 0.76);
+    }
+
+    .operacion-ticket-empty {
+        color: #b85d00;
+    }
+
+    .operacion-ticket-frozen-pill {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 8px;
+        flex: 0 1 360px;
+        width: clamp(280px, 34vw, 420px);
+        max-width: 100%;
+        min-height: 52px;
+        padding: 0 18px;
+        border: 1px solid rgba(21, 131, 69, 0.20);
+        border-radius: 999px;
+        color: #158345;
+        background: linear-gradient(180deg, rgba(239, 255, 246, 0.96) 0%, rgba(232, 248, 239, 0.96) 100%);
+        font-size: 13px;
+        font-weight: 900;
+        text-transform: uppercase;
+        box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.86), 0 8px 16px rgba(21, 131, 69, 0.10);
     }
 
     .operacion-ticket-actions {
+        position: relative;
+        z-index: 40;
         display: flex;
         flex-wrap: wrap;
-        gap: 8px;
-        margin-bottom: 14px;
+        align-items: center;
+        justify-content: center;
+        pointer-events: auto;
+        gap: 10px;
+        margin-top: 18px;
+    }
+
+    .operacion-ticket-actions .btn-obtener-ticket-pesaje {
+        flex: 0 1 360px;
+        width: clamp(280px, 34vw, 420px);
+        max-width: 100%;
+        min-height: 52px;
+    }
+
+    .operacion-ticket-actions .btn-finalizar-ticket-pesaje {
+        flex: 0 1 360px;
+        width: clamp(280px, 34vw, 420px);
+        max-width: 100%;
+        min-height: 52px;
+    }
+
+    .operacion-ticket-actions .finalizar-pesaje-btn,
+    .operacion-ticket-actions .finalizar-pesaje-btn * {
+        pointer-events: auto !important;
+        cursor: pointer !important;
     }
 
     .operacion-ticket-grid {
         display: grid;
-        grid-template-columns: repeat(3, minmax(0, 1fr));
+        grid-template-columns: repeat(4, minmax(0, 1fr));
         gap: 12px;
     }
 
     .operacion-ticket-card {
-        min-height: 96px;
+        min-height: 104px;
         padding: 14px;
-        border: 1px solid #d8e1ec;
+        border: 1px solid rgba(11, 37, 69, 0.10);
         border-radius: 8px;
-        background: #fff;
+        background: rgba(255, 255, 255, 0.78);
+        box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.82), 0 8px 16px rgba(11, 37, 69, 0.06);
     }
 
     .operacion-ticket-card-title {
@@ -192,6 +362,13 @@
         font-weight: 700;
     }
 
+    .operacion-ticket-download-card {
+        display: flex;
+        flex-direction: column;
+        justify-content: space-between;
+        gap: 10px;
+    }
+
     .operacion-ticket-peso {
         padding: 0;
         border: 0;
@@ -203,9 +380,36 @@
         box-shadow: none !important;
     }
 
+    .operacion-ticket-download-card .btn-descargar-ticket-pesaje {
+        width: 100%;
+        border-radius: 999px;
+        font-weight: 900;
+    }
+
     @media (max-width: 991.98px) {
         .operacion-ticket-grid {
             grid-template-columns: 1fr;
+        }
+
+        .operacion-ticket-header {
+            align-items: stretch;
+            flex-direction: column;
+        }
+
+        .operacion-ticket-badge {
+            align-self: flex-start;
+        }
+
+        .operacion-ticket-actions .btn-obtener-ticket-pesaje {
+            width: min(100%, 360px);
+        }
+
+        .operacion-ticket-actions .btn-finalizar-ticket-pesaje {
+            width: min(100%, 360px);
+        }
+
+        .operacion-ticket-frozen-pill {
+            width: min(100%, 360px);
         }
     }
 
@@ -266,6 +470,7 @@
         background: linear-gradient(135deg, rgba(255, 255, 255, 0.82) 0%, rgba(255, 255, 255, 0.30) 58%, rgba(255, 255, 255, 0.06) 100%);
         clip-path: polygon(0 0, 76% 0, 100% 50%, 76% 100%, 0 100%);
         box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.78);
+        pointer-events: none;
     }
 
     .op-glass-button:after {
@@ -394,6 +599,88 @@
         line-height: 1.2;
     }
 
+    .op-lab-sample-note {
+        margin-top: 12px;
+        padding: 12px 14px;
+        border: 1px solid rgba(27, 143, 133, 0.18);
+        border-radius: 8px;
+        background: rgba(255, 255, 255, 0.74);
+        color: #40515f;
+        font-size: 13px;
+        font-weight: 700;
+        box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.75);
+    }
+
+    .op-lab-sample-note strong {
+        display: block;
+        margin-bottom: 4px;
+        color: #0b2545;
+        font-size: 12px;
+        text-transform: uppercase;
+    }
+
+    .op-lab-sample-note.is-muted {
+        color: #7b8792;
+    }
+
+    .op-result-dashboard-panel {
+        display: block;
+    }
+
+    .op-result-dashboard-section {
+        margin-bottom: 18px;
+    }
+
+    .op-result-dashboard-grid {
+        display: grid;
+        grid-template-columns: minmax(180px, 0.9fr) minmax(220px, 1fr) minmax(280px, 1.3fr);
+        gap: 14px;
+        align-items: stretch;
+    }
+
+    .op-dashboard-card {
+        min-height: 132px;
+        padding: 16px;
+        border: 1px solid rgba(11, 37, 69, 0.10);
+        border-radius: 8px;
+        background: rgba(255, 255, 255, 0.78);
+        color: #52616f;
+        box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.86), 0 8px 18px rgba(11, 37, 69, 0.07);
+    }
+
+    .op-dashboard-card-title {
+        margin-bottom: 10px;
+        color: #0b2545;
+        font-size: 13px;
+        font-weight: 900;
+        text-transform: uppercase;
+    }
+
+    .op-dashboard-muted {
+        color: #607080;
+        font-size: 13px;
+        font-weight: 700;
+    }
+
+    .op-dashboard-document-link {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        margin-top: 12px;
+        padding: 8px 12px;
+        border: 1px solid rgba(0, 87, 217, 0.18);
+        border-radius: 999px;
+        background: linear-gradient(180deg, rgba(255, 255, 255, 0.96) 0%, rgba(232, 243, 255, 0.96) 100%);
+        color: #0057d9;
+        font-weight: 900;
+        box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.82), 0 6px 12px rgba(0, 87, 217, 0.10);
+    }
+
+    .op-dashboard-document-link:hover {
+        color: #003d98;
+        text-decoration: none;
+    }
+
     .op-quality-summary {
         display: grid;
         grid-template-columns: minmax(220px, 0.75fr) minmax(260px, 1fr);
@@ -420,15 +707,618 @@
         box-shadow: inset 0 2px 0 rgba(255, 255, 255, 0.28), 0 8px 18px rgba(191, 50, 40, 0.24);
     }
 
+    .op-mini-badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        padding: 6px 10px;
+        border-radius: 999px;
+        background: #fff3df;
+        color: #b85d00;
+        font-size: 12px;
+        font-weight: 900;
+        text-transform: uppercase;
+    }
+
+    .op-mini-badge.is-success {
+        background: #e9f9ef;
+        color: #158345;
+    }
+
+    .op-wait-clock {
+        display: grid;
+        grid-template-columns: 96px minmax(0, 1fr);
+        gap: 16px;
+        align-items: center;
+        margin: 0 0 18px;
+        padding: 16px;
+        border: 1px solid rgba(237, 137, 54, 0.34);
+        border-radius: 8px;
+        background:
+            linear-gradient(135deg, rgba(255, 249, 237, 0.98) 0%, rgba(232, 243, 255, 0.96) 100%),
+            repeating-linear-gradient(135deg, rgba(0, 87, 217, 0.045) 0 1px, transparent 1px 13px);
+        box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.86), 0 12px 24px rgba(11, 37, 69, 0.10);
+    }
+
+    .op-wait-clock.is-finalized {
+        border-color: rgba(21, 131, 69, 0.28);
+        background: linear-gradient(135deg, rgba(239, 255, 246, 0.98) 0%, rgba(232, 248, 239, 0.96) 100%);
+    }
+
+    .op-wait-clock-label {
+        color: #52616f;
+        font-size: 12px;
+        font-weight: 900;
+        letter-spacing: 0;
+        text-transform: uppercase;
+    }
+
+    .op-wait-clock-time {
+        color: #0b2545;
+        font-family: Consolas, "Courier New", monospace;
+        font-size: 30px;
+        font-weight: 900;
+        line-height: 1.1;
+    }
+
+    .op-wait-clock-caption {
+        color: #52616f;
+        font-size: 13px;
+        font-weight: 700;
+    }
+
     .op-discharge-grid {
         display: grid;
-        grid-template-columns: repeat(3, minmax(0, 1fr));
+        grid-template-columns: repeat(4, minmax(0, 1fr));
         gap: 12px;
+    }
+
+    .op-field-summary-card {
+        min-height: 70px;
+        padding: 11px 12px;
+        border: 1px solid rgba(11, 37, 69, 0.10);
+        border-radius: 8px;
+        background: rgba(255, 255, 255, 0.72);
+        box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.78);
+    }
+
+    .op-field-summary-label {
+        margin-bottom: 6px;
+        color: #607080;
+        font-size: 11px;
+        font-weight: 900;
+        text-transform: uppercase;
+    }
+
+    .op-field-summary-value {
+        color: #0b2545;
+        font-size: 15px;
+        font-weight: 900;
+        line-height: 1.2;
+    }
+
+    .op-field-summary-value.is-muted {
+        color: #8a97a3;
+    }
+
+    .op-discharge-observations {
+        margin-top: 14px;
+    }
+
+    .op-discharge-status-row {
+        display: grid;
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+        gap: 10px;
+        margin-top: 16px;
+    }
+
+    .op-status-pill {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        min-height: 42px;
+        padding: 9px 11px;
+        border: 1px solid rgba(11, 37, 69, 0.10);
+        border-radius: 8px;
+        background: rgba(255, 255, 255, 0.70);
+        color: #607080;
+        font-size: 12px;
+        font-weight: 900;
+    }
+
+    .op-status-dot {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 22px;
+        height: 22px;
+        flex: 0 0 22px;
+        border-radius: 50%;
+        background: #e8eef5;
+        color: #607080;
+        font-size: 11px;
+    }
+
+    .op-status-pill.is-done {
+        color: #158345;
+        background: rgba(233, 249, 239, 0.76);
+    }
+
+    .op-status-pill.is-done .op-status-dot {
+        background: linear-gradient(135deg, #44c979 0%, #158345 100%);
+        color: #fff;
+    }
+
+    .op-status-pill.is-current {
+        color: #0057d9;
+        background: rgba(234, 242, 255, 0.82);
+    }
+
+    .op-status-pill.is-current .op-status-dot {
+        background: linear-gradient(135deg, #ff9b3f 0%, #0057d9 100%);
+        color: #fff;
+    }
+
+    .op-update-strip {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        margin-top: 14px;
+        padding: 10px 12px;
+        border: 1px solid rgba(11, 37, 69, 0.08);
+        border-radius: 8px;
+        background: rgba(255, 255, 255, 0.62);
+        color: #52616f;
+        font-size: 13px;
+        font-weight: 800;
+    }
+
+    .op-cycle-panel {
+        display: block;
+        margin-bottom: 16px;
+        padding: 18px;
+        border: 1px solid rgba(11, 37, 69, 0.16);
+        border-radius: 8px;
+        background:
+            linear-gradient(180deg, rgba(247, 252, 251, 0.96) 0%, rgba(233, 242, 250, 0.96) 100%),
+            repeating-linear-gradient(135deg, rgba(11, 37, 69, 0.045) 0 1px, transparent 1px 14px);
+        box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.86), 0 12px 28px rgba(11, 37, 69, 0.10);
+    }
+
+    .op-cycle-header {
+        display: flex;
+        align-items: flex-start;
+        justify-content: space-between;
+        gap: 16px;
+        margin-bottom: 16px;
+    }
+
+    .op-cycle-title {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        color: #0b2545;
+        font-size: 16px;
+        font-weight: 900;
+        text-transform: uppercase;
+    }
+
+    .op-cycle-title-icon {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 42px;
+        height: 42px;
+        flex: 0 0 42px;
+        border-radius: 50%;
+        color: #fff;
+        background: linear-gradient(135deg, #2f9df4 0%, #158345 100%);
+        box-shadow: inset 0 2px 0 rgba(255, 255, 255, 0.30), 0 8px 16px rgba(11, 37, 69, 0.16);
+    }
+
+    .op-cycle-subtitle {
+        margin-top: 4px;
+        color: #607080;
+        font-size: 13px;
+        font-weight: 800;
+    }
+
+    .op-cycle-state-badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 7px;
+        padding: 8px 12px;
+        border-radius: 999px;
+        color: #b85d00;
+        background: #fff3df;
+        font-size: 12px;
+        font-weight: 900;
+        text-transform: uppercase;
+    }
+
+    .op-cycle-state-badge.is-active {
+        color: #0057d9;
+        background: #eaf2ff;
+    }
+
+    .op-cycle-state-badge.is-done {
+        color: #158345;
+        background: #e9f9ef;
+    }
+
+    .op-cycle-summary-grid {
+        display: grid;
+        grid-template-columns: repeat(5, minmax(0, 1fr));
+        gap: 10px;
+        margin-bottom: 16px;
+    }
+
+    .op-cycle-options {
+        display: grid;
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+        gap: 12px;
+        margin-bottom: 16px;
+    }
+
+    .op-cycle-option {
+        position: relative;
+        min-height: 112px;
+        padding: 14px;
+        border: 1px solid rgba(11, 37, 69, 0.12);
+        border-radius: 8px;
+        background: rgba(255, 255, 255, 0.74);
+        color: #0b2545;
+        text-align: left;
+        box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.80), 0 8px 16px rgba(11, 37, 69, 0.06);
+        transition: transform 160ms ease, box-shadow 160ms ease, border-color 160ms ease;
+    }
+
+    .op-cycle-option:hover:not(:disabled) {
+        border-color: rgba(0, 87, 217, 0.28);
+        box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.86), 0 12px 22px rgba(0, 87, 217, 0.12);
+        transform: translateY(-1px);
+    }
+
+    .op-cycle-option.is-selected {
+        border-color: rgba(21, 131, 69, 0.36);
+        background: linear-gradient(180deg, rgba(239, 255, 246, 0.96) 0%, rgba(232, 248, 239, 0.96) 100%);
+        box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.86), 0 12px 24px rgba(21, 131, 69, 0.12);
+    }
+
+    .op-cycle-option:disabled {
+        cursor: not-allowed;
+        opacity: 0.78;
+    }
+
+    .op-cycle-option-icon {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 38px;
+        height: 38px;
+        margin-bottom: 10px;
+        border-radius: 50%;
+        color: #fff;
+        background: linear-gradient(135deg, #2f9df4 0%, #0f67bb 100%);
+        box-shadow: inset 0 2px 0 rgba(255, 255, 255, 0.30), 0 8px 16px rgba(15, 103, 187, 0.18);
+    }
+
+    .op-cycle-option.is-selected .op-cycle-option-icon {
+        background: linear-gradient(135deg, #44c979 0%, #158345 100%);
+    }
+
+    .op-cycle-option-title {
+        display: block;
+        font-size: 14px;
+        font-weight: 900;
+        line-height: 1.2;
+    }
+
+    .op-cycle-runtime {
+        display: grid;
+        grid-template-columns: 96px minmax(0, 1fr);
+        gap: 16px;
+        align-items: center;
+        margin-top: 16px;
+        padding: 16px;
+        border: 1px solid rgba(0, 87, 217, 0.16);
+        border-radius: 8px;
+        background: rgba(255, 255, 255, 0.72);
+    }
+
+    .op-hourglass {
+        position: relative;
+        width: 82px;
+        height: 104px;
+        margin: 0 auto;
+        filter: drop-shadow(0 14px 16px rgba(11, 37, 69, 0.16));
+    }
+
+    .op-hourglass-inner {
+        position: absolute;
+        inset: 0;
+        transform-style: preserve-3d;
+        transform-origin: center center;
+        animation: opHourglassTilt 4.8s ease-in-out infinite;
+    }
+
+    .op-hourglass-neck {
+        position: absolute;
+        left: 31px;
+        top: 44px;
+        width: 20px;
+        height: 16px;
+        border-radius: 50%;
+        border: 3px solid rgba(11, 37, 69, 0.72);
+        background: rgba(238, 247, 255, 0.82);
+        box-shadow: inset 0 1px 4px rgba(255, 255, 255, 0.72), 0 2px 6px rgba(11, 37, 69, 0.12);
+        z-index: 3;
+    }
+
+    .op-hourglass-glass-shine {
+        position: absolute;
+        left: 24px;
+        top: 15px;
+        width: 10px;
+        height: 74px;
+        border-radius: 999px;
+        background: linear-gradient(180deg, rgba(255, 255, 255, 0.58), rgba(255, 255, 255, 0.10));
+        transform: skewX(-12deg);
+        z-index: 3;
+        pointer-events: none;
+    }
+
+    .op-hourglass-sand-layer {
+        position: absolute;
+        inset: 0;
+        transform-origin: 50% 50%;
+        z-index: 5;
+    }
+
+    .op-hourglass-inner::before,
+    .op-hourglass-inner::after {
+        content: "";
+        position: absolute;
+        left: 11px;
+        width: 60px;
+        height: 48px;
+        border: 4px solid rgba(11, 37, 69, 0.82);
+        background:
+            radial-gradient(circle at 32% 22%, rgba(255, 255, 255, 0.92), transparent 26%),
+            linear-gradient(160deg, rgba(255, 255, 255, 0.84), rgba(222, 240, 255, 0.58));
+        box-shadow: inset 0 8px 14px rgba(255, 255, 255, 0.58), inset 0 -8px 16px rgba(0, 87, 217, 0.08);
+        z-index: 2;
+    }
+
+    .op-hourglass-inner::before {
+        top: 8px;
+        clip-path: polygon(4% 0, 96% 0, 60% 100%, 40% 100%);
+        border-radius: 24px 24px 10px 10px;
+        transform: perspective(90px) rotateX(12deg);
+    }
+
+    .op-hourglass-inner::after {
+        bottom: 8px;
+        clip-path: polygon(40% 0, 60% 0, 96% 100%, 4% 100%);
+        border-radius: 10px 10px 24px 24px;
+        transform: perspective(90px) rotateX(-12deg);
+    }
+
+    .op-hourglass-flow {
+        position: absolute;
+        left: 39px;
+        top: 40px;
+        width: 4px;
+        height: 26px;
+        border-radius: 999px;
+        background: linear-gradient(180deg, #f2b84b 0%, #d9901d 100%);
+        box-shadow: 0 0 8px rgba(217, 144, 29, 0.28);
+        z-index: 2;
+        transform-origin: top center;
+        animation: opSandFlow 4.8s ease-in-out infinite;
+    }
+
+    .op-hourglass-sand-top,
+    .op-hourglass-sand-bottom {
+        position: absolute;
+        left: 21px;
+        width: 40px;
+        height: 18px;
+        border-radius: 50%;
+        background:
+            radial-gradient(circle at 50% 34%, rgba(255, 221, 142, 0.58), transparent 36%),
+            linear-gradient(180deg, #f2b84b 0%, #d9901d 100%);
+        box-shadow: inset 0 2px 3px rgba(255, 236, 174, 0.28), 0 2px 5px rgba(217, 144, 29, 0.18);
+        z-index: 2;
+    }
+
+    .op-hourglass-sand-top {
+        top: 30px;
+        clip-path: polygon(6% 28%, 94% 28%, 60% 100%, 40% 100%);
+        transform-origin: 50% 90%;
+        animation: opSandTop 4.8s ease-in-out infinite;
+    }
+
+    .op-hourglass-sand-bottom {
+        bottom: 21px;
+        clip-path: polygon(40% 0, 60% 0, 96% 78%, 4% 78%);
+        transform-origin: 50% 90%;
+        animation: opSandBottom 4.8s ease-in-out infinite;
+    }
+
+    .op-hourglass.descarga-finalizada .op-hourglass-inner,
+    .op-hourglass.descarga-finalizada .op-hourglass-flow,
+    .op-hourglass.descarga-finalizada .op-hourglass-sand-top,
+    .op-hourglass.descarga-finalizada .op-hourglass-sand-bottom {
+        animation: none !important;
+    }
+
+    .op-hourglass.descarga-finalizada .op-hourglass-inner {
+        transform: rotateY(-8deg) rotateZ(0deg);
+    }
+
+    .op-hourglass.descarga-finalizada .op-hourglass-flow {
+        opacity: 0;
+        transform: translateY(3px) scaleY(0.2);
+    }
+
+    .op-hourglass.descarga-finalizada .op-hourglass-sand-top {
+        opacity: 0.26;
+        transform: scaleX(0.18) scaleY(0.16) translateY(13px);
+    }
+
+    .op-hourglass.descarga-finalizada .op-hourglass-sand-bottom {
+        opacity: 0.96;
+        transform: scaleX(1) scaleY(1) translateY(0);
+    }
+
+    @keyframes opHourglassTilt {
+        0%, 66% { transform: rotateY(-12deg) rotateZ(0deg); }
+        76%, 100% { transform: rotateY(12deg) rotateZ(180deg); }
+    }
+
+    @keyframes opSandFlow {
+        0%, 6% { opacity: 0.18; transform: translateY(-1px) scaleY(0.38); }
+        14%, 54% { opacity: 0.92; transform: translateY(0) scaleY(1); }
+        64%, 100% { opacity: 0.18; transform: translateY(3px) scaleY(0.38); }
+    }
+
+    @keyframes opSandTop {
+        0%, 10% { transform: scaleX(1) scaleY(1) translateY(0); opacity: 0.96; }
+        34% { transform: scaleX(0.72) scaleY(0.70) translateY(4px); opacity: 0.88; }
+        54% { transform: scaleX(0.40) scaleY(0.36) translateY(9px); opacity: 0.62; }
+        66%, 100% { transform: scaleX(0.18) scaleY(0.16) translateY(13px); opacity: 0.26; }
+    }
+
+    @keyframes opSandBottom {
+        0%, 10% { transform: scaleX(0.22) scaleY(0.20) translateY(2px); opacity: 0.32; }
+        34% { transform: scaleX(0.50) scaleY(0.46) translateY(1px); opacity: 0.58; }
+        54% { transform: scaleX(0.82) scaleY(0.76) translateY(-1px); opacity: 0.84; }
+        66%, 100% { transform: scaleX(1) scaleY(1) translateY(0); opacity: 0.96; }
     }
 
     .op-discharge-actions {
         margin-top: 14px;
         max-width: 360px;
+    }
+
+    .op-exit-panel {
+        display: block;
+        margin-bottom: 16px;
+        padding: 18px;
+        border: 1px solid rgba(21, 131, 69, 0.18);
+        border-radius: 8px;
+        background:
+            linear-gradient(180deg, rgba(248, 253, 250, 0.96) 0%, rgba(234, 242, 255, 0.96) 100%),
+            repeating-linear-gradient(135deg, rgba(21, 131, 69, 0.045) 0 1px, transparent 1px 14px);
+        box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.86), 0 12px 28px rgba(11, 37, 69, 0.10);
+    }
+
+    .op-exit-grid {
+        display: grid;
+        grid-template-columns: minmax(280px, 1.2fr) minmax(240px, 0.8fr);
+        gap: 16px;
+        align-items: stretch;
+    }
+
+    .op-exit-reference {
+        margin-bottom: 12px;
+        padding: 12px;
+        border: 1px solid rgba(11, 37, 69, 0.08);
+        border-radius: 8px;
+        background: rgba(255, 255, 255, 0.66);
+        color: #52616f;
+        font-size: 13px;
+        font-weight: 800;
+    }
+
+    .op-auth-toggle {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 10px;
+        margin-top: 10px;
+    }
+
+    .op-conforme-toggle {
+        gap: 12px;
+    }
+
+    .op-auth-option {
+        position: relative;
+        min-height: 88px;
+        margin: 0;
+        cursor: pointer;
+    }
+
+    .op-auth-option input {
+        position: absolute;
+        opacity: 0;
+        pointer-events: none;
+    }
+
+    .op-auth-option span {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 10px;
+        height: 100%;
+        padding: 14px;
+        border: 1px solid rgba(11, 37, 69, 0.12);
+        border-radius: 999px;
+        background:
+            linear-gradient(180deg, rgba(255, 255, 255, 0.88) 0%, rgba(238, 245, 252, 0.82) 100%);
+        color: #0b2545;
+        font-size: 18px;
+        font-weight: 900;
+        box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.86), 0 8px 16px rgba(11, 37, 69, 0.06);
+        transition: transform 160ms ease, box-shadow 160ms ease, border-color 160ms ease, background 160ms ease, color 160ms ease;
+    }
+
+    .op-auth-option:hover span {
+        transform: translateY(-1px);
+        box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.86), 0 12px 22px rgba(0, 87, 217, 0.10);
+    }
+
+    .op-conforme-si:hover span {
+        border-color: rgba(21, 131, 69, 0.34);
+        background: linear-gradient(180deg, rgba(239, 255, 246, 0.98) 0%, rgba(221, 248, 233, 0.96) 100%);
+        color: #158345;
+        box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.86), 0 12px 22px rgba(21, 131, 69, 0.14);
+    }
+
+    .op-conforme-no:hover span {
+        border-color: rgba(191, 50, 40, 0.30);
+        background: linear-gradient(180deg, rgba(255, 247, 244, 0.98) 0%, rgba(255, 229, 221, 0.96) 100%);
+        color: #bf3228;
+        box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.86), 0 12px 22px rgba(191, 50, 40, 0.12);
+    }
+
+    .op-auth-option input:checked + span,
+    .op-conforme-option.active span {
+        border-color: rgba(21, 131, 69, 0.38);
+        background: linear-gradient(135deg, #44c979 0%, #158345 100%);
+        color: #fff;
+        box-shadow: inset 0 2px 0 rgba(255, 255, 255, 0.30), 0 12px 24px rgba(21, 131, 69, 0.24);
+    }
+
+    .op-auth-option.is-no input:checked + span,
+    .op-conforme-no.active span {
+        border-color: rgba(191, 50, 40, 0.34);
+        background: linear-gradient(135deg, #ff8a72 0%, #bf3228 100%);
+        color: #fff;
+        box-shadow: inset 0 2px 0 rgba(255, 255, 255, 0.30), 0 12px 24px rgba(191, 50, 40, 0.20);
+    }
+
+    .op-auth-option input:disabled + span {
+        cursor: not-allowed;
+        opacity: 0.68;
+        transform: none;
+    }
+
+    .op-exit-summary {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 12px;
     }
 
     .op-glass-button.is-danger {
@@ -454,8 +1344,27 @@
         }
 
         .op-quality-summary,
-        .op-discharge-grid {
+        .op-result-dashboard-grid,
+        .op-discharge-grid,
+        .op-discharge-status-row,
+        .op-cycle-summary-grid,
+        .op-cycle-options,
+        .op-exit-grid,
+        .op-exit-summary,
+        .op-cycle-runtime {
             grid-template-columns: 1fr;
+        }
+
+        .op-cycle-header {
+            flex-direction: column;
+        }
+
+        .op-wait-clock {
+            grid-template-columns: 1fr;
+        }
+
+        .op-wait-clock-time {
+            font-size: 24px;
         }
     }
 
@@ -708,6 +1617,8 @@
                             <div class="operacion-hero-chip"><span>Patente</span> {{ patente }}</div>
                             <div class="operacion-hero-chip"><span>Tipo</span> {{ citacion.CI_CTIPO }}</div>
                             <div class="operacion-hero-chip"><span>Flujo</span> {{ nombre_flujo }}</div>
+                            <div class="operacion-hero-chip"><span>Fecha ingreso</span> {{ fecha_ingreso_operacion|default:'Sin fecha' }}</div>
+                            <div class="operacion-hero-chip"><span>Insumo</span> {{ insumo_operacion|default:'Sin insumo' }}</div>
                         </div>
                     </div>
                     <div class="operacion-hero-status">
@@ -728,6 +1639,32 @@
                 </div>
             </div>
         </div>
+
+        {% if paso_pesaje_activo_alt %}
+        <div class="op-alt-pesaje-close">
+            <div>
+                <strong>{{ paso_pesaje_activo_alt.nombre }}</strong>
+                <span>Ticket congelado detectado. Finalice el pesaje para registrar el cierre operacional.</span>
+            </div>
+            <form method="post" action="{% url 'operacion_planta_guardar_paso' citacion.id %}">
+                {% csrf_token %}
+                <input type="hidden" name="_empresa_id" value="{{ empresa_activa_id }}">
+                <input type="hidden" name="empresa_id" value="{{ empresa_activa_id }}">
+                <input type="hidden" name="origen" value="pesaje_alt">
+                <input type="hidden" name="citacion_id" value="{{ citacion.id }}">
+                <input type="hidden" name="paso_id" value="{{ paso_pesaje_activo_alt.orden }}">
+                <input type="hidden" name="paso" value="{{ paso_pesaje_activo_alt.nombre }}">
+                <input type="hidden" name="observacion" value="">
+                <button type="submit" class="btn btn-success">
+                    {% if paso_pesaje_activo_alt.tipo_ticket_pesaje == 'SAL' %}
+                        Finalizar Pesaje Salida
+                    {% else %}
+                        Finalizar Pesaje Entrada
+                    {% endif %}
+                </button>
+            </form>
+        </div>
+        {% endif %}
 
         <div class="row">
             <div class="col-12">
@@ -863,21 +1800,27 @@
                                     </div>
 
                                     {% if paso.requiere_ticket_pesaje %}
-                                    <div class="operacion-ticket-pesaje"
+                                    <div class="operacion-ticket-pesaje {% if paso.tipo_ticket_pesaje == 'SAL' %}is-sal{% else %}is-ent{% endif %}"
                                          data-paso="{{ paso.nombre }}"
+                                         data-tipo-ticket="{{ paso.tipo_ticket_pesaje }}"
                                          data-ticket-obtenido="{% if paso.ticket_pesaje %}true{% else %}false{% endif %}">
-                                        <div class="operacion-ticket-title">
-                                            Ticket de pesaje {{ paso.tipo_ticket_pesaje }}
+                                        <div class="operacion-ticket-header">
+                                            <div>
+                                                <div class="operacion-ticket-title">
+                                                    <span class="operacion-ticket-title-icon"><i class="fas fa-weight-hanging"></i></span>
+                                                    {% if paso.tipo_ticket_pesaje == 'SAL' %}
+                                                        Ticket de pesaje de salida
+                                                    {% else %}
+                                                        Ticket de pesaje de entrada
+                                                    {% endif %}
+                                                </div>
+                                                <div class="operacion-ticket-subtitle">
+                                                    Patente: {{ patente }} | Responsable: {{ paso.responsable }}
+                                                </div>
+                                            </div>
+                                            <span class="operacion-ticket-badge">{{ paso.tipo_ticket_pesaje }}</span>
                                         </div>
-                                        <div class="operacion-ticket-actions">
-                                            <button type="button"
-                                                    class="btn btn-outline-primary btn-obtener-ticket-pesaje"
-                                                    data-paso="{{ paso.nombre }}"
-                                                    data-tipo-ticket="{{ paso.tipo_ticket_pesaje }}"
-                                                    {% if not paso.activo or not paso.puede_editar %}disabled{% endif %}>
-                                                <i class="fas fa-file-pdf"></i> Obtener ticket de pesaje
-                                            </button>
-                                        </div>
+
                                         <div class="operacion-ticket-grid">
                                             <div class="operacion-ticket-card">
                                                 <div class="operacion-ticket-card-title">Peso ticket</div>
@@ -892,12 +1835,6 @@
                                                 <div class="operacion-ticket-card-value operacion-ticket-folio">
                                                     {{ paso.ticket_pesaje.folio|default:'Sin ticket' }}
                                                 </div>
-                                                <a class="btn btn-outline-secondary btn-sm mt-2 btn-descargar-ticket-pesaje {% if not paso.ticket_pesaje %}d-none{% endif %}"
-                                                   href="{{ paso.ticket_pesaje.download_url|default:'#' }}"
-                                                   target="_blank"
-                                                   rel="noopener">
-                                                    <i class="fas fa-download"></i> Descargar PDF
-                                                </a>
                                             </div>
                                             <div class="operacion-ticket-card">
                                                 <div class="operacion-ticket-card-title">Observacion</div>
@@ -905,12 +1842,66 @@
                                                     {{ paso.ticket_pesaje.observacion|default:'Sin observacion' }}
                                                 </div>
                                             </div>
+                                            <div class="operacion-ticket-card operacion-ticket-download-card">
+                                                <div>
+                                                    <div class="operacion-ticket-card-title">Archivo PDF</div>
+                                                    <div class="operacion-ticket-card-value operacion-ticket-pdf-name {% if not paso.ticket_pesaje.nombre_archivo_pdf %}operacion-ticket-card-value-muted{% endif %}">
+                                                        {{ paso.ticket_pesaje.nombre_archivo_pdf|default:'Sin PDF congelado' }}
+                                                    </div>
+                                                </div>
+                                                <a class="btn btn-outline-secondary btn-sm btn-descargar-ticket-pesaje {% if not paso.ticket_pesaje %}d-none{% endif %}"
+                                                   href="{{ paso.ticket_pesaje.download_url|default:'#' }}"
+                                                   target="_blank"
+                                                   rel="noopener">
+                                                    <i class="fas fa-download"></i> Descargar PDF
+                                                </a>
+                                            </div>
                                         </div>
-                                        <div class="operacion-ticket-info">
+
+                                        <div class="operacion-ticket-actions">
                                             {% if paso.ticket_pesaje %}
-                                                Ticket de pesaje congelado correctamente.
+                                                <div class="operacion-ticket-frozen-pill">
+                                                    <i class="fas fa-check-circle"></i>
+                                                    Ticket ya congelado
+                                                </div>
                                             {% else %}
-                                                <span class="operacion-ticket-empty">Debe obtener el ticket de pesaje antes de guardar este paso.</span>
+                                                <button type="button"
+                                                        class="op-glass-button {% if paso.tipo_ticket_pesaje == 'SAL' %}is-success{% else %}is-secondary{% endif %} btn-obtener-ticket-pesaje"
+                                                        data-paso="{{ paso.nombre }}"
+                                                        data-tipo-ticket="{{ paso.tipo_ticket_pesaje }}"
+                                                        {% if not paso.activo or not paso.puede_editar %}disabled{% endif %}>
+                                                    <i class="op-glass-icon fas fa-file-pdf"></i>
+                                                    {% if paso.tipo_ticket_pesaje == 'SAL' %}
+                                                        Obtener ticket de salida
+                                                    {% else %}
+                                                        Obtener ticket de entrada
+                                                    {% endif %}
+                                                </button>
+                                            {% endif %}
+                                            {% if paso.activo and paso.puede_editar %}
+                                                <button type="submit"
+                                                        class="op-glass-button {% if paso.tipo_ticket_pesaje == 'SAL' %}is-success{% else %}is-secondary{% endif %} btn-finalizar-ticket-pesaje finalizar-pesaje-btn"
+                                                        data-paso="{{ paso.nombre }}"
+                                                        aria-disabled="false"
+                                                        style="pointer-events:auto !important; cursor:pointer !important; position:relative; z-index:9999 !important;">
+                                                    <i class="op-glass-icon fas fa-check-circle"></i>
+                                                    {% if paso.tipo_ticket_pesaje == 'SAL' %}
+                                                        Finalizar pesaje de salida
+                                                    {% else %}
+                                                        Finalizar pesaje de entrada
+                                                    {% endif %}
+                                                </button>
+                                            {% endif %}
+                                        </div>
+
+                                        <div class="operacion-ticket-info {% if paso.ticket_pesaje %}is-frozen{% endif %}">
+                                            {% if paso.ticket_pesaje %}
+                                                <i class="fas fa-check-circle"></i> Ticket de pesaje congelado correctamente.
+                                            {% else %}
+                                                <i class="fas fa-hourglass-half"></i>
+                                                <span class="operacion-ticket-empty">
+                                                    Pendiente: debe obtener el ticket COM_{{ paso.tipo_ticket_pesaje }} antes de guardar este paso.
+                                                </span>
                                             {% endif %}
                                         </div>
                                     </div>
@@ -954,22 +1945,46 @@
                                     {% if paso.requiere_resultado_calidad %}
                                     <div class="op-lab-panel operacion-calidad-box"
                                          data-paso="{{ paso.nombre }}"
-                                         data-calidad-registrada="{% if paso.resultado_calidad %}true{% else %}false{% endif %}">
+                                         data-calidad-registrada="{% if paso.resultado_calidad %}true{% else %}false{% endif %}"
+                                         data-validacion-calidad="{% if paso.validacion_calidad.registrada %}true{% else %}false{% endif %}">
                                         <div>
                                             <div class="op-lab-title"><i class="fas fa-flask"></i> Resultado de laboratorio</div>
                                             <div class="op-lab-subtitle">Seleccione el resultado del analisis</div>
+                                            <div class="op-lab-sample-note {% if not paso.observacion_toma_muestra %}is-muted{% endif %}">
+                                                <strong>Observacion toma de muestra</strong>
+                                                {{ paso.observacion_toma_muestra|default:'Sin observacion registrada' }}
+                                            </div>
+                                            <div class="op-action-stack mt-3">
+                                                <button type="button"
+                                                        class="op-glass-button is-primary btn-validar-calidad {% if paso.validacion_calidad.registrada %}is-success{% endif %}"
+                                                        data-paso="{{ paso.nombre }}"
+                                                        onclick="abrirModalValidacionCalidad(this)"
+                                                        {% if not paso.activo or not paso.puede_editar or paso.resultado_calidad or paso.validacion_calidad.registrada %}disabled{% endif %}>
+                                                    <i class="op-glass-icon fas {% if paso.validacion_calidad.registrada %}fa-check{% else %}fa-clipboard-check{% endif %}"></i>
+                                                    {% if paso.validacion_calidad.registrada %}Validacion realizada{% else %}Validar{% endif %}
+                                                </button>
+                                            </div>
+                                            <div class="op-action-state op-validacion-calidad-state mt-3">
+                                                {% if paso.validacion_calidad.registrada %}
+                                                    <strong>Validacion realizada: insumo y guia revisados</strong>
+                                                    {{ paso.validacion_calidad.fecha_hora }} por {{ paso.validacion_calidad.usuario }}
+                                                {% else %}
+                                                    <strong>Validacion pendiente</strong>
+                                                    Revise insumo y guia antes de aprobar o rechazar.
+                                                {% endif %}
+                                            </div>
                                             <div class="op-action-stack">
                                                 <button type="button"
                                                         class="op-glass-button is-success btn-resultado-calidad"
                                                         data-resultado="APROBADO"
-                                                        {% if not paso.activo or not paso.puede_editar or paso.resultado_calidad %}disabled{% endif %}>
+                                                        {% if not paso.activo or not paso.puede_editar or paso.resultado_calidad or not paso.validacion_calidad.registrada %}disabled{% endif %}>
                                                     <i class="op-glass-icon fas fa-check"></i>
                                                     Aprobado
                                                 </button>
                                                 <button type="button"
                                                         class="op-glass-button is-danger btn-resultado-calidad"
                                                         data-resultado="RECHAZADO"
-                                                        {% if not paso.activo or not paso.puede_editar or paso.resultado_calidad %}disabled{% endif %}>
+                                                        {% if not paso.activo or not paso.puede_editar or paso.resultado_calidad or not paso.validacion_calidad.registrada %}disabled{% endif %}>
                                                     <i class="op-glass-icon fas fa-times"></i>
                                                     Rechazado
                                                 </button>
@@ -1002,92 +2017,193 @@
                                     {% endif %}
 
                                     {% if paso.requiere_preparacion_descarga %}
-                                    <div class="op-lab-panel operacion-preparacion-descarga-box"
+                                    <div class="op-lab-panel op-result-dashboard-panel operacion-preparacion-descarga-box"
                                          data-paso="{{ paso.nombre }}">
-                                        <div>
+                                        <div class="op-result-dashboard-section">
                                             <div class="op-lab-title"><i class="fas fa-vials"></i> Resultado de laboratorio</div>
                                             <div class="op-lab-subtitle">Revision del resultado generado por Calidad</div>
-                                            <div class="op-quality-summary">
-                                                <div>
+                                            <div class="op-result-dashboard-grid">
+                                                <div class="op-dashboard-card">
+                                                    <div class="op-dashboard-card-title">Estado de calidad</div>
                                                     {% if paso.revision_resultado_calidad %}
                                                         <span class="op-quality-badge {% if paso.revision_resultado_calidad.resultado_calidad == 'RECHAZADO' %}rechazado{% endif %}">
                                                             <i class="fas {% if paso.revision_resultado_calidad.resultado_calidad == 'RECHAZADO' %}fa-times{% else %}fa-check{% endif %}"></i>
                                                             {{ paso.revision_resultado_calidad.resultado_calidad }}
                                                         </span>
-                                                        <div class="text-muted mt-2">
-                                                            {{ paso.revision_resultado_calidad.fecha_hora }} por {{ paso.revision_resultado_calidad.usuario }}
+                                                        <div class="op-dashboard-muted mt-3">
+                                                            <i class="fas fa-user-check"></i> {{ paso.revision_resultado_calidad.usuario|default:'Sin usuario' }}<br>
+                                                            <i class="fas fa-calendar-alt"></i> {{ paso.revision_resultado_calidad.fecha_hora|default:'Sin fecha' }}
                                                         </div>
                                                     {% else %}
                                                         <span class="badge badge-secondary">Sin resultado registrado</span>
+                                                        <div class="op-dashboard-muted mt-3">Resultado de calidad pendiente.</div>
                                                     {% endif %}
                                                 </div>
-                                                <div class="op-lab-result-card">
+
+                                                <div class="op-dashboard-card">
+                                                    <div class="op-dashboard-card-title">Espera descarga</div>
+                                                    {% if paso.espera_descarga and paso.espera_descarga.disponible %}
+                                                        <div class="op-wait-clock {% if paso.espera_descarga.finalizada %}is-finalized{% endif %}">
+                                                            <div class="op-hourglass {% if paso.espera_descarga.finalizada %}descarga-finalizada{% else %}descarga-activa{% endif %}">
+                                                                <div class="op-hourglass-inner">
+                                                                    <span class="op-hourglass-neck"></span>
+                                                                    <span class="op-hourglass-glass-shine"></span>
+                                                                    <span class="op-hourglass-sand-layer">
+                                                                        <span class="op-hourglass-sand-top"></span>
+                                                                        <span class="op-hourglass-flow"></span>
+                                                                        <span class="op-hourglass-sand-bottom"></span>
+                                                                    </span>
+                                                                </div>
+                                                            </div>
+                                                            <div>
+                                                                <div class="op-wait-clock-label">En espera de descarga</div>
+                                                                <div class="op-wait-clock-time"
+                                                                     {% if paso.espera_descarga.activa %}data-wait-start="{{ paso.espera_descarga.inicio_iso }}"{% endif %}>
+                                                                    {{ paso.espera_descarga.duracion_legible|default:'00:00:00' }}
+                                                                </div>
+                                                                <span class="op-mini-badge {% if paso.espera_descarga.finalizada %}is-success{% endif %}">
+                                                                    <i class="fas {% if paso.espera_descarga.finalizada %}fa-check-circle{% else %}fa-hourglass-half{% endif %}"></i>
+                                                                    {% if paso.espera_descarga.finalizada %}Finalizada{% else %}En espera{% endif %}
+                                                                </span>
+                                                            </div>
+                                                        </div>
+                                                    {% else %}
+                                                        <div class="op-dashboard-muted">Sin inicio de espera registrado.</div>
+                                                    {% endif %}
+                                                </div>
+
+                                                <div class="op-dashboard-card">
+                                                    <div class="op-dashboard-card-title">Detalle del analisis</div>
                                                     {% if paso.revision_resultado_calidad %}
-                                                        <strong>Detalle del analisis</strong>
-                                                        {% if paso.revision_resultado_calidad.comentario %}
-                                                            {{ paso.revision_resultado_calidad.comentario }}
-                                                        {% else %}
-                                                            Sin comentario de calidad.
-                                                        {% endif %}
+                                                        <div>
+                                                            {% if paso.revision_resultado_calidad.comentario %}
+                                                                {{ paso.revision_resultado_calidad.comentario }}
+                                                            {% else %}
+                                                                Sin comentario de calidad.
+                                                            {% endif %}
+                                                        </div>
                                                         {% if paso.revision_resultado_calidad.documento_nombre %}
-                                                            <br>
                                                             {% if paso.revision_resultado_calidad.download_url %}
-                                                                <a href="{{ paso.revision_resultado_calidad.download_url }}" target="_blank" rel="noopener">
+                                                                <a class="op-dashboard-document-link" href="{{ paso.revision_resultado_calidad.download_url }}" target="_blank" rel="noopener">
                                                                     <i class="fas fa-paperclip"></i> {{ paso.revision_resultado_calidad.documento_nombre }}
                                                                 </a>
                                                             {% else %}
-                                                                <i class="fas fa-paperclip"></i> {{ paso.revision_resultado_calidad.documento_nombre }}
+                                                                <div class="op-dashboard-muted mt-2">
+                                                                    <i class="fas fa-paperclip"></i> {{ paso.revision_resultado_calidad.documento_nombre }}
+                                                                </div>
                                                             {% endif %}
                                                         {% endif %}
                                                     {% else %}
-                                                        <strong>Resultado no disponible</strong>
-                                                        Debe existir un resultado de calidad antes de preparar descarga.
+                                                        <div class="op-dashboard-muted">Debe existir un resultado de calidad antes de preparar descarga.</div>
                                                     {% endif %}
                                                 </div>
                                             </div>
+                                        </div>
 
+                                        <div class="op-result-dashboard-section">
                                             <div class="op-lab-title mt-3"><i class="fas fa-industry"></i> Preparacion descarga</div>
                                             <div class="op-discharge-grid">
-                                                <div class="form-group">
+                                                <div>
                                                     <label>Sitio de descarga</label>
-                                                    <select class="form-control prep-sitio-descarga" {% if not paso.activo or not paso.puede_editar or paso.preparacion_descarga.usuario %}disabled{% endif %}>
-                                                        <option value="">Seleccione sitio</option>
-                                                        {% for sitio in paso.sitios_descarga %}
-                                                            <option value="{{ sitio }}" {% if paso.preparacion_descarga.sitio_descarga == sitio %}selected{% endif %}>{{ sitio }}</option>
-                                                        {% endfor %}
-                                                    </select>
+                                                    {% if paso.preparacion_descarga.usuario %}
+                                                        <div class="op-field-summary-card">
+                                                            <div class="op-field-summary-label">Sitio descarga</div>
+                                                            <div class="op-field-summary-value {% if not paso.preparacion_descarga.sitio_descarga %}is-muted{% endif %}">
+                                                                {{ paso.preparacion_descarga.sitio_descarga|default:'Sin sitio' }}
+                                                            </div>
+                                                        </div>
+                                                    {% else %}
+                                                        <select class="form-control prep-sitio-descarga" {% if not paso.activo or not paso.puede_editar %}disabled{% endif %}>
+                                                            <option value="">Seleccione sitio</option>
+                                                            {% for sitio in paso.sitios_descarga %}
+                                                                <option value="{{ sitio }}" {% if paso.preparacion_descarga.sitio_descarga == sitio %}selected{% endif %}>{{ sitio }}</option>
+                                                            {% endfor %}
+                                                        </select>
+                                                    {% endif %}
                                                 </div>
-                                                <div class="form-group">
+                                                <div>
                                                     <label>Bomba de descarga</label>
-                                                    <select class="form-control prep-bomba-descarga" {% if not paso.activo or not paso.puede_editar or paso.preparacion_descarga.usuario %}disabled{% endif %}>
-                                                        <option value="">Seleccione bomba</option>
-                                                        {% for bomba in paso.bombas_descarga %}
-                                                            <option value="{{ bomba }}" {% if paso.preparacion_descarga.bomba_descarga == bomba %}selected{% endif %}>{{ bomba }}</option>
-                                                        {% endfor %}
-                                                    </select>
+                                                    {% if paso.preparacion_descarga.usuario %}
+                                                        <div class="op-field-summary-card">
+                                                            <div class="op-field-summary-label">Bomba descarga</div>
+                                                            <div class="op-field-summary-value {% if not paso.preparacion_descarga.bomba_descarga %}is-muted{% endif %}">
+                                                                {{ paso.preparacion_descarga.bomba_descarga|default:'Sin bomba' }}
+                                                            </div>
+                                                        </div>
+                                                    {% else %}
+                                                        <select class="form-control prep-bomba-descarga" {% if not paso.activo or not paso.puede_editar %}disabled{% endif %}>
+                                                            <option value="">Seleccione bomba</option>
+                                                            {% for bomba in paso.bombas_descarga %}
+                                                                <option value="{{ bomba }}" {% if paso.preparacion_descarga.bomba_descarga == bomba %}selected{% endif %}>{{ bomba }}</option>
+                                                            {% endfor %}
+                                                        </select>
+                                                    {% endif %}
                                                 </div>
-                                                <div class="form-group">
+                                                <div>
                                                     <label>Estanque destino</label>
-                                                    <input type="text"
-                                                           class="form-control prep-estanque-destino"
-                                                           value="{{ paso.preparacion_descarga.estanque_destino|default:'' }}"
-                                                           placeholder="Indique estanque destino"
-                                                           {% if not paso.activo or not paso.puede_editar or paso.preparacion_descarga.usuario %}readonly{% endif %}>
+                                                    {% if paso.preparacion_descarga.usuario %}
+                                                        <div class="op-field-summary-card">
+                                                            <div class="op-field-summary-label">Estanque destino</div>
+                                                            <div class="op-field-summary-value {% if not paso.preparacion_descarga.estanque_destino %}is-muted{% endif %}">
+                                                                {{ paso.preparacion_descarga.estanque_destino|default:'Sin estanque' }}
+                                                            </div>
+                                                        </div>
+                                                    {% else %}
+                                                        <input type="text"
+                                                               class="form-control prep-estanque-destino"
+                                                               value="{{ paso.preparacion_descarga.estanque_destino|default:'' }}"
+                                                               placeholder="Indique estanque destino"
+                                                               {% if not paso.activo or not paso.puede_editar %}readonly{% endif %}>
+                                                    {% endif %}
+                                                </div>
+                                                <div>
+                                                    <label>Estado preparacion</label>
+                                                    <div class="op-field-summary-card">
+                                                        <div class="op-field-summary-label">Estado</div>
+                                                        <div class="op-field-summary-value {% if not paso.preparacion_descarga.usuario %}is-muted{% endif %}">
+                                                            {% if paso.preparacion_descarga.usuario %}Preparado{% else %}Pendiente{% endif %}
+                                                        </div>
+                                                    </div>
                                                 </div>
                                             </div>
-                                            <div class="form-group">
+
+                                            <div class="op-discharge-observations">
                                                 <label>Observaciones de descarga</label>
                                                 <textarea class="form-control prep-observaciones-descarga"
                                                           rows="3"
                                                           {% if not paso.activo or not paso.puede_editar or paso.preparacion_descarga.usuario %}readonly{% endif %}>{{ paso.preparacion_descarga.observaciones_descarga|default:'' }}</textarea>
                                             </div>
+
                                             {% if paso.preparacion_descarga.usuario %}
-                                                <div class="op-lab-result-card">
-                                                    <strong>Preparacion registrada</strong>
-                                                    {{ paso.preparacion_descarga.fecha_hora }} por {{ paso.preparacion_descarga.usuario }}<br>
-                                                    Sitio: {{ paso.preparacion_descarga.sitio_descarga }} | Bomba: {{ paso.preparacion_descarga.bomba_descarga }} | Estanque: {{ paso.preparacion_descarga.estanque_destino }}
+                                                <div class="op-update-strip">
+                                                    <i class="fas fa-sync-alt"></i>
+                                                    Ultima actualizacion: {{ paso.preparacion_descarga.fecha_hora }} por {{ paso.preparacion_descarga.usuario }}
                                                 </div>
                                             {% endif %}
+
+                                            <div class="op-discharge-status-row">
+                                                <div class="op-status-pill {% if paso.revision_resultado_calidad %}is-done{% endif %}">
+                                                    <span class="op-status-dot">{% if paso.revision_resultado_calidad %}<i class="fas fa-check"></i>{% endif %}</span>
+                                                    {% if paso.revision_resultado_calidad %}
+                                                        Calidad {% if paso.revision_resultado_calidad.resultado_calidad == 'RECHAZADO' %}rechazada{% else %}aprobada{% endif %}
+                                                    {% else %}
+                                                        Calidad pendiente
+                                                    {% endif %}
+                                                </div>
+                                                <div class="op-status-pill {% if paso.espera_descarga.finalizada %}is-done{% elif paso.espera_descarga.activa %}is-current{% endif %}">
+                                                    <span class="op-status-dot">{% if paso.espera_descarga.finalizada %}<i class="fas fa-check"></i>{% elif paso.espera_descarga.activa %}<i class="fas fa-clock"></i>{% endif %}</span>
+                                                    Espera descarga finalizada
+                                                </div>
+                                                <div class="op-status-pill {% if paso.preparacion_descarga.usuario %}is-done{% endif %}">
+                                                    <span class="op-status-dot">{% if paso.preparacion_descarga.usuario %}<i class="fas fa-check"></i>{% endif %}</span>
+                                                    Descarga preparada
+                                                </div>
+                                                <div class="op-status-pill {% if paso.preparacion_descarga.usuario %}is-current{% endif %}">
+                                                    <span class="op-status-dot">{% if paso.preparacion_descarga.usuario %}<i class="fas fa-arrow-right"></i>{% endif %}</span>
+                                                    Ciclo descarga pendiente
+                                                </div>
+                                            </div>
+
                                             {% if paso.activo and paso.puede_editar and not paso.preparacion_descarga.usuario %}
                                                 <div class="op-discharge-actions">
                                                     <button type="button" class="op-glass-button is-secondary btn-guardar-preparacion-descarga" data-paso="{{ paso.nombre }}">
@@ -1100,12 +2216,290 @@
                                     </div>
                                     {% endif %}
 
+                                    {% if paso.requiere_ciclo_descarga %}
+                                    <div class="op-cycle-panel operacion-ciclo-descarga-box"
+                                         data-paso="{{ paso.nombre }}"
+                                         data-iniciada="{% if paso.ciclo_descarga.iniciada %}true{% else %}false{% endif %}"
+                                         data-finalizada="{% if paso.ciclo_descarga.finalizada %}true{% else %}false{% endif %}">
+                                        <div class="op-cycle-header">
+                                            <div>
+                                                <div class="op-cycle-title">
+                                                    <span class="op-cycle-title-icon"><i class="fas fa-industry"></i></span>
+                                                    Ciclo Descarga
+                                                </div>
+                                                <div class="op-cycle-subtitle">
+                                                    Responsable: Sala_Control | Patente: {{ patente }}
+                                                </div>
+                                            </div>
+                                            <span class="op-cycle-state-badge {% if paso.ciclo_descarga.finalizada %}is-done{% elif paso.ciclo_descarga.en_proceso %}is-active{% endif %}">
+                                                <i class="fas {% if paso.ciclo_descarga.finalizada %}fa-check-circle{% elif paso.ciclo_descarga.en_proceso %}fa-hourglass-half{% else %}fa-circle{% endif %}"></i>
+                                                {% if paso.ciclo_descarga.finalizada %}
+                                                    Descarga finalizada
+                                                {% elif paso.ciclo_descarga.en_proceso %}
+                                                    Descarga en proceso
+                                                {% else %}
+                                                    Pendiente de inicio
+                                                {% endif %}
+                                            </span>
+                                        </div>
+
+                                        <div class="op-cycle-summary-grid">
+                                            <div class="op-field-summary-card">
+                                                <div class="op-field-summary-label">Calidad</div>
+                                                <div class="op-field-summary-value {% if not paso.revision_resultado_calidad %}is-muted{% endif %}">
+                                                    {{ paso.revision_resultado_calidad.resultado_calidad|default:'Sin resultado' }}
+                                                </div>
+                                            </div>
+                                            <div class="op-field-summary-card">
+                                                <div class="op-field-summary-label">Sitio descarga</div>
+                                                <div class="op-field-summary-value {% if not paso.preparacion_descarga_ciclo.sitio_descarga %}is-muted{% endif %}">
+                                                    {{ paso.preparacion_descarga_ciclo.sitio_descarga|default:'Sin sitio' }}
+                                                </div>
+                                            </div>
+                                            <div class="op-field-summary-card">
+                                                <div class="op-field-summary-label">Bomba</div>
+                                                <div class="op-field-summary-value {% if not paso.preparacion_descarga_ciclo.bomba_descarga %}is-muted{% endif %}">
+                                                    {{ paso.preparacion_descarga_ciclo.bomba_descarga|default:'Sin bomba' }}
+                                                </div>
+                                            </div>
+                                            <div class="op-field-summary-card">
+                                                <div class="op-field-summary-label">Estanque destino</div>
+                                                <div class="op-field-summary-value {% if not paso.preparacion_descarga_ciclo.estanque_destino %}is-muted{% endif %}">
+                                                    {{ paso.preparacion_descarga_ciclo.estanque_destino|default:'Sin estanque' }}
+                                                </div>
+                                            </div>
+                                            <div class="op-field-summary-card">
+                                                <div class="op-field-summary-label">Observaciones</div>
+                                                <div class="op-field-summary-value {% if not paso.preparacion_descarga_ciclo.observaciones_descarga %}is-muted{% endif %}">
+                                                    {{ paso.preparacion_descarga_ciclo.observaciones_descarga|default:'Sin observaciones' }}
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        <div class="op-lab-title"><i class="fas fa-tasks"></i> Tipo de descarga</div>
+                                        <div class="op-cycle-options">
+                                            {% for tipo_descarga in paso.tipos_ciclo_descarga %}
+                                                <button type="button"
+                                                        class="op-cycle-option {% if paso.ciclo_descarga.tipo_descarga == tipo_descarga %}is-selected{% endif %}"
+                                                        data-tipo-descarga="{{ tipo_descarga }}"
+                                                        {% if not paso.activo or not paso.puede_editar or paso.ciclo_descarga.iniciada %}disabled{% endif %}>
+                                                    <span class="op-cycle-option-icon">
+                                                        <i class="fas {% if 'Bodega' in tipo_descarga %}fa-warehouse{% elif 'Cisterna' in tipo_descarga %}fa-truck-moving{% elif 'Patio' in tipo_descarga %}fa-map-marked-alt{% else %}fa-oil-can{% endif %}"></i>
+                                                    </span>
+                                                    <span class="op-cycle-option-title">{{ tipo_descarga }}</span>
+                                                </button>
+                                            {% endfor %}
+                                        </div>
+
+                                        {% if paso.ciclo_descarga.iniciada %}
+                                            <div class="op-cycle-runtime">
+                                                <div class="op-hourglass {% if paso.ciclo_descarga.finalizada %}descarga-finalizada{% else %}descarga-activa{% endif %}">
+                                                    <div class="op-hourglass-inner">
+                                                        <span class="op-hourglass-neck"></span>
+                                                        <span class="op-hourglass-glass-shine"></span>
+                                                        <span class="op-hourglass-sand-layer">
+                                                            <span class="op-hourglass-sand-top"></span>
+                                                            <span class="op-hourglass-flow"></span>
+                                                            <span class="op-hourglass-sand-bottom"></span>
+                                                        </span>
+                                                    </div>
+                                                </div>
+                                                <div>
+                                                    <div class="op-dashboard-card-title">
+                                                        {% if paso.ciclo_descarga.finalizada %}Descarga finalizada{% else %}Descarga en proceso{% endif %}
+                                                    </div>
+                                                    <div class="op-dashboard-muted">Inicia Descarga</div>
+                                                    <div class="op-wait-clock-time op-cycle-live-time"
+                                                         {% if paso.ciclo_descarga.en_proceso %}data-cycle-start="{{ paso.ciclo_descarga.inicio_descarga }}"{% endif %}>
+                                                        {{ paso.ciclo_descarga.duracion_legible|default:'00:00:00' }}
+                                                    </div>
+                                                    <div class="op-dashboard-muted">
+                                                        Tipo: {{ paso.ciclo_descarga.tipo_descarga }} |
+                                                        Inicio: {{ paso.ciclo_descarga.inicio_descarga_legible|default:'Sin inicio' }}
+                                                        {% if paso.ciclo_descarga.finalizada %}
+                                                            | Fin: {{ paso.ciclo_descarga.fin_descarga_legible|default:'Sin fin' }}
+                                                        {% endif %}
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        {% endif %}
+
+                                        {% if paso.ciclo_descarga.finalizada %}
+                                            <div class="op-update-strip">
+                                                <i class="fas fa-check-circle"></i>
+                                                Tipo: {{ paso.ciclo_descarga.tipo_descarga }} | Inicio: {{ paso.ciclo_descarga.inicio_descarga_legible }} | Fin: {{ paso.ciclo_descarga.fin_descarga_legible }} | Duracion: {{ paso.ciclo_descarga.duracion_legible }} | Finalizo: {{ paso.ciclo_descarga.usuario_fin }}
+                                            </div>
+                                        {% endif %}
+
+                                        {% if paso.activo and paso.puede_editar and not paso.ciclo_descarga.finalizada %}
+                                            <div class="op-discharge-actions">
+                                                {% if not paso.ciclo_descarga.iniciada %}
+                                                    <button type="button" class="op-glass-button is-secondary btn-iniciar-ciclo-descarga" data-paso="{{ paso.nombre }}" disabled>
+                                                        <i class="op-glass-icon fas fa-play"></i>
+                                                        Iniciar descarga
+                                                    </button>
+                                                {% else %}
+                                                    <button type="button" class="op-glass-button is-success btn-finalizar-ciclo-descarga" data-paso="{{ paso.nombre }}">
+                                                        <i class="op-glass-icon fas fa-check"></i>
+                                                        Finalizar descarga
+                                                    </button>
+                                                {% endif %}
+                                            </div>
+                                        {% endif %}
+                                    </div>
+                                    {% endif %}
+
+                                    {% if paso.requiere_autorizar_salida %}
+                                    <div class="op-exit-panel operacion-autorizar-salida-box"
+                                         data-paso="{{ paso.nombre }}"
+                                         data-registrada="{% if paso.autorizar_salida.registrada %}true{% else %}false{% endif %}">
+                                        <div class="op-cycle-header">
+                                            <div>
+                                                <div class="op-cycle-title">
+                                                    <span class="op-cycle-title-icon"><i class="fas fa-clipboard-check"></i></span>
+                                                    Autorizar Salida
+                                                </div>
+                                                <div class="op-cycle-subtitle">
+                                                    Responsable: Asistente_Recepcion | Siguiente: Guardia_Porteria
+                                                </div>
+                                            </div>
+                                            <span class="op-cycle-state-badge {% if paso.autorizar_salida.registrada %}is-done{% elif paso.activo %}is-active{% endif %}">
+                                                <i class="fas {% if paso.autorizar_salida.registrada %}fa-check-circle{% elif paso.activo %}fa-clipboard-list{% else %}fa-circle{% endif %}"></i>
+                                                {% if paso.autorizar_salida.registrada %}Salida autorizada{% elif paso.activo %}Pendiente de autorizacion{% else %}Pendiente{% endif %}
+                                            </span>
+                                        </div>
+
+                                        {% if paso.autorizar_salida.registrada %}
+                                            <div class="op-exit-summary">
+                                                <div class="op-field-summary-card">
+                                                    <div class="op-field-summary-label">Recepcion conforme</div>
+                                                    <div class="op-field-summary-value">{{ paso.autorizar_salida.recepcion_conforme|default:'Sin registrar' }}</div>
+                                                </div>
+                                                <div class="op-field-summary-card">
+                                                    <div class="op-field-summary-label">Autorizado por</div>
+                                                    <div class="op-field-summary-value">{{ paso.autorizar_salida.usuario|default:'Sin usuario' }}</div>
+                                                </div>
+                                                <div class="op-field-summary-card">
+                                                    <div class="op-field-summary-label">Fecha/Hora</div>
+                                                    <div class="op-field-summary-value">{{ paso.autorizar_salida.fecha_hora|default:'Sin fecha' }}</div>
+                                                </div>
+                                                <div class="op-field-summary-card">
+                                                    <div class="op-field-summary-label">Observacion descarga</div>
+                                                    <div class="op-field-summary-value {% if not paso.autorizar_salida.observacion_descarga %}is-muted{% endif %}">
+                                                        {{ paso.autorizar_salida.observacion_descarga|default:'Sin observacion' }}
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        {% else %}
+                                            <div class="op-exit-grid">
+                                                <div>
+                                                    <div class="op-lab-title"><i class="fas fa-clipboard-list"></i> Revision de descarga</div>
+                                                    {% if paso.autorizar_salida.observacion_referencia %}
+                                                        <div class="op-exit-reference">
+                                                            <strong>Referencia descarga</strong><br>
+                                                            {{ paso.autorizar_salida.observacion_referencia }}
+                                                        </div>
+                                                    {% endif %}
+                                                    <label>Observacion descarga</label>
+                                                    <textarea class="form-control autorizacion-observacion-descarga"
+                                                              rows="5"
+                                                              {% if not paso.activo or not paso.puede_editar %}readonly{% endif %}>{{ paso.autorizar_salida.observacion_descarga|default:'' }}</textarea>
+                                                </div>
+                                                <div>
+                                                    <div class="op-lab-title"><i class="fas fa-check-double"></i> Recepcion Conforme</div>
+                                                    <div class="op-dashboard-muted">Presione Si o No para cerrar la autorizacion.</div>
+                                                    <div class="op-auth-toggle op-conforme-toggle">
+                                                        <label class="op-auth-option op-conforme-option op-conforme-si">
+                                                            <input type="radio"
+                                                                   name="recepcion_conforme_{{ paso.orden }}"
+                                                                   value="SI"
+                                                                   {% if not paso.activo or not paso.puede_editar %}disabled{% endif %}>
+                                                            <span><i class="fas fa-check"></i> Si</span>
+                                                        </label>
+                                                        <label class="op-auth-option op-conforme-option op-conforme-no is-no">
+                                                            <input type="radio"
+                                                                   name="recepcion_conforme_{{ paso.orden }}"
+                                                                   value="NO"
+                                                                   {% if not paso.activo or not paso.puede_editar %}disabled{% endif %}>
+                                                            <span><i class="fas fa-times"></i> No</span>
+                                                        </label>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        {% endif %}
+                                    </div>
+                                    {% endif %}
+
+                                    {% if paso.requiere_confirmar_salida %}
+                                        <div class="operacion-confirmar-salida-box" data-paso="{{ paso.nombre }}">
+                                            {% if paso.estado == 'COMPLETADO' %}
+                                                <div class="op-exit-summary">
+                                                    <div class="op-lab-title"><i class="fas fa-check-circle"></i> Salida de planta confirmada</div>
+                                                    <div class="op-field-summary-grid">
+                                                        <div class="op-field-summary-card">
+                                                            <div class="op-field-summary-label">Usuario</div>
+                                                            <div class="op-field-summary-value">{{ paso.usuario|default:'Sin usuario' }}</div>
+                                                        </div>
+                                                        <div class="op-field-summary-card">
+                                                            <div class="op-field-summary-label">Fecha/hora</div>
+                                                            <div class="op-field-summary-value">{{ paso.fecha|date:'d/m/Y H:i' }}</div>
+                                                        </div>
+                                                        <div class="op-field-summary-card">
+                                                            <div class="op-field-summary-label">Observacion</div>
+                                                            <div class="op-field-summary-value {% if not paso.observacion %}is-muted{% endif %}">
+                                                                {{ paso.observacion|default:'Sin observacion' }}
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            {% else %}
+                                                <div class="op-exit-grid">
+                                                    <div>
+                                                        <div class="op-lab-title"><i class="fas fa-door-open"></i> Confirmacion de salida</div>
+                                                        <div class="op-dashboard-muted">Registre la salida fisica del camion desde porteria.</div>
+                                                        <label>Observacion</label>
+                                                        <textarea name="observacion_visual"
+                                                                  class="form-control confirmar-salida-observacion"
+                                                                  rows="5"
+                                                                  {% if not paso.activo or not paso.puede_editar %}readonly{% endif %}></textarea>
+                                                    </div>
+                                                    <div>
+                                                        <div class="op-lab-title"><i class="fas fa-user-shield"></i> Guardia Porteria</div>
+                                                        <div class="op-exit-reference">
+                                                            <strong>Responsable</strong><br>
+                                                            {{ paso.responsable }}
+                                                        </div>
+                                                        {% if paso.activo and paso.puede_editar %}
+                                                            <form method="post" action="{% url 'operacion_planta_guardar_paso' citacion.id %}" class="op-confirmar-salida-form">
+                                                                {% csrf_token %}
+                                                                <input type="hidden" name="_empresa_id" value="{{ empresa_activa_id }}">
+                                                                <input type="hidden" name="empresa_id" value="{{ empresa_activa_id }}">
+                                                                <input type="hidden" name="origen" value="confirmar_salida">
+                                                                <input type="hidden" name="citacion_id" value="{{ citacion.id }}">
+                                                                <input type="hidden" name="paso" value="{{ paso.nombre }}">
+                                                                <input type="hidden" name="observacion" value="">
+                                                                <button type="submit" class="op-glass-button is-success">
+                                                                    <i class="op-glass-icon fas fa-check-circle"></i>
+                                                                    Confirmar salida de planta
+                                                                </button>
+                                                            </form>
+                                                        {% else %}
+                                                            <div class="alert alert-light border mb-0">{{ paso.solo_lectura_msg|default:'Solo lectura' }}</div>
+                                                        {% endif %}
+                                                    </div>
+                                                </div>
+                                            {% endif %}
+                                        </div>
+                                    {% endif %}
+
+                                    {% if not paso.requiere_preparacion_descarga and not paso.requiere_ciclo_descarga and not paso.requiere_autorizar_salida and not paso.requiere_confirmar_salida %}
                                     <div class="form-group">
                                         <label>Observacion</label>
-                                        <textarea class="form-control operacion-observacion" data-paso="{{ paso.nombre }}" rows="4" {% if not paso.puede_editar or paso.requiere_preparacion_descarga %}readonly{% endif %}>{{ paso.observacion }}</textarea>
+                                        <textarea class="form-control operacion-observacion" data-paso="{{ paso.nombre }}" rows="4" {% if not paso.puede_editar %}readonly{% endif %}>{{ paso.observacion }}</textarea>
                                     </div>
+                                    {% endif %}
 
-                                    {% if paso.activo and paso.puede_editar and not paso.requiere_accion_toma_muestra and not paso.requiere_resultado_calidad and not paso.requiere_preparacion_descarga %}
+                                    {% if paso.activo and paso.puede_editar and not paso.requiere_ticket_pesaje and not paso.requiere_accion_toma_muestra and not paso.requiere_resultado_calidad and not paso.requiere_preparacion_descarga and not paso.requiere_ciclo_descarga and not paso.requiere_autorizar_salida and not paso.requiere_confirmar_salida %}
                                     <button type="button" class="btn btn-primary btn-guardar-operacion" data-paso="{{ paso.nombre }}">
                                         <i class="fas fa-save"></i> Guardar paso
                                     </button>
@@ -1127,6 +2521,29 @@
     const OPERACION_PLANTA_EMPRESA_ID = "{{ empresa_activa_id|default:'' }}";
     const TICKET_PESAJE_REQUIRED_MESSAGE = "Debe obtener y guardar el ticket de pesaje antes de continuar.";
     const TOMA_MUESTRA_ACCION_REQUIRED_MESSAGE = "Debe registrar la accion principal antes de finalizar Toma de muestra.";
+    const OP_CALIDAD_INSUMO = "{{ insumo_operacion|default:'Sin insumo'|escapejs }}";
+    const OP_CALIDAD_CODIGO_SAP = "{{ codigo_sap_operacion|default:''|escapejs }}";
+    const OP_CALIDAD_FECHA_INGRESO = "{{ fecha_ingreso_operacion|default:'Sin fecha'|escapejs }}";
+    const OP_CALIDAD_CITACION = "{{ citacion.id|escapejs }}";
+    const OP_CALIDAD_GUIA_URL = "{{ guia_operacion_url|default:''|escapejs }}";
+
+    document.addEventListener('mouseover', function(e) {
+        if (e.target.closest('.finalizar-pesaje-btn')) {
+            console.log('HOVER FINALIZAR:', e.target);
+        }
+    }, true);
+
+    document.addEventListener('click', function(e) {
+        const botonFinalizar = e.target.closest('.finalizar-pesaje-btn');
+        if (botonFinalizar) {
+            console.log('CLICK FINALIZAR:', e.target);
+            let el = botonFinalizar;
+            while (el) {
+                console.log(el, getComputedStyle(el).pointerEvents, getComputedStyle(el).cursor, el.disabled);
+                el = el.parentElement;
+            }
+        }
+    }, true);
 
     function getCookie(name) {
         let cookieValue = null;
@@ -1172,6 +2589,135 @@
             return String($(this).data('paso')) === String(paso);
         }).first();
     }
+
+    function obtenerCicloDescargaBoxOperacion(paso) {
+        return $('.operacion-ciclo-descarga-box').filter(function () {
+            return String($(this).data('paso')) === String(paso);
+        }).first();
+    }
+
+    function obtenerAutorizarSalidaBoxOperacion(paso) {
+        return $('.operacion-autorizar-salida-box').filter(function () {
+            return String($(this).data('paso')) === String(paso);
+        }).first();
+    }
+
+    function formatearRelojEsperaDescarga(startValue) {
+        if (!startValue) {
+            return '00:00:00';
+        }
+        const startDate = new Date(startValue);
+        if (Number.isNaN(startDate.getTime())) {
+            return '00:00:00';
+        }
+        const totalSeconds = Math.max(Math.floor((Date.now() - startDate.getTime()) / 1000), 0);
+        const hours = Math.floor(totalSeconds / 3600);
+        const minutes = Math.floor((totalSeconds % 3600) / 60);
+        const seconds = totalSeconds % 60;
+        return `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
+    }
+
+    function actualizarRelojesEsperaDescarga() {
+        $('.op-wait-clock-time[data-wait-start]').each(function () {
+            $(this).text(formatearRelojEsperaDescarga($(this).data('wait-start')));
+        });
+        $('.op-cycle-live-time[data-cycle-start]').each(function () {
+            $(this).text(formatearRelojEsperaDescarga($(this).data('cycle-start')));
+        });
+    }
+
+    actualizarRelojesEsperaDescarga();
+    setInterval(actualizarRelojesEsperaDescarga, 1000);
+
+    $(document).on('click', '.op-cycle-option', function () {
+        const boton = $(this);
+        const box = boton.closest('.operacion-ciclo-descarga-box');
+        if (boton.prop('disabled')) {
+            return;
+        }
+        box.find('.op-cycle-option').removeClass('is-selected');
+        boton.addClass('is-selected');
+        box.find('.btn-iniciar-ciclo-descarga').prop('disabled', false);
+    });
+
+    $(document).on('click', '.btn-iniciar-ciclo-descarga', function () {
+        const boton = $(this);
+        const paso = boton.data('paso');
+        const box = obtenerCicloDescargaBoxOperacion(paso);
+        const seleccion = box.find('.op-cycle-option.is-selected').data('tipo-descarga') || '';
+        const textoOriginal = boton.html();
+
+        if (!seleccion) {
+            Swal.fire({ icon: 'warning', title: 'Tipo requerido', text: 'Debe seleccionar un tipo de descarga.' });
+            return;
+        }
+
+        $.ajax({
+            url: "{% url 'ajax_operacion_planta_iniciar_ciclo_descarga' citacion.id %}",
+            type: 'POST',
+            data: {
+                tipo_descarga: seleccion,
+                _empresa_id: OPERACION_PLANTA_EMPRESA_ID,
+                empresa_id: OPERACION_PLANTA_EMPRESA_ID
+            },
+            headers: {
+                'X-CSRFToken': getCookie('csrftoken')
+            },
+            beforeSend: function () {
+                boton.prop('disabled', true).html('<i class="op-glass-icon fas fa-spinner fa-spin"></i> Iniciando...');
+            },
+            success: function (response) {
+                if (!response.success) {
+                    boton.prop('disabled', false).html(textoOriginal);
+                    Swal.fire({ icon: 'error', title: 'Error', text: response.message || 'No fue posible iniciar descarga.' });
+                    return;
+                }
+                Swal.fire({ icon: 'success', title: 'Descarga iniciada', text: response.message || 'Descarga en proceso.' }).then(function () {
+                    location.reload();
+                });
+            },
+            error: function (xhr) {
+                boton.prop('disabled', false).html(textoOriginal);
+                const response = xhr.responseJSON || {};
+                Swal.fire({ icon: 'error', title: 'No fue posible iniciar', text: response.message || ('Error HTTP ' + xhr.status + ' al iniciar descarga.') });
+            }
+        });
+    });
+
+    $(document).on('click', '.btn-finalizar-ciclo-descarga', function () {
+        const boton = $(this);
+        const textoOriginal = boton.html();
+
+        $.ajax({
+            url: "{% url 'ajax_operacion_planta_finalizar_ciclo_descarga' citacion.id %}",
+            type: 'POST',
+            data: {
+                _empresa_id: OPERACION_PLANTA_EMPRESA_ID,
+                empresa_id: OPERACION_PLANTA_EMPRESA_ID
+            },
+            headers: {
+                'X-CSRFToken': getCookie('csrftoken')
+            },
+            beforeSend: function () {
+                boton.prop('disabled', true).html('<i class="op-glass-icon fas fa-spinner fa-spin"></i> Finalizando...');
+            },
+            success: function (response) {
+                if (!response.success) {
+                    boton.prop('disabled', false).html(textoOriginal);
+                    Swal.fire({ icon: 'error', title: 'Error', text: response.message || 'No fue posible finalizar descarga.' });
+                    return;
+                }
+                Swal.fire({ icon: 'success', title: 'Descarga finalizada', text: response.message || 'La citacion avanzo a Pesaje Salida.' }).then(function () {
+                    location.reload();
+                });
+            },
+            error: function (xhr) {
+                boton.prop('disabled', false).html(textoOriginal);
+                const response = xhr.responseJSON || {};
+                Swal.fire({ icon: 'error', title: 'No fue posible finalizar', text: response.message || ('Error HTTP ' + xhr.status + ' al finalizar descarga.') });
+            }
+        });
+    });
 
     $(document).on('click', '.btn-guardar-preparacion-descarga', function () {
         const boton = $(this);
@@ -1231,8 +2777,74 @@
         });
     });
 
-    $(document).on('click', '.btn-resultado-calidad', function () {
-        const boton = $(this);
+    function autorizarSalidaOperacion(box, recepcionConforme, control) {
+        const observacion = (box.find('.autorizacion-observacion-descarga').val() || '').trim();
+
+        if (!recepcionConforme) {
+            Swal.fire({ icon: 'warning', title: 'Recepcion requerida', text: 'Debe seleccionar Recepcion Conforme: Si o No.' });
+            return;
+        }
+
+        $.ajax({
+            url: "{% url 'ajax_operacion_planta_autorizar_salida' citacion.id %}",
+            type: 'POST',
+            data: {
+                recepcion_conforme: recepcionConforme,
+                observacion_descarga: observacion,
+                _empresa_id: OPERACION_PLANTA_EMPRESA_ID,
+                empresa_id: OPERACION_PLANTA_EMPRESA_ID
+            },
+            headers: {
+                'X-CSRFToken': getCookie('csrftoken')
+            },
+            beforeSend: function () {
+                box.find('.op-conforme-option').addClass('disabled');
+                box.find('.op-conforme-toggle input[type="radio"]').prop('disabled', true);
+                control.addClass('active is-loading');
+            },
+            success: function (response) {
+                if (!response.success) {
+                    box.find('.op-conforme-option').removeClass('disabled is-loading');
+                    box.find('.op-conforme-toggle input[type="radio"]').prop('disabled', false);
+                    Swal.fire({ icon: 'error', title: 'Error', text: response.message || 'No fue posible autorizar salida.' });
+                    return;
+                }
+                Swal.fire({ icon: 'success', title: 'Salida autorizada', text: response.message || 'La citacion avanzo a Confirmar Salida.' }).then(function () {
+                    location.reload();
+                });
+            },
+            error: function (xhr) {
+                box.find('.op-conforme-option').removeClass('disabled is-loading');
+                box.find('.op-conforme-toggle input[type="radio"]').prop('disabled', false);
+                const response = xhr.responseJSON || {};
+                Swal.fire({ icon: 'error', title: 'No fue posible autorizar', text: response.message || ('Error HTTP ' + xhr.status + ' al autorizar salida.') });
+            }
+        });
+    }
+
+    $(document).on('click', '.op-conforme-option', function (event) {
+        const opcion = $(this);
+        const input = opcion.find('input[type="radio"]');
+        if (input.prop('disabled')) {
+            return;
+        }
+
+        event.preventDefault();
+        const toggle = opcion.closest('.op-conforme-toggle');
+        const box = opcion.closest('.operacion-autorizar-salida-box');
+        input.prop('checked', true);
+        toggle.find('.op-conforme-option').removeClass('active');
+        opcion.addClass('active');
+        autorizarSalidaOperacion(box, input.val() || '', opcion);
+    });
+
+    $(document).on('submit', '.op-confirmar-salida-form', function () {
+        const form = $(this);
+        const box = form.closest('.operacion-confirmar-salida-box');
+        form.find('input[name="observacion"]').val((box.find('.confirmar-salida-observacion').val() || '').trim());
+    });
+
+    function registrarResultadoCalidadOperacion(boton) {
         const resultado = boton.data('resultado');
         const calidadBox = boton.closest('.operacion-calidad-box');
         const paso = calidadBox.data('paso');
@@ -1296,6 +2908,122 @@
                 Swal.fire({ icon: 'error', title: 'No fue posible registrar', text: response.message || ('Error HTTP ' + xhr.status + ' al registrar calidad.') });
             }
         });
+    }
+
+    function registrarValidacionCalidadOperacion(boton) {
+        const calidadBox = boton.closest('.operacion-calidad-box');
+        const textoOriginal = boton.html();
+
+        $.ajax({
+            url: "{% url 'ajax_operacion_planta_validar_calidad' citacion.id %}",
+            type: 'POST',
+            data: {
+                _empresa_id: OPERACION_PLANTA_EMPRESA_ID,
+                empresa_id: OPERACION_PLANTA_EMPRESA_ID
+            },
+            headers: {
+                'X-CSRFToken': getCookie('csrftoken')
+            },
+            beforeSend: function () {
+                boton.prop('disabled', true).html('<i class="op-glass-icon fas fa-spinner fa-spin"></i> Validando...');
+            },
+            success: function (response) {
+                if (!response.success) {
+                    boton.prop('disabled', false).html(textoOriginal);
+                    Swal.fire({ icon: 'error', title: 'Error', text: response.message || 'No fue posible registrar validacion.' });
+                    return;
+                }
+
+                calidadBox.attr('data-validacion-calidad', 'true').data('validacion-calidad', true);
+                boton
+                    .removeClass('is-primary')
+                    .addClass('is-success')
+                    .prop('disabled', true)
+                    .html('<i class="op-glass-icon fas fa-check"></i> Validacion realizada');
+                calidadBox.find('.btn-resultado-calidad').prop('disabled', false);
+                calidadBox.find('.op-validacion-calidad-state').html(
+                    '<strong>Validacion realizada: insumo y guia revisados</strong>' +
+                    $('<div>').text(((response.fecha || '') + ' por ' + (response.usuario || '')).trim()).html()
+                );
+                Swal.fire({ icon: 'success', title: 'Validacion realizada', text: response.message || 'Insumo y guia revisados.' });
+            },
+            error: function (xhr) {
+                boton.prop('disabled', false).html(textoOriginal);
+                const response = xhr.responseJSON || {};
+                Swal.fire({ icon: 'error', title: 'No fue posible validar', text: response.message || ('Error HTTP ' + xhr.status + ' al validar calidad.') });
+            }
+        });
+    }
+
+    function confirmarValidacionCalidad(boton) {
+        const guiaDisponible = Boolean(OP_CALIDAD_GUIA_URL);
+        const contenido = [
+            '<div class="text-left">',
+            '<p class="mb-2">Revise el insumo antes de habilitar el resultado de calidad:</p>',
+            '<h5 class="mb-3">' + $('<div>').text(OP_CALIDAD_INSUMO || 'Sin insumo').html() + '</h5>',
+            '<p class="mb-1"><strong>Codigo SAP:</strong><br>' + $('<div>').text(OP_CALIDAD_CODIGO_SAP || 'No disponible').html() + '</p>',
+            '<p class="mb-1"><strong>Fecha ingreso:</strong><br>' + $('<div>').text(OP_CALIDAD_FECHA_INGRESO || 'Sin fecha').html() + '</p>',
+            '<p class="mb-1"><strong>Citacion:</strong><br>#' + $('<div>').text(OP_CALIDAD_CITACION || '').html() + '</p>',
+            '<button type="button" id="btn-visualizar-guia-calidad" class="btn btn-outline-primary btn-sm mt-3" ' + (guiaDisponible ? '' : 'disabled') + '>',
+            '<i class="fas fa-file-alt"></i> Visualizar guia',
+            '</button>',
+            guiaDisponible ? '' : '<div class="alert alert-warning mt-3 mb-0 py-2">Guia no disponible.</div>',
+            '</div>'
+        ].join('');
+
+        if (!window.Swal || typeof Swal.fire !== 'function') {
+            if (window.confirm('Confirmar validacion de calidad para el insumo: ' + (OP_CALIDAD_INSUMO || 'Sin insumo'))) {
+                registrarValidacionCalidadOperacion(boton);
+            }
+            return;
+        }
+
+        Swal.fire({
+            icon: 'question',
+            title: 'Confirmar validacion de calidad',
+            html: contenido,
+            showCancelButton: true,
+            confirmButtonText: 'Validacion OK',
+            cancelButtonText: 'Cancelar',
+            reverseButtons: true,
+            didOpen: function () {
+                const botonGuia = document.getElementById('btn-visualizar-guia-calidad');
+                if (botonGuia) {
+                    botonGuia.addEventListener('click', function (event) {
+                        event.preventDefault();
+                        event.stopPropagation();
+                        if (OP_CALIDAD_GUIA_URL) {
+                            window.open(OP_CALIDAD_GUIA_URL, '_blank', 'noopener');
+                        } else {
+                            Swal.showValidationMessage('Guia no disponible.');
+                        }
+                    });
+                }
+            }
+        }).then(function (result) {
+            if (result.isConfirmed) {
+                registrarValidacionCalidadOperacion(boton);
+            }
+        });
+    }
+
+    window.abrirModalValidacionCalidad = function (control) {
+        confirmarValidacionCalidad($(control));
+        return false;
+    };
+
+    $(document).on('click', '.btn-resultado-calidad', function () {
+        const boton = $(this);
+        const calidadBox = boton.closest('.operacion-calidad-box');
+        if (String(calidadBox.attr('data-validacion-calidad')) !== 'true') {
+            Swal.fire({
+                icon: 'warning',
+                title: 'Validacion requerida',
+                text: 'Debe validar insumo y guia antes de aprobar o rechazar calidad.'
+            });
+            return;
+        }
+        registrarResultadoCalidadOperacion(boton);
     });
 
     $(document).on('click', '.btn-accion-toma-muestra', function () {
@@ -1364,8 +3092,10 @@
     $(document).on('click', '.btn-obtener-ticket-pesaje', function () {
         const boton = $(this);
         const paso = boton.data('paso');
+        const tipoTicket = String(boton.data('tipo-ticket') || '');
         const ticketBox = obtenerTicketBoxOperacion(paso);
         const textoOriginal = boton.html();
+        let ticketCongelado = false;
 
         $.ajax({
             url: "{% url 'ajax_operacion_planta_obtener_ticket_pesaje' %}",
@@ -1377,7 +3107,7 @@
                 empresa_id: OPERACION_PLANTA_EMPRESA_ID
             },
             beforeSend: function () {
-                boton.prop('disabled', true).html('<i class="fas fa-spinner fa-spin"></i> Buscando ticket...');
+                boton.prop('disabled', true).html('<i class="op-glass-icon fas fa-spinner fa-spin"></i> Buscando ticket...');
             },
             success: function (response) {
                 if (!response.valid) {
@@ -1385,18 +3115,27 @@
                     return;
                 }
 
+                ticketCongelado = true;
                 ticketBox.attr('data-ticket-obtenido', 'true').data('ticket-obtenido', true);
                 ticketBox.find('.operacion-ticket-peso').val(response.peso_neto || '');
                 ticketBox.find('.operacion-ticket-folio').text(response.folio || 'Sin ticket');
                 ticketBox.find('.operacion-ticket-observacion')
                     .text(response.observacion || 'Sin observacion')
                     .toggleClass('operacion-ticket-card-value-muted', !response.observacion);
-                ticketBox.find('.operacion-ticket-info').text('Ticket de pesaje congelado correctamente.');
+                ticketBox.find('.operacion-ticket-pdf-name')
+                    .text(response.nombre_archivo_pdf || 'PDF congelado')
+                    .removeClass('operacion-ticket-card-value-muted');
+                ticketBox.find('.operacion-ticket-info')
+                    .addClass('is-frozen')
+                    .html('<i class="fas fa-check-circle"></i> Ticket de pesaje congelado correctamente.');
                 ticketBox.find('.btn-descargar-ticket-pesaje')
                     .attr('href', response.download_url || '#')
                     .removeClass('d-none');
+                ticketBox.find('.btn-finalizar-ticket-pesaje')
+                    .prop('disabled', false);
+                boton.replaceWith('<div class="operacion-ticket-frozen-pill"><i class="fas fa-check-circle"></i> Ticket ya congelado</div>');
 
-                Swal.fire({ icon: 'success', title: 'Ticket congelado', text: 'Peso obtenido: ' + (response.peso_neto || '') });
+                Swal.fire({ icon: 'success', title: 'Ticket ' + tipoTicket + ' congelado', text: 'Peso obtenido: ' + (response.peso_neto || '') });
             },
             error: function (xhr) {
                 const response = xhr.responseJSON || {};
@@ -1404,7 +3143,9 @@
                 Swal.fire({ icon: 'error', title: 'No fue posible obtener ticket', text: detalle });
             },
             complete: function () {
-                boton.prop('disabled', false).html(textoOriginal);
+                if (!ticketCongelado) {
+                    boton.prop('disabled', false).html(textoOriginal);
+                }
             }
         });
     });
@@ -1464,6 +3205,11 @@
     }
 
     $(document).on('click', '.btn-guardar-operacion', function () {
+        guardarPasoOperacion($(this).data('paso'), $(this));
+    });
+
+    $(document).on('click', '.btn-finalizar-ticket-pesaje', function (event) {
+        event.preventDefault();
         guardarPasoOperacion($(this).data('paso'), $(this));
     });
 </script>

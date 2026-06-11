@@ -695,7 +695,7 @@
         }
 
         function parsePlantNotification(notification) {
-            if (!notification || !notificationUserIsGuardia) {
+            if (!notification || (!notificationUserIsGuardia && !notificationUserIsGuardiaPorteria)) {
                 return null;
             }
 
@@ -707,7 +707,7 @@
             const content = (notification[1] || '').toString();
             const contentNormalized = content.toLowerCase();
             const isGuardiaMessage = !notificationUserIsGuardiaPorteria && contentNormalized.indexOf('debe ingresar a planta') !== -1;
-            const isGuardiaPorteriaMessage = notificationUserIsGuardiaPorteria && contentNormalized.indexOf('autorizado ingreso a planta') !== -1;
+            const isGuardiaPorteriaMessage = notificationUserIsGuardiaPorteria && contentNormalized.indexOf('debe ingresar a planta') !== -1;
             const isPlantMessage = isGuardiaMessage || isGuardiaPorteriaMessage;
             if (!isPlantMessage) {
                 return null;
@@ -715,12 +715,12 @@
 
             const url = (notification[2] || '').toString();
             const citacionMatch = url.match(/[?&]citacion=(\d+)/);
-            const patenteMatch = content.match(/Patente:?\s*([^\n]+?)\s+(?:debe ingresar a Planta|autorizado ingreso a planta)/i);
+            const patenteMatch = content.match(/Patente:?\s*([^\n]+?)\s+debe ingresar a planta/i);
             const patente = patenteMatch ? patenteMatch[1].trim() : '';
             const message = notificationUserIsGuardiaPorteria
-                ? `Patente: ${patente || 'No registrada'} autorizado ingreso a planta`
+                ? `Patente ${patente || 'No registrada'} debe ingresar a planta`
                 : content.split('\n').find(function(line) {
-                    return line.indexOf('debe ingresar a Planta') !== -1 || line.indexOf('autorizado ingreso a planta') !== -1;
+                    return line.toLowerCase().indexOf('debe ingresar a planta') !== -1;
                 }) || content;
 
             return {
@@ -761,7 +761,7 @@
             }
 
             if (title) {
-                title.textContent = notificationData.isGuardiaPorteria ? 'Ingreso autorizado' : 'Nuevo ingreso a planta';
+                title.textContent = notificationData.isGuardiaPorteria ? 'Autorizar ingreso físico a planta' : 'Nuevo ingreso a planta';
             }
             if (reviewButton) {
                 reviewButton.textContent = notificationData.isGuardiaPorteria ? 'Ver autorización' : 'Ver revisión';
@@ -773,12 +773,14 @@
             if (guardiaPlantAlertTimer) {
                 clearTimeout(guardiaPlantAlertTimer);
             }
-            guardiaPlantAlertTimer = setTimeout(function() {
-                if (activePlantNotification) {
-                    dismissedPlantNotificationIds.add(activePlantNotification.id);
-                }
-                hideGuardiaPlantAlert();
-            }, 15000);
+            if (!notificationData.isGuardiaPorteria) {
+                guardiaPlantAlertTimer = setTimeout(function() {
+                    if (activePlantNotification) {
+                        dismissedPlantNotificationIds.add(activePlantNotification.id);
+                    }
+                    hideGuardiaPlantAlert();
+                }, 15000);
+            }
         }
 
         $(document).on('click', '#guardiaPlantAlertClose', function() {
@@ -1025,7 +1027,7 @@
             const notificationMessages = newNotifications.map(function(notification) {
                 const content = (notification[1] || '').toString();
                 const plantaLine = content.split('\n').find(function(line) {
-                    return line.indexOf('debe ingresar a Planta') !== -1;
+                    return line.toLowerCase().indexOf('debe ingresar a planta') !== -1;
                 });
                 return plantaLine || 'Tienes nuevas notificaciones. Debes revisarlas';
             });
