@@ -9,6 +9,9 @@ from django.contrib.auth.views import login_required
 from django.conf import settings
 from django.conf.urls.static import static
 
+
+
+
 urlpatterns = [
 
     # The home page
@@ -32,6 +35,7 @@ urlpatterns = [
     path('api/sap/pedido/', login_required(views.API_SAP_PEDIDO), name='api_sap_pedido'),
     path('api/sap/pedidos-por-producto/', login_required(views.API_SAP_PEDIDOS_POR_PRODUCTO), name='api_sap_pedidos_por_producto'),
     path('api/sap/pedido-detalle/', login_required(views.API_SAP_PEDIDO_DETALLE), name='api_sap_pedido_detalle'),
+    path('api/sap/despacho-acuerdos/', login_required(views.API_SAP_DESPACHO_ACUERDOS), name='api_sap_despacho_acuerdos'),
     path('buscar-opor-codigo/', login_required(views.BUSCAR_OPOR_POR_CODIGO), name='buscar_opor_codigo'),
     path('buscar-opor-pedido/', login_required(views.BUSCAR_OPOR_POR_PEDIDO), name='buscar_opor_pedido'),
 
@@ -43,14 +47,26 @@ urlpatterns = [
     path('solicitar-camion-no-planificado/', login_required(views.SOLICITAR_CAMION_NO_PLANIFICADO), name='solicitar_camion_no_planificado'),
     path('rechazar-camion-no-planificado/', login_required(views.RECHAZAR_CAMION_NO_PLANIFICADO), name='rechazar_camion_no_planificado'),
     path('notificar-camion-no-planificado/', login_required(views.NOTIFICAR_CAMION_NO_PLANIFICADO), name='notificar_camion_no_planificado'),
+    path('camiones-patio/registrar/', login_required(views.CAMIONES_PATIO_REGISTRAR), name='camiones_patio_registrar'),
+    path('camiones-patio/control/', login_required(views.CAMIONES_PATIO_CONTROL), name='camiones_patio_control'),
+    path('camiones-patio/control/data/', login_required(views.CAMIONES_PATIO_CONTROL_DATA), name='camiones_patio_control_data'),
+    path('camiones-patio/', login_required(views.CAMIONES_PATIO_LIST), name='camiones_patio_list'),
+    path('camiones-patio/mapa/', login_required(views.CAMIONES_PATIO_MAPA), name='camiones_patio_mapa'),
+    path('camiones-patio/pendientes-citacion/<int:pk>/', login_required(views.CAMIONES_PATIO_PENDIENTES_CITACION), name='camiones_patio_pendientes_citacion'),
+    path('camiones-patio/<int:pk>/detalle/', login_required(views.CAMION_PATIO_DETALLE), name='camion_patio_detalle'),
+    path('camiones-patio/adjunto/<int:pk>/', login_required(views.CAMION_PATIO_ADJUNTO_VER), name='camion_patio_adjunto_ver'),
+    path('camiones-patio/<int:pk>/asociar/', login_required(views.CAMION_PATIO_ASOCIAR), name='camion_patio_asociar'),
     path('pla-citacion-ingreso-camion/<int:pk>/', login_required(views.PLANIFICACION_CITACION_INGRESO_CAMION), name='pla_citacion_ingreso_camion'),
     path('pla-citacion-avanzar-asistente/<int:pk>/', login_required(views.AVANZAR_INGRESO_CAMION_ASISTENTE), name='pla_citacion_avanzar_asistente'),
     path('pla-citacion-revision-asistente/<int:pk>/', login_required(views.PLANIFICACION_CITACION_REVISION_ASISTENTE), name='pla_citacion_revision_asistente'),
+    path('pla-citacion-guardar-ruta-asistente/<int:pk>/', login_required(views.GUARDAR_RUTA_CAMION_ASISTENTE), name='pla_citacion_guardar_ruta_asistente'),
     path('pla-citacion-aprobar-asistente/<int:pk>/', login_required(views.APROBAR_CAMION_ASISTENTE), name='pla_citacion_aprobar_asistente'),
     path('pla-citacion-devolver-guardia/<int:pk>/', login_required(views.DEVOLVER_CAMION_GUARDIA), name='pla_citacion_devolver_guardia'),
     path('pla-citacion-enviar-guardia-porteria/<int:pk>/', login_required(views.ENVIAR_GUARDIA_PORTERIA), name='pla_citacion_enviar_guardia_porteria'),
     path('pla-citacion-resumen/<int:pk>/', login_required(views.PLANIFICACION_CITACION_RESUMEN), name='pla_citacion_resumen'),
     path('pla-citacion-estanque/<int:pk>/', login_required(views.PLANIFICACION_CITACION_ESTANQUE), name='pla_citacion_estanque'),
+    path('pla-citacion-borrador-sap-peso-guia/<int:pk>/', login_required(views.PLANIFICACION_BORRADOR_SAP_PESO_GUIA), name='pla_citacion_borrador_sap_peso_guia'),
+    path('pla-citacion-borrador-sap-peso-guia/<int:pk>/enviar/', login_required(views.PLANIFICACION_BORRADOR_SAP_PESO_GUIA_ENVIAR), name='pla_citacion_borrador_sap_peso_guia_enviar'),
     path('pla-citacion-estanque-avanzar/<int:pk>/', login_required(views.AVANZAR_ESTANQUE_SIGUIENTE_ETAPA), name='pla_citacion_estanque_avanzar'),
     path('ajax-rutas-transportista-revision/', login_required(views.AJAX_RUTAS_TRANSPORTISTA_REVISION), name='ajax_rutas_transportista_revision'),
         #########################################
@@ -278,9 +294,12 @@ urlpatterns = [
     path('operacion-planta/<int:pk>/enviar-vapor/', login_required(views.ajax_operacion_planta_enviar_vapor), name='ajax_operacion_planta_enviar_vapor'),
     path('operacion-planta/<int:pk>/validar-calidad/', login_required(views.ajax_operacion_planta_validar_calidad), name='ajax_operacion_planta_validar_calidad'),
     path('operacion-planta/<int:pk>/registrar-resultado-calidad/', login_required(views.ajax_operacion_planta_registrar_resultado_calidad), name='ajax_operacion_planta_registrar_resultado_calidad'),
+    path('operacion-planta/<int:pk>/guardar-observacion/', login_required(views.ajax_operacion_planta_guardar_observacion), name='ajax_operacion_planta_guardar_observacion'),
     path('operacion-planta/<int:pk>/guardar-preparacion-descarga/', login_required(views.ajax_operacion_planta_guardar_preparacion_descarga), name='ajax_operacion_planta_guardar_preparacion_descarga'),
     path('operacion-planta/<int:pk>/iniciar-ciclo-descarga/', login_required(views.ajax_operacion_planta_iniciar_ciclo_descarga), name='ajax_operacion_planta_iniciar_ciclo_descarga'),
     path('operacion-planta/<int:pk>/finalizar-ciclo-descarga/', login_required(views.ajax_operacion_planta_finalizar_ciclo_descarga), name='ajax_operacion_planta_finalizar_ciclo_descarga'),
+    path('operacion-planta/<int:pk>/borrador-sap-preview/', login_required(views.ajax_operacion_planta_borrador_sap_preview), name='ajax_operacion_planta_borrador_sap_preview'),
+    path('operacion-planta/<int:pk>/borrador-sap-enviar/', login_required(views.ajax_operacion_planta_borrador_sap_enviar), name='ajax_operacion_planta_borrador_sap_enviar'),
     path('operacion-planta/<int:pk>/autorizar-salida/', login_required(views.ajax_operacion_planta_autorizar_salida), name='ajax_operacion_planta_autorizar_salida'),
     path('ajax/operacion-planta/ticket-pesaje/', login_required(views.ajax_operacion_planta_obtener_ticket_pesaje), name='ajax_operacion_planta_obtener_ticket_pesaje'),
     path('ajax/operacion-planta/ticket-pesaje/descargar/', login_required(views.ajax_operacion_planta_descargar_ticket_pesaje), name='ajax_operacion_planta_descargar_ticket_pesaje'),

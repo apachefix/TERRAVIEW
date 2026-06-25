@@ -1,13 +1,11 @@
-import json
 import re
 from datetime import date, datetime
 from decimal import Decimal
-from pathlib import Path
 
+from decouple import config
 from hdbcli import dbapi
 
 
-LOGIN_HDB_FILE = Path(__file__).resolve().parents[2] / 'loginHDB.json'
 HANA_IDENTIFIER_RE = re.compile(r'^[A-Za-z0-9_]+$')
 
 
@@ -16,13 +14,17 @@ class SapDiApiError(Exception):
 
 
 def _load_config():
-    try:
-        with LOGIN_HDB_FILE.open('r', encoding='utf-8') as file:
-            return json.load(file)
-    except FileNotFoundError as exc:
-        raise SapDiApiError('No se encontro el archivo loginHDB.json para conectar a SAP HANA.') from exc
-    except json.JSONDecodeError as exc:
-        raise SapDiApiError('El archivo loginHDB.json no tiene un formato valido.') from exc
+    values = {
+        'ServerAddress': config('SAP_HANA_SERVER_ADDRESS', default='').strip(),
+        'ServerPort': config('SAP_HANA_SERVER_PORT', default='').strip(),
+        'CompanyDB': config('SAP_HANA_COMPANY_DB', default='').strip(),
+        'DbUserName': config('SAP_HANA_DB_USERNAME', default='').strip(),
+        'DbPassword': config('SAP_HANA_DB_PASSWORD', default=''),
+    }
+    missing = [key for key, value in values.items() if not value]
+    if missing:
+        raise SapDiApiError('Faltan variables SAP HANA en .env: ' + ', '.join(missing))
+    return values
 
 
 def _connect_hana():
@@ -307,6 +309,7 @@ def consultar_pedido_sap(pedido, codigo, proveedor_codigo=''):
             T0."CardCode",
             T0."CardName",
             T3."Number" AS "ContratoSap",
+            T1."LineNum",
             T1."ItemCode",
             T1."Dscription",
             T1."OpenQty",
@@ -404,6 +407,8 @@ def _pedido_row_to_dict(row):
         'docentry': row['DocEntry'],
         'docnum': row['DocNum'],
         'pedido': row['DocNum'],
+        'line_num': row.get('LineNum'),
+        'linenum': row.get('LineNum'),
         'cardcode': row['CardCode'],
         'cardname': row['CardName'],
         'proveedor_codigo': row['CardCode'],
@@ -440,6 +445,7 @@ def consultar_pedidos_por_producto_sap(codigo):
             T0."CardCode",
             T0."CardName",
             T3."Number" AS "ContratoSap",
+            T1."LineNum",
             T1."ItemCode",
             T1."Dscription",
             T1."OpenQty",
@@ -485,6 +491,7 @@ def consultar_detalle_pedido_sap(pedido):
             T0."CardCode",
             T0."CardName",
             T3."Number" AS "ContratoSap",
+            T1."LineNum",
             T1."ItemCode",
             T1."Dscription",
             T1."OpenQty",
@@ -497,11 +504,87 @@ def consultar_detalle_pedido_sap(pedido):
         WHERE T0."DocStatus" = 'O'
           AND T1."OpenQty" > 0
           AND T0."DocNum" = ?
-        ORDER BY T1."Dscription"
+        ORDER BY T1."LineNum"
     '''
 
     return {
         'ok': True,
         'pedido': int(pedido),
         'lineas': [_pedido_row_to_dict(row) for row in _rows(sql, [int(pedido)])]
+    }
+
+
+def consultar_acuerdos_despacho_sap(termino):
+    termino = (termino or '').strip()
+
+    if len(termino) < 2:
+        return {
+            'ok': True,
+            'resultados': []
+        }
+
+    termino_like = f'%{termino}%'
+    termino_like_upper = f'%{termino.upper()}%'
+
+    sql = '''
+        SELECT
+            TOP 50
+            A."AbsID"      AS "sap_abs_id",
+            A."Number"     AS "sap_acuerdo_numero",
+            A."BpCode"     AS "cliente_codigo",
+            A."BpName"     AS "cliente_nombre",
+            A."NumAtCard"  AS "oc_cliente",
+            A."Descript"   AS "descripcion_acuerdo",
+            A."StartDate"  AS "fecha_inicio",
+            A."EndDate"    AS "fecha_fin",
+            A."Status"     AS "estado_acuerdo",
+
+            L."AgrLineNum" AS "linea_acuerdo",
+            L."ItemCode"   AS "codigo_insumo",
+            L."ItemName"   AS "nombre_insumo",
+            L."PlanQty"    AS "cantidad_planificada",
+            L."CumQty"     AS "cantidad_consumida",
+            L."UndlvQty"   AS "cantidad_pendiente",
+            COALESCE(L."PlanQty", 0) - COALESCE(L."CumQty", 0) AS "saldo_contrato_sap",
+
+            CASE
+                WHEN COALESCE(L."PlanQty", 0) - COALESCE(L."CumQty", 0) <= 0 THEN 'SIN_SALDO'
+                ELSE 'DISPONIBLE'
+            END AS "estado_saldo",
+
+            L."InvntryUom" AS "unidad_medida",
+            L."UnitPrice"  AS "precio_unitario",
+            L."Currency"   AS "moneda",
+            L."LineStatus" AS "estado_linea",
+            L."TrnspCode"  AS "codigo_transporte",
+            L."U_CostEstim" AS "centro_costo_estimado",
+            L."U_FeeMt"     AS "tarifa_mt",
+            L."U_U_Incoterms" AS "incoterms"
+        FROM "SBO_TST_SBH_USD"."OOAT" A
+        INNER JOIN "SBO_TST_SBH_USD"."OAT1" L
+            ON L."AgrNo" = A."AbsID"
+        WHERE A."BpType" = 'C'
+          AND A."Status" = 'A'
+          AND L."LineStatus" = 'O'
+          AND (
+                CAST(A."Number" AS NVARCHAR) LIKE ?
+                OR A."NumAtCard" LIKE ?
+                OR UPPER(A."Descript") LIKE ?
+                OR UPPER(A."BpName") LIKE ?
+                OR A."BpCode" LIKE ?
+              )
+        ORDER BY A."CreateDate" DESC, A."Number" DESC, L."AgrLineNum"
+    '''
+
+    params = [
+        termino_like,
+        termino_like,
+        termino_like_upper,
+        termino_like_upper,
+        termino_like,
+    ]
+
+    return {
+        'ok': True,
+        'resultados': _rows(sql, params)
     }

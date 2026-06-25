@@ -1,12 +1,9 @@
 {% extends "layouts/base.html" %}
 {% load permission_filters %}
 
-{% block title %}{% if request.user|es_ingreso_camion %} Ingreso de cami&oacute;n {% else %} Planificaciones {% endif %}{% endblock %} 
+{% block title %}{% if request.user|es_ingreso_camion and tipo_planificacion == 'RECEPCION' %} Ingreso de cami&oacute;n - Recepci&oacute;n {% elif request.user|es_ingreso_camion and tipo_planificacion == 'DESPACHO' %} Ingreso de cami&oacute;n - Despacho {% elif request.user|es_ingreso_camion %} Ingreso de cami&oacute;n {% elif tipo_planificacion == 'RECEPCION' %} Planificaciones Recepci&oacute;n {% elif tipo_planificacion == 'DESPACHO' %} Planificaciones Despacho {% else %} Planificaciones {% endif %}{% endblock %}
 
-<!-- Specific CSS goes HERE -->
 {% block stylesheets %}
-
-    <!-- data tables css -->
     <link rel="stylesheet" href="/static/assets/css/plugins/dataTables.bootstrap4.min.css">
     <style>
         #basic-btn td {
@@ -18,60 +15,61 @@
     {% load l10n %}
 {% endblock stylesheets %}
 
-{% block content %}	
+{% block content %}
 
-	<!-- [ chat user list ] start -->
-	<!-- chatbot -->
-	<!-- [ chat user list ] end -->
-
-	<!---->
-
-    <!-- [ Main Content ] start -->
-    
     <section class="pcoded-main-container">
         <div class="pcoded-content">
-            <!-- [ breadcrumb ] start -->
             <div class="page-header">
                 <div class="page-block">
                     <div class="row align-items-center">
                         <div class="col-md-12">
                             <div class="page-header-title">
-                                <h5 class="m-b-10">{% if request.user|es_ingreso_camion %}Ingreso de cami&oacute;n{% else %}Planificaciones{% endif %}</h5>
+                                <h5 class="m-b-10">{% if request.user|es_ingreso_camion and tipo_planificacion == 'RECEPCION' %}Ingreso de cami&oacute;n - Recepci&oacute;n{% elif request.user|es_ingreso_camion and tipo_planificacion == 'DESPACHO' %}Ingreso de cami&oacute;n - Despacho{% elif request.user|es_ingreso_camion %}Ingreso de cami&oacute;n{% elif tipo_planificacion == 'RECEPCION' %}Planificaciones Recepci&oacute;n{% elif tipo_planificacion == 'DESPACHO' %}Planificaciones Despacho{% else %}Planificaciones{% endif %}</h5>
                             </div>
                             <ul class="breadcrumb">
                                 <li class="breadcrumb-item"><a href="/"><i class="feather icon-home"></i></a></li>
                                 <li class="breadcrumb-item"><a href="/">TERRAVIEW</a></li>
-                                <li class="breadcrumb-item"><a href="{% url 'pla_listall' %}">{% if request.user|es_ingreso_camion %}Ingreso de cami&oacute;n{% else %}Planificaciones{% endif %}</a></li>
-                                
+                                {% if request.user|es_ingreso_camion %}
+                                    <li class="breadcrumb-item"><a href="{% url 'pla_listall' %}">Ingreso de cami&oacute;n</a></li>
+                                    {% if tipo_planificacion == 'RECEPCION' %}
+                                        <li class="breadcrumb-item">Recepci&oacute;n</li>
+                                    {% elif tipo_planificacion == 'DESPACHO' %}
+                                        <li class="breadcrumb-item">Despacho</li>
+                                    {% endif %}
+                                {% else %}
+                                    <li class="breadcrumb-item"><a href="{% url 'pla_listall' %}">Planificaciones</a></li>
+                                    {% if tipo_planificacion == 'RECEPCION' %}
+                                        <li class="breadcrumb-item">Recepci&oacute;n</li>
+                                    {% elif tipo_planificacion == 'DESPACHO' %}
+                                        <li class="breadcrumb-item">Despacho</li>
+                                    {% endif %}
+                                {% endif %}
                             </ul>
                         </div>
                     </div>
                 </div>
-
             </div>
-            <!-- [ breadcrumb ] end -->
-            <!-- [ Main Content ] start -->
+
             <div class="row">
-                <!-- HTML5 Export Buttons table start -->
                 <div class="col-sm-12">
                     <div class="card">
                         <div class="d-flex justify-content-between">
                             <div class="card-header table-card-header">
-                                <h5>Opciones de exportación</h5>
+                                <h5>Opciones de exportaci&oacute;n</h5>
                             </div>
                             <div class=" mb-2 mb-md-0" style="margin-right: 50px;margin-top: 20px;">
                                 {% if not archivados and not request.user|es_ingreso_camion %}
                                     <a href="{% url 'pla_addone' %}" class="btn  btn-primary d-inline-flex align-items-center mr-2"><i class="fas fa-user-plus"></i>
-                                        &nbsp&nbsp Nuevo
+                                        &nbsp;&nbsp; Nuevo
                                     </a>
                                 {% endif %}
                                 {% if request.user|puede_gestionar_planificaciones %}
                                     <a class="btn  btn-warning d-inline-flex align-items-center mr-2" id="pla_filed">
-                                        <i class="fas fa-folder-open"></i> 
+                                        <i class="fas fa-folder-open"></i>
                                         {% if not archivados %}
-                                            &nbsp&nbsp Archivar seleccionados
+                                            &nbsp;&nbsp; Archivar seleccionados
                                         {% else %}
-                                            &nbsp&nbsp Restaurar seleccionados
+                                            &nbsp;&nbsp; Restaurar seleccionados
                                         {% endif %}
                                     </a>
                                 {% endif %}
@@ -90,18 +88,18 @@
                                             <th>FECHA INGRESO</th>
                                             <th>NUMERO DE CUPOS</th>
                                             <th>CUPOS UTILIZADOS</th>
-                                            <th>¿ES SOBRECUPO?</th>
-                                            <th>¿CUANTO SOBRECUPO?</th>
+                                            <th>&iquest;ES SOBRECUPO?</th>
+                                            <th>&iquest;CUANTO SOBRECUPO?</th>
                                         </tr>
                                     </thead>
                                     <tbody>
                                         {% for object in object_list %}
                                             <tr>
                                                 {% if request.user|puede_gestionar_planificaciones %}
-                                                <td><input type="checkbox" class="form-control row-checkbox" value="{{ object.pk }}"></td>
+                                                    <td><input type="checkbox" class="form-control row-checkbox" value="{{ object.pk }}"></td>
                                                 {% endif %}
                                                 <td>
-                                                    <a class="btn btn-primary" href="{% url 'pla_listone' object.pk %}">
+                                                    <a class="btn btn-primary" href="{% url 'pla_listone' object.pk %}?_empresa_id={{ empresa_id }}{% if camion_patio_id %}&camion_patio_id={{ camion_patio_id }}{% endif %}">
                                                         <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-eye" viewBox="0 0 16 16">
                                                             <path d="M16 8s-3-5.5-8-5.5S0 8 0 8s3 5.5 8 5.5S16 8 16 8zM1.173 8a13.133 13.133 0 0 1 1.66-2.043C4.12 4.668 5.88 3.5 8 3.5c2.12 0 3.879 1.168 5.168 2.457A13.133 13.133 0 0 1 14.828 8c-.058.087-.122.183-.195.288-.335.48-.83 1.12-1.465 1.755C11.879 11.332 10.119 12.5 8 12.5c-2.12 0-3.879-1.168-5.168-2.457A13.134 13.134 0 0 1 1.172 8z"/>
                                                             <path d="M8 5.5a2.5 2.5 0 1 0 0 5 2.5 2.5 0 0 0 0-5zM4.5 8a3.5 3.5 0 1 1 7 0 3.5 3.5 0 0 1-7 0z"/>
@@ -114,7 +112,7 @@
                                                             </a>
                                                         {% else %}
                                                             <a class="btn btn-success pla_filedone" data-href="{% url 'pla_filedone' object.pk %}" title="Restaurar" data-toggle="tooltip">
-                                                                <i class="fas fa-folder-plus"></i> 
+                                                                <i class="fas fa-folder-plus"></i>
                                                             </a>
                                                         {% endif %}
                                                     {% endif %}
@@ -126,14 +124,14 @@
                                                 {% if object.TIENE_SOBRECUPOS %}
                                                     <td><span class="fw-bold text-success ">
                                                         <svg xmlns="http://www.w3.org/2000/svg" width="25" height="25" fill="currentColor" class="bi bi-check-lg" viewBox="0 0 16 16">
-                                                        <path d="M12.736 3.97a.733.733 0 0 1 1.047 0c.286.289.29.756.01 1.05L7.88 12.01a.733.733 0 0 1-1.065.02L3.217 8.384a.757.757 0 0 1 0-1.06.733.733 0 0 1 1.047 0l3.052 3.093 5.4-6.425a.247.247 0 0 1 .02-.022Z"/>
+                                                            <path d="M12.736 3.97a.733.733 0 0 1 1.047 0c.286.289.29.756.01 1.05L7.88 12.01a.733.733 0 0 1-1.065.02L3.217 8.384a.757.757 0 0 1 0-1.06.733.733 0 0 1 1.047 0l3.052 3.093 5.4-6.425a.247.247 0 0 1 .02-.022Z"/>
                                                         </svg>
                                                         </span>
                                                     </td>
                                                 {% else %}
                                                     <td><span class="fw-bold text-danger">
                                                         <svg xmlns="http://www.w3.org/2000/svg" width="25" height="25" fill="currentColor" class="bi bi-dash-lg" viewBox="0 0 16 16">
-                                                        <path fill-rule="evenodd" d="M2 8a.5.5 0 0 1 .5-.5h11a.5.5 0 0 1 0 1h-11A.5.5 0 0 1 2 8Z"/>
+                                                            <path fill-rule="evenodd" d="M2 8a.5.5 0 0 1 .5-.5h11a.5.5 0 0 1 0 1h-11A.5.5 0 0 1 2 8Z"/>
                                                         </svg>
                                                         </span>
                                                     </td>
@@ -148,17 +146,13 @@
                     </div>
                 </div>
             </div>
-            <!-- [ Main Content ] end -->
         </div>
     </section>
-    <!-- [ Main Content ] end -->
 
 {% endblock content %}
 
-<!-- Specific Page JS goes HERE  -->
 {% block javascripts %}
 
-    <!-- datatable Js -->
     <script src="/static/assets/js/plugins/jquery.dataTables.min.js"></script>
     <script src="/static/assets/js/plugins/dataTables.bootstrap4.min.js"></script>
     <script src="/static/assets/js/plugins/buttons.colVis.min.js"></script>
@@ -171,27 +165,23 @@
     <script src="/static/assets/js/pages/data-export-custom.js"></script>
 
     <script>
-        // Evento para el checkbox "select-all"
         $('#select-all').on('click', function() {
-            // Asumimos que el DataTable ya está inicializado como 'table'
             const table = $('#basic-btn').DataTable();
             const isChecked = this.checked;
 
-            // Seleccionar todos los checkboxes en todas las filas, incluso las no visibles
             table.rows().nodes().to$().find('.row-checkbox').prop('checked', isChecked);
 
-            // Si quieres también actualizar los datos internos del DataTable
-            table.rows().every(function (rowIdx, tableLoop, rowLoop) {
+            table.rows().every(function () {
                 const rowData = this.data();
                 if (rowData.hasOwnProperty('checked')) {
                     rowData.checked = isChecked;
-                    this.invalidate(); // Marcar la fila para ser redibujada
+                    this.invalidate();
                 }
             });
 
-            // Redibujar la tabla si es necesario
             table.draw(false);
         });
+
         $('.pla_filedone').on('click', function(e) {
             e.preventDefault();
             Swal.fire({
@@ -207,13 +197,12 @@
                 }
             });
         });
+
         $('#pla_filed').on('click', function(e) {
             e.preventDefault();
             var selectedIds = [];
-            
-            // Obtener todos los checkboxes seleccionados, incluso en otras páginas
             const dataTable = $('#basic-btn').DataTable();
-            dataTable.rows().every(function (rowIdx, tableLoop, rowLoop) {
+            dataTable.rows().every(function () {
                 let data = this.node();
                 let $checkbox = $(data).find('input[type=checkbox]:checked');
                 if ($checkbox.length > 0 && $checkbox.val() != 'on') {
@@ -222,9 +211,6 @@
             });
 
             if (selectedIds.length > 0) {
-                console.log("IDs seleccionados:", selectedIds);
-                // Aquí puedes enviar los IDs seleccionados al servidor
-                // Por ejemplo, usando una llamada AJAX
                 $.ajax({
                     url: '{% url "ajax_archivar_planificaciones" %}',
                     type: 'POST',
@@ -240,7 +226,7 @@
                                 text: 'Planificaciones seleccionadas archivadas correctamente!'
                             }).then((result) => {
                                 if (result.value){
-                                    window.location.href = "{% url 'pla_filedlistall' %}"
+                                    window.location.href = "{% url 'pla_filedlistall' %}";
                                 }
                             });
                         } else {
@@ -248,11 +234,10 @@
                                 title: "Atención",
                                 icon: "warning",
                                 text: response.msg
-                            })
+                            });
                         }
                     },
-                    error: function(xhr, status, error) {
-                        // Manejar errores
+                    error: function() {
                         alert('Error al archivar elementos');
                     }
                 });
@@ -261,7 +246,7 @@
                     title: "Alerta",
                     icon: "warning",
                     text: "No ha seleccionado ninguna planificación"
-                })
+                });
             }
         });
     </script>

@@ -1,8 +1,10 @@
+{% load static %}
 <!doctype html>
 <html>
 <head>
     <meta charset="utf-8">
     <title>ARCHIVO E.L.I. citacion {{ expediente.citacion.id }}</title>
+
     <style>
         @page {
             size: A4;
@@ -13,7 +15,9 @@
                 color: #6d7f8b;
             }
         }
+
         * { box-sizing: border-box; }
+
         body {
             margin: 0;
             font-family: Arial, Helvetica, sans-serif;
@@ -22,7 +26,9 @@
             line-height: 1.35;
             background: #fff;
         }
+
         h1, h2, h3, p { margin: 0; }
+
         .topbar {
             border: 1px solid #1c4058;
             border-radius: 6px;
@@ -30,6 +36,7 @@
             margin-bottom: 12px;
             page-break-inside: avoid;
         }
+
         .corporate-strip {
             display: table;
             width: 100%;
@@ -37,18 +44,17 @@
             color: #fff;
             padding: 12px 14px;
         }
+
         .brand-block,
         .company-block {
             display: table-cell;
             vertical-align: middle;
         }
-        .brand-block { width: 68%; }
-        .company-block {
-            width: 32%;
-            text-align: right;
-            border-left: 1px solid rgba(255,255,255,.25);
-            padding-left: 12px;
+
+        .brand-block {
+            width: 68%;
         }
+
         .logo-text {
             display: inline-block;
             border: 1px solid rgba(255,255,255,.5);
@@ -59,32 +65,56 @@
             letter-spacing: .5px;
             margin-bottom: 8px;
         }
+
         .document-name {
             font-size: 25px;
             line-height: 1;
             font-weight: 900;
             letter-spacing: .7px;
         }
+
         .document-subtitle {
             font-size: 12px;
             font-weight: 700;
             margin-top: 4px;
             color: #dce8ef;
         }
+
+        /* =========================================================
+           BLOQUE LOGO EMPRESA / TERRAMAR
+           Para ajustar el logo después, modifica solo este grupo.
+           ========================================================= */
+
+       .company-block {
+            width: 32%;
+            text-align: center;
+            border-left: 1px solid rgba(255,255,255,.25);
+            padding-left: 12px;
+        }
+
+        .company-logo {
+            display: block;
+
+            height: 90px;      /* controla el tamaño real */
+            width: auto;       /* mantiene proporción */
+
+            margin: 0 auto 12px auto;
+        }
+
         .company-name {
             display: block;
-            font-size: 11px;
-            font-weight: 800;
+            font-size: 18px;
+            line-height: 1.1;
+            font-weight: 900;
             text-transform: uppercase;
-            color: #fff;
+            color: #ffffff;
+            letter-spacing: .5px;
+            text-align: center;
         }
-        .company-caption {
-            display: block;
-            margin-top: 4px;
-            color: #dce8ef;
-            font-size: 8px;
-            text-transform: uppercase;
-        }
+        /* =========================================================
+           FIN BLOQUE LOGO EMPRESA / TERRAMAR
+           ========================================================= */
+
         .cover-grid {
             display: grid;
             grid-template-columns: repeat(4, 1fr);
@@ -92,13 +122,16 @@
             border-top: 1px solid #d7e2e8;
             background: #f7fafc;
         }
+
         .cover-cell {
             min-height: 45px;
             padding: 8px 10px;
             border-right: 1px solid #d7e2e8;
             border-bottom: 1px solid #d7e2e8;
         }
+
         .cover-cell:nth-child(4n) { border-right: 0; }
+
         .label {
             display: block;
             color: #607483;
@@ -108,6 +141,7 @@
             letter-spacing: .25px;
             margin-bottom: 3px;
         }
+
         .value {
             display: block;
             color: #152f42;
@@ -115,6 +149,7 @@
             font-weight: 700;
             overflow-wrap: anywhere;
         }
+
         .section {
             border: 1px solid #d8e2e8;
             border-radius: 5px;
@@ -122,6 +157,7 @@
             page-break-inside: avoid;
             overflow: hidden;
         }
+
         .section-title {
             display: table;
             width: 100%;
@@ -129,17 +165,20 @@
             border-bottom: 1px solid #d8e2e8;
             padding: 8px 10px;
         }
+
         .section-number,
         .section-heading {
             display: table-cell;
             vertical-align: middle;
         }
+
         .section-number {
             width: 34px;
             color: #12374f;
             font-size: 14px;
             font-weight: 900;
         }
+
         .section-heading {
             color: #12374f;
             font-size: 13px;
@@ -147,12 +186,15 @@
             text-transform: uppercase;
             letter-spacing: .35px;
         }
+
         .section-body { padding: 9px 10px 10px; }
+
         .info-grid {
             display: grid;
             grid-template-columns: repeat(4, 1fr);
             gap: 7px;
         }
+
         .field {
             border: 1px solid #e1e9ee;
             border-radius: 4px;
@@ -160,8 +202,11 @@
             min-height: 38px;
             padding: 6px 7px;
         }
+
         .field.wide { grid-column: span 2; }
+
         .field.full { grid-column: 1 / -1; }
+
         .audit-strip {
             margin-top: 8px;
             display: grid;
@@ -170,6 +215,7 @@
             padding-top: 8px;
             border-top: 1px dashed #cbd8df;
         }
+
         .audit-box {
             background: #f8fafb;
             border: 1px solid #e3eaee;
@@ -177,13 +223,17 @@
             padding: 6px 7px;
             min-height: 34px;
         }
+
         table {
             width: 100%;
             border-collapse: collapse;
             page-break-inside: auto;
         }
+
         thead { display: table-header-group; }
+
         tr { page-break-inside: avoid; }
+
         th {
             background: #dfe9ee;
             color: #12374f;
@@ -193,25 +243,30 @@
             font-size: 8px;
             text-transform: uppercase;
         }
+
         td {
             border: 1px solid #d8e2e8;
             padding: 6px;
             vertical-align: top;
             font-size: 8.5px;
         }
+
         .audit-core {
             border: 2px solid #12374f;
             page-break-inside: auto;
         }
+
         .audit-core .section-title {
             background: #12374f;
             color: #fff;
             border-bottom-color: #12374f;
         }
+
         .audit-core .section-number,
         .audit-core .section-heading {
             color: #fff;
         }
+
         .status {
             display: inline-block;
             padding: 3px 7px;
@@ -223,61 +278,143 @@
             text-transform: uppercase;
             font-size: 7.5px;
         }
+
         .status.pending {
             background: #fff7e8;
             color: #9a6512;
             border-color: #f0d49f;
         }
+
         .muted { color: #738591; }
     </style>
 </head>
+
 <body>
     <div class="topbar">
         <div class="corporate-strip">
             <div class="brand-block">
                 <span class="logo-text">TERRAVIEW</span>
                 <h1 class="document-name">ARCHIVO E.L.I.</h1>
-                <p class="document-subtitle">Expediente Logistico Integral | Sistema de Gestion Logistica TERRAVIEW</p>
+                <p class="document-subtitle">
+                    Expediente Logistico Integral | Sistema de Gestion Logistica TERRAVIEW
+                </p>
             </div>
+
             <div class="company-block">
-                <span class="company-name">{{ expediente.citacion.EP_NID.EP_CRAZONSOCIAL|default:'' }}</span>
-                <span class="company-caption">Logo empresa / entidad operacional</span>
+                <img
+                    src="file:///C:/Users/marcio.sanmartin/OneDrive%20-%20Terramar%20Chile%20SpA/Proyecto_desarrollo/APP_DESARROLLO/TRANSIX_V1/apps/static/assets/images/Logo_terraview/TERRAMARCHILE_Vectorial_RGB_color.svg"
+                    alt="Terramar Chile"
+                    class="company-logo"
+                >
+
+                <span class="company-name">
+                    {{ expediente.citacion.EP_NID.EP_CRAZONSOCIAL|default:'' }}
+                </span>
             </div>
         </div>
+
         <div class="cover-grid">
-            <div class="cover-cell"><span class="label">Citacion N</span><span class="value">{{ expediente.citacion.id }}</span></div>
-            <div class="cover-cell"><span class="label">Empresa</span><span class="value">{{ expediente.citacion.EP_NID.EP_CRAZONSOCIAL|default:'' }}</span></div>
-            <div class="cover-cell"><span class="label">Estado operacional</span><span class="value">{{ expediente.estado_eli|default:'' }}</span></div>
-            <div class="cover-cell"><span class="label">Fecha generacion</span><span class="value">{{ fecha_generacion }}</span></div>
-            <div class="cover-cell"><span class="label">Generado por</span><span class="value">{{ usuario_genera }}</span></div>
-            <div class="cover-cell"><span class="label">Patente</span><span class="value">{{ expediente.resumen.patente|default:'' }}</span></div>
-            <div class="cover-cell"><span class="label">Flujo</span><span class="value">{{ expediente.citacion.SC_NID.SE_CNOMBRE|default:'' }}</span></div>
-            <div class="cover-cell"><span class="label">Tipo operacion</span><span class="value">{{ expediente.citacion.CI_CTIPO|default:'' }}</span></div>
+            <div class="cover-cell">
+                <span class="label">Citacion N</span>
+                <span class="value">{{ expediente.citacion.id }}</span>
+            </div>
+
+            <div class="cover-cell">
+                <span class="label">Empresa</span>
+                <span class="value">{{ expediente.citacion.EP_NID.EP_CRAZONSOCIAL|default:'' }}</span>
+            </div>
+
+            <div class="cover-cell">
+                <span class="label">Estado operacional</span>
+                <span class="value">{{ expediente.estado_eli|default:'' }}</span>
+            </div>
+
+            <div class="cover-cell">
+                <span class="label">Fecha generacion</span>
+                <span class="value">{{ fecha_generacion }}</span>
+            </div>
+
+            <div class="cover-cell">
+                <span class="label">Generado por</span>
+                <span class="value">{{ usuario_genera }}</span>
+            </div>
+
+            <div class="cover-cell">
+                <span class="label">Patente</span>
+                <span class="value">{{ expediente.resumen.patente|default:'' }}</span>
+            </div>
+
+            <div class="cover-cell">
+                <span class="label">Flujo</span>
+                <span class="value">{{ expediente.citacion.SC_NID.SE_CNOMBRE|default:'' }}</span>
+            </div>
+
+            <div class="cover-cell">
+                <span class="label">Tipo operacion</span>
+                <span class="value">{{ expediente.citacion.CI_CTIPO|default:'' }}</span>
+            </div>
         </div>
     </div>
 
     <div class="section">
-        <div class="section-title"><span class="section-number">01</span><span class="section-heading">Informacion general</span></div>
+        <div class="section-title">
+            <span class="section-number">01</span>
+            <span class="section-heading">Informacion general</span>
+        </div>
+
         <div class="section-body">
             <div class="info-grid">
                 {% for item in expediente.encabezado_eli %}
-                <div class="field"><span class="label">{{ item.label }}</span><span class="value">{{ item.value|default:'' }}</span></div>
+                    <div class="field">
+                        <span class="label">{{ item.label }}</span>
+                        <span class="value">{{ item.value|default:'' }}</span>
+                    </div>
+                {% empty %}
+                    <div class="field full">
+                        <span class="label">Sin datos</span>
+                        <span class="value">No hay informacion general registrada.</span>
+                    </div>
                 {% endfor %}
             </div>
         </div>
     </div>
 
     <div class="section">
-        <div class="section-title"><span class="section-number">02</span><span class="section-heading">Documentacion operacional</span></div>
+        <div class="section-title">
+            <span class="section-number">02</span>
+            <span class="section-heading">Documentacion operacional</span>
+        </div>
+
         <div class="section-body">
             <table>
-                <thead><tr><th>Documento</th><th>Archivo</th><th>Fecha carga</th><th>Usuario</th></tr></thead>
+                <thead>
+                    <tr>
+                        <th>Documento</th>
+                        <th>Archivo</th>
+                        <th>Fecha carga</th>
+                        <th>Usuario</th>
+                    </tr>
+                </thead>
+
                 <tbody>
-                    <tr><td>ARCHIVO E.L.I.</td><td>Expediente Logistico Integral</td><td>{{ fecha_generacion }}</td><td>{{ usuario_genera }}</td></tr>
+                    <tr>
+                        <td>ARCHIVO E.L.I.</td>
+                        <td>Expediente Logistico Integral</td>
+                        <td>{{ fecha_generacion }}</td>
+                        <td>{{ usuario_genera }}</td>
+                    </tr>
+
                     {% for doc in expediente.documentos %}
-                    <tr><td>{{ doc.tipo }}</td><td>{{ doc.archivo }}</td><td>{{ doc.fecha }}</td><td>{{ doc.usuario }}</td></tr>
+                        <tr>
+                            <td>{{ doc.tipo }}</td>
+                            <td>{{ doc.archivo }}</td>
+                            <td>{{ doc.fecha }}</td>
+                            <td>{{ doc.usuario }}</td>
+                        </tr>
                     {% empty %}
-                    <tr><td colspan="4"></td></tr>
+                        <tr>
+                            <td colspan="4">Sin documentos asociados.</td>
+                        </tr>
                     {% endfor %}
                 </tbody>
             </table>
@@ -285,7 +422,11 @@
     </div>
 
     <div class="section audit-core">
-        <div class="section-title"><span class="section-number">AUD</span><span class="section-heading">Trazabilidad y auditoria operacional</span></div>
+        <div class="section-title">
+            <span class="section-number">AUD</span>
+            <span class="section-heading">Trazabilidad y auditoria operacional</span>
+        </div>
+
         <div class="section-body">
             <table>
                 <thead>
@@ -297,25 +438,30 @@
                         <th>Observacion</th>
                     </tr>
                 </thead>
+
                 <tbody>
                     {% for row in expediente.seguimiento %}
-                    <tr>
-                        <td>{{ row.paso }}</td>
-                        <td>{{ row.usuario }}</td>
-                        <td>{{ row.fecha }}</td>
-                        <td>{{ row.estado }}</td>
-                        <td>{{ row.observacion }}</td>
-                    </tr>
+                        <tr>
+                            <td>{{ row.paso }}</td>
+                            <td>{{ row.usuario }}</td>
+                            <td>{{ row.fecha }}</td>
+                            <td>{{ row.estado }}</td>
+                            <td>{{ row.observacion }}</td>
+                        </tr>
                     {% empty %}
-                    {% for etapa in expediente.etapas_eli %}
-                    <tr>
-                        <td>{{ etapa.titulo }}</td>
-                        <td>{{ etapa.auditoria.usuario_responsable|default:'' }}</td>
-                        <td>{{ etapa.auditoria.fecha|default:'' }}</td>
-                        <td>{{ etapa.auditoria.estado|default:'' }}</td>
-                        <td></td>
-                    </tr>
-                    {% endfor %}
+                        {% for etapa in expediente.etapas_eli %}
+                            <tr>
+                                <td>{{ etapa.titulo }}</td>
+                                <td>{{ etapa.auditoria.usuario_responsable|default:'' }}</td>
+                                <td>{{ etapa.auditoria.fecha|default:'' }}</td>
+                                <td>{{ etapa.auditoria.estado|default:'' }}</td>
+                                <td></td>
+                            </tr>
+                        {% empty %}
+                            <tr>
+                                <td colspan="5">Sin trazabilidad registrada.</td>
+                            </tr>
+                        {% endfor %}
                     {% endfor %}
                 </tbody>
             </table>
@@ -323,28 +469,58 @@
     </div>
 
     {% for etapa in expediente.etapas_eli %}
-    <div class="section">
-        <div class="section-title">
-            <span class="section-number">{% if etapa.numero < 8 %}0{{ etapa.numero|add:"2" }}{% else %}10{% endif %}</span>
-            <span class="section-heading">{{ etapa.titulo }}</span>
-        </div>
-        <div class="section-body">
-            <div class="info-grid">
-                {% for item in etapa.datos %}
-                <div class="field {% if item.label == 'Observaciones' or item.label == 'Observacion toma de muestra' or item.label == 'Observacion calidad' %}wide{% endif %}">
-                    <span class="label">{{ item.label }}</span>
-                    <span class="value">{{ item.value|default:'' }}</span>
+        <div class="section">
+            <div class="section-title">
+                <span class="section-number">
+                    {% if etapa.numero < 8 %}
+                        0{{ etapa.numero|add:"2" }}
+                    {% else %}
+                        10
+                    {% endif %}
+                </span>
+                <span class="section-heading">{{ etapa.titulo }}</span>
+            </div>
+
+            <div class="section-body">
+                <div class="info-grid">
+                    {% for item in etapa.datos %}
+                        <div class="field {% if item.label == 'Observaciones' or item.label == 'Observacion toma de muestra' or item.label == 'Observacion calidad' %}wide{% endif %}">
+                            <span class="label">{{ item.label }}</span>
+                            <span class="value">{{ item.value|default:'' }}</span>
+                        </div>
+                    {% empty %}
+                        <div class="field full">
+                            <span class="label">Sin datos</span>
+                            <span class="value">No hay datos registrados para esta etapa.</span>
+                        </div>
+                    {% endfor %}
                 </div>
-                {% endfor %}
-            </div>
-            <div class="audit-strip">
-                <div class="audit-box"><span class="label">Responsable</span><span class="value">{{ etapa.auditoria.usuario_responsable|default:'' }}</span></div>
-                <div class="audit-box"><span class="label">Fecha</span><span class="value">{{ etapa.auditoria.fecha|default:'' }}</span></div>
-                <div class="audit-box"><span class="label">Estado</span><span class="status {% if etapa.auditoria.estado == 'Pendiente' %}pending{% endif %}">{{ etapa.auditoria.estado|default:'' }}</span></div>
-                <div class="audit-box"><span class="label">Aprobado por</span><span class="value">{{ etapa.auditoria.usuario_aprobador|default:'' }}</span></div>
+
+                <div class="audit-strip">
+                    <div class="audit-box">
+                        <span class="label">Responsable</span>
+                        <span class="value">{{ etapa.auditoria.usuario_responsable|default:'' }}</span>
+                    </div>
+
+                    <div class="audit-box">
+                        <span class="label">Fecha</span>
+                        <span class="value">{{ etapa.auditoria.fecha|default:'' }}</span>
+                    </div>
+
+                    <div class="audit-box">
+                        <span class="label">Estado</span>
+                        <span class="status {% if etapa.auditoria.estado == 'Pendiente' %}pending{% endif %}">
+                            {{ etapa.auditoria.estado|default:'' }}
+                        </span>
+                    </div>
+
+                    <div class="audit-box">
+                        <span class="label">Aprobado por</span>
+                        <span class="value">{{ etapa.auditoria.usuario_aprobador|default:'' }}</span>
+                    </div>
+                </div>
             </div>
         </div>
-    </div>
     {% endfor %}
 </body>
 </html>

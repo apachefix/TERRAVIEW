@@ -307,17 +307,47 @@
     }
 
     .operacion-ticket-actions .btn-obtener-ticket-pesaje {
-        flex: 0 1 360px;
-        width: clamp(280px, 34vw, 420px);
+        flex: 0 1 300px;
+        width: clamp(240px, 29vw, 330px);
         max-width: 100%;
-        min-height: 52px;
+        min-height: 44px;
     }
 
     .operacion-ticket-actions .btn-finalizar-ticket-pesaje {
-        flex: 0 1 360px;
-        width: clamp(280px, 34vw, 420px);
+        flex: 0 1 300px;
+        width: clamp(240px, 29vw, 330px);
         max-width: 100%;
-        min-height: 52px;
+        min-height: 44px;
+    }
+
+    .operacion-ticket-actions .op-glass-button {
+        min-height: 44px;
+        padding: 0 16px 0 52px;
+        border-radius: 12px;
+        font-size: 12px;
+        box-shadow:
+            inset 0 1px 0 rgba(255, 255, 255, 0.28),
+            inset 0 -3px 0 rgba(0, 0, 0, 0.12),
+            0 7px 14px rgba(11, 37, 69, 0.16);
+    }
+
+    .operacion-ticket-actions .op-glass-button:before {
+        left: 4px;
+        top: 4px;
+        bottom: 4px;
+        width: 40px;
+        border-radius: 10px 13px 13px 10px;
+    }
+
+    .operacion-ticket-actions .op-glass-button:after {
+        left: 56px;
+        right: 15px;
+        height: 9px;
+    }
+
+    .operacion-ticket-actions .op-glass-icon {
+        left: 16px;
+        font-size: 13px;
     }
 
     .operacion-ticket-actions .finalizar-pesaje-btn,
@@ -401,11 +431,11 @@
         }
 
         .operacion-ticket-actions .btn-obtener-ticket-pesaje {
-            width: min(100%, 360px);
+            width: min(100%, 330px);
         }
 
         .operacion-ticket-actions .btn-finalizar-ticket-pesaje {
-            width: min(100%, 360px);
+            width: min(100%, 330px);
         }
 
         .operacion-ticket-frozen-pill {
@@ -679,6 +709,40 @@
     .op-dashboard-document-link:hover {
         color: #003d98;
         text-decoration: none;
+    }
+
+    .op-analysis-detail {
+        display: grid;
+        gap: 8px;
+    }
+
+    .op-analysis-row {
+        display: flex;
+        align-items: baseline;
+        justify-content: space-between;
+        gap: 12px;
+        padding-bottom: 6px;
+        border-bottom: 1px solid rgba(11, 37, 69, 0.08);
+    }
+
+    .op-analysis-row span,
+    .op-analysis-comment span {
+        color: #607080;
+        font-size: 12px;
+        font-weight: 900;
+        text-transform: uppercase;
+    }
+
+    .op-analysis-row strong {
+        color: #0b2545;
+        font-size: 13px;
+        font-weight: 900;
+        text-align: right;
+    }
+
+    .op-analysis-comment > div,
+    .op-analysis-comment > a {
+        margin-top: 4px;
     }
 
     .op-quality-summary {
@@ -1459,25 +1523,55 @@
         gap: 12px;
     }
 
-    .btn-operacion-call {
+    .operacion-contact-actions {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        flex-shrink: 0;
+    }
+
+    .btn-operacion-call,
+    .btn-operacion-whatsapp {
         min-width: 42px;
         height: 38px;
         display: inline-flex;
         align-items: center;
         justify-content: center;
         border-radius: 8px;
-        background: linear-gradient(135deg, #0B2545, #102f57);
         color: #fff;
         border: 0;
-        box-shadow: 0 8px 18px rgba(11, 37, 69, 0.20);
         transition: background 160ms ease, transform 160ms ease, box-shadow 160ms ease;
     }
 
+    .btn-operacion-call i,
+    .btn-operacion-whatsapp i {
+        color: #fff;
+        font-size: 17px;
+        line-height: 1;
+    }
+
+    .btn-operacion-call {
+        background: linear-gradient(135deg, #1f7fbf, #37a5d8);
+        box-shadow: 0 8px 18px rgba(31, 127, 191, 0.22);
+    }
+
+    .btn-operacion-whatsapp {
+        background: linear-gradient(135deg, #1f9d55, #25D366);
+        box-shadow: 0 8px 18px rgba(31, 157, 85, 0.22);
+    }
+
     .btn-operacion-call:hover {
-        background: linear-gradient(135deg, #D36B5C, #b95347);
+        background: linear-gradient(135deg, #155f92, #237fad);
         color: #fff;
         transform: translateY(-1px);
-        box-shadow: 0 10px 24px rgba(211, 107, 92, 0.26);
+        box-shadow: 0 10px 24px rgba(31, 127, 191, 0.30);
+    }
+
+    .btn-operacion-whatsapp:hover {
+        background: linear-gradient(135deg, #168346, #20bd5a);
+        color: #fff;
+        transform: translateY(-1px);
+        box-shadow: 0 10px 24px rgba(37, 211, 102, 0.28);
     }
 
     .operacion-doc-card {
@@ -1570,12 +1664,224 @@
         word-break: break-word;
     }
 
+    .op-sap-draft-panel {
+        border: 1px solid rgba(31, 127, 191, 0.18);
+        border-radius: 8px;
+        padding: 18px;
+        background: #f8fbff;
+        box-shadow: 0 12px 30px rgba(11, 37, 69, 0.08);
+    }
+
+    .op-sap-draft-toolbar {
+        display: flex;
+        gap: 10px;
+        flex-wrap: wrap;
+        align-items: center;
+        margin: 14px 0;
+    }
+
+    .op-sap-draft-pre {
+        min-height: 220px;
+        max-height: 520px;
+        overflow: auto;
+        padding: 14px;
+        border-radius: 6px;
+        border: 1px solid #d9e2ef;
+        background: #0f172a;
+        color: #e5eefc;
+        font-size: 12px;
+        white-space: pre-wrap;
+    }
+
+    .op-sap-draft-list {
+        margin: 0;
+        padding-left: 18px;
+    }
+
+    .op-sap-draft-list li {
+        margin-bottom: 4px;
+    }
+
+    .op-sap-draft-status {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        padding: 6px 10px;
+        border-radius: 999px;
+        background: #e8f4ff;
+        color: #155f92;
+        font-weight: 700;
+        font-size: 12px;
+    }
+
     .operacion-doc-empty {
         padding: 18px;
         border-radius: 8px;
         background: rgba(11, 37, 69, 0.035);
         color: #6d7886;
         border: 1px dashed rgba(11, 37, 69, 0.16);
+    }
+
+    #operacion-tabs {
+        display: flex;
+        flex-wrap: nowrap;
+        gap: 12px;
+        overflow-x: auto;
+        overflow-y: hidden;
+        padding: 12px 8px 18px;
+        border: 1px solid rgba(11, 37, 69, 0.10);
+        border-radius: 14px;
+        background:
+            linear-gradient(180deg, rgba(255, 255, 255, 0.82), rgba(232, 227, 200, 0.24)),
+            #eef0ed;
+        box-shadow:
+            inset 0 1px 0 rgba(255, 255, 255, 0.92),
+            inset 0 -2px 5px rgba(11, 37, 69, 0.07),
+            0 10px 24px rgba(11, 37, 69, 0.08);
+        scrollbar-width: thin;
+        scrollbar-color: #6C8784 rgba(11, 37, 69, 0.08);
+        scroll-behavior: smooth;
+    }
+
+    #operacion-tabs::-webkit-scrollbar {
+        height: 7px;
+    }
+
+    #operacion-tabs::-webkit-scrollbar-track {
+        background: rgba(11, 37, 69, 0.08);
+        border-radius: 999px;
+    }
+
+    #operacion-tabs::-webkit-scrollbar-thumb {
+        background: #6C8784;
+        border-radius: 999px;
+    }
+
+    #operacion-tabs .nav-item {
+        flex: 1 0 178px;
+        min-width: 178px;
+    }
+
+    #operacion-tabs .nav-link {
+        position: relative;
+        min-height: 72px;
+        display: flex;
+        align-items: center;
+        justify-content: flex-start;
+        gap: 10px;
+        padding: 12px 14px;
+        border: 1px solid rgba(11, 37, 69, 0.22);
+        border-radius: 12px;
+        background: linear-gradient(145deg, #f5f2df 0%, #ddd8bd 100%);
+        color: #0B2545;
+        font-size: 13px;
+        font-weight: 800;
+        line-height: 1.2;
+        text-align: left;
+        white-space: normal;
+        box-shadow:
+            inset 1px 1px 0 rgba(255, 255, 255, 0.86),
+            inset -2px -3px 5px rgba(11, 37, 69, 0.10),
+            0 5px 10px rgba(11, 37, 69, 0.16);
+        transition: transform 160ms ease, box-shadow 160ms ease, border-color 160ms ease, filter 160ms ease;
+    }
+
+    .op-etapa-indicador {
+        width: 13px;
+        height: 13px;
+        flex: 0 0 13px;
+        border: 2px solid rgba(11, 37, 69, 0.28);
+        border-radius: 50%;
+        background: #c8c8be;
+        box-shadow:
+            inset 0 1px 2px rgba(11, 37, 69, 0.32),
+            0 1px 0 rgba(255, 255, 255, 0.78);
+    }
+
+    .op-etapa-contenido {
+        display: flex;
+        align-items: center;
+        gap: 7px;
+        min-width: 0;
+    }
+
+    .op-etapa-nombre {
+        display: block;
+    }
+
+    #operacion-tabs .nav-link.etapa-completada {
+        border-color: #536f6c;
+        background: linear-gradient(145deg, #7f9996 0%, #5b7774 100%);
+        color: #fff;
+        box-shadow:
+            inset 1px 1px 0 rgba(255, 255, 255, 0.30),
+            inset -2px -3px 5px rgba(11, 37, 69, 0.22),
+            0 5px 11px rgba(57, 83, 80, 0.24);
+    }
+
+    #operacion-tabs .nav-link.etapa-completada .op-etapa-indicador {
+        border-color: rgba(255, 255, 255, 0.65);
+        background: #d9f1e5;
+        box-shadow: 0 0 0 3px rgba(217, 241, 229, 0.12), 0 0 8px rgba(217, 241, 229, 0.42);
+    }
+
+    #operacion-tabs .nav-link.active,
+    #operacion-tabs .nav-link.etapa-activa,
+    #operacion-tabs .nav-link[aria-selected="true"] {
+        border-color: #0B2545;
+        background: linear-gradient(145deg, #173d68 0%, #0B2545 72%);
+        color: #fff !important;
+        box-shadow:
+            inset 1px 1px 0 rgba(255, 255, 255, 0.18),
+            inset -3px -4px 7px rgba(0, 0, 0, 0.28),
+            0 0 0 2px rgba(11, 37, 69, 0.10),
+            0 10px 22px rgba(11, 37, 69, 0.30);
+        transform: translateY(-3px);
+    }
+
+    #operacion-tabs .nav-link.active .op-etapa-indicador,
+    #operacion-tabs .nav-link.etapa-activa .op-etapa-indicador,
+    #operacion-tabs .nav-link[aria-selected="true"] .op-etapa-indicador {
+        border-color: #a5fff0;
+        background: #61dbc9;
+        box-shadow:
+            inset 0 0 2px rgba(255, 255, 255, 0.80),
+            0 0 0 3px rgba(97, 219, 201, 0.14),
+            0 0 10px rgba(97, 219, 201, 0.82);
+    }
+
+    #operacion-tabs .nav-link:hover,
+    #operacion-tabs .nav-link:focus {
+        border-color: #D36B5C;
+        color: inherit;
+        box-shadow:
+            inset 1px 1px 0 rgba(255, 255, 255, 0.35),
+            inset -2px -3px 5px rgba(11, 37, 69, 0.14),
+            0 0 0 2px rgba(211, 107, 92, 0.10),
+            0 9px 18px rgba(211, 107, 92, 0.18);
+        filter: brightness(1.035);
+        transform: translateY(-3px);
+    }
+
+    #operacion-tabs .nav-link.active:hover,
+    #operacion-tabs .nav-link.active:focus,
+    #operacion-tabs .nav-link.active:focus-visible,
+    #operacion-tabs .nav-link.etapa-activa:hover,
+    #operacion-tabs .nav-link.etapa-activa:focus,
+    #operacion-tabs .nav-link.etapa-activa:focus-visible,
+    #operacion-tabs .nav-link[aria-selected="true"],
+    #operacion-tabs .nav-link[aria-selected="true"]:hover,
+    #operacion-tabs .nav-link[aria-selected="true"]:focus,
+    #operacion-tabs .nav-link[aria-selected="true"]:focus-visible {
+        background: linear-gradient(145deg, #173d68 0%, #0B2545 72%);
+        color: #fff !important;
+        border-color: #D36B5C;
+    }
+
+    #operacion-tabs .nav-link.active *,
+    #operacion-tabs .nav-link.etapa-activa *,
+    #operacion-tabs .nav-link[aria-selected="true"] * {
+        color: #fff !important;
     }
 
     @media (max-width: 767.98px) {
@@ -1591,6 +1897,17 @@
 
         .operacion-doc-item {
             grid-template-columns: 1fr;
+        }
+
+        #operacion-tabs .nav-item {
+            flex-basis: 165px;
+            min-width: 165px;
+        }
+
+        #operacion-tabs .nav-link {
+            min-height: 66px;
+            padding: 10px 12px;
+            font-size: 12px;
         }
     }
 </style>
@@ -1625,7 +1942,7 @@
                         <div class="operacion-hero-status-label">Etapa actual</div>
                         {% for paso in pasos %}
                             {% if paso.activo %}
-                                <div class="operacion-hero-status-value">{{ paso.nombre }}</div>
+                                <div class="operacion-hero-status-value">{{ paso.nombre_visible|default:paso.nombre }}</div>
                             {% endif %}
                         {% endfor %}
                     </div>
@@ -1691,9 +2008,24 @@
                                     <span class="operacion-contact-label">Telefono conductor</span>
                                     <div class="operacion-call-row">
                                         <div class="operacion-contact-value">{{ telefono_conductor }}</div>
-                                        <button type="button" class="btn-operacion-call" title="Accion de llamada futura" aria-label="Accion de llamada futura">
-                                            <i class="fas fa-phone-alt"></i>
-                                        </button>
+                                        <div class="operacion-contact-actions">
+                                            <button type="button"
+                                                    class="btn-operacion-whatsapp"
+                                                    title="Enviar WhatsApp al conductor"
+                                                    aria-label="Enviar WhatsApp al conductor"
+                                                    data-phone="{{ telefono_conductor|default:'' }}"
+                                                    data-citacion="{{ citacion.id }}"
+                                                    data-patente="{{ patente|default:'' }}">
+                                                <i class="fab fa-whatsapp"></i>
+                                            </button>
+                                            <button type="button"
+                                                    class="btn-operacion-call"
+                                                    title="Llamar al conductor"
+                                                    aria-label="Llamar al conductor"
+                                                    data-phone="{{ telefono_conductor|default:'' }}">
+                                                <i class="fas fa-phone"></i>
+                                            </button>
+                                        </div>
                                     </div>
                                 </div>
                             </div>
@@ -1767,8 +2099,11 @@
                         <ul class="nav nav-pills mb-3" id="operacion-tabs" role="tablist">
                             {% for paso in pasos %}
                             <li class="nav-item">
-                                <a class="nav-link {% if paso.activo %}active{% endif %}" id="tab-{{ forloop.counter }}" data-toggle="pill" href="#paso-{{ forloop.counter }}" role="tab">
-                                    {{ paso.orden }}. {{ paso.nombre }}
+                                <a class="nav-link op-etapa-btn {% if paso.activo %}active{% elif paso.estado == 'COMPLETADO' %}etapa-completada{% else %}etapa-pendiente{% endif %}" id="tab-{{ forloop.counter }}" data-toggle="pill" href="#paso-{{ forloop.counter }}" role="tab">
+                                    <span class="op-etapa-indicador" aria-hidden="true"></span>
+                                    <span class="op-etapa-contenido">
+                                        <span class="op-etapa-nombre">{{ paso.nombre_visible|default:paso.nombre }}</span>
+                                    </span>
                                 </a>
                             </li>
                             {% endfor %}
@@ -1780,7 +2115,7 @@
                                 <div class="border rounded p-3">
                                     <div class="d-flex flex-wrap justify-content-between align-items-center mb-2">
                                         <div>
-                                            <h5 class="mb-1">{{ paso.nombre }}</h5>
+                                            <h5 class="mb-1">{{ paso.nombre_visible|default:paso.nombre }}</h5>
                                             <div class="text-muted">Responsable: {{ paso.responsable }}</div>
                                         </div>
                                         <span class="badge {% if paso.estado == 'COMPLETADO' %}badge-success{% else %}badge-secondary{% endif %}">{{ paso.estado }}</span>
@@ -1798,6 +2133,13 @@
                                             Sin registro
                                         {% endif %}
                                     </div>
+
+                                    {% if paso.observacion_etapa_anterior %}
+                                    <div class="alert alert-light border mb-3">
+                                        <strong>Observaci&oacute;n etapa anterior</strong><br>
+                                        {{ paso.observacion_etapa_anterior }}
+                                    </div>
+                                    {% endif %}
 
                                     {% if paso.requiere_ticket_pesaje %}
                                     <div class="operacion-ticket-pesaje {% if paso.tipo_ticket_pesaje == 'SAL' %}is-sal{% else %}is-ent{% endif %}"
@@ -2041,6 +2383,52 @@
                                                 </div>
 
                                                 <div class="op-dashboard-card">
+                                                    <div class="op-dashboard-card-title">Detalle del analisis</div>
+                                                    {% if paso.revision_resultado_calidad %}
+                                                        <div class="op-analysis-detail">
+                                                            <div class="op-analysis-row">
+                                                                <span>Resultado Calidad</span>
+                                                                <strong>{{ paso.revision_resultado_calidad.resultado_calidad|default:'Sin resultado' }}</strong>
+                                                            </div>
+                                                            <div class="op-analysis-row">
+                                                                <span>Responsable</span>
+                                                                <strong>{{ paso.revision_resultado_calidad.usuario|default:'Sin usuario' }}</strong>
+                                                            </div>
+                                                            <div class="op-analysis-row">
+                                                                <span>Fecha</span>
+                                                                <strong>{{ paso.revision_resultado_calidad.fecha_hora|default:'Sin fecha' }}</strong>
+                                                            </div>
+                                                            <div class="op-analysis-comment mt-2">
+                                                                <span>Comentario</span>
+                                                                <div class="{% if not paso.revision_resultado_calidad.comentario %}op-dashboard-muted{% endif %}">
+                                                                    {{ paso.revision_resultado_calidad.comentario|default:'Sin comentario de calidad.' }}
+                                                                </div>
+                                                            </div>
+                                                            <div class="op-analysis-comment mt-2">
+                                                                <span>Documento</span>
+                                                                {% if paso.revision_resultado_calidad.documento_nombre %}
+                                                                    {% if paso.revision_resultado_calidad.download_url %}
+                                                                        <a class="op-dashboard-document-link" href="{{ paso.revision_resultado_calidad.download_url }}" target="_blank" rel="noopener">
+                                                                            <i class="fas fa-paperclip"></i> Ver documento: {{ paso.revision_resultado_calidad.documento_nombre }}
+                                                                        </a>
+                                                                    {% else %}
+                                                                        <div class="op-dashboard-muted">
+                                                                            <i class="fas fa-paperclip"></i> {{ paso.revision_resultado_calidad.documento_nombre }}
+                                                                        </div>
+                                                                    {% endif %}
+                                                                {% else %}
+                                                                    <div class="op-dashboard-muted">
+                                                                        <i class="fas fa-paperclip"></i> Sin documento adjunto
+                                                                    </div>
+                                                                {% endif %}
+                                                            </div>
+                                                        </div>
+                                                    {% else %}
+                                                        <div class="op-dashboard-muted">Debe existir un resultado de calidad antes de preparar descarga.</div>
+                                                    {% endif %}
+                                                </div>
+
+                                                <div class="op-dashboard-card">
                                                     <div class="op-dashboard-card-title">Espera descarga</div>
                                                     {% if paso.espera_descarga and paso.espera_descarga.disponible %}
                                                         <div class="op-wait-clock {% if paso.espera_descarga.finalizada %}is-finalized{% endif %}">
@@ -2069,32 +2457,6 @@
                                                         </div>
                                                     {% else %}
                                                         <div class="op-dashboard-muted">Sin inicio de espera registrado.</div>
-                                                    {% endif %}
-                                                </div>
-
-                                                <div class="op-dashboard-card">
-                                                    <div class="op-dashboard-card-title">Detalle del analisis</div>
-                                                    {% if paso.revision_resultado_calidad %}
-                                                        <div>
-                                                            {% if paso.revision_resultado_calidad.comentario %}
-                                                                {{ paso.revision_resultado_calidad.comentario }}
-                                                            {% else %}
-                                                                Sin comentario de calidad.
-                                                            {% endif %}
-                                                        </div>
-                                                        {% if paso.revision_resultado_calidad.documento_nombre %}
-                                                            {% if paso.revision_resultado_calidad.download_url %}
-                                                                <a class="op-dashboard-document-link" href="{{ paso.revision_resultado_calidad.download_url }}" target="_blank" rel="noopener">
-                                                                    <i class="fas fa-paperclip"></i> {{ paso.revision_resultado_calidad.documento_nombre }}
-                                                                </a>
-                                                            {% else %}
-                                                                <div class="op-dashboard-muted mt-2">
-                                                                    <i class="fas fa-paperclip"></i> {{ paso.revision_resultado_calidad.documento_nombre }}
-                                                                </div>
-                                                            {% endif %}
-                                                        {% endif %}
-                                                    {% else %}
-                                                        <div class="op-dashboard-muted">Debe existir un resultado de calidad antes de preparar descarga.</div>
                                                     {% endif %}
                                                 </div>
                                             </div>
@@ -2171,7 +2533,24 @@
                                                 <label>Observaciones de descarga</label>
                                                 <textarea class="form-control prep-observaciones-descarga"
                                                           rows="3"
-                                                          {% if not paso.activo or not paso.puede_editar or paso.preparacion_descarga.usuario %}readonly{% endif %}>{{ paso.preparacion_descarga.observaciones_descarga|default:'' }}</textarea>
+                                                          {% if not paso.puede_guardar_observacion %}readonly{% endif %}>{{ paso.observacion|default:paso.preparacion_descarga.observaciones_descarga }}</textarea>
+                                                {% if paso.puede_guardar_observacion %}
+                                                    <div class="d-flex justify-content-end mt-2">
+                                                        <button type="button"
+                                                                class="btn btn-outline-primary btn-sm btn-guardar-observacion"
+                                                                data-paso="{{ paso.nombre }}"
+                                                                data-observacion-target="preparacion_descarga">
+                                                            <i class="fas fa-save mr-1"></i>
+                                                            Guardar observaci&oacute;n
+                                                        </button>
+                                                    </div>
+                                                {% elif paso.observacion_registrada %}
+                                                    <div class="text-right mt-2">
+                                                        <span class="badge badge-light border text-success">
+                                                            <i class="fas fa-lock mr-1"></i> Observaci&oacute;n registrada
+                                                        </span>
+                                                    </div>
+                                                {% endif %}
                                             </div>
 
                                             {% if paso.preparacion_descarga.usuario %}
@@ -2349,6 +2728,110 @@
                                     </div>
                                     {% endif %}
 
+                                    {% if paso.requiere_borrador_sap %}
+                                    <div class="op-sap-draft-panel operacion-borrador-sap-box"
+                                         data-paso="{{ paso.nombre }}"
+                                         data-preview-valido="false"
+                                         data-enviado="{% if paso.borrador_sap.sent %}true{% else %}false{% endif %}">
+                                        <div class="op-cycle-header">
+                                            <div>
+                                                <div class="op-cycle-title">
+                                                    <span class="op-cycle-title-icon"><i class="fas fa-file-invoice"></i></span>
+                                                    Borrador SAP
+                                                </div>
+                                                <div class="op-cycle-subtitle">
+                                                    Ambiente QA | CompanyDB: <strong class="op-sap-company-db">{{ paso.borrador_sap.company_db|default:'SBO_TST_SBH_USD' }}</strong>
+                                                </div>
+                                            </div>
+                                            <span class="op-sap-draft-status {% if paso.borrador_sap.sent %}is-done{% elif paso.activo %}is-active{% endif %}">
+                                                <i class="fas {% if paso.borrador_sap.sent %}fa-check-circle{% elif paso.activo %}fa-file-code{% else %}fa-circle{% endif %}"></i>
+                                                {{ paso.borrador_sap.label|default:'Pendiente de generar' }}
+                                            </span>
+                                        </div>
+
+                                        {% if paso.borrador_sap.sent %}
+                                            <div class="op-exit-summary mt-3">
+                                                <div class="op-field-summary-card">
+                                                    <div class="op-field-summary-label">Estado</div>
+                                                    <div class="op-field-summary-value">Borrador SAP creado</div>
+                                                </div>
+                                                <div class="op-field-summary-card">
+                                                    <div class="op-field-summary-label">Usuario</div>
+                                                    <div class="op-field-summary-value">{{ paso.borrador_sap.usuario|default:'Sin usuario' }}</div>
+                                                </div>
+                                                <div class="op-field-summary-card">
+                                                    <div class="op-field-summary-label">Fecha/hora</div>
+                                                    <div class="op-field-summary-value">{{ paso.borrador_sap.fecha_hora|default:'Sin fecha' }}</div>
+                                                </div>
+                                                <div class="op-field-summary-card">
+                                                    <div class="op-field-summary-label">Draft DocEntry / DocNum</div>
+                                                    <div class="op-field-summary-value">{{ paso.borrador_sap.docentry|default:'-' }} / {{ paso.borrador_sap.docnum|default:'-' }}</div>
+                                                </div>
+                                            </div>
+                                        {% endif %}
+
+                                        {% if not paso.activo and not paso.borrador_sap.sent %}
+                                            <div class="alert alert-light border mt-3 mb-0">
+                                                Debe completar y congelar Pesaje Salida antes de generar el Borrador SAP.
+                                            </div>
+                                        {% endif %}
+
+                                        <div class="op-sap-draft-toolbar">
+                                            <button type="button"
+                                                    class="op-glass-button is-secondary btn-borrador-sap-preview"
+                                                    {% if not paso.activo or not paso.puede_editar %}disabled{% endif %}>
+                                                <i class="op-glass-icon fas fa-file-code"></i>
+                                                Generar documentaci&oacute;n borrador
+                                            </button>
+                                            <button type="button"
+                                                    class="op-glass-button is-success btn-borrador-sap-enviar"
+                                                    disabled>
+                                                <i class="op-glass-icon fas fa-paper-plane"></i>
+                                                Enviar JSON generado a SAP
+                                            </button>
+                                            <button type="button"
+                                                    class="btn btn-outline-secondary btn-sm btn-borrador-sap-copy"
+                                                    disabled>
+                                                <i class="fas fa-copy"></i> Copiar JSON
+                                            </button>
+                                        </div>
+
+                                        <div class="op-exit-summary">
+                                            <div class="op-field-summary-card">
+                                                <div class="op-field-summary-label">Citaci&oacute;n</div>
+                                                <div class="op-field-summary-value">{{ citacion.id }}</div>
+                                            </div>
+                                            <div class="op-field-summary-card">
+                                                <div class="op-field-summary-label">Fuente Quantity</div>
+                                                <div class="op-field-summary-value">Peso ticket Pesaje Salida</div>
+                                            </div>
+                                            <div class="op-field-summary-card">
+                                                <div class="op-field-summary-label">Objeto SAP</div>
+                                                <div class="op-field-summary-value">oPurchaseDeliveryNotes / POST Drafts</div>
+                                            </div>
+                                        </div>
+
+                                        <div class="row mt-3">
+                                            <div class="col-md-6 mb-3">
+                                                <div class="op-lab-title"><i class="fas fa-check-circle"></i> Validaciones</div>
+                                                <ul class="op-sap-draft-list op-sap-validations">
+                                                    <li class="text-muted">Pendiente de generar preview.</li>
+                                                </ul>
+                                            </div>
+                                            <div class="col-md-6 mb-3">
+                                                <div class="op-lab-title"><i class="fas fa-exclamation-triangle"></i> Warnings / errores</div>
+                                                <ul class="op-sap-draft-list op-sap-warnings">
+                                                    <li class="text-muted">Sin warnings cargados.</li>
+                                                </ul>
+                                            </div>
+                                        </div>
+
+                                        <div class="op-lab-title"><i class="fas fa-code"></i> JSON generado</div>
+                                        <pre class="op-sap-draft-pre op-sap-json-preview">Pendiente de generar.</pre>
+                                        <div class="op-sap-send-result mt-3"></div>
+                                    </div>
+                                    {% endif %}
+
                                     {% if paso.requiere_autorizar_salida %}
                                     <div class="op-exit-panel operacion-autorizar-salida-box"
                                          data-paso="{{ paso.nombre }}"
@@ -2403,7 +2886,24 @@
                                                     <label>Observacion descarga</label>
                                                     <textarea class="form-control autorizacion-observacion-descarga"
                                                               rows="5"
-                                                              {% if not paso.activo or not paso.puede_editar %}readonly{% endif %}>{{ paso.autorizar_salida.observacion_descarga|default:'' }}</textarea>
+                                                              {% if not paso.puede_guardar_observacion %}readonly{% endif %}>{{ paso.observacion|default:paso.autorizar_salida.observacion_descarga }}</textarea>
+                                                    {% if paso.puede_guardar_observacion %}
+                                                        <div class="d-flex justify-content-end mt-2">
+                                                            <button type="button"
+                                                                    class="btn btn-outline-primary btn-sm btn-guardar-observacion"
+                                                                    data-paso="{{ paso.nombre }}"
+                                                                    data-observacion-target="autorizar_salida">
+                                                                <i class="fas fa-save mr-1"></i>
+                                                                Guardar observaci&oacute;n
+                                                            </button>
+                                                        </div>
+                                                    {% elif paso.observacion_registrada %}
+                                                        <div class="text-right mt-2">
+                                                            <span class="badge badge-light border text-success">
+                                                                <i class="fas fa-lock mr-1"></i> Observaci&oacute;n registrada
+                                                            </span>
+                                                        </div>
+                                                    {% endif %}
                                                 </div>
                                                 <div>
                                                     <div class="op-lab-title"><i class="fas fa-check-double"></i> Recepcion Conforme</div>
@@ -2461,7 +2961,24 @@
                                                         <textarea name="observacion_visual"
                                                                   class="form-control confirmar-salida-observacion"
                                                                   rows="5"
-                                                                  {% if not paso.activo or not paso.puede_editar %}readonly{% endif %}></textarea>
+                                                                  {% if not paso.puede_guardar_observacion %}readonly{% endif %}>{{ paso.observacion }}</textarea>
+                                                        {% if paso.puede_guardar_observacion %}
+                                                            <div class="d-flex justify-content-end mt-2">
+                                                                <button type="button"
+                                                                        class="btn btn-outline-primary btn-sm btn-guardar-observacion"
+                                                                        data-paso="{{ paso.nombre }}"
+                                                                        data-observacion-target="confirmar_salida">
+                                                                    <i class="fas fa-save mr-1"></i>
+                                                                    Guardar observaci&oacute;n
+                                                                </button>
+                                                            </div>
+                                                        {% elif paso.observacion_registrada %}
+                                                            <div class="text-right mt-2">
+                                                                <span class="badge badge-light border text-success">
+                                                                    <i class="fas fa-lock mr-1"></i> Observaci&oacute;n registrada
+                                                                </span>
+                                                            </div>
+                                                        {% endif %}
                                                     </div>
                                                     <div>
                                                         <div class="op-lab-title"><i class="fas fa-user-shield"></i> Guardia Porteria</div>
@@ -2492,14 +3009,31 @@
                                         </div>
                                     {% endif %}
 
-                                    {% if not paso.requiere_preparacion_descarga and not paso.requiere_ciclo_descarga and not paso.requiere_autorizar_salida and not paso.requiere_confirmar_salida %}
+                                    {% if not paso.requiere_preparacion_descarga and not paso.requiere_ciclo_descarga and not paso.requiere_borrador_sap and not paso.requiere_autorizar_salida and not paso.requiere_confirmar_salida %}
                                     <div class="form-group">
                                         <label>Observacion</label>
-                                        <textarea class="form-control operacion-observacion" data-paso="{{ paso.nombre }}" rows="4" {% if not paso.puede_editar %}readonly{% endif %}>{{ paso.observacion }}</textarea>
+                                        <textarea class="form-control operacion-observacion" data-paso="{{ paso.nombre }}" rows="4" {% if not paso.puede_guardar_observacion %}readonly{% endif %}>{{ paso.observacion }}</textarea>
+                                        {% if paso.puede_guardar_observacion %}
+                                            <div class="d-flex justify-content-end mt-2">
+                                                <button type="button"
+                                                        class="btn btn-outline-primary btn-sm btn-guardar-observacion"
+                                                        data-paso="{{ paso.nombre }}"
+                                                        data-observacion-target="general">
+                                                    <i class="fas fa-save mr-1"></i>
+                                                    Guardar observaci&oacute;n
+                                                </button>
+                                            </div>
+                                        {% elif paso.observacion_registrada %}
+                                            <div class="text-right mt-2">
+                                                <span class="badge badge-light border text-success">
+                                                    <i class="fas fa-lock mr-1"></i> Observaci&oacute;n registrada
+                                                </span>
+                                            </div>
+                                        {% endif %}
                                     </div>
                                     {% endif %}
 
-                                    {% if paso.activo and paso.puede_editar and not paso.requiere_ticket_pesaje and not paso.requiere_accion_toma_muestra and not paso.requiere_resultado_calidad and not paso.requiere_preparacion_descarga and not paso.requiere_ciclo_descarga and not paso.requiere_autorizar_salida and not paso.requiere_confirmar_salida %}
+                                    {% if paso.activo and paso.puede_editar and not paso.requiere_ticket_pesaje and not paso.requiere_accion_toma_muestra and not paso.requiere_resultado_calidad and not paso.requiere_preparacion_descarga and not paso.requiere_ciclo_descarga and not paso.requiere_borrador_sap and not paso.requiere_autorizar_salida and not paso.requiere_confirmar_salida %}
                                     <button type="button" class="btn btn-primary btn-guardar-operacion" data-paso="{{ paso.nombre }}">
                                         <i class="fas fa-save"></i> Guardar paso
                                     </button>
@@ -2560,6 +3094,267 @@
         return cookieValue;
     }
 
+    const BORRADOR_SAP_PREVIEW_URL = "{% url 'ajax_operacion_planta_borrador_sap_preview' citacion.id %}";
+    const BORRADOR_SAP_ENVIAR_URL = "{% url 'ajax_operacion_planta_borrador_sap_enviar' citacion.id %}";
+    let borradorSapPreviewActual = null;
+
+    function renderBorradorSapList(selector, items, emptyText, cssClass) {
+        const list = $(selector);
+        const values = items || [];
+        if (!values.length) {
+            list.html('<li class="text-muted">' + escapeHtml(emptyText) + '</li>');
+            return;
+        }
+        list.html(values.map(function (item) {
+            return '<li class="' + (cssClass || '') + '">' + escapeHtml(item) + '</li>';
+        }).join(''));
+    }
+
+    function escapeHtml(value) {
+        return String(value ?? '')
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;')
+            .replace(/'/g, '&#039;');
+    }
+
+    function renderBorradorSapPreview(preview) {
+        const box = $('.operacion-borrador-sap-box');
+        const errors = preview.errors || [];
+        const warnings = preview.warnings || [];
+        const payload = preview.payload || {};
+        const payloadText = Object.keys(payload).length ? JSON.stringify(payload, null, 2) : 'No se pudo generar JSON valido.';
+
+        borradorSapPreviewActual = preview;
+        box.attr('data-preview-valido', errors.length ? 'false' : 'true');
+        box.find('.op-sap-json-preview').text(payloadText);
+        box.find('.btn-borrador-sap-copy').prop('disabled', !Object.keys(payload).length);
+        box.find('.btn-borrador-sap-enviar').prop('disabled', !!errors.length || !Object.keys(payload).length || box.data('enviado') === true || box.attr('data-enviado') === 'true');
+        box.find('.op-sap-draft-status').html('<i class="fas ' + (errors.length ? 'fa-exclamation-triangle' : 'fa-file-code') + '"></i> ' + (errors.length ? 'Error SAP' : 'Preview generado'));
+
+        renderBorradorSapList('.op-sap-validations', preview.validations || [], 'Sin validaciones cargadas.', 'text-success');
+        renderBorradorSapList('.op-sap-warnings', warnings.concat(errors), 'Sin warnings cargados.', errors.length ? 'text-danger' : 'text-warning');
+    }
+
+    function resumenConfirmacionBorradorSap(preview) {
+        const source = preview.source_data || {};
+        const line = preview.selected_line || {};
+        const payload = preview.payload || {};
+        const docLine = (payload.DocumentLines || [])[0] || {};
+        return [
+            'CompanyDB: ' + (source.company_db || 'SBO_TST_SBH_USD'),
+            'Citacion: ' + (source.citacion || OP_CALIDAD_CITACION),
+            'DocEntry: ' + (source.doc_entry || docLine.BaseEntry || ''),
+            'DocNum: ' + (source.pedido_sap || ''),
+            'CardCode: ' + (payload.CardCode || source.card_code || ''),
+            'ItemCode: ' + (docLine.ItemCode || line.ItemCode || ''),
+            'Quantity: ' + (docLine.Quantity || source.exit_weight || ''),
+            'BaseLine: ' + (docLine.BaseLine ?? line.LineNum ?? '')
+        ].join('\n');
+    }
+
+    function mostrarAlertaContactoOperacion(message) {
+        if (window.Swal && typeof Swal.fire === 'function') {
+            Swal.fire({ icon: 'warning', title: 'Contacto conductor', text: message });
+            return;
+        }
+        alert(message);
+    }
+
+    function normalizeChilePhone(rawPhone) {
+        const original = String(rawPhone || '').trim();
+        const digits = original.replace(/\D/g, '');
+
+        if (!digits) {
+            return '';
+        }
+
+        if (digits.length === 9 && digits.charAt(0) === '9') {
+            return '56' + digits;
+        }
+
+        if (digits.length === 11 && digits.indexOf('569') === 0) {
+            return digits;
+        }
+
+        if (digits.length === 12 && digits.indexOf('00569') === 0) {
+            return digits.substring(2);
+        }
+
+        return null;
+    }
+
+    function getWhatsappUrl(phone, message) {
+        return 'https://wa.me/' + phone + '?text=' + encodeURIComponent(message);
+    }
+
+    $(document).on('click', '.btn-borrador-sap-preview', function () {
+        const button = $(this);
+        const box = button.closest('.operacion-borrador-sap-box');
+        const requestData = {
+            _empresa_id: OPERACION_PLANTA_EMPRESA_ID,
+            empresa_id: OPERACION_PLANTA_EMPRESA_ID
+        };
+        button.prop('disabled', true).html('<i class="op-glass-icon fas fa-spinner fa-spin"></i> Generando JSON...');
+        box.find('.op-sap-send-result').empty();
+        box.find('.op-sap-json-preview').text('Generando JSON...');
+        box.find('.btn-borrador-sap-enviar, .btn-borrador-sap-copy').prop('disabled', true);
+
+        console.group('[Borrador SAP][Preview] Request');
+        console.log('Endpoint:', BORRADOR_SAP_PREVIEW_URL);
+        console.log('Datos POST Django:', requestData);
+        console.groupEnd();
+
+        $.ajax({
+            url: BORRADOR_SAP_PREVIEW_URL,
+            type: 'POST',
+            headers: { 'X-CSRFToken': getCookie('csrftoken') },
+            data: requestData,
+            success: function (response) {
+                const sapPayload = ((response || {}).preview || {}).payload || {};
+                console.group('[Borrador SAP][Preview] Response');
+                console.log('Respuesta completa:', response);
+                console.log('JSON SAP generado:');
+                console.log(JSON.stringify(sapPayload, null, 2));
+                console.groupEnd();
+                renderBorradorSapPreview(response.preview || {});
+                if (!response.success) {
+                    Swal.fire({ icon: 'warning', title: 'Preview con errores', text: response.message || 'Revise validaciones.' });
+                }
+            },
+            error: function (xhr) {
+                const response = xhr.responseJSON || {};
+                box.find('.op-sap-json-preview').text('No fue posible generar preview.');
+                Swal.fire({ icon: 'error', title: 'Error preview SAP', text: response.message || xhr.responseText || 'Error al generar preview.' });
+            },
+            complete: function () {
+                button.prop('disabled', false).html('<i class="op-glass-icon fas fa-file-code"></i> Generar documentaci&oacute;n borrador');
+            }
+        });
+    });
+
+    $(document).on('click', '.btn-borrador-sap-copy', function () {
+        const text = $('.operacion-borrador-sap-box .op-sap-json-preview').text();
+        if (!text || text === 'Pendiente de generar.') {
+            return;
+        }
+        navigator.clipboard.writeText(text).then(function () {
+            Swal.fire({ icon: 'success', title: 'Copiado', text: 'JSON copiado al portapapeles.', timer: 1200, showConfirmButton: false });
+        }).catch(function () {
+            Swal.fire({ icon: 'warning', title: 'No se pudo copiar', text: 'Seleccione el JSON manualmente.' });
+        });
+    });
+
+    $(document).on('click', '.btn-borrador-sap-enviar', function () {
+        if (!borradorSapPreviewActual || (borradorSapPreviewActual.errors || []).length) {
+            Swal.fire({ icon: 'warning', title: 'Preview requerido', text: 'Genere un preview valido antes de enviar a SAP.' });
+            return;
+        }
+
+        const resumen = resumenConfirmacionBorradorSap(borradorSapPreviewActual);
+        Swal.fire({
+            icon: 'question',
+            title: 'Confirmar envio a SAP QA',
+            text: 'Confirmas enviar este JSON a SAP para crear borrador en ambiente QA?',
+            html: '<p>Confirmas enviar este JSON a SAP para crear borrador en ambiente QA?</p><pre class="text-left" style="white-space:pre-wrap;background:#f8f9fa;border:1px solid #dee2e6;padding:10px;border-radius:6px;">' + escapeHtml(resumen) + '</pre>',
+            showCancelButton: true,
+            confirmButtonText: 'Enviar a SAP',
+            cancelButtonText: 'Cancelar'
+        }).then(function (result) {
+            if (!result.isConfirmed) {
+                return;
+            }
+
+            const button = $('.btn-borrador-sap-enviar');
+            const box = $('.operacion-borrador-sap-box');
+            const sapPayloadPreview = borradorSapPreviewActual.payload || {};
+            const requestData = {
+                _empresa_id: OPERACION_PLANTA_EMPRESA_ID,
+                empresa_id: OPERACION_PLANTA_EMPRESA_ID
+            };
+            button.prop('disabled', true).html('<i class="op-glass-icon fas fa-spinner fa-spin"></i> Enviando a SAP...');
+            box.find('.op-sap-send-result').html('<div class="alert alert-info">Enviando a SAP...</div>');
+
+            console.group('[Borrador SAP][Enviar] Antes del request');
+            console.log('Endpoint Django:', BORRADOR_SAP_ENVIAR_URL);
+            console.log('Datos POST Django:', requestData);
+            console.log('JSON SAP mostrado en preview (el backend lo reconstruye antes de enviarlo):');
+            console.log(JSON.stringify(sapPayloadPreview, null, 2));
+            console.groupEnd();
+
+            $.ajax({
+                url: BORRADOR_SAP_ENVIAR_URL,
+                type: 'POST',
+                headers: { 'X-CSRFToken': getCookie('csrftoken') },
+                data: requestData,
+                success: function (response) {
+                    const sapResponse = response.response || {};
+                    box.attr('data-enviado', 'true');
+                    box.find('.op-sap-draft-status').html('<i class="fas fa-check-circle"></i> Borrador SAP creado');
+                    box.find('.op-sap-send-result').html(
+                        '<div class="alert alert-success">' +
+                        '<strong>Borrador SAP creado.</strong><br>' +
+                        'Status: ' + escapeHtml(response.status_code || '') + '<br>' +
+                        'Draft DocEntry: ' + escapeHtml(sapResponse.DocEntry || '-') + '<br>' +
+                        'Draft DocNum: ' + escapeHtml(sapResponse.DocNum || '-') + '<br>' +
+                        'Usuario: ' + escapeHtml(response.usuario || '') + '<br>' +
+                        'Fecha/hora: ' + escapeHtml(response.fecha_hora || '') +
+                        '</div>'
+                    );
+                    Swal.fire({ icon: 'success', title: 'Borrador SAP creado', text: response.message || 'Envio completado.' }).then(function () {
+                        location.reload();
+                    });
+                },
+                error: function (xhr) {
+                    const response = xhr.responseJSON || {};
+                    const sapError = response.sap_error || {};
+                    box.find('.op-sap-send-result').html(
+                        '<div class="alert alert-danger"><strong>Error SAP.</strong><br>' +
+                        escapeHtml(response.message || sapError.error || xhr.responseText || 'No fue posible enviar a SAP.') +
+                        '</div>'
+                    );
+                    Swal.fire({ icon: 'error', title: 'Error SAP', text: response.message || sapError.error || 'No fue posible enviar a SAP.' });
+                    button.prop('disabled', false).html('<i class="op-glass-icon fas fa-paper-plane"></i> Enviar JSON generado a SAP');
+                }
+            });
+        });
+    });
+
+    $(document).on('click', '.btn-operacion-whatsapp', function () {
+        const boton = $(this);
+        const phone = normalizeChilePhone(boton.data('phone'));
+        const citacion = boton.data('citacion') || '';
+        const patente = boton.data('patente') || '';
+
+        if (phone === '') {
+            mostrarAlertaContactoOperacion('No existe telefono registrado para el conductor.');
+            return;
+        }
+        if (phone === null) {
+            mostrarAlertaContactoOperacion('El telefono del conductor no tiene un formato valido.');
+            return;
+        }
+
+        const message = 'Hola, le contactamos desde Planta por la citacion #' + citacion + ', patente ' + (patente || 'sin patente') + '. Favor estar atento a las instrucciones de ingreso/salida.';
+        window.open(getWhatsappUrl(phone, message), '_blank', 'noopener');
+    });
+
+    $(document).on('click', '.btn-operacion-call', function () {
+        const phone = normalizeChilePhone($(this).data('phone'));
+
+        if (phone === '') {
+            mostrarAlertaContactoOperacion('No existe telefono registrado para el conductor.');
+            return;
+        }
+        if (phone === null) {
+            mostrarAlertaContactoOperacion('El telefono del conductor no tiene un formato valido.');
+            return;
+        }
+
+        window.location.href = 'tel:+' + phone;
+    });
+
     function obtenerTicketBoxOperacion(paso) {
         return $('.operacion-ticket-pesaje').filter(function () {
             return String($(this).data('paso')) === String(paso);
@@ -2600,6 +3395,84 @@
         return $('.operacion-autorizar-salida-box').filter(function () {
             return String($(this).data('paso')) === String(paso);
         }).first();
+    }
+
+    function obtenerConfirmarSalidaBoxOperacion(paso) {
+        return $('.operacion-confirmar-salida-box').filter(function () {
+            return String($(this).data('paso')) === String(paso);
+        }).first();
+    }
+
+    function obtenerTextareaObservacionIndependiente(paso, target) {
+        if (target === 'preparacion_descarga') {
+            return obtenerPreparacionDescargaBoxOperacion(paso).find('.prep-observaciones-descarga').first();
+        }
+        if (target === 'autorizar_salida') {
+            return obtenerAutorizarSalidaBoxOperacion(paso).find('.autorizacion-observacion-descarga').first();
+        }
+        if (target === 'confirmar_salida') {
+            return obtenerConfirmarSalidaBoxOperacion(paso).find('.confirmar-salida-observacion').first();
+        }
+        return obtenerObservacionPasoOperacion(paso);
+    }
+
+    function guardarObservacionOperacion(boton) {
+        const paso = boton.data('paso');
+        const target = String(boton.data('observacion-target') || 'general');
+        const textarea = obtenerTextareaObservacionIndependiente(paso, target);
+        const textoOriginal = boton.html();
+
+        if (!textarea.length) {
+            Swal.fire({ icon: 'error', title: 'Observacion no encontrada', text: 'No fue posible ubicar el campo de observacion de esta etapa.' });
+            return;
+        }
+
+        $.ajax({
+            url: "{% url 'ajax_operacion_planta_guardar_observacion' citacion.id %}",
+            type: 'POST',
+            data: {
+                paso_operacion: paso,
+                observacion: textarea.val() || '',
+                _empresa_id: OPERACION_PLANTA_EMPRESA_ID,
+                empresa_id: OPERACION_PLANTA_EMPRESA_ID
+            },
+            headers: {
+                'X-CSRFToken': getCookie('csrftoken')
+            },
+            beforeSend: function () {
+                boton.prop('disabled', true).html('<i class="fas fa-spinner fa-spin"></i> Guardando...');
+            },
+            success: function (response) {
+                boton.prop('disabled', false).html(textoOriginal);
+                if (!response.success) {
+                    Swal.fire({ icon: 'error', title: 'No fue posible guardar', text: response.message || 'No fue posible guardar la observacion.' });
+                    return;
+                }
+                textarea.val(response.observacion || '');
+                obtenerObservacionPasoOperacion(paso).val(response.observacion || '');
+                textarea.prop('readonly', true);
+                const estadoRegistrado = (
+                    '<div class="text-right mt-2">' +
+                    '<span class="badge badge-light border text-success">' +
+                    '<i class="fas fa-lock mr-1"></i> Observaci&oacute;n registrada' +
+                    '</span>' +
+                    '</div>'
+                );
+                boton.closest('.d-flex').replaceWith(estadoRegistrado);
+                Swal.fire({
+                    icon: 'success',
+                    title: 'Observacion guardada',
+                    text: response.message || 'Observacion guardada correctamente.',
+                    timer: 1600,
+                    showConfirmButton: false
+                });
+            },
+            error: function (xhr) {
+                boton.prop('disabled', false).html(textoOriginal);
+                const response = xhr.responseJSON || {};
+                Swal.fire({ icon: 'error', title: 'No fue posible guardar', text: response.message || ('Error HTTP ' + xhr.status + ' al guardar observacion.') });
+            }
+        });
     }
 
     function formatearRelojEsperaDescarga(startValue) {
@@ -2775,6 +3648,10 @@
                 Swal.fire({ icon: 'error', title: 'No fue posible guardar', text: response.message || ('Error HTTP ' + xhr.status + ' al preparar descarga.') });
             }
         });
+    });
+
+    $(document).on('click', '.btn-guardar-observacion', function () {
+        guardarObservacionOperacion($(this));
     });
 
     function autorizarSalidaOperacion(box, recepcionConforme, control) {

@@ -142,6 +142,17 @@
                 box-shadow: 0 0 0 0 rgba(229, 83, 29, 0), 0 8px 18px rgba(229, 83, 29, 0.28);
             }
         }
+
+        .operacion-tipo-selector {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+        }
+
+        .operacion-tipo-selector .btn {
+            min-width: 130px;
+            font-weight: 600;
+        }
     </style>
 {% endblock stylesheets %}
 
@@ -163,12 +174,13 @@
                     <div class="row align-items-center">
                         <div class="col-md-12">
                             <div class="page-header-title">
-                                <h5 class="m-b-10">Lista de citaciones</h5>
+                                <h5 class="m-b-10">{% if tipo_citacion_actual == 'DESPACHO' or request.path == '/cit_listall_despachos/' %}Lista de citaciones - Despacho{% else %}Lista de citaciones - Recepci&oacute;n{% endif %}</h5>
                             </div>
                             <ul class="breadcrumb">
                                 <li class="breadcrumb-item"><a href="/"><i class="feather icon-home"></i></a></li>
                                 <li class="breadcrumb-item"><a href="/">TERRAVIEW</a></li>
                                 <li class="breadcrumb-item"><a href="{% if request.path == '/cit_listall_despachos/' %}{% url 'cit_listall_despachos' %}{% else %}{% url 'cit_listall_recepciones' %}{% endif %}">Citaciones</a></li>
+                                <li class="breadcrumb-item">{% if tipo_citacion_actual == 'DESPACHO' or request.path == '/cit_listall_despachos/' %}Despacho{% else %}Recepci&oacute;n{% endif %}</li>
                                 
                             </ul>
                         </div>
@@ -184,7 +196,7 @@
                     <div class="d-flex justify-content-end mr-5 mt-4">
                         <button class="btn btn-primary m-t-5" type="button" data-toggle="collapse" data-target="#collapseExample" aria-expanded="false" aria-controls="collapseExample"><i class="fas fa-filter"></i> Ocultar/Mostrar Filtros</button>
                         {% if filtrado == 1 %}
-                            <a class="btn btn-danger m-t-5 ml-3" href="{% if request.path == '/cit_listall_despachos/' %}{% url 'cit_listall_despachos' %}{% else %}{% url 'cit_listall_recepciones' %}{% endif %}{% if contexto_operacion_planta %}?contexto=operacion_planta&empresa_id={{ empresa_activa_id }}{% endif %}"><i class="fas fa-times"></i> Borrar Filtros</a>
+                            <a class="btn btn-danger m-t-5 ml-3" href="{% if request.path == '/cit_listall_despachos/' %}{% url 'cit_listall_despachos' %}{% else %}{% url 'cit_listall_recepciones' %}{% endif %}{% if contexto_operacion_planta %}?contexto=operacion_planta&tipo={{ tipo_citacion_actual }}&empresa_id={{ empresa_activa_id }}&_empresa_id={{ empresa_activa_id }}{% endif %}"><i class="fas fa-times"></i> Borrar Filtros</a>
                         {% endif %}
                     </div>
                     <div class="collapse show" id="collapseExample">
@@ -192,7 +204,9 @@
                             {% csrf_token %}
                             {% if contexto_operacion_planta %}
                                 <input type="hidden" name="contexto" value="operacion_planta">
+                                <input type="hidden" name="tipo" value="{{ tipo_citacion_actual }}">
                                 <input type="hidden" name="empresa_id" value="{{ empresa_activa_id }}">
+                                <input type="hidden" name="_empresa_id" value="{{ empresa_activa_id }}">
                             {% endif %}
                             <div class="form-row mr-5">
                                 <div class="col-md-6">
@@ -244,9 +258,21 @@
                 <div class="col-sm-12">
                     <div class="card">
                         <div class="card-header table-card-header d-flex justify-content-between">
-                            <h5>Opciones de exportación</h5>
+                            {% if contexto_operacion_planta %}
+                            <div class="operacion-tipo-selector">
+                                <a class="btn {% if tipo_citacion_actual == 'RECEPCION' %}btn-primary{% else %}btn-outline-primary{% endif %}"
+                                   href="{% url 'cit_listall_recepciones' %}?contexto=operacion_planta&tipo=RECEPCION&empresa_id={{ empresa_activa_id }}&_empresa_id={{ empresa_activa_id }}">
+                                    <i class="fas fa-truck-loading mr-1"></i> Recepci&oacute;n
+                                </a>
+                                <a class="btn {% if tipo_citacion_actual == 'DESPACHO' %}btn-primary{% else %}btn-outline-primary{% endif %}"
+                                   href="{% url 'cit_listall_recepciones' %}?contexto=operacion_planta&tipo=DESPACHO&empresa_id={{ empresa_activa_id }}&_empresa_id={{ empresa_activa_id }}">
+                                    <i class="fas fa-shipping-fast mr-1"></i> Despacho
+                                </a>
+                            </div>
+                            {% else %}
+                            <h5>Opciones de exportaci&oacute;n</h5>
                             <div>
-                                {% if request.path == '/cit_listall_despachos/' %}
+                                {% if tipo_citacion_actual == 'DESPACHO' or request.path == '/cit_listall_despachos/' %}
                                     <a href="{% url 'export_citaciones_despachos_excel' %}{% if request.GET.urlencode %}?{{ request.GET.urlencode }}{% endif %}" class="btn btn-primary d-inline-flex align-items-center mr-2">
                                 {% else %}
                                     <a href="{% url 'export_citaciones_recepciones_excel' %}{% if request.GET.urlencode %}?{{ request.GET.urlencode }}{% endif %}" class="btn btn-primary d-inline-flex align-items-center mr-2">
@@ -259,6 +285,7 @@
                                     &nbsp&nbsp Importar extras
                                 </button>
                             </div>
+                            {% endif %}
                         </div>
                         <div class="card-body">
                             <div class="dt-responsive table-responsive">
@@ -294,7 +321,7 @@
                                                 <td>
                                                     {% if contexto_operacion_planta and object.operacion_planta_habilitada %}
                                                     <a class="btn btn-success {% if object.requiere_accion_usuario %}btn-operacion-alerta{% endif %}" href="{% url 'operacion_planta_citacion' object.pk %}?empresa_id={{ empresa_activa_id }}" title="{% if object.requiere_accion_usuario %}Pendiente para usted: {{ object.nombre_paso_activo }}{% else %}Gestionar operacion{% endif %}">
-                                                        <i class="fas fa-truck-loading"></i> Operaci&oacute;n
+                                                        <i class="fas {% if tipo_citacion_actual == 'DESPACHO' %}fa-shipping-fast{% else %}fa-truck-loading{% endif %}"></i> Operaci&oacute;n
                                                     </a>
                                                     {% elif guardia_ingreso %}
                                                     <a class="btn btn-primary" href="{% url 'pla_listone' object.PL_NID_id %}?citacion={{ object.pk }}" title="Ingreso de camión">
@@ -302,7 +329,7 @@
                                                     </a>
                                                     {% elif acceso_operacion_planta and object.operacion_planta_habilitada %}
                                                     <a class="btn btn-success {% if object.requiere_accion_usuario %}btn-operacion-alerta{% endif %}" href="{% url 'operacion_planta_citacion' object.pk %}?empresa_id={{ empresa_activa_id }}" title="{% if object.requiere_accion_usuario %}Pendiente para usted: {{ object.nombre_paso_activo }}{% else %}Gestionar operacion{% endif %}">
-                                                        <i class="fas fa-truck-loading"></i> Operaci&oacute;n
+                                                        <i class="fas {% if tipo_citacion_actual == 'DESPACHO' %}fa-shipping-fast{% else %}fa-truck-loading{% endif %}"></i> Operaci&oacute;n
                                                     </a>
                                                     {% else %}
                                                     <a class="btn btn-primary" href="{% url 'cit_listone' object.pk %}" title="Ver citacion">
@@ -392,7 +419,7 @@
                 <form class="agregar-extra" method="POST" id="form_extra_viaje" action="{% url 'ciex_import' %}" enctype="multipart/form-data">
                     {% csrf_token %}
                     <input type="hidden" name="tipo" value="Extra_masivo">
-                    <input type="hidden" name="tipo_citacion" value="{% if request.path == '/cit_listall_despachos/' %}DESPACHO{% else %}RECEPCION{% endif %}">
+                    <input type="hidden" name="tipo_citacion" value="{% if tipo_citacion_actual == 'DESPACHO' or request.path == '/cit_listall_despachos/' %}DESPACHO{% else %}RECEPCION{% endif %}">
                     <div id="excel">
                         <a class="btn btn-outline-success d-flex justify-content-center" id="excel_plantilla" href="{% url 'download_excel_plantilla_extra_planificacion' %}">Descargar plantilla</a>
                     </div>
@@ -490,7 +517,22 @@
     <script src="/static/assets/js/plugins/dataTables.buttons.min.js"></script>
     <script src="/static/assets/js/plugins/buttons.html5.min.js"></script>
     <script src="/static/assets/js/plugins/buttons.bootstrap4.min.js"></script>
+    {% if contexto_operacion_planta %}
+    <script>
+        $(document).ready(function () {
+            setTimeout(function () {
+                if (!$.fn.DataTable.isDataTable('#basic-btn')) {
+                    $('#basic-btn').DataTable({
+                        dom: 'frtip',
+                        aaSorting: []
+                    });
+                }
+            }, 350);
+        });
+    </script>
+    {% else %}
     <script src="/static/assets/js/pages/data-export-custom.js"></script>
+    {% endif %}
     <script>
         $('.delete_citacion').on("click", function(){
             const urlToNavigate = $(this).data('href');

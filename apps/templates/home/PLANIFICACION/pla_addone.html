@@ -180,6 +180,55 @@
         padding: 16px 32px;
     }
 
+    /* MODAL CREAR DESPACHO */
+    .modal-despacho-etapa0 .modal-dialog {
+        width: calc(100vw - 50px);
+        max-width: 1150px;
+        max-height: 92vh;
+        margin-top: 4vh;
+        margin-bottom: 4vh;
+    }
+
+    .modal-despacho-etapa0 .modal-content {
+        max-height: 92vh;
+        border-radius: 8px;
+        overflow: hidden;
+        display: flex;
+        flex-direction: column;
+    }
+
+    .modal-despacho-etapa0 .modal-header {
+        padding: 22px 32px;
+        flex: 0 0 auto;
+        border-bottom: 1px solid #e9ecef;
+    }
+
+    .modal-despacho-etapa0 #form_crear_despacho {
+        display: flex;
+        flex: 1 1 auto;
+        flex-direction: column;
+        min-height: 0;
+    }
+
+    .modal-despacho-etapa0 .modal-body {
+        flex: 1 1 auto;
+        min-height: 0;
+        overflow-y: auto !important;
+        overflow-x: hidden;
+        padding: 24px 32px;
+        padding-bottom: 110px;
+    }
+
+    .modal-despacho-etapa0 .modal-footer {
+        flex: 0 0 auto;
+        position: sticky;
+        bottom: 0;
+        background: #ffffff;
+        border-top: 1px solid #dee2e6;
+        padding: 16px 32px;
+        z-index: 20;
+    }
+
     .modal-subtitle {
         display: block;
         color: #6c757d;
@@ -219,12 +268,35 @@
         border-radius: 5px;
     }
 
+    #ModalCrearDespacho .form-group {
+        margin-bottom: 18px;
+    }
+
+    #ModalCrearDespacho .form-group label {
+        font-weight: 500;
+        color: #212529;
+        margin-bottom: 6px;
+        display: block;
+    }
+
+    #ModalCrearDespacho .form-control {
+        width: 100%;
+        min-height: 44px;
+        font-size: 14px;
+        border-radius: 5px;
+    }
+
     #ModalCrearCitacion select.form-control {
         padding-left: 12px;
         padding-right: 28px;
     }
 
     #ModalCrearCitacion input[readonly] {
+        background-color: #e9ecef;
+        opacity: 1;
+    }
+
+    #ModalCrearDespacho input[readonly] {
         background-color: #e9ecef;
         opacity: 1;
     }
@@ -266,7 +338,19 @@
         width: 100% !important;
     }
 
+    #ModalCrearDespacho .select2-container {
+        width: 100% !important;
+    }
+
     #ModalCrearCitacion .select2-selection--single {
+        min-height: 44px;
+        border: 1px solid #ced4da;
+        border-radius: 5px;
+        display: flex;
+        align-items: center;
+    }
+
+    #ModalCrearDespacho .select2-selection--single {
         min-height: 44px;
         border: 1px solid #ced4da;
         border-radius: 5px;
@@ -279,7 +363,16 @@
         padding-left: 12px !important;
     }
 
+    #ModalCrearDespacho .select2-selection__rendered {
+        line-height: 42px !important;
+        padding-left: 12px !important;
+    }
+
     #ModalCrearCitacion .select2-selection__arrow {
+        height: 42px !important;
+    }
+
+    #ModalCrearDespacho .select2-selection__arrow {
         height: 42px !important;
     }
 
@@ -466,9 +559,26 @@
             margin: 10px auto;
         }
 
+        .modal-despacho-etapa0 .modal-dialog {
+            width: calc(100vw - 20px);
+            margin: 10px auto;
+            max-height: calc(100vh - 20px);
+        }
+
         #ModalCrearCitacion .modal-header,
         #ModalCrearCitacion .modal-body,
         #ModalCrearCitacion .modal-footer {
+            padding-left: 18px;
+            padding-right: 18px;
+        }
+
+        .modal-despacho-etapa0 .modal-content {
+            max-height: calc(100vh - 20px);
+        }
+
+        .modal-despacho-etapa0 .modal-header,
+        .modal-despacho-etapa0 .modal-body,
+        .modal-despacho-etapa0 .modal-footer {
             padding-left: 18px;
             padding-right: 18px;
         }
@@ -1036,7 +1146,7 @@
     </div>
 </div>
 
-<div class="modal fade" id="ModalCrearDespacho" tabindex="-1" role="dialog" aria-labelledby="ModalCrearDespachoLabel" aria-hidden="true">
+<div class="modal fade modal-despacho-etapa0" id="ModalCrearDespacho" tabindex="-1" role="dialog" aria-labelledby="ModalCrearDespachoLabel" aria-hidden="true">
     <div class="modal-dialog modal-dialog-scrollable modal-xl" role="document">
         <div class="modal-content">
 
@@ -1057,16 +1167,21 @@
                 {% csrf_token %}
 
                 <div class="modal-body">
-                    <div class="form-section-title">Datos del despacho</div>
+                    <div class="form-section-title">Informaci&oacute;n SAP</div>
 
                     <div class="row">
-                        <div class="col-lg-4 col-md-6">
+                        <div class="col-lg-12">
                             <div class="form-group">
-                                <label class="required-label">Fecha Despacho</label>
-                                <input type="date" class="form-control" id="despacho_fecha" name="fecha_despacho" required>
+                                <label>Buscar acuerdo SAP QA</label>
+                                <select class="form-control" id="despacho_sap_busqueda" name="despacho_sap_busqueda"></select>
+                                <small class="form-help-text">
+                                    Busque por OC cliente, descripci&oacute;n, cliente, c&oacute;digo cliente o n&uacute;mero de acuerdo SAP. Si no hay resultados, puede ingresar el despacho manualmente.
+                                </small>
                             </div>
                         </div>
+                    </div>
 
+                    <div class="row">
                         <div class="col-lg-4 col-md-6">
                             <div class="form-group">
                                 <label class="required-label">Cliente</label>
@@ -1083,22 +1198,106 @@
 
                         <div class="col-lg-4 col-md-6">
                             <div class="form-group">
-                                <label class="required-label">Destino</label>
-                                <input type="text" class="form-control" id="despacho_destino" name="destino" placeholder="Planta destino - Ubicación" required>
-                            </div>
-                        </div>
-
-                        <div class="col-lg-4 col-md-6">
-                            <div class="form-group">
-                                <label class="required-label">Insumo</label>
+                                <label class="required-label">Producto SAP / Insumo</label>
                                 <input type="text" class="form-control" id="despacho_insumo" name="insumo" required>
                             </div>
                         </div>
 
                         <div class="col-lg-4 col-md-6">
                             <div class="form-group">
-                                <label class="required-label">OC</label>
+                                <label class="required-label">OC Cliente</label>
                                 <input type="text" class="form-control" id="despacho_oc" name="oc" required>
+                            </div>
+                        </div>
+
+                        <div class="col-lg-4 col-md-6">
+                            <div class="form-group">
+                                <label>C&oacute;digo producto SAP</label>
+                                <input type="text" class="form-control" id="despacho_codigo_sap" name="codigo_sap" readonly>
+                            </div>
+                        </div>
+
+                        <div class="col-lg-4 col-md-6">
+                            <div class="form-group">
+                                <label>Nombre producto SAP</label>
+                                <input type="text" class="form-control" id="despacho_nombre_producto_sap" name="nombre_producto_sap" readonly>
+                            </div>
+                        </div>
+
+                        <div class="col-lg-4 col-md-6">
+                            <div class="form-group">
+                                <label>Acuerdo SAP</label>
+                                <input type="text" class="form-control" id="despacho_numero_acuerdo_sap" name="numero_acuerdo_sap" readonly>
+                                <input type="hidden" id="despacho_abs_id_sap" name="sap_abs_id">
+                            </div>
+                        </div>
+
+                        <div class="col-lg-4 col-md-6">
+                            <div class="form-group">
+                                <label>L&iacute;nea acuerdo SAP</label>
+                                <input type="text" class="form-control" id="despacho_linea_acuerdo_sap" name="linea_acuerdo_sap" readonly>
+                            </div>
+                        </div>
+
+                        <div class="col-lg-4 col-md-6">
+                            <div class="form-group">
+                                <label>Cantidad contrato SAP</label>
+                                <input type="text" class="form-control" id="despacho_cantidad_planificada_sap" name="cantidad_planificada_sap" readonly>
+                            </div>
+                        </div>
+
+                        <div class="col-lg-4 col-md-6">
+                            <div class="form-group">
+                                <label>Cantidad consumida SAP</label>
+                                <input type="text" class="form-control" id="despacho_cantidad_consumida_sap" name="cantidad_consumida_sap" readonly>
+                            </div>
+                        </div>
+
+                        <div class="col-lg-4 col-md-6">
+                            <div class="form-group">
+                                <label>Saldo contrato SAP</label>
+                                <input type="text" class="form-control" id="despacho_saldo_contrato_sap" name="saldo_contrato_sap" readonly>
+                                <input type="hidden" id="despacho_cantidad_pendiente_sap" name="cantidad_pendiente_sap">
+                                <input type="hidden" id="despacho_estado_saldo_sap" name="estado_saldo_sap">
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="form-section-title">Planificaci&oacute;n despacho</div>
+
+                    <div class="alert alert-warning d-none" id="despacho_sap_supera_saldo_alert">
+                        La cantidad intentada a despachar supera el saldo contractual calculado en SAP.
+                        <br>
+                        La planificaci&oacute;n podr&aacute; continuar debido a que pueden existir ampliaciones contractuales, recepciones futuras o ajustes comerciales a&uacute;n no reflejados en SAP.
+                    </div>
+
+                    <div class="row">
+                        <div class="col-lg-4 col-md-6">
+                            <div class="form-group">
+                                <label class="required-label">Cantidad intentada a despachar</label>
+                                <input type="text"
+                                       class="form-control"
+                                       id="despacho_cantidad_intentada"
+                                       name="cantidad_intentada_despachar"
+                                       inputmode="decimal"
+                                       autocomplete="off"
+                                       placeholder="Ej: 250,5"
+                                       required>
+                                <small class="form-help-text">Estimaci&oacute;n operacional. La cantidad real se obtendr&aacute; posteriormente desde Pesaje Salida.</small>
+                            </div>
+                        </div>
+
+                        <div class="col-lg-4 col-md-6">
+                            <div class="form-group">
+                                <label class="required-label">Fecha despacho</label>
+                                <input type="date" class="form-control" id="despacho_fecha" name="fecha_despacho" required>
+                            </div>
+                        </div>
+
+                        <div class="col-lg-4 col-md-6">
+                            <div class="form-group">
+                                <label class="required-label">Destino</label>
+                                <input type="text" class="form-control" id="despacho_destino" name="destino" placeholder="Planta destino - Ubicaci&oacute;n" required>
                             </div>
                         </div>
 
@@ -1124,42 +1323,42 @@
 
                         <div class="col-lg-4 col-md-6">
                             <div class="form-group">
-                                <label class="required-label">Ventana horaria Despacho</label>
+                                <label class="required-label">Ventana horaria</label>
                                 <input type="text" class="form-control" id="despacho_ventana_horaria" name="ventana_horaria" placeholder="Ej: 16hrs" required>
                             </div>
                         </div>
 
                         <div class="col-lg-4 col-md-6">
                             <div class="form-group">
-                                <label class="required-label">Bodega</label>
+                                <label class="required-label">Bodega de origen</label>
                                 <input type="text" class="form-control" id="despacho_bodega" name="bodega" placeholder="Ej: SBH, Terramar 6" required>
                             </div>
                         </div>
 
                         <div class="col-lg-4 col-md-6">
                             <div class="form-group">
-                                <label class="required-label">Empresa Transporte</label>
-                                <input type="text" class="form-control" id="despacho_empresa_transporte" name="empresa_transporte" required>
+                                <label>Empresa Transporte</label>
+                                <input type="text" class="form-control" id="despacho_empresa_transporte" name="empresa_transporte">
                             </div>
                         </div>
 
                         <div class="col-lg-4 col-md-6">
                             <div class="form-group">
-                                <label class="required-label">Patente</label>
-                                <input type="text" class="form-control" id="despacho_patente" name="patente" required>
+                                <label>Patente</label>
+                                <input type="text" class="form-control" id="despacho_patente" name="patente">
                             </div>
                         </div>
 
                         <div class="col-lg-4 col-md-6">
                             <div class="form-group">
-                                <label class="required-label">Nombre de conductor</label>
-                                <input type="text" class="form-control" id="despacho_conductor" name="conductor" required>
+                                <label>Conductor</label>
+                                <input type="text" class="form-control" id="despacho_conductor" name="conductor">
                             </div>
                         </div>
 
                         <div class="col-lg-4 col-md-6">
                             <div class="form-group">
-                                <label class="required-label">Transportado por</label>
+                                <label class="required-label">Condici&oacute;n de entrega</label>
                                 <select class="form-control" id="despacho_transportado_por" name="transportado_por" required>
                                     <option value="">Seleccione</option>
                                     <option value="Terramar">Terramar</option>
@@ -1207,6 +1406,7 @@
     let pedidosProductoActual = [];
     let lineasPedidoActual = [];
     let bloqueandoCambioPedido = false;
+    let despachoSapSeleccionado = null;
 
     document.addEventListener('DOMContentLoaded', function () {
         opcionesSecuenciaOriginales = $('#secuencia_id option[data-tipo]').clone();
@@ -1354,6 +1554,73 @@
                     dropdownParent: $('#ModalCrearDespacho')
                 });
             }
+        });
+
+        if ($('#despacho_sap_busqueda').length) {
+            $('#despacho_sap_busqueda').select2({
+                placeholder: 'Buscar acuerdo SAP QA...',
+                allowClear: true,
+                width: '100%',
+                dropdownParent: $('#ModalCrearDespacho'),
+                minimumInputLength: 2,
+                ajax: {
+                    url: '/api/sap/despacho-acuerdos/',
+                    dataType: 'json',
+                    delay: 250,
+                    data: function (params) {
+                        return {
+                            q: params.term || '',
+                            _empresa_id: getValue('empresa_id')
+                        };
+                    },
+                    processResults: function (response) {
+                        if (!response.ok) {
+                            return { results: [] };
+                        }
+
+                        return {
+                            results: (response.resultados || []).map(function (item, index) {
+                                const texto = [
+                                    item.sap_acuerdo_numero || '',
+                                    item.oc_cliente || 'Sin OC',
+                                    item.cliente_nombre || '',
+                                    item.nombre_insumo || item.codigo_insumo || '',
+                                    item.saldo_contrato_sap !== null && item.saldo_contrato_sap !== undefined ? 'Saldo contrato: ' + item.saldo_contrato_sap : ''
+                                ].filter(Boolean).join(' | ');
+
+                                return {
+                                    id: String(item.sap_abs_id || '') + '__' + String(item.linea_acuerdo || index),
+                                    text: texto,
+                                    sap: item
+                                };
+                            })
+                        };
+                    }
+                },
+                language: {
+                    inputTooShort: function () {
+                        return 'Ingrese al menos 2 caracteres';
+                    },
+                    noResults: function () {
+                        return 'No se encontraron acuerdos SAP. Puede ingresar el despacho manualmente.';
+                    },
+                    searching: function () {
+                        return 'Buscando acuerdos SAP...';
+                    }
+                }
+            });
+
+            $('#despacho_sap_busqueda').on('select2:select', function (event) {
+                cargarDatosSapDespacho((event.params.data || {}).sap || {});
+            });
+
+            $('#despacho_sap_busqueda').on('select2:clear', function () {
+                limpiarDatosSapDespacho(false);
+            });
+        }
+
+        $('#despacho_cantidad_intentada').on('input change', function () {
+            evaluarAdvertenciaSaldoDespacho();
         });
 
         $('#tipo').on('change', function () {
@@ -1981,6 +2248,138 @@
         proveedorSelect.val(codigo).trigger('change');
     }
 
+    function setDespachoSelectOption(selector, value, text) {
+        const select = $(selector);
+
+        if (!select.length || !value) {
+            return;
+        }
+
+        let existe = false;
+        select.find('option').each(function () {
+            if ($(this).val() === String(value)) {
+                existe = true;
+                if (text) {
+                    $(this).text(text);
+                }
+                return false;
+            }
+        });
+
+        if (!existe) {
+            select.append(new Option(text || value, value, true, true));
+        }
+
+        select.val(value).trigger('change');
+    }
+
+    function numeroSapDespacho(value) {
+        if (value === null || value === undefined || value === '') {
+            return '';
+        }
+
+        return String(value);
+    }
+
+    function normalizarDecimalDespacho(value) {
+        let texto = String(value || '').trim();
+
+        if (!texto) {
+            return null;
+        }
+
+        if (texto.indexOf(',') > -1) {
+            texto = texto.replace(/\./g, '').replace(',', '.');
+        }
+
+        const numero = Number(texto);
+        return Number.isNaN(numero) ? null : numero;
+    }
+
+    function saldoContratoSapDespacho(item) {
+        const saldoSap = normalizarDecimalDespacho(item.saldo_contrato_sap);
+
+        if (saldoSap !== null) {
+            return saldoSap;
+        }
+
+        const planificada = normalizarDecimalDespacho(item.cantidad_planificada);
+        const consumida = normalizarDecimalDespacho(item.cantidad_consumida);
+
+        if (planificada === null || consumida === null) {
+            return null;
+        }
+
+        return planificada - consumida;
+    }
+
+    function evaluarAdvertenciaSaldoDespacho() {
+        const cantidadIntentada = normalizarDecimalDespacho(getValue('despacho_cantidad_intentada'));
+        const saldoContrato = normalizarDecimalDespacho(getValue('despacho_saldo_contrato_sap'));
+
+        if (cantidadIntentada !== null && saldoContrato !== null && cantidadIntentada > saldoContrato) {
+            $('#despacho_sap_supera_saldo_alert').removeClass('d-none');
+        } else {
+            $('#despacho_sap_supera_saldo_alert').addClass('d-none');
+        }
+    }
+
+    function cargarDatosSapDespacho(item) {
+        despachoSapSeleccionado = item || {};
+        const saldoContrato = saldoContratoSapDespacho(item);
+
+        setDespachoSelectOption(
+            '#despacho_cliente',
+            item.cliente_codigo || '',
+            item.cliente_nombre || item.cliente_codigo || ''
+        );
+
+        setValue('despacho_oc', item.oc_cliente || '');
+        setValue('despacho_insumo', item.nombre_insumo || '');
+        setDespachoSelectOption(
+            '#despacho_formato',
+            item.unidad_medida || '',
+            item.unidad_medida || ''
+        );
+
+        setValue('despacho_codigo_sap', item.codigo_insumo || '');
+        setValue('despacho_nombre_producto_sap', item.nombre_insumo || '');
+        setValue('despacho_numero_acuerdo_sap', numeroSapDespacho(item.sap_acuerdo_numero));
+        setValue('despacho_abs_id_sap', numeroSapDespacho(item.sap_abs_id));
+        setValue('despacho_linea_acuerdo_sap', numeroSapDespacho(item.linea_acuerdo));
+        setValue('despacho_cantidad_planificada_sap', numeroSapDespacho(item.cantidad_planificada));
+        setValue('despacho_cantidad_consumida_sap', numeroSapDespacho(item.cantidad_consumida));
+        setValue('despacho_cantidad_pendiente_sap', numeroSapDespacho(item.cantidad_pendiente));
+        setValue('despacho_saldo_contrato_sap', saldoContrato !== null ? numeroSapDespacho(saldoContrato) : '');
+        setValue('despacho_estado_saldo_sap', item.estado_saldo || '');
+        evaluarAdvertenciaSaldoDespacho();
+    }
+
+    function limpiarDatosSapDespacho(limpiarBusqueda = true) {
+        despachoSapSeleccionado = null;
+
+        [
+            'despacho_codigo_sap',
+            'despacho_nombre_producto_sap',
+            'despacho_numero_acuerdo_sap',
+            'despacho_abs_id_sap',
+            'despacho_linea_acuerdo_sap',
+            'despacho_cantidad_planificada_sap',
+            'despacho_cantidad_consumida_sap',
+            'despacho_cantidad_pendiente_sap',
+            'despacho_saldo_contrato_sap',
+            'despacho_estado_saldo_sap'
+        ].forEach(function (id) {
+            setValue(id, '');
+        });
+
+        $('#despacho_sap_supera_saldo_alert').addClass('d-none');
+
+        if (limpiarBusqueda && $('#despacho_sap_busqueda').length) {
+            $('#despacho_sap_busqueda').val(null).trigger('change');
+        }
+    }
+
     function agregarCitacionTemporal() {
         if (!validarFormularioCitacion()) return;
         if (!validarTipoPlanificacion('RECEPCION')) return;
@@ -2069,6 +2468,7 @@
         const citacion = {
             cliente: clienteSelect.val() || '',
             cliente_nombre: clienteSelect.find('option:selected').text().trim(),
+            cliente_codigo: clienteSelect.val() || '',
 
             inf_24hrs: getValue('despacho_transportado_por'),
             fecha_llegada: getValue('despacho_fecha'),
@@ -2080,18 +2480,26 @@
             tipo_carga: formatoSelect.val() || '',
             tipo_carga_texto: formatoSelect.find('option:selected').text().trim(),
 
-            codigo: '',
+            codigo: getValue('despacho_codigo_sap'),
             insumo: getValue('despacho_insumo'),
             pedido: getValue('despacho_oc'),
-            sap_opor_id: '',
+            sap_opor_id: getValue('despacho_abs_id_sap'),
+            contrato_sap: getValue('despacho_numero_acuerdo_sap'),
+            linea_acuerdo_sap: getValue('despacho_linea_acuerdo_sap'),
+            cantidad_planificada_sap: getValue('despacho_cantidad_planificada_sap'),
+            cantidad_consumida_sap: getValue('despacho_cantidad_consumida_sap'),
+            cantidad_pendiente_sap: getValue('despacho_cantidad_pendiente_sap'),
+            saldo_contrato_sap: getValue('despacho_saldo_contrato_sap'),
+            cantidad_intentada_despachar: getValue('despacho_cantidad_intentada'),
+            estado_saldo_sap: getValue('despacho_estado_saldo_sap'),
 
             proveedor: '',
             proveedor_nombre: getValue('despacho_empresa_transporte'),
             proveedor_codigo: '',
 
             bl: getValue('despacho_patente'),
-            cantidad_disponible: getValue('despacho_orden_carga'),
-            docentry: '',
+            cantidad_disponible: getValue('despacho_saldo_contrato_sap'),
+            docentry: getValue('despacho_abs_id_sap'),
             productor: '',
 
             estanque_destino: getValue('despacho_bodega'),
@@ -2100,13 +2508,27 @@
             observacion: JSON.stringify({
                 destino: getValue('despacho_destino'),
                 oc: getValue('despacho_oc'),
+                cantidad_intentada_despachar: getValue('despacho_cantidad_intentada'),
                 orden_carga: getValue('despacho_orden_carga'),
                 ventana_horaria: getValue('despacho_ventana_horaria'),
                 bodega: getValue('despacho_bodega'),
                 empresa_transporte: getValue('despacho_empresa_transporte'),
                 patente: getValue('despacho_patente'),
                 conductor: getValue('despacho_conductor'),
-                transportado_por: transportadoSelect.val() || ''
+                condicion_entrega: transportadoSelect.val() || '',
+                transportado_por: transportadoSelect.val() || '',
+                sap: {
+                    abs_id: getValue('despacho_abs_id_sap'),
+                    numero_acuerdo: getValue('despacho_numero_acuerdo_sap'),
+                    linea_acuerdo: getValue('despacho_linea_acuerdo_sap'),
+                    codigo_producto: getValue('despacho_codigo_sap'),
+                    nombre_producto: getValue('despacho_nombre_producto_sap'),
+                    cantidad_planificada: getValue('despacho_cantidad_planificada_sap'),
+                    cantidad_consumida: getValue('despacho_cantidad_consumida_sap'),
+                    cantidad_pendiente: getValue('despacho_cantidad_pendiente_sap'),
+                    saldo_contrato: getValue('despacho_saldo_contrato_sap'),
+                    estado_saldo: getValue('despacho_estado_saldo_sap')
+                }
             })
         };
 
@@ -2387,6 +2809,15 @@
             return false;
         }
 
+        if (normalizarDecimalDespacho(getValue('despacho_cantidad_intentada')) === null) {
+            swalFront({
+                title: 'AtenciÃ³n',
+                text: 'Debe ingresar una cantidad intentada a despachar vÃ¡lida.',
+                icon: 'warning'
+            });
+            return false;
+        }
+
         if (!$('#despacho_cliente').val()) {
             swalFront({
                 title: 'Atención',
@@ -2452,12 +2883,15 @@
             '#despacho_cliente',
             '#despacho_formato',
             '#despacho_transportado_por',
-            '#despacho_secuencia_id'
+            '#despacho_secuencia_id',
+            '#despacho_sap_busqueda'
         ].forEach(function (selector) {
             if ($(selector).length) {
                 $(selector).val('').trigger('change');
             }
         });
+
+        limpiarDatosSapDespacho(false);
     }
 
     function limpiarDatosPedido(limpiarPedido = false) {

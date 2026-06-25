@@ -16,6 +16,7 @@ def encrypt_string(input_string):
     
     # XOR the input bytes with the key bytes
     encrypted_bytes = bytearray(a ^ b for a, b in zip(input_bytes, key_bytes))
+
     
     # Encode the result using base64
     base64_bytes = base64.b64encode(encrypted_bytes)

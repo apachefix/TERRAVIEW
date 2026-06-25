@@ -1,31 +1,23 @@
-import json
 import requests
-from pathlib import Path
-from django.conf import settings
+
+from apps.integrations.sap_b1.service_layer_probe import load_config
 
 
 class SAPServiceLayer:
     def __init__(self, ruta_credenciales=None):
-        if ruta_credenciales is None:
-            ruta_credenciales = Path(settings.BASE_DIR) / "loginSL.json"
-
-        self.ruta_credenciales = ruta_credenciales
-        self.login_info = self._cargar_credenciales()
-
-        self.base_url = self.login_info["ServiceLayerURL"].rstrip("/")
-        self.company_db = self.login_info["CompanyDB"]
-        self.username = self.login_info["UserName"]
-        self.password = self.login_info["Password"]
+        service_layer_config = load_config()
+        self.base_url = service_layer_config.base_url.rstrip("/")
+        self.company_db = service_layer_config.company_db
+        self.username = service_layer_config.username
+        self.password = service_layer_config.password
+        self.verify_ssl = service_layer_config.verify_ssl
+        self.timeout = service_layer_config.timeout
 
         self.session = requests.Session()
         self.login_response = None
 
-    def _cargar_credenciales(self):
-        with open(self.ruta_credenciales, "r", encoding="utf-8") as archivo:
-            return json.load(archivo)
-
     def login(self):
-        url = f"{self.base_url}/b1s/v1/Login"
+        url = f"{self.base_url}/Login"
 
         payload = {
             "CompanyDB": self.company_db,
@@ -36,8 +28,8 @@ class SAPServiceLayer:
         response = self.session.post(
             url,
             json=payload,
-            verify=False,
-            timeout=30
+            verify=self.verify_ssl,
+            timeout=self.timeout
         )
 
         response.raise_for_status()
@@ -48,22 +40,27 @@ class SAPServiceLayer:
 
     def logout(self):
         try:
-            url = f"{self.base_url}/b1s/v1/Logout"
-            response = self.session.post(url, verify=False, timeout=30)
+            url = f"{self.base_url}/Logout"
+            response = self.session.post(url, verify=self.verify_ssl, timeout=self.timeout)
             return response.status_code in [200, 204]
         except Exception as e:
             print("Error al cerrar sesión Service Layer:", e)
             return False
 
     def get(self, endpoint):
-        url = f"{self.base_url}/b1s/v1/{endpoint.lstrip('/')}"
-        response = self.session.get(url, verify=False, timeout=30)
+        url = f"{self.base_url}/{endpoint.lstrip('/')}"
+        response = self.session.get(url, verify=self.verify_ssl, timeout=self.timeout)
         response.raise_for_status()
         return response.json()
 
     def post(self, endpoint, payload):
-        url = f"{self.base_url}/b1s/v1/{endpoint.lstrip('/')}"
-        response = self.session.post(url, json=payload, verify=False, timeout=30)
+        url = f"{self.base_url}/{endpoint.lstrip('/')}"
+        response = self.session.post(
+            url,
+            json=payload,
+            verify=self.verify_ssl,
+            timeout=self.timeout,
+        )
         response.raise_for_status()
         return response.json()
 

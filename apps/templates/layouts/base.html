@@ -197,6 +197,14 @@
             color: var(--color-light) !important;
         }
 
+        body .pcoded-navbar .pcoded-inner-navbar li.menu-ingreso-camion-nodo > a::after,
+        body .pcoded-navbar .pcoded-inner-navbar li.menu-ingreso-camion-nodo > a::before,
+        body .pcoded-navbar .pcoded-inner-navbar li.menu-ingreso-camion-nodo::after,
+        body .pcoded-navbar .pcoded-inner-navbar li.menu-ingreso-camion-nodo > a .pcoded-mcaret {
+            content: none !important;
+            display: none !important;
+        }
+
         body .pcoded-navbar .card {
             background: rgba(255, 255, 255, 0.08) !important;
             border: 1px solid rgba(232, 227, 200, 0.13) !important;
@@ -1026,10 +1034,24 @@
         function showSweetAlert(newNotifications) {
             const notificationMessages = newNotifications.map(function(notification) {
                 const content = (notification[1] || '').toString();
+                const patioLine = content.split('\n').find(function(line) {
+                    return line.toLowerCase().indexOf('ha ingresado camion patente') !== -1
+                        || line.toLowerCase().indexOf('ha ingresado camiÃ³n patente') !== -1;
+                });
+                if (patioLine) {
+                    return '<strong>Camion ingresado a patio</strong><br>' + patioLine;
+                }
                 const plantaLine = content.split('\n').find(function(line) {
                     return line.toLowerCase().indexOf('debe ingresar a planta') !== -1;
                 });
                 return plantaLine || 'Tienes nuevas notificaciones. Debes revisarlas';
+            });
+            const hasPatioNotification = newNotifications.some(function(notification) {
+                const content = ((notification && notification[1]) || '').toString().toLowerCase();
+                return content.indexOf('camion ingresado a patio') !== -1
+                    || content.indexOf('camiÃ³n ingresado a patio') !== -1
+                    || content.indexOf('ha ingresado camion patente') !== -1
+                    || content.indexOf('ha ingresado camiÃ³n patente') !== -1;
             });
 
             const message = notificationMessages.length === 1
@@ -1038,10 +1060,10 @@
             $.notify({
                     message: message
                 }, {
-                    type: 'inverse',
+                    type: hasPatioNotification ? 'warning' : 'inverse',
                     allow_dismiss: true,
                     label: 'Cancel',
-                    className: 'btn-xs btn-inverse',
+                    className: hasPatioNotification ? 'btn-xs btn-warning' : 'btn-xs btn-inverse',
                     placement: {
                         from: 'bottom',
                         align: 'right'

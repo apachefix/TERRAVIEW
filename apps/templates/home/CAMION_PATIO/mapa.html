@@ -1,0 +1,188 @@
+{% extends "layouts/base.html" %}
+
+{% block title %} Mapa camiones en patio {% endblock %}
+
+{% block stylesheets %}
+<style>
+    .patio-map {
+        min-height: 520px;
+        border: 2px solid #9aa4b2;
+        border-radius: 8px;
+        background:
+            linear-gradient(90deg, rgba(15,23,42,.05) 1px, transparent 1px),
+            linear-gradient(rgba(15,23,42,.05) 1px, transparent 1px),
+            #f3f6fa;
+        background-size: 64px 64px;
+        padding: 18px;
+        overflow: hidden;
+    }
+    .patio-map-title {
+        font-weight: 800;
+        color: #1f2937;
+        margin-bottom: 12px;
+    }
+    .patio-map-lanes {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+        gap: 14px;
+    }
+    .patio-truck {
+        min-height: 86px;
+        border-radius: 8px;
+        border: 1px solid #cbd5e1;
+        padding: 10px;
+        background: #e5e7eb;
+        cursor: pointer;
+        box-shadow: 0 8px 18px rgba(15,23,42,.10);
+        transition: transform 160ms ease, box-shadow 160ms ease;
+    }
+    .patio-truck:hover {
+        transform: translateY(-1px);
+        box-shadow: 0 12px 24px rgba(15,23,42,.14);
+    }
+    .patio-truck.estado-PENDIENTE_ASOCIACION { background: #e5e7eb; }
+    .patio-truck.estado-EN_REVISION_RECEPCION { background: #fff3bf; border-color: #f2c94c; }
+    .patio-truck.estado-ASOCIADO_CITACION { background: #d3f9d8; border-color: #27ae60; }
+    .patio-truck.estado-RECHAZADO,
+    .patio-truck.estado-CANCELADO { background: #ffe3e3; border-color: #eb5757; }
+    .patio-truck-plate {
+        font-weight: 900;
+        font-size: 18px;
+    }
+    .patio-map-legend {
+        display: flex;
+        gap: 10px;
+        flex-wrap: wrap;
+        margin-bottom: 12px;
+    }
+    .patio-legend-item {
+        display: inline-flex;
+        gap: 6px;
+        align-items: center;
+        font-size: 12px;
+    }
+    .patio-legend-dot {
+        width: 14px;
+        height: 14px;
+        border-radius: 3px;
+        display: inline-block;
+        border: 1px solid #cbd5e1;
+    }
+    .patio-muted {
+        color: #6c757d;
+        font-size: 12px;
+    }
+    .patio-detail-grid,
+    .patio-citation-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+        gap: 10px;
+    }
+    .patio-detail-item {
+        border: 1px solid #e5e7eb;
+        border-radius: 6px;
+        padding: 9px;
+        background: #fbfcfe;
+    }
+    .patio-detail-label {
+        font-size: 11px;
+        text-transform: uppercase;
+        color: #6c757d;
+        font-weight: 700;
+    }
+    .patio-citation-option {
+        border: 1px solid #dfe5ee;
+        border-radius: 8px;
+        padding: 10px;
+        margin-bottom: 8px;
+        cursor: pointer;
+    }
+    .patio-citation-option.is-selected {
+        border-color: #007bff;
+        box-shadow: 0 0 0 3px rgba(0, 123, 255, .12);
+    }
+</style>
+{% endblock stylesheets %}
+
+{% block content %}
+<section class="pcoded-main-container">
+    <div class="pcoded-content">
+        <div class="page-header">
+            <div class="page-block">
+                <div class="row align-items-center">
+                    <div class="col-md-12">
+                        <div class="page-header-title"><h5 class="m-b-10">Mapa patio 2D</h5></div>
+                        <ul class="breadcrumb">
+                            <li class="breadcrumb-item"><a href="/"><i class="feather icon-home"></i></a></li>
+                            <li class="breadcrumb-item">Patio</li>
+                            <li class="breadcrumb-item">Mapa</li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="card">
+            <div class="card-body">
+                <div class="d-flex justify-content-between align-items-center flex-wrap mb-3">
+                    <div>
+                        <div class="patio-map-title">Camiones disponibles en patio</div>
+                        <div class="patio-map-legend">
+                            <span class="patio-legend-item"><span class="patio-legend-dot" style="background:#e5e7eb"></span> Pendiente</span>
+                            <span class="patio-legend-item"><span class="patio-legend-dot" style="background:#fff3bf"></span> En revision</span>
+                            <span class="patio-legend-item"><span class="patio-legend-dot" style="background:#d3f9d8"></span> Asociado</span>
+                            <span class="patio-legend-item"><span class="patio-legend-dot" style="background:#ffe3e3"></span> Rechazado/cancelado</span>
+                        </div>
+                    </div>
+                    <a class="btn btn-outline-secondary" href="{% url 'camiones_patio_list' %}?_empresa_id={{ empresa_activa_id }}">
+                        <i class="fas fa-list"></i> Ver listado
+                    </a>
+                </div>
+                <div class="patio-map">
+                    <div class="patio-map-lanes">
+                        {% for camion in camiones %}
+                            <div class="patio-truck estado-{{ camion.CPA_CESTADO }} patio-card" data-camion-id="{{ camion.id }}">
+                                <div class="patio-truck-plate">{{ camion.CPA_CPATENTE }}</div>
+                                <div>{{ camion.CPA_CNOMBRE_CONDUCTOR }}</div>
+                                <div class="patio-muted">{{ camion.CPA_CESTADO }}</div>
+                                {% if camion.CI_NID_id %}<span class="badge badge-success">#{{ camion.CI_NID_id }}</span>{% endif %}
+                            </div>
+                        {% empty %}
+                            <div class="alert alert-info">No hay camiones visibles en patio.</div>
+                        {% endfor %}
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</section>
+
+<div class="modal fade" id="camionPatioModal" tabindex="-1" role="dialog" aria-hidden="true">
+    <div class="modal-dialog modal-xl modal-dialog-scrollable" role="document">
+        <div class="modal-content">
+            <div class="modal-header">
+                <div>
+                    <h5 class="modal-title">Detalle camion en patio</h5>
+                    <small class="text-muted" id="patioModalSubtitle"></small>
+                </div>
+                <button type="button" class="close" data-dismiss="modal"><span>&times;</span></button>
+            </div>
+            <div class="modal-body">
+                <div id="patioModalAlert" class="alert alert-info" style="display:none;"></div>
+                <div id="patioModalContent"></div>
+                <hr>
+                <h6>Citaciones sugeridas</h6>
+                <div id="patioCitacionesList"></div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-dismiss="modal">Cerrar</button>
+                <button type="button" class="btn btn-success" id="btnAsociarCamionPatio" disabled>Asociar a citacion</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock content %}
+
+{% block javascripts %}
+{% include "home/CAMION_PATIO/patio_modal_js.html" %}
+{% endblock javascripts %}

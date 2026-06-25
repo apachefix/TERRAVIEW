@@ -1,0 +1,121 @@
+<script>
+    const PATIO_EMPRESA_ID = "{{ empresa_activa_id|default:'' }}";
+    const PATIO_PLANIFICACIONES_URL = "{% url 'pla_listall' %}";
+    let patioCamionActual = null;
+    let patioCitacionSeleccionada = null;
+
+    function patioEscape(value) {
+        return String(value ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#039;');
+    }
+    function patioCookie(name) {
+        const cookies = document.cookie ? document.cookie.split(';') : [];
+        for (const item of cookies) {
+            const cookie = item.trim();
+            if (cookie.startsWith(name + '=')) return decodeURIComponent(cookie.slice(name.length + 1));
+        }
+        return '';
+    }
+    function renderPatioDetalle(data) {
+        const camion = data.camion || {};
+        patioCamionActual = camion;
+        patioCitacionSeleccionada = null;
+        $('#btnAsociarCamionPatio').prop('disabled', camion.estado === 'ASOCIADO_CITACION');
+        $('#patioModalSubtitle').text('Patente ' + (camion.patente || ''));
+        const fields = [
+            ['Estado', camion.estado_visible || camion.estado], ['Patente', camion.patente],
+            ['Conductor', camion.conductor], ['RUT', camion.rut_conductor], ['Telefono', camion.telefono],
+            ['Transportista', camion.transportista], ['Proveedor declarado', camion.proveedor],
+            ['Insumo declarado en guia', camion.insumo_declarado_guia],
+            ['Cliente declarado', camion.cliente], ['Guia/documento', camion.guia], ['BL', camion.bl],
+            ['Lote/contenedor', camion.lote_contenedor],
+            ['Guardia', camion.guardia], ['Llegada', camion.llegada],
+            ['Observacion', camion.observacion]
+        ];
+        const adjuntos = (data.adjuntos || []).map(function (adj) {
+            if (!adj.disponible) {
+                return '<li class="text-warning">Archivo no disponible o no encontrado</li>';
+            }
+            const link = adj.url ? '<a href="' + patioEscape(adj.url) + '" target="_blank" rel="noopener">' + patioEscape(adj.nombre) + '</a>' : patioEscape(adj.nombre);
+            return '<li>' + patioEscape(adj.tipo) + ': ' + link + '</li>';
+        }).join('') || '<li class="text-muted">Sin adjuntos</li>';
+        $('#patioModalContent').html(
+            '<div class="patio-detail-grid">' + fields.map(function (field) {
+                return '<div class="patio-detail-item"><div class="patio-detail-label">' + patioEscape(field[0]) + '</div><div>' + patioEscape(field[1] || '-') + '</div></div>';
+            }).join('') + '</div><h6 class="mt-3">Documentos</h6><ul>' + adjuntos + '</ul>'
+        );
+        const citaciones = data.citaciones || [];
+        $('#patioCitacionesList').html(citaciones.length ? citaciones.map(function (cit) {
+            return '<div class="patio-citation-option" data-citacion-id="' + patioEscape(cit.id) + '">' +
+                '<div class="d-flex justify-content-between"><strong>Citacion #' + patioEscape(cit.id) + '</strong><span class="badge badge-primary">Score ' + patioEscape(cit.score) + '</span></div>' +
+                '<div class="patio-citation-grid mt-2">' +
+                '<div><span class="patio-muted">Producto</span><br>' + patioEscape(cit.producto || '-') + '</div>' +
+                '<div><span class="patio-muted">Proveedor</span><br>' + patioEscape(cit.proveedor || '-') + '</div>' +
+                '<div><span class="patio-muted">Cliente</span><br>' + patioEscape(cit.cliente || '-') + '</div>' +
+                '<div><span class="patio-muted">Pedido SAP</span><br>' + patioEscape(cit.pedido_sap || '-') + '</div>' +
+                '<div><span class="patio-muted">Planificacion</span><br>' + patioEscape(cit.planificacion || '-') + '</div>' +
+                '<div><span class="patio-muted">Fecha</span><br>' + patioEscape(cit.fecha_planificacion || '-') + '</div>' +
+                '</div><div class="patio-muted mt-2">' + patioEscape((cit.razones || []).join(', ') || 'Sin coincidencias fuertes') + '</div></div>';
+        }).join('') : '<div class="alert alert-warning">No hay citaciones abiertas disponibles.</div>');
+    }
+    function abrirCamionPatio(id) {
+        $('#patioModalAlert').hide().text('');
+        $('#patioModalContent').html('<div class="text-center p-3">Cargando...</div>');
+        $('#patioCitacionesList').empty();
+        $('#camionPatioModal').modal('show');
+        $.get('/camiones-patio/' + id + '/detalle/', {_empresa_id: PATIO_EMPRESA_ID})
+            .done(function (response) { renderPatioDetalle(response); })
+            .fail(function (xhr) {
+                const response = xhr.responseJSON || {};
+                $('#patioModalContent').empty();
+                $('#patioModalAlert').show().text(response.message || 'No fue posible cargar el camion.');
+            });
+    }
+    $(document).on('click', '.patio-card', function () {
+        abrirCamionPatio($(this).data('camion-id'));
+    });
+    $(document).on('click', '.patio-citation-option', function () {
+        $('.patio-citation-option').removeClass('is-selected');
+        $(this).addClass('is-selected');
+        patioCitacionSeleccionada = $(this).data('citacion-id');
+        $('#btnAsociarCamionPatio').prop('disabled', !patioCamionActual || patioCamionActual.estado === 'ASOCIADO_CITACION');
+    });
+    function abrirSelectorTipoCitacion(camionPatioId) {
+        Swal.fire({
+            title: 'Seleccionar tipo de citación',
+            text: 'Indique si el camión será asociado a una citación de Recepción o Despacho.',
+            icon: 'question',
+            showDenyButton: true,
+            showCancelButton: true,
+            confirmButtonText: 'Recepción',
+            denyButtonText: 'Despacho',
+            cancelButtonText: 'Cancelar',
+            confirmButtonColor: '#4099ff',
+            denyButtonColor: '#2ed8b6'
+        }).then(function (result) {
+            if (!result.isConfirmed && !result.isDenied) {
+                return;
+            }
+            const params = new URLSearchParams();
+            params.set('tipo', result.isConfirmed ? 'RECEPCION' : 'DESPACHO');
+            if (PATIO_EMPRESA_ID) params.set('_empresa_id', PATIO_EMPRESA_ID);
+            params.set('camion_patio_id', camionPatioId);
+            window.location.href = PATIO_PLANIFICACIONES_URL + '?' + params.toString();
+        });
+    }
+    $('#btnAsociarCamionPatio').on('click', function () {
+        if (!patioCamionActual) return;
+
+        const camionPatioId = patioCamionActual.id;
+        const modalDetalle = $('#camionPatioModal');
+
+        if (modalDetalle.hasClass('show')) {
+            modalDetalle.one('hidden.bs.modal', function () {
+                abrirSelectorTipoCitacion(camionPatioId);
+            });
+            modalDetalle.modal('hide');
+            return;
+        }
+
+        abrirSelectorTipoCitacion(camionPatioId);
+    });
+</script>

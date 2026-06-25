@@ -297,6 +297,7 @@ class PLANIFICACION(models.Model):
     PL_BARCHIVADO = models.BooleanField(("Archivado"), default=False)
 
 
+
     class Meta:
         db_table = 'PLANIFICACION'
 
@@ -862,6 +863,47 @@ class CITACION_DETALLE_OPERACIONAL(models.Model):
             models.Index(fields=['CDO_CCODIGO_SAP'], name='CITACION_DE_CDO_CCO_20d02e_idx'),
             models.Index(fields=['CDO_CPEDIDO_SAP'], name='CITACION_DE_CDO_CPE_bf9dd2_idx'),
             models.Index(fields=['CDO_CDOCENTRY'], name='CITACION_DE_CDO_CDO_14ae9a_idx'),
+        ]
+
+
+class CITACION_DESPACHO_DETALLE(models.Model):
+    CI_NID = models.OneToOneField(CITACION, verbose_name='Id citacion', on_delete=models.CASCADE, related_name='detalle_despacho')
+    EP_NID = models.ForeignKey(EMPRESA, verbose_name='Id empresa', on_delete=models.PROTECT)
+    US_NID = models.ForeignKey(User, verbose_name='Usuario creacion', on_delete=models.PROTECT, null=True, blank=True)
+    CDD_CDESTINO = models.CharField('Destino', max_length=256, null=True, blank=True)
+    CDD_COC_CLIENTE = models.CharField('OC cliente', max_length=128, null=True, blank=True)
+    CDD_NCANTIDAD_INTENTADA_DESPACHAR = models.DecimalField('Cantidad intentada a despachar', max_digits=18, decimal_places=5, null=True, blank=True)
+    CDD_CCONDICION_ENTREGA = models.CharField('Condicion de entrega', max_length=128, null=True, blank=True)
+    CDD_CEMPRESA_TRANSPORTE = models.CharField('Empresa transporte', max_length=256, null=True, blank=True)
+    CDD_CCONDUCTOR = models.CharField('Conductor', max_length=256, null=True, blank=True)
+    CDD_CTELEFONO_CONDUCTOR = models.CharField('Telefono conductor', max_length=64, null=True, blank=True)
+    CDD_CPATENTE = models.CharField('Patente', max_length=32, null=True, blank=True)
+    CDD_CORDEN_CARGA = models.CharField('Orden de carga', max_length=128, null=True, blank=True)
+    CDD_CVENTANA_HORARIA_DESPACHO = models.CharField('Ventana horaria despacho', max_length=128, null=True, blank=True)
+    CDD_CBODEGA = models.CharField('Bodega', max_length=128, null=True, blank=True)
+    CDD_CSECUENCIA_OPERACIONAL_CODIGO = models.CharField('Codigo secuencia operacional', max_length=128, null=True, blank=True)
+    CDD_CSECUENCIA_OPERACIONAL_NOMBRE = models.CharField('Nombre secuencia operacional', max_length=256, null=True, blank=True)
+    CDD_CSAP_ABS_ID = models.CharField('SAP AbsID', max_length=128, null=True, blank=True)
+    CDD_CSAP_NUMERO_ACUERDO = models.CharField('Numero acuerdo SAP', max_length=128, null=True, blank=True)
+    CDD_CSAP_LINEA_ACUERDO = models.CharField('Linea acuerdo SAP', max_length=128, null=True, blank=True)
+    CDD_CSAP_CLIENTE_CODIGO = models.CharField('Codigo cliente SAP', max_length=128, null=True, blank=True)
+    CDD_CSAP_CLIENTE_NOMBRE = models.CharField('Nombre cliente SAP', max_length=256, null=True, blank=True)
+    CDD_CSAP_OC_CLIENTE = models.CharField('OC cliente SAP', max_length=128, null=True, blank=True)
+    CDD_CSAP_CODIGO_PRODUCTO = models.CharField('Codigo producto SAP', max_length=128, null=True, blank=True)
+    CDD_CSAP_NOMBRE_PRODUCTO = models.CharField('Nombre producto SAP', max_length=256, null=True, blank=True)
+    CDD_NSAP_CANTIDAD_PLANIFICADA = models.DecimalField('Cantidad planificada SAP', max_digits=18, decimal_places=5, null=True, blank=True)
+    CDD_NSAP_CANTIDAD_CONSUMIDA = models.DecimalField('Cantidad consumida SAP', max_digits=18, decimal_places=5, null=True, blank=True)
+    CDD_NSAP_SALDO_CONTRATO = models.DecimalField('Saldo contrato SAP', max_digits=18, decimal_places=5, null=True, blank=True)
+    CDD_CSAP_UNIDAD_MEDIDA = models.CharField('Unidad medida SAP', max_length=64, null=True, blank=True)
+    CDD_FFECHACREACION = models.DateTimeField('Fecha creacion', auto_now_add=True)
+    CDD_FFECHAACTUALIZACION = models.DateTimeField('Fecha actualizacion', auto_now=True)
+
+    class Meta:
+        db_table = 'CITACION_DESPACHO_DETALLE'
+        indexes = [
+            models.Index(fields=['EP_NID', 'CDD_COC_CLIENTE'], name='CIT_DESP_EP_OC_IDX'),
+            models.Index(fields=['CDD_CPATENTE'], name='CIT_DESP_PATENTE_IDX'),
+            models.Index(fields=['CDD_CSAP_NUMERO_ACUERDO'], name='CIT_DESP_SAP_ACUERDO_IDX'),
         ]
 
     
@@ -1465,6 +1507,94 @@ class CAMION_NO_PLANIFICADO(models.Model):
 
     def __str__(self):
         return f'{self.CNP_CPATENTE} - {self.CNP_CESTADO}'
+
+
+def camion_patio_upload_path(instance, filename):
+    camion = instance.CPA_NID
+    empresa_id = camion.EP_NID_id or 'sin_empresa'
+    patente = ''.join(ch for ch in (camion.CPA_CPATENTE or 'sin_patente').upper() if ch.isalnum())
+    return f'camiones_patio/{empresa_id}/{patente}/{filename}'
+
+
+class CAMION_PATIO(models.Model):
+    ESTADO_PENDIENTE_ASOCIACION = 'PENDIENTE_ASOCIACION'
+    ESTADO_EN_REVISION_RECEPCION = 'EN_REVISION_RECEPCION'
+    ESTADO_ASOCIADO_CITACION = 'ASOCIADO_CITACION'
+    ESTADO_RECHAZADO = 'RECHAZADO'
+    ESTADO_CANCELADO = 'CANCELADO'
+
+    ESTADOS = (
+        (ESTADO_PENDIENTE_ASOCIACION, 'Pendiente asociacion'),
+        (ESTADO_EN_REVISION_RECEPCION, 'En revision recepcion'),
+        (ESTADO_ASOCIADO_CITACION, 'Asociado a citacion'),
+        (ESTADO_RECHAZADO, 'Rechazado'),
+        (ESTADO_CANCELADO, 'Cancelado'),
+    )
+
+    EP_NID = models.ForeignKey(EMPRESA, verbose_name='Empresa', on_delete=models.PROTECT)
+    CI_NID = models.ForeignKey(CITACION, verbose_name='Citacion asociada', on_delete=models.PROTECT, null=True, blank=True, related_name='camiones_patio')
+    CPA_CPATENTE = models.CharField('Patente camion', max_length=32)
+    CPA_CPATENTE_RAMPLA = models.CharField('Patente rampla/acoplado', max_length=32, null=True, blank=True)
+    CPA_CNOMBRE_CONDUCTOR = models.CharField('Nombre conductor', max_length=256)
+    CPA_CRUT_CONDUCTOR = models.CharField('RUT conductor', max_length=32, null=True, blank=True)
+    CPA_CTELEFONO_CONDUCTOR = models.CharField('Telefono conductor', max_length=64, null=True, blank=True)
+    CPA_CTRANSPORTISTA_DECLARADO = models.CharField('Transportista declarado', max_length=256, null=True, blank=True)
+    CPA_CPROVEEDOR_DECLARADO = models.CharField('Proveedor declarado', max_length=256, null=True, blank=True)
+    CPA_CPRODUCTO_DECLARADO = models.CharField('Producto declarado', max_length=256, null=True, blank=True)
+    CPA_CINSUMO_DECLARADO_GUIA = models.CharField('Insumo declarado en guia', max_length=256, null=True, blank=True)
+    CPA_CCLIENTE_DECLARADO = models.CharField('Cliente declarado', max_length=256, null=True, blank=True)
+    CPA_CNUMERO_GUIA = models.CharField('Numero guia/documento', max_length=128, null=True, blank=True)
+    CPA_CBL = models.CharField('BL', max_length=128, null=True, blank=True)
+    CPA_CCANTIDAD_EJES = models.CharField('Cantidad de ejes', max_length=64, null=True, blank=True)
+    CPA_CLOTE_CONTENEDOR = models.CharField('Lote/contenedor', max_length=128, null=True, blank=True)
+    CPA_COBSERVACION = models.TextField('Observacion', null=True, blank=True)
+    CPA_CESTADO = models.CharField('Estado', max_length=32, choices=ESTADOS, default=ESTADO_PENDIENTE_ASOCIACION)
+    US_GUARDIA_ID = models.ForeignKey(User, verbose_name='Usuario guardia', on_delete=models.PROTECT, related_name='camiones_patio_registrados')
+    US_ASOCIA_ID = models.ForeignKey(User, verbose_name='Usuario asocia', on_delete=models.PROTECT, null=True, blank=True, related_name='camiones_patio_asociados')
+    CPA_FFECHALLEGADA = models.DateTimeField('Fecha/hora llegada', default=timezone.now)
+    CPA_FFECHACREACION = models.DateTimeField('Fecha creacion', auto_now_add=True)
+    CPA_FFECHAACTUALIZACION = models.DateTimeField('Fecha actualizacion', auto_now=True)
+    CPA_FFECHAASOCIACION = models.DateTimeField('Fecha asociacion', null=True, blank=True)
+
+    class Meta:
+        db_table = 'CAMION_PATIO'
+        indexes = [
+            models.Index(fields=['EP_NID', 'CPA_CESTADO'], name='CAM_PATIO_EP_EST_idx'),
+            models.Index(fields=['EP_NID', 'CPA_CPATENTE'], name='CAM_PATIO_EP_PAT_idx'),
+            models.Index(fields=['CI_NID'], name='CAM_PATIO_CIT_idx'),
+        ]
+
+    def __str__(self):
+        return f'{self.CPA_CPATENTE} - {self.CPA_CESTADO}'
+
+
+class CAMION_PATIO_ADJUNTO(models.Model):
+    TIPO_GUIA = 'GUIA'
+    TIPO_TICKET_ORIGEN = 'TICKET_ORIGEN'
+    TIPO_SERNAPESCA = 'SERNAPESCA'
+    TIPO_OTRO = 'OTRO'
+
+    TIPOS = (
+        (TIPO_GUIA, 'Guia'),
+        (TIPO_TICKET_ORIGEN, 'Ticket origen'),
+        (TIPO_SERNAPESCA, 'Sernapesca'),
+        (TIPO_OTRO, 'Otro'),
+    )
+
+    CPA_NID = models.ForeignKey(CAMION_PATIO, verbose_name='Camion patio', on_delete=models.CASCADE, related_name='adjuntos')
+    CPA_FARCHIVO = models.FileField('Archivo', upload_to=camion_patio_upload_path)
+    CPA_CTIPO_DOCUMENTO = models.CharField('Tipo documento', max_length=64, choices=TIPOS, default=TIPO_OTRO)
+    CPA_FFECHACARGA = models.DateTimeField('Fecha carga', auto_now_add=True)
+    US_CARGA_ID = models.ForeignKey(User, verbose_name='Usuario carga', on_delete=models.PROTECT, related_name='camiones_patio_adjuntos')
+
+    class Meta:
+        db_table = 'CAMION_PATIO_ADJUNTO'
+        indexes = [
+            models.Index(fields=['CPA_NID', 'CPA_CTIPO_DOCUMENTO'], name='CAM_PAT_ADJ_TIPO_idx'),
+        ]
+
+    def __str__(self):
+        return f'{self.CPA_NID_id} - {self.CPA_CTIPO_DOCUMENTO}'
 
 #####################################################################
 ######################### CUPOS PROVEEDOR ###########################
