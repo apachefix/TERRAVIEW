@@ -40,7 +40,7 @@
                         id="btn-buscar-patente"
                         style="height:32px; padding:0 12px; white-space:nowrap;">
 
-                    <i class="fas fa-search"></i> Ver Pesaje
+                    <i class="fas fa-search"></i> Estado cami&oacute;n
                 </button>
 
             </li>
@@ -316,15 +316,14 @@
             }
             
             $.ajax({
-                url: '/buscar-patente/',
+                url: '/estado-camion/',
                 type: 'GET',
                 data: {
                     'patente': patente
                 },
                 success: function(response) {
                     if (response.success) {
-                        // Mostrar modal con los datos
-                        mostrarModalPatente(response.data);
+                        mostrarModalEstadoCamion(response.data);
                     } else {
                         // Mostrar mensaje de error
                         Swal.fire({
@@ -344,6 +343,94 @@
             });
         }
         
+        function escapeHtmlEstadoCamion(valor) {
+            return $('<div>').text(valor === null || valor === undefined || valor === '' ? '-' : String(valor)).html();
+        }
+
+        function formatearEstadoCamionTimer(inicioMs) {
+            var ms = Number(inicioMs);
+            if (!Number.isFinite(ms) || ms <= 0) {
+                return '00:00:00';
+            }
+            var totalSeconds = Math.max(Math.floor((Date.now() - ms) / 1000), 0);
+            var hours = Math.floor(totalSeconds / 3600);
+            var minutes = Math.floor((totalSeconds % 3600) / 60);
+            var seconds = totalSeconds % 60;
+            return String(hours).padStart(2, '0') + ':' + String(minutes).padStart(2, '0') + ':' + String(seconds).padStart(2, '0');
+        }
+
+        function mostrarModalEstadoCamion(datos) {
+            var campos = [
+                ['Patente', datos.patente],
+                ['Citacion', datos.citacion],
+                ['Tipo', datos.tipo],
+                ['Flujo / secuencia', datos.flujo],
+                ['Estado actual', datos.estado_actual],
+                ['Ultima etapa', datos.ultima_etapa],
+                ['Ultima accion', datos.ultima_accion],
+                ['Ultima actualizacion', datos.ultima_actualizacion],
+                ['Responsable actual', datos.responsable_actual],
+                ['Proxima accion requerida', datos.proxima_accion],
+                ['Salida vigente', datos.salida_vigente_texto],
+                ['Ingreso/reingreso autorizado', datos.ingreso_reingreso_texto],
+                ['Producto SAP', datos.producto],
+                ['Codigo producto', datos.codigo_producto],
+                ['Cliente', datos.cliente]
+            ];
+
+            var contenido = '<div class="text-left">';
+            contenido += '<div class="alert alert-info mb-3">' + escapeHtmlEstadoCamion(datos.mensaje) + '</div>';
+            if (datos.accion_url) {
+                contenido += '<div class="d-flex flex-wrap align-items-center justify-content-between mb-3 p-2 border rounded bg-light">';
+                contenido += '<div class="mr-2">';
+                contenido += '<div class="font-weight-bold">' + escapeHtmlEstadoCamion(datos.proxima_accion || 'Accion pendiente') + '</div>';
+                contenido += '<small class="text-muted">' + escapeHtmlEstadoCamion(datos.accion_etapa_nombre ? ('Abrir ' + datos.accion_etapa_nombre) : 'Abrir proceso actual en Operacion Planta') + '</small>';
+                contenido += '</div>';
+                contenido += '<a class="btn btn-primary btn-sm mt-2 mt-sm-0" href="' + escapeHtmlEstadoCamion(datos.accion_url) + '" title="' + escapeHtmlEstadoCamion(datos.accion_etapa_nombre ? ('Abrir ' + datos.accion_etapa_nombre) : 'Abrir proceso actual en Operacion Planta') + '">';
+                contenido += '<i class="fas fa-arrow-right mr-1"></i> Ir a la acci&oacute;n';
+                contenido += '</a>';
+                contenido += '</div>';
+            }
+            contenido += '<div class="table-responsive"><table class="table table-bordered table-striped mb-0">';
+            campos.forEach(function(campo) {
+                contenido += '<tr><th style="width: 34%;">' + escapeHtmlEstadoCamion(campo[0]) + '</th><td>' + escapeHtmlEstadoCamion(campo[1]) + '</td></tr>';
+            });
+            contenido += '<tr><th>Tiempo transcurrido</th><td><span id="estado-camion-timer">' + escapeHtmlEstadoCamion(datos.timer_duracion || '00:00:00') + '</span></td></tr>';
+            contenido += '</table></div>';
+            if (datos.url_operacion && !datos.accion_url) {
+                contenido += '<div class="mt-3"><a class="btn btn-outline-primary btn-sm" href="' + escapeHtmlEstadoCamion(datos.url_operacion) + '">Abrir Operacion Planta</a></div>';
+            }
+            contenido += '</div>';
+
+            if (window.estadoCamionTimerInterval) {
+                clearInterval(window.estadoCamionTimerInterval);
+                window.estadoCamionTimerInterval = null;
+            }
+
+            Swal.fire({
+                title: 'Estado cami\u00f3n',
+                html: contenido,
+                width: '80%',
+                confirmButtonText: 'Cerrar',
+                didOpen: function () {
+                    if (datos.timer_activo && datos.timer_inicio_ms) {
+                        var timer = document.getElementById('estado-camion-timer');
+                        window.estadoCamionTimerInterval = setInterval(function () {
+                            if (timer) {
+                                timer.textContent = formatearEstadoCamionTimer(datos.timer_inicio_ms);
+                            }
+                        }, 1000);
+                    }
+                },
+                willClose: function () {
+                    if (window.estadoCamionTimerInterval) {
+                        clearInterval(window.estadoCamionTimerInterval);
+                        window.estadoCamionTimerInterval = null;
+                    }
+                }
+            });
+        }
+
         function mostrarModalPatente(datos) {
             // Mapeo de campos a mostrar con sus etiquetas
             var campos = [

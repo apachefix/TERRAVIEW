@@ -190,6 +190,23 @@ class SapServiceLayerClient:
     def post_draft(self, payload: Dict[str, Any]) -> Dict[str, Any]:
         return self.post_json("Drafts", payload, diagnostic_context="POST Drafts")
 
+    def patch_json(self, path: str, payload: Dict[str, Any], diagnostic_context: str = "PATCH autenticado") -> Dict[str, Any]:
+        response = self._request("PATCH", path, json=payload, diagnostic_context=diagnostic_context)
+        if response.status_code >= 400:
+            self._json_or_error(response, diagnostic_context)
+        try:
+            data = response.json() if response.content else {}
+        except ValueError:
+            data = {"raw": response.text}
+        response.raise_for_status()
+        return {
+            "status_code": response.status_code,
+            "data": data,
+        }
+
+    def patch_draft(self, docentry: int, payload: Dict[str, Any]) -> Dict[str, Any]:
+        return self.patch_json(f"Drafts({int(docentry)})", payload, diagnostic_context=f"PATCH Drafts({int(docentry)})")
+
     def logout(self) -> None:
         if not self.logged_in:
             LOGGER.info("Logout omitido: no hubo login exitoso.")

@@ -59,7 +59,7 @@
                             </div>
                             <div class=" mb-2 mb-md-0" style="margin-right: 50px;margin-top: 20px;">
                                 {% if not archivados and not request.user|es_ingreso_camion %}
-                                    <a href="{% url 'pla_addone' %}" class="btn  btn-primary d-inline-flex align-items-center mr-2"><i class="fas fa-user-plus"></i>
+                                    <a href="{% url 'pla_addone' %}{% if tipo_planificacion %}?tipo={{ tipo_planificacion }}{% if empresa_id %}&_empresa_id={{ empresa_id }}{% endif %}{% elif empresa_id %}?_empresa_id={{ empresa_id }}{% endif %}" class="btn  btn-primary d-inline-flex align-items-center mr-2"><i class="fas fa-user-plus"></i>
                                         &nbsp;&nbsp; Nuevo
                                     </a>
                                 {% endif %}

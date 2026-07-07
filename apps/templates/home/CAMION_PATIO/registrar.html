@@ -89,66 +89,78 @@
                     <div class="patio-form-grid">
                         <div class="form-group">
                             <label>Empresa transporte *</label>
-                            <select name="transportista" id="patio_transportista" class="form-control" required></select>
-                            <input type="hidden" id="patio_transportista_id" name="transportista_id">
+                            <select name="transportista" id="patio_transportista" class="form-control" required>
+                                {% if form_data.transportista %}
+                                    <option value="{{ form_data.transportista }}" selected>{{ form_data.transportista }}</option>
+                                {% endif %}
+                            </select>
+                            <input type="hidden" id="patio_transportista_id" name="transportista_id" value="{{ form_data.transportista_id|default:'' }}">
                         </div>
                         <div class="form-group">
                             <label>Nombre conductor *</label>
                             <div id="patio_conductor_registrado">
-                                <select name="conductor" id="patio_conductor" class="form-control" required></select>
+                                <select name="conductor" id="patio_conductor" class="form-control" required>
+                                    {% if form_data.conductor and not form_data.conductor_manual %}
+                                        <option value="{{ form_data.conductor }}" selected>{{ form_data.conductor }}</option>
+                                    {% endif %}
+                                </select>
                             </div>
                             <div id="patio_conductor_manual_wrap" class="d-none">
                                 <input type="text" name="conductor_nombre_manual" id="patio_conductor_manual"
-                                       class="form-control" placeholder="Ingrese nombre completo">
+                                       class="form-control" placeholder="Ingrese nombre completo"
+                                       value="{{ form_data.conductor_nombre_manual|default:'' }}">
                             </div>
-                            <input type="hidden" id="patio_conductor_id" name="conductor_id">
+                            <input type="hidden" id="patio_conductor_id" name="conductor_id" value="{{ form_data.conductor_id|default:'' }}">
                             <label class="patio-manual-toggle" for="patio_conductor_manual_check">
-                                <input type="checkbox" name="conductor_manual" id="patio_conductor_manual_check" value="1">
+                                <input type="checkbox" name="conductor_manual" id="patio_conductor_manual_check" value="1" {% if form_data.conductor_manual %}checked{% endif %}>
                                 <span>Conductor no registrado</span>
                             </label>
                         </div>
                         <div class="form-group">
                             <label>Patente camion *</label>
-                            <input type="text" name="patente" id="patio_patente" class="form-control text-uppercase" list="patio_patentes_sugeridas" required>
+                            <input type="text" name="patente" id="patio_patente" class="form-control text-uppercase" list="patio_patentes_sugeridas" required value="{{ form_data.patente|default:'' }}">
                             <datalist id="patio_patentes_sugeridas"></datalist>
                         </div>
                         <div class="form-group">
-                            <label>RUT conductor</label>
-                            <input type="text" name="rut_conductor" id="patio_rut_conductor" class="form-control">
+                            <label>RUT conductor *</label>
+                            <input type="text" name="rut_conductor" id="patio_rut_conductor" class="form-control" required value="{{ form_data.rut_conductor|default:'' }}">
                         </div>
                         <div class="form-group">
-                            <label>Celular conductor <span id="patio_telefono_required" class="d-none">*</span></label>
-                            <input type="text" name="telefono_conductor" id="patio_telefono_conductor" class="form-control">
+                            <label>Celular conductor *</label>
+                            <input type="text" name="telefono_conductor" id="patio_telefono_conductor" class="form-control" required value="{{ form_data.telefono_conductor|default:'' }}">
                             <small class="form-text text-muted">Formato chileno: +569XXXXXXXX o 9XXXXXXXX.</small>
                         </div>
                         <div class="form-group">
-                            <label>Proveedor declarado</label>
-                            <input type="text" name="proveedor" class="form-control">
+                            <label>Proveedor declarado *</label>
+                            <input type="text" name="proveedor" class="form-control" required value="{{ form_data.proveedor|default:'' }}">
                         </div>
                         <div class="form-group">
-                            <label>Cliente declarado</label>
-                            <input type="text" name="cliente" class="form-control">
+                            <label>Cliente declarado *</label>
+                            <input type="text" name="cliente" class="form-control" required value="{{ form_data.cliente|default:'' }}">
                         </div>
                         <div class="form-group">
-                            <label>Numero guia/documento</label>
-                            <input type="text" name="numero_guia" class="form-control">
+                            <label>Numero guia/documento *</label>
+                            <input type="text" name="numero_guia" class="form-control" required value="{{ form_data.numero_guia|default:'' }}">
                         </div>
                         <div class="form-group">
                             <label>BL</label>
-                            <input type="text" name="bl" class="form-control">
+                            <input type="text" name="bl" class="form-control" value="{{ form_data.bl|default:'' }}">
                         </div>
                         <div class="form-group">
                             <label>Lote/contenedor</label>
-                            <input type="text" name="lote_contenedor" class="form-control">
+                            <input type="text" name="lote_contenedor" class="form-control" value="{{ form_data.lote_contenedor|default:'' }}">
                         </div>
                         <div class="form-group">
-                            <label>Insumo declarado en guia</label>
-                            <input type="text" name="insumo_declarado_guia" class="form-control">
+                            <label>Insumo declarado en guia *</label>
+                            <input type="text" name="insumo_declarado_guia" class="form-control" required
+                                   value="{{ form_data.insumo_declarado_guia|default:'' }}"
+                                   oninvalid="this.setCustomValidity('Debe ingresar el insumo declarado en guia.')"
+                                   oninput="this.setCustomValidity('')">
                         </div>
                     </div>
                     <div class="form-group">
                         <label>Observacion</label>
-                        <textarea name="observacion" class="form-control" rows="4"></textarea>
+                        <textarea name="observacion" class="form-control" rows="4">{{ form_data.observacion|default:'' }}</textarea>
                     </div>
                 </div>
             </div>
@@ -246,15 +258,17 @@
         $('#patio_patentes_sugeridas').empty();
     }
 
-    function actualizarModoConductorPatio() {
+    function actualizarModoConductorPatio(limpiar) {
+        limpiar = limpiar !== false;
         const manual = $('#patio_conductor_manual_check').is(':checked');
-        limpiarConductorPatio();
+        if (limpiar) {
+            limpiarConductorPatio();
+        }
         $('#patio_conductor_registrado').toggleClass('d-none', manual);
         $('#patio_conductor_manual_wrap').toggleClass('d-none', !manual);
         $('#patio_conductor').prop('disabled', manual).prop('required', !manual);
         $('#patio_conductor_manual').prop('disabled', !manual).prop('required', manual);
-        $('#patio_telefono_conductor').prop('required', manual);
-        $('#patio_telefono_required').toggleClass('d-none', !manual);
+        $('#patio_telefono_conductor').prop('required', true);
         if (manual) {
             $('#patio_conductor_manual').trigger('focus');
         }
@@ -329,8 +343,10 @@
 
     $(document).ready(function () {
         initPatioSelect2();
-        $('#patio_conductor_manual_check').on('change', actualizarModoConductorPatio);
-        actualizarModoConductorPatio();
+        $('#patio_conductor_manual_check').on('change', function () {
+            actualizarModoConductorPatio(true);
+        });
+        actualizarModoConductorPatio(false);
     });
 </script>
 {% endblock javascripts %}

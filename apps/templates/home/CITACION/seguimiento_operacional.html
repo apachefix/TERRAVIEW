@@ -156,7 +156,8 @@
                         <thead>
                             <tr>
                                 <th>Patente</th>
-                                <th>Nombre producto</th>
+                                <th>Tipo citaci&oacute;n</th>
+                                <th>Nombre producto SAP</th>
                                 <th>Estado del proceso</th>
                                 <th>Progreso operacional</th>
                                 <th>Tiempo en planta</th>
@@ -168,6 +169,11 @@
                             {% for camion in camiones %}
                             <tr>
                                 <td><strong>{{ camion.patente }}</strong></td>
+                                <td>
+                                    <span class="badge {% if camion.tipo_citacion == 'DESPACHO' %}badge-warning{% else %}badge-info{% endif %}">
+                                        {% if camion.tipo_citacion_label == 'RECEPCION' %}RECEPCI&Oacute;N{% else %}{{ camion.tipo_citacion_label }}{% endif %}
+                                    </span>
+                                </td>
                                 <td>{{ camion.producto }}</td>
                                 <td>
                                     <span class="tracking-state"><i class="fas fa-route"></i>{{ camion.estado_actual }}</span>
@@ -219,7 +225,7 @@
                             </tr>
                             {% empty %}
                             <tr>
-                                <td colspan="7" class="text-center text-muted py-4">No hay camiones activos dentro de planta.</td>
+                                <td colspan="8" class="text-center text-muted py-4">No hay camiones activos dentro de planta.</td>
                             </tr>
                             {% endfor %}
                         </tbody>
@@ -322,11 +328,14 @@
             <div class="row mb-3">
                 <div class="col-md-4"><strong>Patente</strong><br>${escapeHtml(detalle.patente)}</div>
                 <div class="col-md-4"><strong>Conductor</strong><br>${escapeHtml(detalle.conductor)}</div>
-                <div class="col-md-4"><strong>Producto</strong><br>${escapeHtml(detalle.producto)}</div>
+                <div class="col-md-4"><strong>Tipo citaci&oacute;n</strong><br><span class="badge ${detalle.tipo_citacion === 'DESPACHO' ? 'badge-warning' : 'badge-info'}">${escapeHtml(detalle.tipo_citacion_label === 'RECEPCION' ? 'RECEPCI\u00d3N' : (detalle.tipo_citacion_label || detalle.tipo_citacion || ''))}</span></div>
             </div>
             <div class="row mb-3">
+                <div class="col-md-4"><strong>Nombre producto SAP</strong><br>${escapeHtml(detalle.producto)}</div>
                 <div class="col-md-4"><strong>Secuencia operacional</strong><br>${escapeHtml(detalle.secuencia)}</div>
                 <div class="col-md-4"><strong>Ingreso autorizado</strong><br>${escapeHtml(detalle.ingreso_autorizado)}</div>
+            </div>
+            <div class="row mb-3">
                 <div class="col-md-4"><strong>Tiempo total en planta</strong><br>${escapeHtml(detalle.tiempo_planta)}</div>
             </div>
             <div class="mb-3">

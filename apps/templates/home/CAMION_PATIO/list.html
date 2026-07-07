@@ -68,10 +68,49 @@
         border-radius: 8px;
         padding: 10px;
         margin-bottom: 8px;
+        cursor: pointer;
     }
     .patio-citation-option.is-selected {
         border-color: #007bff;
         box-shadow: 0 0 0 3px rgba(0, 123, 255, .12);
+    }
+    .patio-citation-filter {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 6px;
+        margin: 4px 0 10px;
+    }
+    .patio-citation-filter .btn {
+        padding: 3px 10px;
+        font-size: 12px;
+        line-height: 1.35;
+    }
+    .patio-document-row {
+        display: grid;
+        grid-template-columns: 150px minmax(180px, 1fr) auto;
+        gap: 10px;
+        align-items: center;
+        border: 1px solid #e5e7eb;
+        border-radius: 6px;
+        padding: 9px;
+        margin-bottom: 8px;
+        background: #fff;
+    }
+    .patio-edit-form-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+        gap: 12px;
+    }
+    .patio-citation-heading {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        flex-wrap: wrap;
+    }
+    @media (max-width: 760px) {
+        .patio-document-row {
+            grid-template-columns: 1fr;
+        }
     }
 </style>
 {% endblock stylesheets %}
@@ -152,18 +191,29 @@
                     <h5 class="modal-title">Detalle camion en patio</h5>
                     <small class="text-muted" id="patioModalSubtitle"></small>
                 </div>
-                <button type="button" class="close" data-dismiss="modal"><span>&times;</span></button>
+                <div class="d-flex align-items-center">
+                    <button type="button" class="btn btn-sm btn-outline-primary mr-2" id="btnEditarCamionPatio" style="display:none;">
+                        <i class="fas fa-edit mr-1"></i> Editar datos
+                    </button>
+                    <button type="button" class="close" data-dismiss="modal"><span>&times;</span></button>
+                </div>
             </div>
             <div class="modal-body">
                 <div id="patioModalAlert" class="alert alert-info" style="display:none;"></div>
                 <div id="patioModalContent"></div>
                 <hr>
                 <h6>Citaciones sugeridas</h6>
+                <div class="patio-citation-filter" role="group" aria-label="Filtrar citaciones sugeridas">
+                    <button type="button" class="btn btn-sm btn-secondary active patio-citation-filter-btn" data-tipo-citacion-filtro="">Todas</button>
+                    <button type="button" class="btn btn-sm btn-outline-secondary patio-citation-filter-btn" data-tipo-citacion-filtro="DESPACHO">Despacho</button>
+                    <button type="button" class="btn btn-sm btn-outline-secondary patio-citation-filter-btn" data-tipo-citacion-filtro="RECEPCION">Recepcion</button>
+                </div>
                 <div id="patioCitacionesList"></div>
+                <div id="patioCitacionesFiltroEmpty" class="alert alert-light border py-2 mb-0" style="display:none;">No hay citaciones sugeridas para este filtro.</div>
             </div>
             <div class="modal-footer">
                 <button type="button" class="btn btn-secondary" data-dismiss="modal">Cerrar</button>
-                <button type="button" class="btn btn-success" id="btnAsociarCamionPatio" disabled>Asociar a citacion</button>
+                <button type="button" class="btn btn-success" id="btnAsociarCamionPatio" disabled>Buscar citacion</button>
             </div>
         </div>
     </div>
@@ -292,4 +342,5 @@
         abrirSelectorTipoCitacion(camionPatioId);
     });
 </script>
+{% include "home/CAMION_PATIO/patio_modal_js.html" %}
 {% endblock javascripts %}

@@ -874,12 +874,14 @@ class CITACION_DESPACHO_DETALLE(models.Model):
     CDD_COC_CLIENTE = models.CharField('OC cliente', max_length=128, null=True, blank=True)
     CDD_NCANTIDAD_INTENTADA_DESPACHAR = models.DecimalField('Cantidad intentada a despachar', max_digits=18, decimal_places=5, null=True, blank=True)
     CDD_CCONDICION_ENTREGA = models.CharField('Condicion de entrega', max_length=128, null=True, blank=True)
+    CDD_CSALIDA_DOCUMENTO = models.CharField('Salida de documento', max_length=128, null=True, blank=True)
     CDD_CEMPRESA_TRANSPORTE = models.CharField('Empresa transporte', max_length=256, null=True, blank=True)
     CDD_CCONDUCTOR = models.CharField('Conductor', max_length=256, null=True, blank=True)
     CDD_CTELEFONO_CONDUCTOR = models.CharField('Telefono conductor', max_length=64, null=True, blank=True)
     CDD_CPATENTE = models.CharField('Patente', max_length=32, null=True, blank=True)
     CDD_CORDEN_CARGA = models.CharField('Orden de carga', max_length=128, null=True, blank=True)
     CDD_CVENTANA_HORARIA_DESPACHO = models.CharField('Ventana horaria despacho', max_length=128, null=True, blank=True)
+    CDD_NPESO_INFORMADO = models.DecimalField('Peso informado', max_digits=18, decimal_places=5, null=True, blank=True)
     CDD_CBODEGA = models.CharField('Bodega', max_length=128, null=True, blank=True)
     CDD_CSECUENCIA_OPERACIONAL_CODIGO = models.CharField('Codigo secuencia operacional', max_length=128, null=True, blank=True)
     CDD_CSECUENCIA_OPERACIONAL_NOMBRE = models.CharField('Nombre secuencia operacional', max_length=256, null=True, blank=True)
@@ -895,6 +897,20 @@ class CITACION_DESPACHO_DETALLE(models.Model):
     CDD_NSAP_CANTIDAD_CONSUMIDA = models.DecimalField('Cantidad consumida SAP', max_digits=18, decimal_places=5, null=True, blank=True)
     CDD_NSAP_SALDO_CONTRATO = models.DecimalField('Saldo contrato SAP', max_digits=18, decimal_places=5, null=True, blank=True)
     CDD_CSAP_UNIDAD_MEDIDA = models.CharField('Unidad medida SAP', max_length=64, null=True, blank=True)
+    CDD_CSAP_DRAFT_DOCENTRY = models.CharField('DocEntry draft SAP despacho', max_length=128, null=True, blank=True)
+    CDD_CSAP_DRAFT_DOCNUM = models.CharField('DocNum draft SAP despacho', max_length=128, null=True, blank=True)
+    CDD_CJSON_DRAFT_REQUEST = models.TextField('JSON request draft SAP despacho', null=True, blank=True)
+    CDD_CJSON_DRAFT_RESPONSE = models.TextField('JSON response draft SAP despacho', null=True, blank=True)
+    CDD_FFECHA_DRAFT_SAP = models.DateTimeField('Fecha draft SAP despacho', null=True, blank=True)
+    CDD_USUARIO_DRAFT_SAP = models.ForeignKey(User, verbose_name='Usuario draft SAP despacho', on_delete=models.PROTECT, null=True, blank=True, related_name='despacho_drafts_sap')
+    CDD_CESTADO_DRAFT_SAP = models.CharField('Estado draft SAP despacho', max_length=64, null=True, blank=True)
+    CDD_CSAP_UPDATE_ESTADO = models.CharField('Estado update SAP despacho', max_length=64, null=True, blank=True)
+    CDD_CSAP_UPDATE_DOCENTRY = models.CharField('DocEntry update SAP despacho', max_length=128, null=True, blank=True)
+    CDD_CJSON_UPDATE_REQUEST = models.TextField('JSON request update SAP despacho', null=True, blank=True)
+    CDD_CJSON_UPDATE_RESPONSE = models.TextField('JSON response update SAP despacho', null=True, blank=True)
+    CDD_FFECHA_UPDATE_SAP = models.DateTimeField('Fecha update SAP despacho', null=True, blank=True)
+    CDD_USUARIO_UPDATE_SAP = models.ForeignKey(User, verbose_name='Usuario update SAP despacho', on_delete=models.PROTECT, null=True, blank=True, related_name='despacho_updates_sap')
+    CDD_NSAP_PESO_SALIDA = models.DecimalField('Peso salida SAP despacho', max_digits=18, decimal_places=5, null=True, blank=True)
     CDD_FFECHACREACION = models.DateTimeField('Fecha creacion', auto_now_add=True)
     CDD_FFECHAACTUALIZACION = models.DateTimeField('Fecha actualizacion', auto_now=True)
 
@@ -1174,11 +1190,13 @@ class CITACION_DOCUMENTO(models.Model):
     TIPO_GUIA = 'GUIA'
     TIPO_TICKET_ORIGEN = 'TICKET_ORIGEN'
     TIPO_SERNAPESCA = 'SERNAPESCA'
+    TIPO_IMAGEN_SELLO_DESPACHO = 'IMAGEN_SELLO_DESPACHO'
 
     TIPOS_INICIALES = (
         (TIPO_GUIA, 'Guia'),
         (TIPO_TICKET_ORIGEN, 'Ticket origen'),
         (TIPO_SERNAPESCA, 'Sernapesca'),
+        (TIPO_IMAGEN_SELLO_DESPACHO, 'Imagen sello despacho'),
     )
 
     CI_NID = models.ForeignKey(

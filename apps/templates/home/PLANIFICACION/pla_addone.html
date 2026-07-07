@@ -694,11 +694,23 @@
 
                         <div class="col-md-3 mb-3">
                             <div class="resumen-card">
-                                <div class="label">Estado</div>
-                                <div class="value">En preparación</div>
+                                <div class="label">Tipo planificación</div>
+                                <div class="value">
+                                    {% if tipo_planificacion_label %}
+                                        {{ tipo_planificacion_label }}
+                                    {% else %}
+                                        Sin definir
+                                    {% endif %}
+                                </div>
                             </div>
                         </div>
                     </div>
+
+                    {% if not tipo_planificacion %}
+                    <div class="alert alert-warning">
+                        Tipo de planificación no definido. Ingrese desde el menú de Recepción o Despacho para bloquear la creación al flujo correspondiente.
+                    </div>
+                    {% endif %}
 
                     <div class="alert-etapa">
                         Las citaciones agregadas en esta pantalla aún no están guardadas en base de datos.
@@ -712,6 +724,19 @@
                         </div>
 
                         <div class="acciones-planificacion-botones">
+                            {% if tipo_planificacion == 'RECEPCION' %}
+                            <button class="btn btn-primary"
+                                    type="button"
+                                    onclick="abrirModalRecepcion()">
+                                Planificación
+                            </button>
+                            {% elif tipo_planificacion == 'DESPACHO' %}
+                            <button class="btn btn-primary"
+                                    type="button"
+                                    onclick="abrirModalDespacho()">
+                                Crear citación
+                            </button>
+                            {% else %}
                             <div class="dropdown d-inline-block">
                                 <button class="btn btn-primary dropdown-toggle"
                                         type="button"
@@ -730,6 +755,7 @@
                                     </button>
                                 </div>
                             </div>
+                            {% endif %}
 
                             <a class="btn btn-danger text-white"
                                onclick="window.history.go(-1); return false;">
@@ -768,14 +794,16 @@
                                         <th>Insumo</th>
                                         <th>Pedido SAP</th>
                                         <th>Proveedor</th>
+                                        {% if tipo_planificacion != 'DESPACHO' %}
                                         <th>BL</th>
+                                        {% endif %}
                                         <th>Cantidad disponible</th>
                                         <th>Estanque destino</th>
                                     </tr>
                                 </thead>
                                 <tbody id="tbody_citaciones_temporales">
                                     <tr id="fila_sin_citaciones">
-                                        <td colspan="14" class="text-center text-muted">
+                                        <td colspan="{% if tipo_planificacion == 'DESPACHO' %}13{% else %}14{% endif %}" class="text-center text-muted">
                                             Aún no existen citaciones agregadas.
                                         </td>
                                     </tr>
@@ -1337,22 +1365,41 @@
 
                         <div class="col-lg-4 col-md-6">
                             <div class="form-group">
-                                <label>Empresa Transporte</label>
-                                <input type="text" class="form-control" id="despacho_empresa_transporte" name="empresa_transporte">
+                                <label class="required-label">Empresa Transporte</label>
+                                <select class="form-control" id="despacho_empresa_transporte" name="empresa_transporte" required></select>
+                                <input type="hidden" id="despacho_empresa_transporte_id" name="empresa_transporte_id">
+                                <input type="text"
+                                       class="form-control d-none mt-2"
+                                       id="despacho_empresa_transporte_manual"
+                                       name="empresa_transporte_manual"
+                                       placeholder="Ingrese empresa transporte">
                             </div>
                         </div>
 
                         <div class="col-lg-4 col-md-6">
                             <div class="form-group">
-                                <label>Patente</label>
-                                <input type="text" class="form-control" id="despacho_patente" name="patente">
+                                <label class="required-label">Conductor</label>
+                                <select class="form-control" id="despacho_conductor" name="conductor" required></select>
+                                <input type="hidden" id="despacho_conductor_id" name="conductor_id">
+                                <input type="text"
+                                       class="form-control d-none mt-2"
+                                       id="despacho_conductor_manual"
+                                       name="conductor_manual"
+                                       placeholder="Ingrese nombre conductor">
+                                <small class="form-help-text d-none" id="despacho_conductor_mensaje">
+                                    No hay conductores registrados para esta empresa transporte. Puede ingresarlo manualmente.
+                                </small>
                             </div>
                         </div>
 
                         <div class="col-lg-4 col-md-6">
                             <div class="form-group">
-                                <label>Conductor</label>
-                                <input type="text" class="form-control" id="despacho_conductor" name="conductor">
+                                <label class="required-label">Patente</label>
+                                <input type="text" class="form-control text-uppercase" id="despacho_patente" name="patente" required>
+                                <label class="d-inline-flex align-items-center mt-2 mb-0" style="gap: 6px; font-size: 12px; color: #6c757d;">
+                                    <input type="checkbox" id="despacho_ingreso_manual" value="1">
+                                    <span>Ingreso manual</span>
+                                </label>
                             </div>
                         </div>
 
@@ -1363,6 +1410,18 @@
                                     <option value="">Seleccione</option>
                                     <option value="Terramar">Terramar</option>
                                     <option value="Cliente">Cliente</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <div class="col-lg-4 col-md-6">
+                            <div class="form-group">
+                                <label class="required-label">Salida de documento</label>
+                                <select class="form-control" id="despacho_salida_documento" name="salida_documento" required>
+                                    <option value="">Seleccione</option>
+                                    <option value="Factura de cliente">Factura de cliente</option>
+                                    <option value="Gu&iacute;a de despacho">Gu&iacute;a de despacho</option>
+                                    <option value="Factura anticipada">Factura anticipada</option>
                                 </select>
                             </div>
                         </div>
@@ -1398,6 +1457,10 @@
 <script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
 
 <script>
+    const TIPO_PLANIFICACION_BLOQUEADO = '{{ tipo_planificacion|default:"" }}';
+    const MOSTRAR_BL_PLANIFICACION = TIPO_PLANIFICACION_BLOQUEADO !== 'DESPACHO';
+    const FORMATOS_DESPACHO_PERMITIDOS = ['Cisterna', 'Contenedor', 'Isotank', 'IBC'];
+
     let citacionesTemporales = [];
     let opcionesSecuenciaOriginales = [];
     let clientesSapCargados = false;
@@ -1542,6 +1605,7 @@
             '#despacho_cliente',
             '#despacho_formato',
             '#despacho_transportado_por',
+            '#despacho_salida_documento',
             '#despacho_secuencia_id'
         ];
 
@@ -1555,6 +1619,9 @@
                 });
             }
         });
+
+        initDespachoTransporteSelect2();
+        actualizarModoDespachoTransporte();
 
         if ($('#despacho_sap_busqueda').length) {
             $('#despacho_sap_busqueda').select2({
@@ -1652,6 +1719,15 @@
     });
 
     function abrirModalRecepcion() {
+        if (TIPO_PLANIFICACION_BLOQUEADO && TIPO_PLANIFICACION_BLOQUEADO !== 'RECEPCION') {
+            swalFront({
+                title: 'Tipo no permitido',
+                text: 'Esta planificación está bloqueada para Despacho.',
+                icon: 'warning'
+            });
+            return;
+        }
+
         setValue('tipo', 'RECEPCION');
         $('#tipo').prop('disabled', true).trigger('change');
         filtrarSecuenciasPorTipo();
@@ -1793,6 +1869,15 @@
     }
 
     function abrirModalDespacho() {
+        if (TIPO_PLANIFICACION_BLOQUEADO && TIPO_PLANIFICACION_BLOQUEADO !== 'DESPACHO') {
+            swalFront({
+                title: 'Tipo no permitido',
+                text: 'Esta planificación está bloqueada para Recepción.',
+                icon: 'warning'
+            });
+            return;
+        }
+
         const fechaDespacho = document.getElementById('despacho_fecha');
 
         if (fechaDespacho && !fechaDespacho.value) {
@@ -1802,7 +1887,159 @@
         $('#ModalCrearDespacho').modal('show');
     }
 
+    function despachoIngresoManualActivo() {
+        return $('#despacho_ingreso_manual').is(':checked');
+    }
+
+    function empresaTransporteDespachoValor() {
+        return despachoIngresoManualActivo()
+            ? getValue('despacho_empresa_transporte_manual').trim()
+            : ($('#despacho_empresa_transporte').val() || '').trim();
+    }
+
+    function conductorDespachoValor() {
+        return despachoIngresoManualActivo()
+            ? getValue('despacho_conductor_manual').trim()
+            : ($('#despacho_conductor').val() || '').trim();
+    }
+
+    function limpiarConductorDespacho() {
+        $('#despacho_conductor').val(null).trigger('change');
+        $('#despacho_conductor_id').val('');
+        $('#despacho_conductor_mensaje').addClass('d-none');
+        setValue('despacho_conductor_manual', '');
+        setValue('despacho_patente', '');
+    }
+
+    function actualizarModoDespachoTransporte() {
+        const manual = despachoIngresoManualActivo();
+
+        $('#despacho_empresa_transporte').prop('disabled', manual).prop('required', !manual);
+        $('#despacho_conductor').prop('disabled', manual).prop('required', !manual);
+        $('#despacho_empresa_transporte_manual').toggleClass('d-none', !manual).prop('disabled', !manual).prop('required', manual);
+        $('#despacho_conductor_manual').toggleClass('d-none', !manual).prop('disabled', !manual).prop('required', manual);
+        $('#despacho_conductor_mensaje').toggleClass('d-none', manual || !$('#despacho_conductor_mensaje').data('visible-auto'));
+
+        if (manual) {
+            $('#despacho_empresa_transporte').val(null).trigger('change');
+            $('#despacho_conductor').val(null).trigger('change');
+            $('#despacho_empresa_transporte_id').val('');
+            $('#despacho_conductor_id').val('');
+            $('#despacho_empresa_transporte_manual').trigger('focus');
+        } else {
+            setValue('despacho_empresa_transporte_manual', '');
+            setValue('despacho_conductor_manual', '');
+        }
+    }
+
+    function initDespachoTransporteSelect2() {
+        if (!$.fn.select2) return;
+
+        $('#despacho_empresa_transporte').select2({
+            placeholder: 'Seleccione empresa transporte',
+            allowClear: true,
+            width: '100%',
+            dropdownParent: $('#ModalCrearDespacho'),
+            ajax: {
+                url: '{% url "ajax_transportistas_ingreso_camion" %}',
+                dataType: 'json',
+                delay: 250,
+                data: function (params) {
+                    return {
+                        q: params.term || '',
+                        empresa_id: getValue('empresa_id')
+                    };
+                },
+                processResults: function (data) {
+                    return { results: data.results || [] };
+                }
+            },
+            language: {
+                noResults: function () {
+                    return 'No se encontraron empresas transportistas registradas.';
+                },
+                searching: function () {
+                    return 'Buscando transportistas...';
+                }
+            }
+        }).on('select2:select', function (event) {
+            const item = event.params.data || {};
+            $('#despacho_empresa_transporte_id').val(item.socionegocio_id || '');
+            limpiarConductorDespacho();
+        }).on('select2:clear', function () {
+            $('#despacho_empresa_transporte_id').val('');
+            limpiarConductorDespacho();
+        });
+
+        $('#despacho_conductor').select2({
+            placeholder: 'Seleccione conductor',
+            allowClear: true,
+            width: '100%',
+            dropdownParent: $('#ModalCrearDespacho'),
+            ajax: {
+                url: '{% url "ajax_conductores_ingreso_camion" %}',
+                dataType: 'json',
+                delay: 250,
+                data: function (params) {
+                    return {
+                        q: params.term || '',
+                        empresa_id: getValue('empresa_id'),
+                        transportista_id: $('#despacho_empresa_transporte_id').val(),
+                        transportista: $('#despacho_empresa_transporte').val() || ''
+                    };
+                },
+                processResults: function (data) {
+                    const results = data.results || [];
+                    const sinConductores = Boolean($('#despacho_empresa_transporte').val()) && results.length === 0;
+                    $('#despacho_conductor_mensaje')
+                        .data('visible-auto', sinConductores)
+                        .toggleClass('d-none', !sinConductores || despachoIngresoManualActivo());
+                    return { results: results };
+                }
+            },
+            language: {
+                noResults: function () {
+                    return 'No hay conductores registrados para esta empresa transporte. Puede ingresarlo manualmente.';
+                },
+                searching: function () {
+                    return 'Buscando conductores...';
+                }
+            }
+        }).on('select2:opening', function (event) {
+            if (!despachoIngresoManualActivo() && !$('#despacho_empresa_transporte').val()) {
+                event.preventDefault();
+                swalFront({
+                    title: 'Atención',
+                    text: 'Debe seleccionar una empresa transporte antes de buscar conductores.',
+                    icon: 'warning'
+                });
+            }
+        }).on('select2:select', function (event) {
+            const item = event.params.data || {};
+            $('#despacho_conductor_id').val(item.conductor_id || '');
+            setValue('despacho_patente', item.patente_sugerida || item.patente || '');
+            $('#despacho_conductor_mensaje').data('visible-auto', false).addClass('d-none');
+        }).on('select2:clear', function () {
+            $('#despacho_conductor_id').val('');
+            setValue('despacho_patente', '');
+        });
+
+        $('#despacho_ingreso_manual').on('change', function () {
+            limpiarConductorDespacho();
+            actualizarModoDespachoTransporte();
+        });
+    }
+
     function validarTipoPlanificacion(tipoOperacion) {
+        if (TIPO_PLANIFICACION_BLOQUEADO && TIPO_PLANIFICACION_BLOQUEADO !== tipoOperacion) {
+            swalFront({
+                title: 'Tipo no permitido',
+                text: 'Esta pantalla solo permite crear citaciones de tipo ' + TIPO_PLANIFICACION_BLOQUEADO + '.',
+                icon: 'warning'
+            });
+            return false;
+        }
+
         if (!citacionesTemporales.length) return true;
 
         const tipoActual = citacionesTemporales[0].tipo_operacion;
@@ -2255,6 +2492,11 @@
             return;
         }
 
+        if (selector === '#despacho_formato' && !FORMATOS_DESPACHO_PERMITIDOS.includes(String(value))) {
+            select.val('').trigger('change');
+            return;
+        }
+
         let existe = false;
         select.find('option').each(function () {
             if ($(this).val() === String(value)) {
@@ -2464,6 +2706,11 @@
         const secuenciaSelect = $('#despacho_secuencia_id');
         const formatoSelect = $('#despacho_formato');
         const transportadoSelect = $('#despacho_transportado_por');
+        const salidaDocumentoSelect = $('#despacho_salida_documento');
+        const empresaTransporte = empresaTransporteDespachoValor();
+        const conductor = conductorDespachoValor();
+        const patente = getValue('despacho_patente').trim().toUpperCase();
+        const ingresoManualTransporte = despachoIngresoManualActivo();
 
         const citacion = {
             cliente: clienteSelect.val() || '',
@@ -2492,12 +2739,19 @@
             saldo_contrato_sap: getValue('despacho_saldo_contrato_sap'),
             cantidad_intentada_despachar: getValue('despacho_cantidad_intentada'),
             estado_saldo_sap: getValue('despacho_estado_saldo_sap'),
+            salida_documento: salidaDocumentoSelect.val() || '',
 
             proveedor: '',
-            proveedor_nombre: getValue('despacho_empresa_transporte'),
+            proveedor_nombre: empresaTransporte,
             proveedor_codigo: '',
+            empresa_transporte: empresaTransporte,
+            empresa_transporte_id: ingresoManualTransporte ? '' : getValue('despacho_empresa_transporte_id'),
+            conductor: conductor,
+            conductor_id: ingresoManualTransporte ? '' : getValue('despacho_conductor_id'),
+            ingreso_manual_transporte: ingresoManualTransporte,
+            patente: patente,
 
-            bl: getValue('despacho_patente'),
+            bl: '',
             cantidad_disponible: getValue('despacho_saldo_contrato_sap'),
             docentry: getValue('despacho_abs_id_sap'),
             productor: '',
@@ -2512,11 +2766,15 @@
                 orden_carga: getValue('despacho_orden_carga'),
                 ventana_horaria: getValue('despacho_ventana_horaria'),
                 bodega: getValue('despacho_bodega'),
-                empresa_transporte: getValue('despacho_empresa_transporte'),
-                patente: getValue('despacho_patente'),
-                conductor: getValue('despacho_conductor'),
+                empresa_transporte: empresaTransporte,
+                empresa_transporte_id: ingresoManualTransporte ? '' : getValue('despacho_empresa_transporte_id'),
+                conductor: conductor,
+                conductor_id: ingresoManualTransporte ? '' : getValue('despacho_conductor_id'),
+                patente: patente,
+                ingreso_manual_transporte: ingresoManualTransporte,
                 condicion_entrega: transportadoSelect.val() || '',
                 transportado_por: transportadoSelect.val() || '',
+                salida_documento: salidaDocumentoSelect.val() || '',
                 sap: {
                     abs_id: getValue('despacho_abs_id_sap'),
                     numero_acuerdo: getValue('despacho_numero_acuerdo_sap'),
@@ -2566,7 +2824,7 @@
         if (citacionesTemporales.length === 0) {
             tbody.innerHTML = `
                 <tr id="fila_sin_citaciones">
-                    <td colspan="14" class="text-center text-muted">
+                    <td colspan="${MOSTRAR_BL_PLANIFICACION ? 14 : 13}" class="text-center text-muted">
                         Aún no existen citaciones agregadas.
                     </td>
                 </tr>
@@ -2595,7 +2853,7 @@
                 <td>${escapeHtml(item.insumo)}</td>
                 <td>${escapeHtml(item.pedido)}</td>
                 <td>${escapeHtml(item.proveedor_nombre)}</td>
-                <td>${escapeHtml(item.bl || '')}</td>
+                ${MOSTRAR_BL_PLANIFICACION ? `<td>${escapeHtml(item.bl || '')}</td>` : ''}
                 <td>${escapeHtml(item.cantidad_disponible)}</td>
                 <td>${escapeHtml(item.estanque_destino_texto)}</td>
             `;
@@ -2836,6 +3094,42 @@
             return false;
         }
 
+        if (!$('#despacho_salida_documento').val()) {
+            swalFront({
+                title: 'Atencion',
+                text: 'Debe seleccionar Salida de documento.',
+                icon: 'warning'
+            });
+            return false;
+        }
+
+        if (!empresaTransporteDespachoValor()) {
+            swalFront({
+                title: 'Atencion',
+                text: 'Debe ingresar o seleccionar una empresa transporte.',
+                icon: 'warning'
+            });
+            return false;
+        }
+
+        if (!conductorDespachoValor()) {
+            swalFront({
+                title: 'Atencion',
+                text: 'Debe ingresar o seleccionar un conductor.',
+                icon: 'warning'
+            });
+            return false;
+        }
+
+        if (!getValue('despacho_patente').trim()) {
+            swalFront({
+                title: 'Atencion',
+                text: 'Debe ingresar una patente.',
+                icon: 'warning'
+            });
+            return false;
+        }
+
         return true;
     }
 
@@ -2869,7 +3163,7 @@
             cantidadRepetir.value = 1;
         }
 
-        $('#tipo').prop('disabled', false);
+        $('#tipo').prop('disabled', Boolean(TIPO_PLANIFICACION_BLOQUEADO));
     }
 
     function limpiarFormularioDespacho() {
@@ -2882,7 +3176,10 @@
         [
             '#despacho_cliente',
             '#despacho_formato',
+            '#despacho_empresa_transporte',
+            '#despacho_conductor',
             '#despacho_transportado_por',
+            '#despacho_salida_documento',
             '#despacho_secuencia_id',
             '#despacho_sap_busqueda'
         ].forEach(function (selector) {
@@ -2891,6 +3188,14 @@
             }
         });
 
+        $('#despacho_ingreso_manual').prop('checked', false);
+        $('#despacho_empresa_transporte_id').val('');
+        $('#despacho_conductor_id').val('');
+        setValue('despacho_empresa_transporte_manual', '');
+        setValue('despacho_conductor_manual', '');
+        setValue('despacho_patente', '');
+        $('#despacho_conductor_mensaje').data('visible-auto', false).addClass('d-none');
+        actualizarModoDespachoTransporte();
         limpiarDatosSapDespacho(false);
     }
 

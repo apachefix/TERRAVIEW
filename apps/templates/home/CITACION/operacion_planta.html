@@ -865,6 +865,211 @@
         color: #8a97a3;
     }
 
+    .sap-info-sections {
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+    }
+
+    .sap-info-section {
+        padding: 12px;
+        border: 1px solid rgba(11, 37, 69, 0.09);
+        border-radius: 8px;
+        background: rgba(248, 251, 253, 0.72);
+    }
+
+    .sap-info-section-title {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        margin-bottom: 8px;
+        color: #0b2545;
+        font-size: 12px;
+        font-weight: 900;
+        text-transform: uppercase;
+    }
+
+    .sap-info-section-title:before {
+        content: "";
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+        background: #158345;
+        box-shadow: 0 0 0 3px rgba(21, 131, 69, 0.12);
+    }
+
+    .sap-info-card {
+        min-height: 64px;
+        height: 100%;
+        padding: 0.65rem 0.85rem;
+        border: 1px solid rgba(11, 37, 69, 0.10);
+        border-radius: 8px;
+        background: #fff;
+        box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.84);
+    }
+
+    .sap-info-label {
+        margin-bottom: 0.25rem;
+        color: #52677a;
+        font-size: 0.72rem;
+        font-weight: 800;
+        line-height: 1.15;
+        text-transform: uppercase;
+    }
+
+    .sap-info-value {
+        color: #0b2545;
+        font-size: 0.95rem;
+        font-weight: 900;
+        line-height: 1.15;
+        overflow-wrap: anywhere;
+    }
+
+    .sap-info-value.is-muted {
+        color: #8a97a3;
+        font-weight: 800;
+    }
+
+    .op-compact-action {
+        width: auto;
+        min-width: 280px;
+        max-width: min(100%, 360px);
+        min-height: 46px;
+        padding: 0 18px 0 56px;
+        font-size: 12px;
+    }
+
+    .op-compact-action:before {
+        width: 42px;
+    }
+
+    .op-compact-action:after {
+        left: 62px;
+    }
+
+    .op-compact-action .op-glass-icon {
+        left: 17px;
+    }
+
+    .operacion-bodega-externa-ingreso-box .sap-info-sections {
+        gap: 8px;
+    }
+
+    .operacion-bodega-externa-ingreso-box .op-cycle-header {
+        margin-bottom: 10px;
+    }
+
+    .operacion-bodega-externa-ingreso-box .sap-info-section {
+        padding: 10px;
+    }
+
+    .operacion-bodega-externa-ingreso-box .sap-info-card {
+        min-height: 58px;
+        padding: 0.55rem 0.75rem;
+    }
+
+    .operacion-bodega-externa-ingreso-box .sap-info-label {
+        font-size: 0.68rem;
+        margin-bottom: 0.18rem;
+    }
+
+    .operacion-bodega-externa-ingreso-box .sap-info-value {
+        font-size: 0.9rem;
+    }
+
+    .operacion-bodega-externa-ingreso-box .op-cycle-runtime {
+        grid-template-columns: 92px minmax(0, 1fr);
+        gap: 14px;
+        margin-top: 10px !important;
+        padding: 12px 14px;
+    }
+
+    .operacion-bodega-externa-ingreso-box .op-hourglass {
+        width: 82px;
+        height: 104px;
+        transform: none;
+    }
+
+    .operacion-bodega-externa-ingreso-box .op-wait-clock-time {
+        font-size: 26px;
+    }
+
+    .operacion-bodega-externa-ingreso-box .op-dashboard-card-title {
+        font-size: 12px;
+        margin-bottom: 2px;
+    }
+
+    .operacion-bodega-externa-ingreso-box .op-dashboard-muted {
+        font-size: 12px;
+        line-height: 1.25;
+    }
+
+    .operacion-bodega-externa-ingreso-box .op-update-strip {
+        margin-top: 10px !important;
+        padding: 9px 12px;
+    }
+
+    .op-close-load-grid {
+        display: grid;
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+        gap: 12px;
+    }
+
+    .op-close-load-field {
+        min-height: 78px;
+    }
+
+    .op-close-load-field .form-control {
+        min-height: 42px;
+        font-weight: 800;
+    }
+
+    .op-seal-images {
+        margin-top: 14px;
+        padding: 14px;
+        border: 1px solid rgba(11, 37, 69, 0.10);
+        border-radius: 8px;
+        background: rgba(255, 255, 255, 0.72);
+        box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.78);
+    }
+
+    .op-seal-image-grid {
+        display: grid;
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+        gap: 12px;
+    }
+
+    .op-seal-image-item {
+        display: block;
+        overflow: hidden;
+        border: 1px solid rgba(11, 37, 69, 0.10);
+        border-radius: 8px;
+        background: #fff;
+        color: #0b2545;
+        text-decoration: none;
+    }
+
+    .op-seal-image-item:hover {
+        color: #0057d9;
+        text-decoration: none;
+    }
+
+    .op-seal-image-item img {
+        display: block;
+        width: 100%;
+        aspect-ratio: 4 / 3;
+        object-fit: cover;
+        background: #eef3f7;
+    }
+
+    .op-seal-image-caption {
+        padding: 8px 10px;
+        color: #52616f;
+        font-size: 12px;
+        font-weight: 800;
+        overflow-wrap: anywhere;
+    }
+
     .op-discharge-observations {
         margin-top: 14px;
     }
@@ -1266,6 +1471,122 @@
         max-width: 360px;
     }
 
+    .op-dispatch-cycle-grid {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr);
+        gap: 14px;
+        align-items: stretch;
+        margin-top: 16px;
+    }
+
+    .op-dispatch-process-card {
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+        min-height: 210px;
+        height: 100%;
+        padding: 16px;
+        border: 1px solid rgba(11, 37, 69, 0.10);
+        border-radius: 8px;
+        background: rgba(255, 255, 255, 0.78);
+        box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.86), 0 8px 18px rgba(11, 37, 69, 0.07);
+    }
+
+    .op-dispatch-process-card.is-started {
+        border-color: rgba(21, 131, 69, 0.28);
+        background: linear-gradient(180deg, rgba(248, 253, 250, 0.98) 0%, rgba(234, 242, 255, 0.94) 100%);
+    }
+
+    .op-dispatch-process-title {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        color: #0b2545;
+        font-size: 14px;
+        font-weight: 900;
+        text-transform: uppercase;
+    }
+
+    .op-dispatch-process-icon {
+        width: 34px;
+        height: 34px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        border-radius: 8px;
+        color: #fff;
+        background: linear-gradient(135deg, #35a8f2 0%, #146bb9 100%);
+        flex: 0 0 34px;
+    }
+
+    .op-dispatch-process-card.is-started .op-dispatch-process-icon {
+        background: linear-gradient(135deg, #44c979 0%, #158345 100%);
+    }
+
+    .op-dispatch-process-card.is-finalized .op-dispatch-process-icon {
+        background: linear-gradient(135deg, #2f80ed 0%, #164f9f 100%);
+    }
+
+    .op-dispatch-runtime {
+        display: grid;
+        gap: 10px;
+        padding: 12px;
+        border: 1px solid rgba(21, 131, 69, 0.16);
+        border-radius: 8px;
+        background: rgba(255, 255, 255, 0.70);
+    }
+
+    .op-dispatch-runtime.is-finalized {
+        border-color: rgba(47, 128, 237, 0.20);
+        background: rgba(245, 249, 255, 0.82);
+    }
+
+    .op-dispatch-runtime-actions {
+        display: flex;
+        justify-content: flex-start;
+        margin-top: 2px;
+    }
+
+    .op-dispatch-actions {
+        margin-top: auto;
+    }
+
+    .op-dispatch-complete-actions {
+        margin-top: 16px;
+        max-width: 360px;
+    }
+
+    @media (min-width: 768px) {
+        .op-dispatch-cycle-grid {
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+        }
+
+        .op-dispatch-cycle-grid[data-process-count="3"] .op-dispatch-process-card:last-child {
+            grid-column: 1 / -1;
+            justify-self: center;
+            width: 100%;
+            max-width: calc((100% - 14px) / 2);
+        }
+    }
+
+    @media (min-width: 1200px) {
+        .op-dispatch-cycle-grid {
+            grid-template-columns: repeat(3, minmax(0, 1fr));
+        }
+
+        .op-dispatch-cycle-grid[data-process-count="3"] .op-dispatch-process-card:last-child {
+            grid-column: auto;
+            max-width: none;
+        }
+    }
+
+    @media (max-width: 767.98px) {
+        .op-dispatch-cycle-grid[data-process-count="3"] .op-dispatch-process-card:last-child {
+            grid-column: auto;
+            max-width: none;
+        }
+    }
+
     .op-exit-panel {
         display: block;
         margin-bottom: 16px;
@@ -1411,6 +1732,8 @@
         .op-result-dashboard-grid,
         .op-discharge-grid,
         .op-discharge-status-row,
+        .op-close-load-grid,
+        .op-seal-image-grid,
         .op-cycle-summary-grid,
         .op-cycle-options,
         .op-exit-grid,
@@ -1712,6 +2035,90 @@
         color: #155f92;
         font-weight: 700;
         font-size: 12px;
+    }
+
+    .op-sap-draft-status.is-done {
+        background: #e6f8ed;
+        color: #147a43;
+    }
+
+    .op-sap-draft-status.is-error {
+        background: #fff1f1;
+        color: #b42318;
+    }
+
+    .operacion-sap-despacho-update-box {
+        padding: 14px;
+    }
+
+    .operacion-sap-despacho-update-box .op-sap-draft-pre {
+        min-height: 128px;
+        max-height: 280px;
+        font-size: 11px;
+    }
+
+    .sap-update-result-card {
+        border: 1px solid #d9e2ef;
+        border-radius: 8px;
+        background: #ffffff;
+        padding: 12px 14px;
+        margin-top: 10px;
+    }
+
+    .sap-update-result-card.is-ok {
+        border-color: #b8ebcc;
+        background: #f3fbf6;
+    }
+
+    .sap-update-result-card.is-error {
+        border-color: #ffd0d0;
+        background: #fff7f7;
+    }
+
+    .sap-update-result-title {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 10px;
+        margin-bottom: 6px;
+        font-weight: 800;
+        color: #0B2545;
+    }
+
+    .sap-update-result-badge {
+        border-radius: 999px;
+        padding: 4px 9px;
+        font-size: 11px;
+        font-weight: 800;
+        background: #eef3f8;
+        color: #52677a;
+    }
+
+    .sap-update-result-badge.is-ok {
+        background: #d9f6e4;
+        color: #147a43;
+    }
+
+    .sap-update-result-badge.is-error {
+        background: #ffe1e1;
+        color: #b42318;
+    }
+
+    .sap-update-result-line {
+        color: #334155;
+        font-size: 12px;
+        line-height: 1.45;
+    }
+
+    .sap-update-tech-details {
+        margin-top: 10px;
+        font-size: 12px;
+    }
+
+    .sap-update-tech-details summary {
+        cursor: pointer;
+        color: #155f92;
+        font-weight: 800;
     }
 
     .operacion-doc-empty {
@@ -2099,7 +2506,7 @@
                         <ul class="nav nav-pills mb-3" id="operacion-tabs" role="tablist">
                             {% for paso in pasos %}
                             <li class="nav-item">
-                                <a class="nav-link op-etapa-btn {% if paso.activo %}active{% elif paso.estado == 'COMPLETADO' %}etapa-completada{% else %}etapa-pendiente{% endif %}" id="tab-{{ forloop.counter }}" data-toggle="pill" href="#paso-{{ forloop.counter }}" role="tab">
+                                <a class="nav-link op-etapa-btn {% if paso.activo %}active{% elif paso.estado == 'COMPLETADO' %}etapa-completada{% else %}etapa-pendiente{% endif %}" id="tab-{{ forloop.counter }}" data-toggle="pill" href="#paso-{{ forloop.counter }}" role="tab" data-etapa-codigo="{{ paso.etapa_codigo }}" data-etapa-nombre="{{ paso.nombre }}">
                                     <span class="op-etapa-indicador" aria-hidden="true"></span>
                                     <span class="op-etapa-contenido">
                                         <span class="op-etapa-nombre">{{ paso.nombre_visible|default:paso.nombre }}</span>
@@ -2111,7 +2518,7 @@
 
                         <div class="tab-content">
                             {% for paso in pasos %}
-                            <div class="tab-pane fade {% if paso.activo %}show active{% endif %}" id="paso-{{ forloop.counter }}" role="tabpanel">
+                            <div class="tab-pane fade {% if paso.activo %}show active{% endif %}" id="paso-{{ forloop.counter }}" role="tabpanel" data-etapa-codigo="{{ paso.etapa_codigo }}" data-etapa-nombre="{{ paso.nombre }}">
                                 <div class="border rounded p-3">
                                     <div class="d-flex flex-wrap justify-content-between align-items-center mb-2">
                                         <div>
@@ -2252,7 +2659,8 @@
                                     {% if paso.requiere_accion_toma_muestra %}
                                     <div class="op-action-bar operacion-toma-muestra-box"
                                          data-paso="{{ paso.nombre }}"
-                                         data-accion-registrada="{% if paso.accion_toma_muestra.registrada %}true{% else %}false{% endif %}">
+                                         data-accion-registrada="{% if paso.accion_toma_muestra.registrada %}true{% else %}false{% endif %}"
+                                         data-vapor-activo="{% if paso.tiempo_vapor.en_proceso %}true{% else %}false{% endif %}">
                                         <div class="op-action-stack">
                                             <button type="button"
                                                     class="op-glass-button btn-accion-toma-muestra {% if paso.accion_toma_muestra.registrada %}is-success{% elif paso.accion_toma_muestra.tipo == 'analisis' %}is-secondary{% else %}is-primary{% endif %}"
@@ -2281,6 +2689,53 @@
                                                 Registre esta accion antes de finalizar Toma de muestra.
                                             {% endif %}
                                         </div>
+                                        {% if paso.accion_toma_muestra.tipo == 'vapor' and paso.tiempo_vapor.iniciada %}
+                                            <div class="op-cycle-runtime op-vapor-runtime">
+                                                <div class="op-hourglass {% if paso.tiempo_vapor.finalizada %}descarga-finalizada{% else %}descarga-activa{% endif %}">
+                                                    <div class="op-hourglass-inner">
+                                                        <span class="op-hourglass-neck"></span>
+                                                        <span class="op-hourglass-glass-shine"></span>
+                                                        <span class="op-hourglass-sand-layer">
+                                                            <span class="op-hourglass-sand-top"></span>
+                                                            <span class="op-hourglass-flow"></span>
+                                                            <span class="op-hourglass-sand-bottom"></span>
+                                                        </span>
+                                                    </div>
+                                                </div>
+                                                <div>
+                                                    <div class="op-dashboard-card-title">
+                                                        {% if paso.tiempo_vapor.finalizada %}Vapor finalizado{% else %}Vapor en proceso{% endif %}
+                                                    </div>
+                                                    <div class="op-dashboard-muted">Tiempo en vapor</div>
+                                                    <div class="op-wait-clock-time op-vapor-live-time"
+                                                         {% if paso.tiempo_vapor.en_proceso %}data-vapor-start="{{ paso.tiempo_vapor.inicio_vapor }}"{% endif %}>
+                                                        {{ paso.tiempo_vapor.duracion_legible|default:'00:00:00' }}
+                                                    </div>
+                                                    <div class="op-dashboard-muted">
+                                                        Inicio: {{ paso.tiempo_vapor.inicio_vapor_legible|default:'Sin inicio' }}
+                                                        {% if paso.tiempo_vapor.usuario_inicio %}| Inicio por: {{ paso.tiempo_vapor.usuario_inicio }}{% endif %}
+                                                        {% if paso.tiempo_vapor.finalizada %}
+                                                            | Fin: {{ paso.tiempo_vapor.fin_vapor_legible|default:'Sin fin' }}
+                                                            {% if paso.tiempo_vapor.usuario_fin %}| Fin por: {{ paso.tiempo_vapor.usuario_fin }}{% endif %}
+                                                        {% endif %}
+                                                    </div>
+                                                </div>
+                                            </div>
+                                            {% if paso.tiempo_vapor.finalizada %}
+                                                <div class="op-update-strip">
+                                                    <i class="fas fa-check-circle"></i>
+                                                    Inicio vapor: {{ paso.tiempo_vapor.inicio_vapor_legible }} | Fin vapor: {{ paso.tiempo_vapor.fin_vapor_legible }} | Duracion: {{ paso.tiempo_vapor.duracion_legible }} | Inicio por: {{ paso.tiempo_vapor.usuario_inicio }} | Finalizo: {{ paso.tiempo_vapor.usuario_fin }}
+                                                </div>
+                                            {% endif %}
+                                            {% if paso.activo and paso.puede_editar and paso.tiempo_vapor.en_proceso %}
+                                                <div class="op-discharge-actions">
+                                                    <button type="button" class="op-glass-button is-success btn-finalizar-vapor" data-paso="{{ paso.nombre }}">
+                                                        <i class="op-glass-icon fas fa-check"></i>
+                                                        Finalizar vapor
+                                                    </button>
+                                                </div>
+                                            {% endif %}
+                                        {% endif %}
                                     </div>
                                     {% endif %}
 
@@ -2600,6 +3055,128 @@
                                          data-paso="{{ paso.nombre }}"
                                          data-iniciada="{% if paso.ciclo_descarga.iniciada %}true{% else %}false{% endif %}"
                                          data-finalizada="{% if paso.ciclo_descarga.finalizada %}true{% else %}false{% endif %}">
+                                        {% if paso.es_ciclo_carga_despacho %}
+                                        <div class="op-cycle-header">
+                                            <div>
+                                                <div class="op-cycle-title">
+                                                    <span class="op-cycle-title-icon"><i class="fas fa-truck-loading"></i></span>
+                                                    Ciclo de Carga / Despacho
+                                                </div>
+                                                <div class="op-cycle-subtitle">
+                                                    Responsable: Sala_Control | Patente: {{ patente }}
+                                                </div>
+                                            </div>
+                                            <span class="op-cycle-state-badge {% if paso.ciclo_carga_despacho.tiene_proceso_finalizado %}is-done{% elif paso.ciclo_carga_despacho.iniciada %}is-active{% endif %}">
+                                                <i class="fas {% if paso.ciclo_carga_despacho.tiene_proceso_finalizado %}fa-check-circle{% elif paso.ciclo_carga_despacho.iniciada %}fa-clock{% else %}fa-circle{% endif %}"></i>
+                                                {% if paso.ciclo_carga_despacho.tiene_proceso_finalizado %}
+                                                    Proceso finalizado
+                                                {% elif paso.ciclo_carga_despacho.iniciada %}
+                                                    En proceso
+                                                {% else %}
+                                                    Pendiente de inicio
+                                                {% endif %}
+                                            </span>
+                                        </div>
+
+                                        <div class="op-dispatch-cycle-grid" data-process-count="{{ paso.ciclo_carga_despacho.procesos|length }}">
+                                            {% for proceso in paso.ciclo_carga_despacho.procesos %}
+                                            <div class="op-dispatch-process-card {% if proceso.iniciado %}is-started{% endif %} {% if proceso.finalizado %}is-finalized{% endif %}"
+                                                 data-proceso="{{ proceso.key }}">
+                                                <div class="op-dispatch-process-title">
+                                                    <span class="op-dispatch-process-icon"><i class="fas {{ proceso.icon }}"></i></span>
+                                                    {{ proceso.label }}
+                                                </div>
+
+                                                {% if proceso.requiere_punto %}
+                                                    {% if proceso.iniciado %}
+                                                        <div class="op-field-summary-card">
+                                                            <div class="op-field-summary-label">Punto despacho carga</div>
+                                                            <div class="op-field-summary-value">{{ proceso.punto_despacho|default:'Sin punto' }}</div>
+                                                        </div>
+                                                    {% else %}
+                                                        <div class="form-group mb-0">
+                                                            <label>Punto despacho carga</label>
+                                                            <select class="form-control despacho-punto-carga" {% if not paso.activo or not paso.puede_editar %}disabled{% endif %}>
+                                                                <option value="">Seleccione punto</option>
+                                                                {% for punto in paso.ciclo_carga_despacho.puntos_despacho %}
+                                                                    <option value="{{ punto }}">{{ punto }}</option>
+                                                                {% endfor %}
+                                                            </select>
+                                                        </div>
+                                                    {% endif %}
+                                                {% endif %}
+
+                                                {% if proceso.iniciado %}
+                                                    <div class="op-dispatch-runtime {% if proceso.finalizado %}is-finalized{% endif %}">
+                                                        <div>
+                                                            <div class="op-dashboard-card-title">
+                                                                {% if proceso.finalizado %}Proceso finalizado{% else %}Proceso iniciado{% endif %}
+                                                            </div>
+                                                            {% if proceso.finalizado %}
+                                                                <div class="op-wait-clock-time">
+                                                                    {{ proceso.duracion_legible|default:'00:00:00' }}
+                                                                </div>
+                                                            {% else %}
+                                                                <div class="op-wait-clock-time op-dispatch-live-time"
+                                                                     data-dispatch-start="{{ proceso.inicio_iso }}"
+                                                                     data-dispatch-start-ms="{{ proceso.inicio_ms }}">
+                                                                    {{ proceso.duracion_legible|default:'00:00:00' }}
+                                                                </div>
+                                                            {% endif %}
+                                                            <div class="op-dashboard-muted">
+                                                                Inicio: {{ proceso.inicio_legible|default:'Sin fecha' }} por {{ proceso.usuario|default:'Sin usuario' }}
+                                                                {% if proceso.finalizado %}
+                                                                    | Fin: {{ proceso.fin_legible|default:'Sin fecha' }} por {{ proceso.usuario_fin|default:'Sin usuario' }}
+                                                                {% endif %}
+                                                            </div>
+                                                        </div>
+                                                        {% if proceso.finalizado %}
+                                                            <button type="button" class="op-glass-button is-secondary" disabled>
+                                                                <i class="op-glass-icon fas fa-check"></i>
+                                                                Proceso finalizado
+                                                            </button>
+                                                        {% elif paso.activo and paso.puede_editar %}
+                                                            <div class="op-dispatch-runtime-actions">
+                                                                <button type="button"
+                                                                        class="op-glass-button is-success btn-finalizar-proceso-despacho"
+                                                                        data-paso="{{ paso.nombre }}"
+                                                                        data-proceso="{{ proceso.key }}">
+                                                                    <i class="op-glass-icon fas fa-check"></i>
+                                                                    Finalizar proceso
+                                                                </button>
+                                                            </div>
+                                                        {% endif %}
+                                                    </div>
+                                                {% elif paso.activo and paso.puede_editar %}
+                                                    <div class="op-dispatch-actions">
+                                                        <button type="button"
+                                                                class="op-glass-button is-secondary btn-iniciar-proceso-despacho"
+                                                                data-paso="{{ paso.nombre }}"
+                                                                data-proceso="{{ proceso.key }}"
+                                                                data-requiere-punto="{% if proceso.requiere_punto %}true{% else %}false{% endif %}">
+                                                            <i class="op-glass-icon fas fa-play"></i>
+                                                            {{ proceso.button_label }}
+                                                        </button>
+                                                    </div>
+                                                {% else %}
+                                                    <div class="alert alert-light border mb-0">{{ paso.solo_lectura_msg|default:'Pendiente' }}</div>
+                                                {% endif %}
+                                            </div>
+                                            {% endfor %}
+                                        </div>
+
+                                        {% if paso.activo and paso.puede_editar %}
+                                            <div class="op-dispatch-complete-actions">
+                                                <button type="button"
+                                                        class="op-glass-button is-success btn-guardar-operacion"
+                                                        data-paso="{{ paso.nombre }}"
+                                                        data-requiere-proceso-finalizado="{% if paso.ciclo_carga_despacho.tiene_proceso_finalizado %}false{% else %}true{% endif %}">
+                                                    <i class="op-glass-icon fas fa-arrow-right"></i>
+                                                    Enviar siguiente etapa
+                                                </button>
+                                            </div>
+                                        {% endif %}
+                                        {% else %}
                                         <div class="op-cycle-header">
                                             <div>
                                                 <div class="op-cycle-title">
@@ -2725,6 +3302,7 @@
                                                 {% endif %}
                                             </div>
                                         {% endif %}
+                                        {% endif %}
                                     </div>
                                     {% endif %}
 
@@ -2832,10 +3410,208 @@
                                     </div>
                                     {% endif %}
 
+                                    {% if paso.requiere_autorizacion_salida_bodega_externa %}
+                                    <div class="op-lab-panel op-result-dashboard-panel operacion-bodega-externa-salida-box"
+                                         data-paso="{{ paso.nombre }}">
+                                        <div class="op-cycle-header">
+                                            <div>
+                                                <div class="op-cycle-title">
+                                                    <span class="op-cycle-title-icon"><i class="fas fa-route"></i></span>
+                                                    Autorizacion salida de planta
+                                                </div>
+                                                <div class="op-cycle-subtitle">
+                                                    Responsable: Asistente de Recepcion | Siguiente: Guardia Porteria
+                                                </div>
+                                            </div>
+                                            <span class="op-cycle-state-badge {% if paso.autorizacion_salida_bodega.registrada %}is-done{% elif paso.activo %}is-active{% endif %}">
+                                                <i class="fas {% if paso.autorizacion_salida_bodega.registrada %}fa-check-circle{% elif paso.activo %}fa-clock{% else %}fa-circle{% endif %}"></i>
+                                                {% if paso.autorizacion_salida_bodega.registrada %}Salida autorizada{% elif paso.activo %}Pendiente{% else %}Pendiente{% endif %}
+                                            </span>
+                                        </div>
+
+                                        <div class="sap-info-sections">
+                                            {% for seccion in paso.autorizacion_salida_bodega.secciones %}
+                                            <div class="sap-info-section">
+                                                <div class="sap-info-section-title">{{ seccion.titulo }}</div>
+                                                <div class="row">
+                                                    {% for campo in seccion.campos %}
+                                                    <div class="col-12 col-md-6 col-xl-4 mb-2">
+                                                        <div class="sap-info-card">
+                                                            <div class="sap-info-label">{{ campo.label }}</div>
+                                                            <div class="sap-info-value {% if campo.value == 'Sin informaciÃƒÂ³n' %}is-muted{% endif %}">
+                                                                {{ campo.value }}
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                    {% endfor %}
+                                                </div>
+                                            </div>
+                                            {% endfor %}
+                                        </div>
+
+                                        <div class="op-field-summary-grid d-none">
+                                            {% for campo in paso.autorizacion_salida_bodega.campos %}
+                                            <div class="op-field-summary-card">
+                                                <div class="op-field-summary-label">{{ campo.label }}</div>
+                                                <div class="op-field-summary-value {% if campo.value == 'Sin informaciÃ³n' %}is-muted{% endif %}">
+                                                    {{ campo.value }}
+                                                </div>
+                                            </div>
+                                            {% endfor %}
+                                        </div>
+
+                                        {% if paso.autorizacion_salida_bodega.tramo.iniciada %}
+                                        <div class="op-cycle-runtime mt-3">
+                                            <div class="op-hourglass {% if paso.autorizacion_salida_bodega.tramo.finalizada %}descarga-finalizada{% else %}descarga-activa{% endif %}">
+                                                <div class="op-hourglass-inner">
+                                                    <span class="op-hourglass-neck"></span>
+                                                    <span class="op-hourglass-glass-shine"></span>
+                                                    <span class="op-hourglass-sand-layer">
+                                                        <span class="op-hourglass-sand-top"></span>
+                                                        <span class="op-hourglass-flow"></span>
+                                                        <span class="op-hourglass-sand-bottom"></span>
+                                                    </span>
+                                                </div>
+                                            </div>
+                                            <div>
+                                                <div class="op-dashboard-card-title">
+                                                    {% if paso.autorizacion_salida_bodega.tramo.finalizada %}Tramo finalizado{% else %}Tiempo salida / ingreso{% endif %}
+                                                </div>
+                                                <div class="op-wait-clock-time"
+                                                     {% if paso.autorizacion_salida_bodega.tramo.activa %}data-wait-start="{{ paso.autorizacion_salida_bodega.tramo.inicio_iso }}" data-wait-start-ms="{{ paso.autorizacion_salida_bodega.tramo.inicio_ms }}"{% endif %}>
+                                                    {{ paso.autorizacion_salida_bodega.tramo.duracion_legible|default:'00:00:00' }}
+                                                </div>
+                                                <div class="op-dashboard-muted">
+                                                    Inicio: {{ paso.autorizacion_salida_bodega.tramo.inicio_legible|default:'Sin inicio' }}
+                                                    {% if paso.autorizacion_salida_bodega.tramo.usuario_salida %}| Autorizo: {{ paso.autorizacion_salida_bodega.tramo.usuario_salida }}{% endif %}
+                                                    {% if paso.autorizacion_salida_bodega.tramo.finalizada %}
+                                                        | Fin: {{ paso.autorizacion_salida_bodega.tramo.fin_legible|default:'Sin fin' }}
+                                                        {% if paso.autorizacion_salida_bodega.tramo.usuario_ingreso %}| Ingreso: {{ paso.autorizacion_salida_bodega.tramo.usuario_ingreso }}{% endif %}
+                                                    {% endif %}
+                                                </div>
+                                            </div>
+                                        </div>
+                                        {% endif %}
+
+                                        {% if paso.autorizacion_salida_bodega.registrada %}
+                                            <div class="op-update-strip mt-3">
+                                                <i class="fas fa-check-circle"></i>
+                                                Salida autorizada {{ paso.autorizacion_salida_bodega.fecha_hora|default:'' }} por {{ paso.autorizacion_salida_bodega.usuario|default:'Sin usuario' }}.
+                                            </div>
+                                        {% elif paso.activo and paso.puede_editar %}
+                                            <div class="d-flex justify-content-end mt-3">
+                                                <button type="button" class="op-glass-button is-success btn-guardar-operacion op-compact-action" data-paso="{{ paso.nombre }}">
+                                                    <i class="op-glass-icon fas fa-check-circle"></i>
+                                                    Autorizar salida camion de planta
+                                                </button>
+                                            </div>
+                                        {% else %}
+                                            <div class="alert alert-light border mt-3 mb-0">{{ paso.solo_lectura_msg|default:'Solo lectura' }}</div>
+                                        {% endif %}
+                                    </div>
+                                    {% endif %}
+
+                                    {% if paso.requiere_ingreso_planta_bodega_externa %}
+                                    <div class="op-lab-panel op-result-dashboard-panel operacion-bodega-externa-ingreso-box"
+                                         data-paso="{{ paso.nombre }}">
+                                        <div class="op-cycle-header">
+                                            <div>
+                                                <div class="op-cycle-title">
+                                                    <span class="op-cycle-title-icon"><i class="fas fa-warehouse"></i></span>
+                                                    Ingreso Planta
+                                                </div>
+                                                <div class="op-cycle-subtitle">
+                                                    Responsable: Guardia Porteria | Siguiente: Pesaje Salida
+                                                </div>
+                                            </div>
+                                            <span class="op-cycle-state-badge {% if paso.ingreso_planta_bodega.registrada %}is-done{% elif paso.activo %}is-active{% endif %}">
+                                                <i class="fas {% if paso.ingreso_planta_bodega.registrada %}fa-check-circle{% elif paso.activo %}fa-clock{% else %}fa-circle{% endif %}"></i>
+                                                {% if paso.ingreso_planta_bodega.registrada %}Ingreso autorizado{% elif paso.activo %}Pendiente{% else %}Pendiente{% endif %}
+                                            </span>
+                                        </div>
+
+                                        <div class="sap-info-sections">
+                                            <div class="sap-info-section">
+                                                <div class="sap-info-section-title">Resumen despacho / transporte</div>
+                                                <div class="row">
+                                                    {% for campo in paso.ingreso_planta_bodega.campos %}
+                                                    <div class="col-12 col-md-6 col-xl-4 mb-2">
+                                                        <div class="sap-info-card">
+                                                            <div class="sap-info-label">{{ campo.label }}</div>
+                                                            <div class="sap-info-value">
+                                                                {{ campo.value }}
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                    {% endfor %}
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        <div class="op-field-summary-grid d-none">
+                                            {% for campo in paso.ingreso_planta_bodega.campos %}
+                                            <div class="op-field-summary-card">
+                                                <div class="op-field-summary-label">{{ campo.label }}</div>
+                                                <div class="op-field-summary-value {% if campo.value == 'Sin informaciÃ³n' %}is-muted{% endif %}">
+                                                    {{ campo.value }}
+                                                </div>
+                                            </div>
+                                            {% endfor %}
+                                        </div>
+
+                                        <div class="op-cycle-runtime mt-3">
+                                            <div class="op-hourglass {% if paso.ingreso_planta_bodega.tramo.finalizada %}descarga-finalizada{% elif paso.ingreso_planta_bodega.tramo.activa %}descarga-activa{% endif %}">
+                                                <div class="op-hourglass-inner">
+                                                    <span class="op-hourglass-neck"></span>
+                                                    <span class="op-hourglass-glass-shine"></span>
+                                                    <span class="op-hourglass-sand-layer">
+                                                        <span class="op-hourglass-sand-top"></span>
+                                                        <span class="op-hourglass-flow"></span>
+                                                        <span class="op-hourglass-sand-bottom"></span>
+                                                    </span>
+                                                </div>
+                                            </div>
+                                            <div>
+                                                <div class="op-dashboard-card-title">
+                                                    {% if paso.ingreso_planta_bodega.tramo.finalizada %}Tramo finalizado{% else %}Tiempo salida / ingreso{% endif %}
+                                                </div>
+                                                <div class="op-wait-clock-time"
+                                                     {% if paso.ingreso_planta_bodega.tramo.activa %}data-wait-start="{{ paso.ingreso_planta_bodega.tramo.inicio_iso }}" data-wait-start-ms="{{ paso.ingreso_planta_bodega.tramo.inicio_ms }}"{% endif %}>
+                                                    {{ paso.ingreso_planta_bodega.tramo.duracion_legible|default:'00:00:00' }}
+                                                </div>
+                                                <div class="op-dashboard-muted">
+                                                    Inicio: {{ paso.ingreso_planta_bodega.tramo.inicio_legible|default:'Sin inicio' }}
+                                                    {% if paso.ingreso_planta_bodega.tramo.finalizada %}
+                                                        | Fin: {{ paso.ingreso_planta_bodega.tramo.fin_legible|default:'Sin fin' }}
+                                                    {% endif %}
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        {% if paso.ingreso_planta_bodega.registrada %}
+                                            <div class="op-update-strip mt-3">
+                                                <i class="fas fa-check-circle"></i>
+                                                Ingreso autorizado {{ paso.ingreso_planta_bodega.fecha_hora|default:'' }} por {{ paso.ingreso_planta_bodega.usuario|default:'Sin usuario' }}.
+                                            </div>
+                                        {% elif paso.activo and paso.puede_editar %}
+                                            <div class="d-flex justify-content-end mt-3">
+                                                <button type="button" class="op-glass-button is-success btn-guardar-operacion op-compact-action" data-paso="{{ paso.nombre }}">
+                                                    <i class="op-glass-icon fas fa-check-circle"></i>
+                                                    Autorizar ingreso a planta
+                                                </button>
+                                            </div>
+                                        {% else %}
+                                            <div class="alert alert-light border mt-3 mb-0">{{ paso.solo_lectura_msg|default:'Solo lectura' }}</div>
+                                        {% endif %}
+                                    </div>
+                                    {% endif %}
+
                                     {% if paso.requiere_autorizar_salida %}
                                     <div class="op-exit-panel operacion-autorizar-salida-box"
                                          data-paso="{{ paso.nombre }}"
-                                         data-registrada="{% if paso.autorizar_salida.registrada %}true{% else %}false{% endif %}">
+                                         data-registrada="{% if paso.autorizar_salida.registrada %}true{% else %}false{% endif %}"
+                                         data-sap-updated="{% if paso.sap_update_despacho.updated %}true{% else %}false{% endif %}"
+                                         data-sap-error="{% if paso.sap_update_despacho.is_error %}true{% else %}false{% endif %}">
                                         <div class="op-cycle-header">
                                             <div>
                                                 <div class="op-cycle-title">
@@ -2874,6 +3650,78 @@
                                                 </div>
                                             </div>
                                         {% else %}
+                                            {% if paso.requiere_update_sap_despacho %}
+                                            <div class="op-sap-draft-panel mb-3 operacion-sap-despacho-update-box"
+                                                 data-sap-updated="{% if paso.sap_update_despacho.updated %}true{% else %}false{% endif %}"
+                                                 data-sap-error="{% if paso.sap_update_despacho.is_error %}true{% else %}false{% endif %}">
+                                                <div class="op-cycle-header">
+                                                    <div>
+                                                        <div class="op-lab-title mb-1">
+                                                            <i class="fas fa-sync-alt"></i> Actualizaci&oacute;n documento SAP
+                                                        </div>
+                                                        <div class="op-dashboard-muted">
+                                                            Actualiza el Draft SAP con el peso real de Pesaje Salida antes de autorizar.
+                                                        </div>
+                                                    </div>
+                                                    <span class="op-sap-draft-status {% if paso.sap_update_despacho.updated %}is-done{% elif paso.sap_update_despacho.estado == 'ERROR' %}is-error{% elif paso.activo %}is-active{% endif %}">
+                                                        <i class="fas {% if paso.sap_update_despacho.updated %}fa-check-circle{% elif paso.sap_update_despacho.estado == 'ERROR' %}fa-exclamation-triangle{% else %}fa-clock{% endif %}"></i>
+                                                        {{ paso.sap_update_despacho.label|default:'Pendiente de actualizar' }}
+                                                    </span>
+                                                </div>
+                                                <div class="sap-update-result-card {% if paso.sap_update_despacho.updated %}is-ok{% elif paso.sap_update_despacho.is_error %}is-error{% endif %}">
+                                                    <div class="sap-update-result-title">
+                                                        <span>{{ paso.sap_update_despacho.label|default:'Pendiente de actualizar SAP' }}</span>
+                                                        <span class="sap-update-result-badge {% if paso.sap_update_despacho.updated %}is-ok{% elif paso.sap_update_despacho.is_error %}is-error{% endif %}">
+                                                            {{ paso.sap_update_despacho.result_label|default:'PENDIENTE' }}
+                                                        </span>
+                                                    </div>
+                                                    <div class="sap-update-result-line">
+                                                        Draft DocEntry: <strong>{{ paso.sap_update_despacho.docentry|default:'-' }}</strong>
+                                                        | DocNum: <strong>{{ paso.sap_update_despacho.docnum|default:'-' }}</strong>
+                                                        | Peso salida: <strong>{{ paso.sap_update_despacho.peso_salida|default:'-' }}</strong>
+                                                    </div>
+                                                    <div class="sap-update-result-line">
+                                                        {% if paso.sap_update_despacho.usuario or paso.sap_update_despacho.fecha_hora %}
+                                                            Actualizado por {{ paso.sap_update_despacho.usuario|default:'Sin usuario' }}{% if paso.sap_update_despacho.fecha_hora %} el {{ paso.sap_update_despacho.fecha_hora }}{% endif %}.
+                                                        {% else %}
+                                                            Sin intento de actualizaci&oacute;n registrado.
+                                                        {% endif %}
+                                                    </div>
+                                                    {% if paso.sap_update_despacho.is_error and paso.sap_update_despacho.error_message %}
+                                                        <div class="sap-update-result-line">
+                                                            Error: {{ paso.sap_update_despacho.error_message }}
+                                                        </div>
+                                                    {% endif %}
+                                                    <div class="sap-update-result-line">
+                                                        {{ paso.sap_update_despacho.resumen_mensaje|default:'Debe actualizar el documento SAP antes de autorizar la salida.' }}
+                                                    </div>
+                                                </div>
+                                                {% if paso.activo and paso.puede_editar and not paso.sap_update_despacho.updated %}
+                                                    <button type="button" class="btn btn-primary btn-sm btn-actualizar-sap-despacho">
+                                                        <i class="fas fa-sync-alt mr-1"></i> Actualizar documento SAP
+                                                    </button>
+                                                {% elif paso.sap_update_despacho.updated %}
+                                                    <span class="badge badge-success">
+                                                        <i class="fas fa-check-circle mr-1"></i> Documento SAP actualizado
+                                                    </span>
+                                                {% endif %}
+                                                {% if paso.puede_ver_detalle_tecnico_sap %}
+                                                    <details class="sap-update-tech-details">
+                                                        <summary>Ver detalle t&eacute;cnico SAP</summary>
+                                                        <div class="row mt-2">
+                                                            <div class="col-12 col-lg-6 mb-2">
+                                                                <div class="op-field-summary-label">Request JSON actualizaci&oacute;n SAP</div>
+                                                                <pre class="op-sap-draft-pre mb-0">{% if paso.sap_update_despacho.request_json_pretty %}{{ paso.sap_update_despacho.request_json_pretty }}{% else %}Sin request registrado.{% endif %}</pre>
+                                                            </div>
+                                                            <div class="col-12 col-lg-6 mb-2">
+                                                                <div class="op-field-summary-label">Response JSON actualizaci&oacute;n SAP</div>
+                                                                <pre class="op-sap-draft-pre mb-0">{% if paso.sap_update_despacho.response_json_pretty %}{{ paso.sap_update_despacho.response_json_pretty }}{% else %}Sin response registrado.{% endif %}</pre>
+                                                            </div>
+                                                        </div>
+                                                    </details>
+                                                {% endif %}
+                                            </div>
+                                            {% endif %}
                                             <div class="op-exit-grid">
                                                 <div>
                                                     <div class="op-lab-title"><i class="fas fa-clipboard-list"></i> Revision de descarga</div>
@@ -2913,14 +3761,14 @@
                                                             <input type="radio"
                                                                    name="recepcion_conforme_{{ paso.orden }}"
                                                                    value="SI"
-                                                                   {% if not paso.activo or not paso.puede_editar %}disabled{% endif %}>
+                                                                   {% if not paso.activo or not paso.puede_editar or paso.requiere_update_sap_despacho and not paso.sap_update_despacho.updated %}disabled{% endif %}>
                                                             <span><i class="fas fa-check"></i> Si</span>
                                                         </label>
                                                         <label class="op-auth-option op-conforme-option op-conforme-no is-no">
                                                             <input type="radio"
                                                                    name="recepcion_conforme_{{ paso.orden }}"
                                                                    value="NO"
-                                                                   {% if not paso.activo or not paso.puede_editar %}disabled{% endif %}>
+                                                                   {% if not paso.activo or not paso.puede_editar or paso.requiere_update_sap_despacho and not paso.sap_update_despacho.updated %}disabled{% endif %}>
                                                             <span><i class="fas fa-times"></i> No</span>
                                                         </label>
                                                     </div>
@@ -3009,7 +3857,98 @@
                                         </div>
                                     {% endif %}
 
-                                    {% if not paso.requiere_preparacion_descarga and not paso.requiere_ciclo_descarga and not paso.requiere_borrador_sap and not paso.requiere_autorizar_salida and not paso.requiere_confirmar_salida %}
+                                    {% if paso.requiere_cierre_carga_despacho %}
+                                    <div class="op-lab-panel op-result-dashboard-panel operacion-cierre-carga-despacho-box"
+                                         data-paso="{{ paso.nombre }}"
+                                         data-tipo-imagen-sello="{{ paso.cierre_carga_despacho.tipo_imagen_sello }}"
+                                         data-nro-sellos-dato-id="{{ paso.cierre_carga_despacho.nro_sellos_dato_id }}">
+                                        <div class="op-result-dashboard-section">
+                                            <div class="op-lab-title"><i class="fas fa-clipboard-check"></i> Cierre Proceso de Carga</div>
+                                            <div class="op-close-load-grid">
+                                                <div class="op-field-summary-card op-close-load-field">
+                                                    <div class="op-field-summary-label">Codigo SAP</div>
+                                                    <div class="op-field-summary-value {% if not paso.cierre_carga_despacho.codigo_sap %}is-muted{% endif %}">
+                                                        {{ paso.cierre_carga_despacho.codigo_sap|default:'Sin informacion' }}
+                                                    </div>
+                                                </div>
+                                                <div class="op-field-summary-card op-close-load-field">
+                                                    <div class="op-field-summary-label">N&deg; BACH</div>
+                                                    <div class="op-field-summary-value {% if not paso.cierre_carga_despacho.numero_bach %}is-muted{% endif %}">
+                                                        {{ paso.cierre_carga_despacho.numero_bach|default:'Sin informacion' }}
+                                                    </div>
+                                                </div>
+                                                <div class="op-field-summary-card op-close-load-field">
+                                                    <div class="op-field-summary-label">Estanque Origen</div>
+                                                    <div class="op-field-summary-value {% if not paso.cierre_carga_despacho.estanque_origen %}is-muted{% endif %}">
+                                                        {{ paso.cierre_carga_despacho.estanque_origen|default:'Sin informacion' }}
+                                                    </div>
+                                                </div>
+                                                <div class="op-field-summary-card op-close-load-field">
+                                                    <div class="op-field-summary-label">Fecha de Elaboracion</div>
+                                                    <div class="op-field-summary-value is-muted">{{ paso.cierre_carga_despacho.fecha_elaboracion }}</div>
+                                                </div>
+                                                <div class="op-field-summary-card op-close-load-field">
+                                                    <div class="op-field-summary-label">N&deg; Sellos</div>
+                                                    <textarea class="form-control cierre-nro-sellos"
+                                                              rows="2"
+                                                              {% if not paso.activo or not paso.puede_editar %}readonly{% endif %}>{{ paso.cierre_carga_despacho.nro_sellos }}</textarea>
+                                                </div>
+                                                <div class="op-field-summary-card op-close-load-field">
+                                                    <div class="op-field-summary-label">Lote SAP</div>
+                                                    <div class="op-field-summary-value {% if not paso.cierre_carga_despacho.lote_sap %}is-muted{% endif %}">
+                                                        {{ paso.cierre_carga_despacho.lote_sap|default:'Sin informacion' }}
+                                                    </div>
+                                                </div>
+                                                <div class="op-field-summary-card op-close-load-field">
+                                                    <div class="op-field-summary-label">Fecha Vencimiento</div>
+                                                    <div class="op-field-summary-value is-muted">{{ paso.cierre_carga_despacho.fecha_vencimiento }}</div>
+                                                </div>
+                                                <div class="op-field-summary-card op-close-load-field">
+                                                    <div class="op-field-summary-label">Temperatura</div>
+                                                    <input type="text"
+                                                           class="form-control cierre-temperatura"
+                                                           value="{{ paso.cierre_carga_despacho.temperatura }}"
+                                                           {% if not paso.activo or not paso.puede_editar %}readonly{% endif %}>
+                                                </div>
+                                            </div>
+
+                                            <div class="op-seal-images">
+                                                <div class="op-lab-title mb-2"><i class="fas fa-images"></i> Imagenes de sellos</div>
+                                                {% if paso.cierre_carga_despacho.imagenes_sellos %}
+                                                    <div class="op-seal-image-grid">
+                                                        {% for imagen in paso.cierre_carga_despacho.imagenes_sellos %}
+                                                            <a class="op-seal-image-item" href="{{ imagen.download_url }}" target="_blank" rel="noopener">
+                                                                <img src="{{ imagen.download_url }}" alt="{{ imagen.nombre }}">
+                                                                <div class="op-seal-image-caption">
+                                                                    {{ imagen.nombre|default:'Imagen sello' }}
+                                                                    {% if imagen.fecha %}<br>{{ imagen.fecha }}{% endif %}
+                                                                </div>
+                                                            </a>
+                                                        {% endfor %}
+                                                    </div>
+                                                {% else %}
+                                                    <div class="op-dashboard-muted">Sin imagenes de sellos cargadas</div>
+                                                {% endif %}
+                                            </div>
+
+                                            <div class="op-field-summary-card op-close-load-field mt-3">
+                                                <div class="op-field-summary-label">Tres ultimas cargas</div>
+                                                <div class="op-field-summary-value is-muted">{{ paso.cierre_carga_despacho.tres_ultimas_cargas }}</div>
+                                            </div>
+
+                                            {% if paso.activo and paso.puede_editar %}
+                                                <div class="d-flex justify-content-end mt-3">
+                                                    <button type="button" class="op-glass-button is-success btn-guardar-operacion" data-paso="{{ paso.nombre }}">
+                                                        <i class="op-glass-icon fas fa-check"></i>
+                                                        Enviar siguiente etapa
+                                                    </button>
+                                                </div>
+                                            {% endif %}
+                                        </div>
+                                    </div>
+                                    {% endif %}
+
+                                    {% if not paso.requiere_preparacion_descarga and not paso.requiere_ciclo_descarga and not paso.requiere_cierre_carga_despacho and not paso.requiere_borrador_sap and not paso.requiere_autorizar_salida and not paso.requiere_confirmar_salida and not paso.requiere_autorizacion_salida_bodega_externa and not paso.requiere_ingreso_planta_bodega_externa %}
                                     <div class="form-group">
                                         <label>Observacion</label>
                                         <textarea class="form-control operacion-observacion" data-paso="{{ paso.nombre }}" rows="4" {% if not paso.puede_guardar_observacion %}readonly{% endif %}>{{ paso.observacion }}</textarea>
@@ -3033,7 +3972,7 @@
                                     </div>
                                     {% endif %}
 
-                                    {% if paso.activo and paso.puede_editar and not paso.requiere_ticket_pesaje and not paso.requiere_accion_toma_muestra and not paso.requiere_resultado_calidad and not paso.requiere_preparacion_descarga and not paso.requiere_ciclo_descarga and not paso.requiere_borrador_sap and not paso.requiere_autorizar_salida and not paso.requiere_confirmar_salida %}
+                                    {% if paso.activo and paso.puede_editar and not paso.requiere_ticket_pesaje and not paso.requiere_accion_toma_muestra and not paso.requiere_resultado_calidad and not paso.requiere_preparacion_descarga and not paso.requiere_ciclo_descarga and not paso.requiere_cierre_carga_despacho and not paso.requiere_borrador_sap and not paso.requiere_autorizar_salida and not paso.requiere_confirmar_salida and not paso.requiere_autorizacion_salida_bodega_externa and not paso.requiere_ingreso_planta_bodega_externa %}
                                     <button type="button" class="btn btn-primary btn-guardar-operacion" data-paso="{{ paso.nombre }}">
                                         <i class="fas fa-save"></i> Guardar paso
                                     </button>
@@ -3060,6 +3999,52 @@
     const OP_CALIDAD_FECHA_INGRESO = "{{ fecha_ingreso_operacion|default:'Sin fecha'|escapejs }}";
     const OP_CALIDAD_CITACION = "{{ citacion.id|escapejs }}";
     const OP_CALIDAD_GUIA_URL = "{{ guia_operacion_url|default:''|escapejs }}";
+    const FINALIZAR_VAPOR_URL = "{% url 'ajax_operacion_planta_finalizar_vapor' citacion.id %}";
+
+    function normalizarCodigoEtapaOperacion(valor) {
+        return String(valor || '')
+            .normalize('NFD')
+            .replace(/[\u0300-\u036f]/g, '')
+            .trim()
+            .toUpperCase()
+            .replace(/[^A-Z0-9]+/g, '_')
+            .replace(/^_+|_+$/g, '');
+    }
+
+    function activarEtapaOperacionDesdeQuery() {
+        const params = new URLSearchParams(window.location.search || '');
+        const etapaCodigo = normalizarCodigoEtapaOperacion(params.get('etapa_codigo') || params.get('etapa'));
+        if (!etapaCodigo) {
+            return;
+        }
+
+        let tab = $('#operacion-tabs .op-etapa-btn').filter(function () {
+            return normalizarCodigoEtapaOperacion($(this).attr('data-etapa-codigo')) === etapaCodigo;
+        }).first();
+
+        if (!tab.length) {
+            tab = $('#operacion-tabs .op-etapa-btn').filter(function () {
+                return normalizarCodigoEtapaOperacion($(this).attr('data-etapa-nombre')) === etapaCodigo;
+            }).first();
+        }
+
+        if (!tab.length) {
+            return;
+        }
+
+        const target = tab.attr('href');
+        $('#operacion-tabs .op-etapa-btn').removeClass('active').attr('aria-selected', 'false');
+        $('.tab-content .tab-pane').removeClass('show active');
+        tab.addClass('active').attr('aria-selected', 'true');
+        $(target).addClass('show active');
+        setTimeout(function () {
+            tab[0].scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
+            const pane = document.querySelector(target);
+            if (pane) {
+                pane.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            }
+        }, 120);
+    }
 
     document.addEventListener('mouseover', function(e) {
         if (e.target.closest('.finalizar-pesaje-btn')) {
@@ -3096,6 +4081,7 @@
 
     const BORRADOR_SAP_PREVIEW_URL = "{% url 'ajax_operacion_planta_borrador_sap_preview' citacion.id %}";
     const BORRADOR_SAP_ENVIAR_URL = "{% url 'ajax_operacion_planta_borrador_sap_enviar' citacion.id %}";
+    const SAP_DESPACHO_UPDATE_URL = "{% url 'ajax_operacion_planta_actualizar_sap_despacho' citacion.id %}";
     let borradorSapPreviewActual = null;
 
     function renderBorradorSapList(selector, items, emptyText, cssClass) {
@@ -3391,6 +4377,12 @@
         }).first();
     }
 
+    function obtenerCierreCargaDespachoBoxOperacion(paso) {
+        return $('.operacion-cierre-carga-despacho-box').filter(function () {
+            return String($(this).data('paso')) === String(paso);
+        }).first();
+    }
+
     function obtenerAutorizarSalidaBoxOperacion(paso) {
         return $('.operacion-autorizar-salida-box').filter(function () {
             return String($(this).data('paso')) === String(paso);
@@ -3475,15 +4467,27 @@
         });
     }
 
-    function formatearRelojEsperaDescarga(startValue) {
+    function resolverInicioRelojMs(startValue, startMsValue) {
+        const startMs = Number(startMsValue);
+        if (Number.isFinite(startMs) && startMs > 0) {
+            return startMs;
+        }
         if (!startValue) {
-            return '00:00:00';
+            return null;
         }
         const startDate = new Date(startValue);
         if (Number.isNaN(startDate.getTime())) {
+            return null;
+        }
+        return startDate.getTime();
+    }
+
+    function formatearRelojEsperaDescarga(startValue, startMsValue) {
+        const startMs = resolverInicioRelojMs(startValue, startMsValue);
+        if (!startMs) {
             return '00:00:00';
         }
-        const totalSeconds = Math.max(Math.floor((Date.now() - startDate.getTime()) / 1000), 0);
+        const totalSeconds = Math.max(Math.floor((Date.now() - startMs) / 1000), 0);
         const hours = Math.floor(totalSeconds / 3600);
         const minutes = Math.floor((totalSeconds % 3600) / 60);
         const seconds = totalSeconds % 60;
@@ -3492,15 +4496,22 @@
 
     function actualizarRelojesEsperaDescarga() {
         $('.op-wait-clock-time[data-wait-start]').each(function () {
-            $(this).text(formatearRelojEsperaDescarga($(this).data('wait-start')));
+            $(this).text(formatearRelojEsperaDescarga($(this).attr('data-wait-start'), $(this).attr('data-wait-start-ms')));
         });
         $('.op-cycle-live-time[data-cycle-start]').each(function () {
-            $(this).text(formatearRelojEsperaDescarga($(this).data('cycle-start')));
+            $(this).text(formatearRelojEsperaDescarga($(this).attr('data-cycle-start'), $(this).attr('data-cycle-start-ms')));
+        });
+        $('.op-dispatch-live-time[data-dispatch-start]').each(function () {
+            $(this).text(formatearRelojEsperaDescarga($(this).attr('data-dispatch-start'), $(this).attr('data-dispatch-start-ms')));
+        });
+        $('.op-vapor-live-time[data-vapor-start]').each(function () {
+            $(this).text(formatearRelojEsperaDescarga($(this).attr('data-vapor-start'), $(this).attr('data-vapor-start-ms')));
         });
     }
 
     actualizarRelojesEsperaDescarga();
     setInterval(actualizarRelojesEsperaDescarga, 1000);
+    activarEtapaOperacionDesdeQuery();
 
     $(document).on('click', '.op-cycle-option', function () {
         const boton = $(this);
@@ -3553,6 +4564,90 @@
                 boton.prop('disabled', false).html(textoOriginal);
                 const response = xhr.responseJSON || {};
                 Swal.fire({ icon: 'error', title: 'No fue posible iniciar', text: response.message || ('Error HTTP ' + xhr.status + ' al iniciar descarga.') });
+            }
+        });
+    });
+
+    $(document).on('click', '.btn-iniciar-proceso-despacho', function () {
+        const boton = $(this);
+        const paso = boton.data('paso');
+        const proceso = String(boton.data('proceso') || '');
+        const requierePunto = String(boton.data('requiere-punto')) === 'true';
+        const card = boton.closest('.op-dispatch-process-card');
+        const punto = requierePunto ? String(card.find('.despacho-punto-carga').val() || '').trim() : '';
+        const textoOriginal = boton.html();
+
+        if (requierePunto && !punto) {
+            Swal.fire({ icon: 'warning', title: 'Punto requerido', text: 'Debe seleccionar un punto de despacho carga.' });
+            return;
+        }
+
+        $.ajax({
+            url: "{% url 'ajax_operacion_planta_iniciar_ciclo_descarga' citacion.id %}",
+            type: 'POST',
+            data: {
+                proceso: proceso,
+                punto_despacho: punto,
+                _empresa_id: OPERACION_PLANTA_EMPRESA_ID,
+                empresa_id: OPERACION_PLANTA_EMPRESA_ID
+            },
+            headers: {
+                'X-CSRFToken': getCookie('csrftoken')
+            },
+            beforeSend: function () {
+                boton.prop('disabled', true).html('<i class="op-glass-icon fas fa-spinner fa-spin"></i> Registrando...');
+            },
+            success: function (response) {
+                if (!response.success) {
+                    boton.prop('disabled', false).html(textoOriginal);
+                    Swal.fire({ icon: 'error', title: 'Error', text: response.message || 'No fue posible iniciar el proceso.' });
+                    return;
+                }
+                Swal.fire({ icon: 'success', title: 'Proceso iniciado', text: response.message || 'Proceso de despacho iniciado.' }).then(function () {
+                    location.reload();
+                });
+            },
+            error: function (xhr) {
+                boton.prop('disabled', false).html(textoOriginal);
+                const response = xhr.responseJSON || {};
+                Swal.fire({ icon: 'error', title: 'No fue posible iniciar', text: response.message || ('Error HTTP ' + xhr.status + ' al iniciar proceso.') });
+            }
+        });
+    });
+
+    $(document).on('click', '.btn-finalizar-proceso-despacho', function () {
+        const boton = $(this);
+        const proceso = String(boton.data('proceso') || '');
+        const textoOriginal = boton.html();
+
+        $.ajax({
+            url: "{% url 'ajax_operacion_planta_finalizar_proceso_despacho' citacion.id %}",
+            type: 'POST',
+            data: {
+                proceso: proceso,
+                _empresa_id: OPERACION_PLANTA_EMPRESA_ID,
+                empresa_id: OPERACION_PLANTA_EMPRESA_ID
+            },
+            headers: {
+                'X-CSRFToken': getCookie('csrftoken')
+            },
+            beforeSend: function () {
+                boton.prop('disabled', true).html('<i class="op-glass-icon fas fa-spinner fa-spin"></i> Finalizando...');
+            },
+            success: function (response) {
+                if (!response.success) {
+                    boton.prop('disabled', false).html(textoOriginal);
+                    Swal.fire({ icon: 'error', title: 'Error', text: response.message || 'No fue posible finalizar el proceso.' });
+                    return;
+                }
+                Swal.fire({ icon: 'success', title: 'Proceso finalizado', text: response.message || 'Proceso de despacho finalizado.' }).then(function () {
+                    location.reload();
+                });
+            },
+            error: function (xhr) {
+                boton.prop('disabled', false).html(textoOriginal);
+                const response = xhr.responseJSON || {};
+                Swal.fire({ icon: 'error', title: 'No fue posible finalizar', text: response.message || ('Error HTTP ' + xhr.status + ' al finalizar proceso.') });
             }
         });
     });
@@ -3654,8 +4749,67 @@
         guardarObservacionOperacion($(this));
     });
 
+    $(document).on('click', '.btn-actualizar-sap-despacho', function () {
+        const button = $(this);
+        const box = button.closest('.operacion-sap-despacho-update-box');
+        const textoOriginal = button.html();
+        $.ajax({
+            url: SAP_DESPACHO_UPDATE_URL,
+            type: 'POST',
+            data: {
+                _empresa_id: OPERACION_PLANTA_EMPRESA_ID,
+                empresa_id: OPERACION_PLANTA_EMPRESA_ID
+            },
+            headers: {
+                'X-CSRFToken': getCookie('csrftoken')
+            },
+            beforeSend: function () {
+                button.prop('disabled', true).html('<i class="fas fa-spinner fa-spin mr-1"></i> Actualizando...');
+            },
+            success: function (response) {
+                if (!response.success) {
+                    button.prop('disabled', false).html(textoOriginal);
+                    Swal.fire({ icon: 'error', title: 'Error al actualizar SAP', text: response.message || 'No fue posible actualizar el documento SAP.' });
+                    return;
+                }
+                box.attr('data-sap-updated', 'true');
+                Swal.fire({ icon: 'success', title: 'Documento SAP actualizado', text: response.message || 'El Draft SAP fue actualizado.' }).then(function () {
+                    location.reload();
+                });
+            },
+            error: function (xhr) {
+                const response = xhr.responseJSON || {};
+                button.prop('disabled', false).html(textoOriginal);
+                Swal.fire({ icon: 'error', title: 'No fue posible actualizar SAP', text: response.message || ('Error HTTP ' + xhr.status + ' al actualizar SAP.') }).then(function () {
+                    if (response.status || response.preview) {
+                        location.reload();
+                    }
+                });
+            }
+        });
+    });
+
+    function mensajeBloqueoSapDespacho(box) {
+        if (box.attr('data-sap-error') === 'true') {
+            return {
+                title: 'SAP con error',
+                text: 'No se puede autorizar la salida porque la actualizacion SAP fallo. Soporte fue notificado.'
+            };
+        }
+        return {
+            title: 'SAP pendiente',
+            text: 'Debe actualizar el documento SAP antes de autorizar la salida.'
+        };
+    }
+
     function autorizarSalidaOperacion(box, recepcionConforme, control) {
         const observacion = (box.find('.autorizacion-observacion-descarga').val() || '').trim();
+
+        if (box.find('.operacion-sap-despacho-update-box').length && box.attr('data-sap-updated') !== 'true') {
+            const bloqueoSap = mensajeBloqueoSapDespacho(box);
+            Swal.fire({ icon: 'warning', title: bloqueoSap.title, text: bloqueoSap.text });
+            return;
+        }
 
         if (!recepcionConforme) {
             Swal.fire({ icon: 'warning', title: 'Recepcion requerida', text: 'Debe seleccionar Recepcion Conforme: Si o No.' });
@@ -3703,6 +4857,11 @@
         const opcion = $(this);
         const input = opcion.find('input[type="radio"]');
         if (input.prop('disabled')) {
+            const boxDisabled = opcion.closest('.operacion-autorizar-salida-box');
+            if (boxDisabled.find('.operacion-sap-despacho-update-box').length && boxDisabled.attr('data-sap-updated') !== 'true') {
+                const bloqueoSap = mensajeBloqueoSapDespacho(boxDisabled);
+                Swal.fire({ icon: 'warning', title: bloqueoSap.title, text: bloqueoSap.text });
+            }
             return;
         }
 
@@ -3948,7 +5107,11 @@
                     $('<div>').text(((accion.fecha || '') + ' por ' + (accion.usuario || '')).trim()).html() +
                     (accion.observacion ? '<br>' + $('<div>').text(accion.observacion).html() : '')
                 );
-                Swal.fire({ icon: 'success', title: accion.estado_label || 'Accion registrada', text: response.message || 'Accion registrada.' });
+                Swal.fire({ icon: 'success', title: accion.estado_label || 'Accion registrada', text: response.message || 'Accion registrada.' }).then(function () {
+                    if ((accion.tipo || '') === 'vapor') {
+                        location.reload();
+                    }
+                });
             },
             error: function (xhr) {
                 boton.prop('disabled', false).html(textoOriginal);
@@ -3960,10 +5123,54 @@
 
     $(document).on('click', '.btn-finalizar-toma-muestra', function () {
         const paso = $(this).data('paso');
+        const tomaBox = obtenerTomaMuestraBoxOperacion(paso);
+        if (tomaBox.length && String(tomaBox.attr('data-vapor-activo')) === 'true') {
+            Swal.fire({
+                icon: 'warning',
+                title: 'Vapor activo',
+                text: 'Debe finalizar el tiempo de vapor antes de finalizar la toma de muestra.'
+            });
+            return;
+        }
         $('.btn-guardar-operacion[data-paso="' + paso + '"]').trigger('click');
         if (!$('.btn-guardar-operacion[data-paso="' + paso + '"]').length) {
             guardarPasoOperacion(paso, $(this));
         }
+    });
+
+    $(document).on('click', '.btn-finalizar-vapor', function () {
+        const boton = $(this);
+        const textoOriginal = boton.html();
+
+        $.ajax({
+            url: FINALIZAR_VAPOR_URL,
+            type: 'POST',
+            data: {
+                _empresa_id: OPERACION_PLANTA_EMPRESA_ID,
+                empresa_id: OPERACION_PLANTA_EMPRESA_ID
+            },
+            headers: {
+                'X-CSRFToken': getCookie('csrftoken')
+            },
+            beforeSend: function () {
+                boton.prop('disabled', true).html('<i class="op-glass-icon fas fa-spinner fa-spin"></i> Finalizando...');
+            },
+            success: function (response) {
+                if (!response.success) {
+                    boton.prop('disabled', false).html(textoOriginal);
+                    Swal.fire({ icon: 'error', title: 'Error', text: response.message || 'No fue posible finalizar vapor.' });
+                    return;
+                }
+                Swal.fire({ icon: 'success', title: 'Vapor finalizado', text: response.message || 'Tiempo de vapor finalizado.' }).then(function () {
+                    location.reload();
+                });
+            },
+            error: function (xhr) {
+                boton.prop('disabled', false).html(textoOriginal);
+                const response = xhr.responseJSON || {};
+                Swal.fire({ icon: 'error', title: 'No fue posible finalizar', text: response.message || ('Error HTTP ' + xhr.status + ' al finalizar vapor.') });
+            }
+        });
     });
 
     $(document).on('click', '.btn-obtener-ticket-pesaje', function () {
@@ -4031,6 +5238,8 @@
         const textarea = obtenerObservacionPasoOperacion(paso);
         const ticketBox = obtenerTicketBoxOperacion(paso);
         const tomaBox = obtenerTomaMuestraBoxOperacion(paso);
+        const cierreCargaBox = obtenerCierreCargaDespachoBoxOperacion(paso);
+        const datosExtra = {};
 
         if (ticketBox.length && String(ticketBox.attr('data-ticket-obtenido')) !== 'true') {
             Swal.fire({
@@ -4050,13 +5259,48 @@
             return;
         }
 
+        if (tomaBox.length && String(tomaBox.attr('data-vapor-activo')) === 'true') {
+            Swal.fire({
+                icon: 'warning',
+                title: 'Vapor activo',
+                text: 'Debe finalizar el tiempo de vapor antes de finalizar la toma de muestra.'
+            });
+            return;
+        }
+
+        if (cierreCargaBox.length) {
+            const nroSellos = $.trim(cierreCargaBox.find('.cierre-nro-sellos').val() || '');
+            const temperatura = $.trim(cierreCargaBox.find('.cierre-temperatura').val() || '');
+
+            if (!nroSellos) {
+                Swal.fire({
+                    icon: 'warning',
+                    title: 'Nro. Sellos obligatorio',
+                    text: 'Debe ingresar Nro. Sellos antes de enviar a la siguiente etapa.'
+                });
+                return;
+            }
+
+            if (!temperatura) {
+                Swal.fire({
+                    icon: 'warning',
+                    title: 'Temperatura obligatoria',
+                    text: 'Debe ingresar Temperatura antes de enviar a la siguiente etapa.'
+                });
+                return;
+            }
+
+            datosExtra.despacho_cierre_nro_sellos = nroSellos;
+            datosExtra.despacho_cierre_temperatura = temperatura;
+        }
+
         $.ajax({
             url: "{% url 'operacion_planta_guardar_paso' citacion.id %}",
             type: 'POST',
-            data: {
+            data: $.extend({
                 paso: paso,
                 observacion: textarea.val() || ''
-            },
+            }, datosExtra),
             headers: {
                 'X-CSRFToken': getCookie('csrftoken')
             },
@@ -4082,6 +5326,14 @@
     }
 
     $(document).on('click', '.btn-guardar-operacion', function () {
+        if (String($(this).data('requiere-proceso-finalizado')) === 'true') {
+            Swal.fire({
+                icon: 'warning',
+                title: 'Proceso requerido',
+                text: 'Debe finalizar al menos un proceso de carga/despacho antes de enviar a la siguiente etapa.'
+            });
+            return;
+        }
         guardarPasoOperacion($(this).data('paso'), $(this));
     });
 
