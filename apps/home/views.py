@@ -56,7 +56,9 @@ from .sap_recepcion import (
     consultar_proveedores_sap,
     get_goods_receipt_draft_guide_status,
     get_goods_receipt_draft_status,
+    get_goods_receipt_draft_update_status,
     send_goods_receipt_draft_from_peso_guia_to_sap,
+    send_goods_receipt_draft_update_to_sap,
     send_goods_receipt_draft_to_sap,
 )
 from .sap_despacho import consultar_acuerdos_despacho
@@ -5300,11 +5302,20 @@ def PLANIFICACION_CITACION_ESTANQUE(request, pk):
                 return JsonResponse({'success': False, 'message': 'No existe almacen definido en planificacion.'}, status=400)
 
             estanque = str(request.POST.get('estanque') or '').strip()
+            peso_raw = str(request.POST.get('peso_informado') or '').strip()
             if almacen == 'TRASVASIJE':
                 estanque = 'Trasvasije'
 
             if not estanque:
                 return JsonResponse({'success': False, 'message': 'Debe seleccionar estanque.'}, status=400)
+            if not peso_raw:
+                return JsonResponse({'success': False, 'message': 'No se puede crear Borrador SAP: falta peso informado.'}, status=400)
+            try:
+                peso_informado = Decimal(peso_raw.replace(',', '.'))
+            except (InvalidOperation, ValueError):
+                return JsonResponse({'success': False, 'message': 'Peso informado debe ser numerico.'}, status=400)
+            if peso_informado <= 0:
+                return JsonResponse({'success': False, 'message': 'Peso informado debe ser mayor a 0.'}, status=400)
 
             if estanque not in opciones_estanque:
                 return JsonResponse({'success': False, 'message': 'El estanque seleccionado no corresponde al almacen definido.'}, status=400)
@@ -5339,6 +5350,14 @@ def PLANIFICACION_CITACION_ESTANQUE(request, pk):
                         'DO_FFECHAREGISTRO': datetime.now(),
                     }
                 )
+                guardar_dato_operacion_codigo(
+                    citacion,
+                    CAMPO_PESO_INFORMADO_GUIA,
+                    format(peso_informado, 'f'),
+                    request.user,
+                    etiqueta='Peso informado',
+                    etapa=citacion.ETAPA_ACTUAL,
+                )
 
             ocupacion_info = descripcion_reserva_estanque_ocupada(reserva_ocupada) if reserva_ocupada else ''
             registrar_log_camion_no_planificado(
@@ -5356,9 +5375,13 @@ def PLANIFICACION_CITACION_ESTANQUE(request, pk):
                 estanque
             )
 
+            tipo_citacion_actual = str(citacion.CI_CTIPO or (citacion.PL_NID.PL_CTIPOCUPO if citacion.PL_NID else '') or '').upper()
+            es_recepcion = tipo_citacion_actual == CIT_RECEPCION
             return JsonResponse({
                 'success': True,
                 'message': (
+                    'Datos guardados. Borrador SAP pendiente.'
+                    if es_recepcion else
                     'Destino confirmado correctamente.'
                     if almacen == 'TRASVASIJE'
                     else (
@@ -5371,12 +5394,17 @@ def PLANIFICACION_CITACION_ESTANQUE(request, pk):
                 'reserva_estado': 'NO_APLICA' if almacen == 'TRASVASIJE' else ('TOMADO_POR_OTRA_CITACION' if reserva_ocupada else ESTANQUE_RESERVA.ESTADO_OCUPADO),
                 'ocupado_por_patente': reserva_ocupada.ER_CPATENTE if reserva_ocupada else '',
                 'ocupado_por_citacion': reserva_ocupada.CI_NID_id if reserva_ocupada else None,
-                'ocupacion_info': ocupacion_info
+                'ocupacion_info': ocupacion_info,
+                'peso_informado_guia': format(peso_informado, 'f'),
+                'sap_recepcion_draft': get_goods_receipt_draft_guide_status(citacion) if es_recepcion else {},
             })
 
         detalle_operacional = detalle_operacional_dict(citacion)
+        tipo_citacion_actual = str(citacion.CI_CTIPO or (citacion.PL_NID.PL_CTIPOCUPO if citacion.PL_NID else '') or '').upper()
+        es_recepcion = tipo_citacion_actual == CIT_RECEPCION
         detalle_despacho = detalle_despacho_resumen_dict(citacion, detalle_operacional) if es_despacho else {}
         sap_despacho_draft = get_sap_despacho_draft_status(citacion) if es_despacho else {}
+        sap_recepcion_draft = get_goods_receipt_draft_guide_status(citacion) if es_recepcion else {}
         insumo_planificado = obtener_insumo_sap_planificado(citacion, detalle_operacional)
         datos_operacion, documentos = obtener_datos_operacion_citacion(citacion)
         datos_acd = datos_asistente_cd_despacho(citacion, datos_operacion, detalle_operacional) if es_despacho else {}
@@ -5389,6 +5417,7 @@ def PLANIFICACION_CITACION_ESTANQUE(request, pk):
             registro = datos_operacion.get(codigo)
             return registro.DO_CVALOR if registro else ''
 
+        peso_informado_recepcion = dato(CAMPO_PESO_INFORMADO_GUIA)
         bl = dato('ING_BL') or obtener_bl_inicial_citacion(citacion) or detalle_operacional.get('bl', '')
         camion_patio_asociado = _camion_patio_asociado_citacion(citacion)
         insumo_declarado_guia = (
@@ -5420,6 +5449,8 @@ def PLANIFICACION_CITACION_ESTANQUE(request, pk):
             'datos_acd': datos_acd,
             'datos_acd_guardados': datos_asistente_cd_despacho_guardados(citacion, datos_operacion) if es_despacho else False,
             'sap_despacho_draft': sap_despacho_draft,
+            'sap_recepcion_draft': sap_recepcion_draft,
+            'peso_informado_guia': peso_informado_recepcion,
             'enviado_siguiente': enviado_siguiente,
             'es_trasvasije': almacen == 'TRASVASIJE',
             'puede_editar': (not enviado_siguiente) if es_despacho else (not enviado_siguiente and bool(almacen)),
@@ -5471,7 +5502,7 @@ def PLANIFICACION_CITACION_ESTANQUE(request, pk):
                 'Fecha aprobacion': log_aprobacion.LOG_FFECHAREGISTRO.strftime('%d/%m/%Y %H:%M') if log_aprobacion and log_aprobacion.LOG_FFECHAREGISTRO else '',
                 'Observacion': 'No registrado',
             },
-            'documentos': documentos,
+            'documentos': _documentos_borrador_sap(citacion) if es_recepcion else documentos,
         }
         if es_despacho:
             payload['guardia'].pop('BL', None)
@@ -5654,6 +5685,10 @@ def PLANIFICACION_BORRADOR_SAP_PESO_GUIA(request, pk):
     except CITACION.DoesNotExist:
         return JsonResponse({'success': False, 'message': 'Citacion no encontrada.'}, status=404)
 
+    tipo_citacion = str(citacion.CI_CTIPO or (citacion.PL_NID.PL_CTIPOCUPO if citacion.PL_NID else '') or '').upper()
+    if tipo_citacion != CIT_RECEPCION:
+        return JsonResponse({'success': False, 'message': 'Este borrador SAP solo aplica para citaciones de RECEPCION.'}, status=400)
+
     mensaje_etapa = _validar_borrador_sap_peso_guia_disponible(citacion, request.user)
     if mensaje_etapa:
         return JsonResponse({'success': False, 'message': mensaje_etapa}, status=409)
@@ -5747,6 +5782,27 @@ def PLANIFICACION_BORRADOR_SAP_PESO_GUIA_ENVIAR(request, pk):
         ).get(pk=pk, EP_NID_id=Empresa, CI_BHABILITADO=True)
     except CITACION.DoesNotExist:
         return JsonResponse({'success': False, 'message': 'Citacion no encontrada.'}, status=404)
+
+    tipo_citacion = str(citacion.CI_CTIPO or (citacion.PL_NID.PL_CTIPOCUPO if citacion.PL_NID else '') or '').upper()
+    if tipo_citacion != CIT_RECEPCION:
+        return JsonResponse({'success': False, 'message': 'Este borrador SAP solo aplica para citaciones de RECEPCION.'}, status=400)
+
+    dato_estanque = obtener_dato_estanque_operacional(citacion)
+    if not dato_estanque or not str(dato_estanque.DO_CVALOR or '').strip():
+        return JsonResponse({'success': False, 'message': 'No se puede crear Borrador SAP: primero debe guardar el estanque.'}, status=400)
+    peso_guardado = DATO_OPERACION.objects.filter(
+        CI_NID=citacion,
+        CAMP_NID__CA_CCODIGO=CAMPO_PESO_INFORMADO_GUIA
+    ).order_by('-id').first()
+    peso_raw = str(peso_guardado.DO_CVALOR if peso_guardado else '').strip()
+    if not peso_raw:
+        return JsonResponse({'success': False, 'message': 'No se puede crear Borrador SAP: falta peso informado.'}, status=400)
+    try:
+        peso_informado = Decimal(peso_raw.replace(',', '.'))
+    except (InvalidOperation, ValueError):
+        return JsonResponse({'success': False, 'message': 'Peso informado debe ser numerico.'}, status=400)
+    if peso_informado <= 0:
+        return JsonResponse({'success': False, 'message': 'Peso informado debe ser mayor a 0.'}, status=400)
 
     mensaje_etapa = _validar_borrador_sap_peso_guia_disponible(citacion, request.user)
     if mensaje_etapa:
@@ -5845,6 +5901,8 @@ def AVANZAR_ESTANQUE_SIGUIENTE_ETAPA(request, pk):
             return JsonResponse({'success': False, 'message': 'Esta citacion ya fue enviada a la siguiente etapa.'}, status=409)
 
         es_despacho = es_citacion_despacho(citacion)
+        tipo_citacion_actual = str(citacion.CI_CTIPO or (citacion.PL_NID.PL_CTIPOCUPO if citacion.PL_NID else '') or '').upper()
+        es_recepcion = tipo_citacion_actual == CIT_RECEPCION
         if es_despacho:
             datos_operacion, _ = obtener_datos_operacion_citacion(citacion)
             if not datos_asistente_cd_despacho_guardados(citacion, datos_operacion):
@@ -5857,6 +5915,23 @@ def AVANZAR_ESTANQUE_SIGUIENTE_ETAPA(request, pk):
         dato_estanque = obtener_dato_estanque_operacional(citacion)
         if not es_despacho and (not dato_estanque or not str(dato_estanque.DO_CVALOR or '').strip()):
             return JsonResponse({'success': False, 'message': 'Debe guardar un estanque antes de enviar.'}, status=400)
+        if es_recepcion:
+            peso_guardado = DATO_OPERACION.objects.filter(
+                CI_NID=citacion,
+                CAMP_NID__CA_CCODIGO=CAMPO_PESO_INFORMADO_GUIA
+            ).order_by('-id').first()
+            if not peso_guardado or not str(peso_guardado.DO_CVALOR or '').strip():
+                return JsonResponse({
+                    'success': False,
+                    'message': 'Debe guardar el peso informado antes de enviar a la siguiente etapa.',
+                }, status=400)
+            estado_borrador_recepcion = get_goods_receipt_draft_guide_status(citacion)
+            if not estado_borrador_recepcion.get('sent') or not estado_borrador_recepcion.get('docentry'):
+                return JsonResponse({
+                    'success': False,
+                    'message': 'Debe crear el Borrador SAP antes de enviar a la siguiente etapa.',
+                    'sap_status': estado_borrador_recepcion,
+                }, status=400)
 
         if datos_operacion is None:
             datos_operacion, _ = obtener_datos_operacion_citacion(citacion)
@@ -15082,6 +15157,7 @@ def OPERACION_PLANTA_CITACION(request, pk):
         return redirect('/cit_listall_despachos/' if citacion.CI_CTIPO == CIT_DESPACHO else '/cit_listall_recepciones/')
 
     es_despacho = es_citacion_despacho(citacion)
+    es_recepcion = str(getattr(citacion, 'CI_CTIPO', '') or '').upper() == CIT_RECEPCION
     nombre_flujo, pasos_config = obtener_pasos_operacion_citacion(citacion)
     logs = OPERACION_PLANTA_LOG.objects.select_related('US_NID').filter(
         CI_NID=citacion
@@ -15119,6 +15195,11 @@ def OPERACION_PLANTA_CITACION(request, pk):
         sap_update_despacho = (
             get_sap_despacho_update_status(citacion)
             if es_despacho_bodega_externa and nombre_paso == PASO_AUTORIZAR_SALIDA
+            else None
+        )
+        sap_update_recepcion = (
+            get_goods_receipt_draft_update_status(citacion)
+            if es_recepcion and nombre_paso == PASO_AUTORIZAR_SALIDA
             else None
         )
         autorizacion_salida_bodega = (
@@ -15198,6 +15279,8 @@ def OPERACION_PLANTA_CITACION(request, pk):
             'autorizar_salida': autorizar_salida,
             'requiere_update_sap_despacho': bool(sap_update_despacho),
             'sap_update_despacho': sap_update_despacho,
+            'requiere_update_sap_recepcion': bool(sap_update_recepcion),
+            'sap_update_recepcion': sap_update_recepcion,
             'puede_ver_detalle_tecnico_sap': usuario_puede_ver_detalle_tecnico_sap(request.user),
             'requiere_autorizacion_salida_bodega_externa': bool(autorizacion_salida_bodega),
             'autorizacion_salida_bodega': autorizacion_salida_bodega,
@@ -16056,6 +16139,19 @@ def ajax_operacion_planta_autorizar_salida(request, pk):
                 'message': 'Debe actualizar el documento SAP antes de autorizar la salida.'
             }, status=400)
 
+    if str(getattr(citacion, 'CI_CTIPO', '') or '').upper() == CIT_RECEPCION:
+        sap_update_status = get_goods_receipt_draft_update_status(citacion)
+        if sap_update_status.get('is_error'):
+            return JsonResponse({
+                'success': False,
+                'message': 'No se puede autorizar la salida porque la actualizacion SAP fallo.'
+            }, status=400)
+        if not sap_update_status.get('updated'):
+            return JsonResponse({
+                'success': False,
+                'message': 'Debe actualizar el Borrador SAP de recepcion antes de autorizar la salida.'
+            }, status=400)
+
     try:
         with transaction.atomic():
             metadata = _registrar_autorizar_salida(
@@ -16235,6 +16331,46 @@ def ajax_operacion_planta_actualizar_sap_despacho(request, pk):
         _limpiar_resultado_sap_despacho_para_usuario(result, request.user),
         status=200 if result.get('success') else 400
     )
+
+
+def ajax_operacion_planta_actualizar_sap_recepcion(request, pk):
+    if request.method != 'POST':
+        return JsonResponse({'success': False, 'message': 'Metodo no permitido.'}, status=405)
+    if not usuario_es_operacion_planta(request.user):
+        return JsonResponse({
+            'success': False,
+            'message': 'No tiene permisos para Operacion Planta.'
+        }, status=403)
+
+    citacion, error_response = _obtener_citacion_operacion_planta_ajax(request, pk)
+    if error_response:
+        return error_response
+
+    if str(getattr(citacion, 'CI_CTIPO', '') or '').upper() != CIT_RECEPCION:
+        return JsonResponse({
+            'success': False,
+            'message': 'La actualizacion SAP de recepcion solo aplica al flujo Recepcion.'
+        }, status=400)
+
+    _, pasos_config = obtener_pasos_operacion_citacion(citacion)
+    paso_actual_visible, responsables_paso, _ = obtener_paso_activo_operacion(citacion, pasos_config)
+    if paso_actual_visible != PASO_AUTORIZAR_SALIDA:
+        return JsonResponse({
+            'success': False,
+            'message': f'Solo puede actualizar SAP durante la etapa activa: {PASO_AUTORIZAR_SALIDA}.'
+        }, status=409)
+    if not usuario_puede_paso_operacion(request.user, responsables_paso):
+        return JsonResponse({
+            'success': False,
+            'message': f'Solo lectura: este paso corresponde a {" / ".join(responsables_paso)}'
+        }, status=403)
+
+    allow_retry = (
+        str(request.POST.get('allow_retry') or '').strip().lower() in {'1', 'true', 'yes'}
+        and getattr(request.user, 'is_superuser', False)
+    )
+    result = send_goods_receipt_draft_update_to_sap(citacion, request.user, allow_retry=allow_retry)
+    return JsonResponse(result, status=200 if result.get('success') else 400)
 
 
 def _validar_borrador_sap_disponible(citacion, request, requiere_activo=False):

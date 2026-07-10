@@ -1468,6 +1468,7 @@
                         </div>
                     </div>
                 </div>
+                <div id="sap_recepcion_draft_panel" class="mt-3" style="display:none;"></div>
             </div>
             <!-- [ Main Content ] end -->
         </div>
@@ -2243,6 +2244,7 @@
             <div class="modal-footer">
                 <button type="button" class="btn btn-secondary" data-dismiss="modal">Cerrar</button>
                 <button type="button" class="btn btn-primary" id="btn_guardar_estanque" onclick="guardarEstanqueCamion()">Guardar estanque</button>
+                <button type="button" class="btn btn-outline-success btn-sm" id="btn_crear_borrador_sap_recepcion" onclick="crearBorradorSapRecepcion()" style="display:none;">Crear Borrador SAP</button>
                 <button type="button" class="btn btn-outline-success" id="btn_crear_borrador_sap_despacho" onclick="crearBorradorSapDespacho()" style="display:none;">Crear Borrador SAP</button>
                 <button type="button" class="btn btn-success" id="btn_enviar_estanque" onclick="enviarEstanqueSiguienteEtapa()">Enviar siguiente etapa</button>
             </div>
@@ -3903,10 +3905,11 @@
                 <h6 class="font-weight-bold mb-3">Documentos</h6>
                 <div class="list-group">
                     ${items.map(function (doc) {
-                        const nombre = doc.nombre_archivo || doc.valor || 'Documento';
-                        const link = doc.download_url
-                            ? `<a class="btn btn-sm btn-outline-primary" href="${escapeHtml(doc.download_url)}" target="_blank" rel="noopener">Ver</a>`
-                            : '';
+                        const nombre = doc.nombre_archivo || doc.nombre || doc.valor || 'Documento';
+                        const url = doc.download_url || doc.url || '';
+                        const link = url
+                            ? `<a class="btn btn-sm btn-outline-primary" href="${escapeHtml(url)}" target="_blank" rel="noopener">Ver</a>`
+                            : (doc.mensaje ? `<span class="badge badge-warning">${escapeHtml(doc.mensaje)}</span>` : '');
                         return `
                             <div class="list-group-item d-flex justify-content-between align-items-center">
                                 <div>
@@ -5250,6 +5253,7 @@ function inicializarConductoresIngresoCamion(limpiarActual) {
 
     function bloquearControlesEstanqueCamion(bloquear, mensaje) {
         $('#estanque_operacional').prop('disabled', !!bloquear);
+        $('#recepcion_peso_informado').prop('disabled', !!bloquear);
         $('#btn_guardar_estanque').prop('disabled', !!bloquear);
 
         if (mensaje) {
@@ -5278,15 +5282,36 @@ function inicializarConductoresIngresoCamion(limpiarActual) {
         }
     }
 
-    function renderFormularioEstanqueRecepcion() {
+    function renderFormularioEstanqueRecepcion(response) {
+        const datos = response || {};
+        const disabled = datos.puede_editar === false ? 'disabled' : '';
+        const documentos = datos.documentos || [];
+        const documentosHtml = renderRevisionDocuments(documentos);
+        const documentosEstado = documentos.length
+            ? (documentos.length + (documentos.length === 1 ? ' documento disponible.' : ' documentos disponibles.'))
+            : 'No hay documentos adjuntos disponibles.';
         return `
             <div class="form-group">
                 <label for="estanque_almacen_planificacion">Almacen definido por planificación</label>
                 <input type="text" class="form-control" id="estanque_almacen_planificacion" readonly>
             </div>
+            <div class="form-group">
+                <label for="estanque_operacional">Estanque <span class="text-danger">*</span></label>
+                <select class="form-control" id="estanque_operacional" ${disabled}></select>
+            </div>
+            <div class="form-group">
+                <label for="recepcion_peso_informado">Peso informado <span class="text-danger">*</span></label>
+                <input type="text" inputmode="decimal" class="form-control" id="recepcion_peso_informado" value="${escapeHtml(datos.peso_informado_guia || '')}" ${disabled} required placeholder="Ej: 25, 25.5 o 28650">
+                <small class="form-text text-muted">Revise los documentos adjuntos para confirmar el peso informado.</small>
+            </div>
             <div class="form-group mb-0">
-                <label for="estanque_operacional">Estanque</label>
-                <select class="form-control" id="estanque_operacional"></select>
+                <button type="button" class="btn btn-outline-primary btn-sm" id="btn_acd_ver_documentos">
+                    <i class="fas fa-folder-open mr-1"></i> Ver documentos adjuntos
+                </button>
+                <small class="d-block text-muted mt-1">${escapeHtml(documentosEstado)}</small>
+                <div id="acd_documentos_adjuntos" class="mt-3" style="display:none;">
+                    ${documentosHtml || '<div class="alert alert-light border mb-0">No hay documentos adjuntos disponibles.</div>'}
+                </div>
             </div>
         `;
     }
@@ -5337,6 +5362,118 @@ function inicializarConductoresIngresoCamion(limpiarActual) {
             $('#sap_despacho_draft_panel').html(renderSapDespachoDraftPanel(estado)).show();
         } else {
             $('#sap_despacho_draft_panel').empty().hide();
+        }
+    }
+
+    function renderSapRecepcionDraftPanel(draft, resultado) {
+        const estado = draft || {};
+        const respuesta = resultado || {};
+        const responseJson = respuesta.response_json || respuesta.response || estado.response_json || estado.response || respuesta.sap_error || estado.sap_error || {};
+        const requestJson = respuesta.request_json || estado.request_json || ((respuesta.preview || {}).payload) || {};
+        const source = ((respuesta.preview || {}).source_data) || {};
+        const line = (requestJson.DocumentLines || [])[0] || {};
+        const creado = !!estado.sent || !!(respuesta.success && (responseJson.DocEntry || responseJson.docentry));
+        const docEntry = estado.docentry || responseJson.DocEntry || responseJson.docentry || '';
+        const docNum = estado.docnum || responseJson.DocNum || responseJson.docnum || '';
+        const errores = ((respuesta.preview || {}).errors || []).concat(respuesta.message && !respuesta.success ? [respuesta.message] : []);
+        const statusClass = creado ? 'success' : (errores.length ? 'danger' : 'warning');
+        const statusText = creado ? 'Borrador SAP creado' : (errores.length ? 'Error al crear Borrador SAP' : (estado.local_status || estado.label || 'Pendiente de crear'));
+        const statusCode = respuesta.status_code || estado.status_code || '-';
+        const endpoint = respuesta.endpoint || estado.endpoint || '/Drafts';
+        const fechaIntento = respuesta.fecha_hora || estado.fecha_hora || '-';
+        const usuarioIntento = respuesta.usuario || estado.usuario || '-';
+        const sapErrorMessage = respuesta.sap_error_message || estado.sap_error_message || '';
+        const formatearDetalleSap = function (value, emptyLabel) {
+            const label = emptyLabel || 'SAP respondio sin cuerpo.';
+            if (value === null || value === undefined || value === '') {
+                return label;
+            }
+            if (typeof value === 'string') {
+                return value || label;
+            }
+            if (Array.isArray(value) && !value.length) {
+                return label;
+            }
+            if (typeof value === 'object' && !Object.keys(value).length) {
+                return label;
+            }
+            try {
+                return JSON.stringify(value, null, 2);
+            } catch (error) {
+                return String(value);
+            }
+        };
+        const consolaStyle = 'max-height:320px;overflow:auto;background:#111827;color:#e5e7eb;border-radius:6px;padding:12px;font-size:12px;white-space:pre-wrap;';
+        const resumen = [
+            ['DocEntry', docEntry || '-'],
+            ['DocNum', docNum || '-'],
+            ['Status code HTTP', statusCode],
+            ['Endpoint', endpoint],
+            ['Fecha/hora intento', fechaIntento],
+            ['Usuario', usuarioIntento],
+            ['Proveedor SAP', estado.card_code || requestJson.CardCode || source.card_code || '-'],
+            ['Producto SAP', estado.item_code || line.ItemCode || source.item_code || '-'],
+            ['Peso informado usado', estado.quantity || line.Quantity || source.peso_informado_guia || source.quantity || '-'],
+            ['BaseEntry', estado.base_entry || line.BaseEntry || source.doc_entry || '-'],
+            ['BaseLine', estado.base_line || (line.BaseLine ?? source.base_line ?? '-')]
+        ];
+
+        return `
+            <div class="revision-section mb-0">
+                <h6>Borrador SAP Recepci&oacute;n</h6>
+                <div class="alert alert-${statusClass} py-2 mb-3">
+                    <strong>Estado:</strong> ${escapeHtml(statusText)}
+                    ${docEntry ? `<span class="ml-2"><strong>DocEntry:</strong> ${escapeHtml(docEntry)}</span>` : ''}
+                    ${docNum ? `<span class="ml-2"><strong>DocNum:</strong> ${escapeHtml(docNum)}</span>` : ''}
+                </div>
+                ${errores.length ? `<div class="alert alert-danger py-2">${errores.map(function (item) { return escapeHtml(item); }).join('<br>')}</div>` : ''}
+                <div class="sap-guia-summary mb-2">
+                    ${resumen.map(function (item) {
+                        return '<div class="sap-guia-summary-item"><small>' + escapeHtml(item[0]) + '</small><strong>' + escapeHtml(item[1]) + '</strong></div>';
+                    }).join('')}
+                </div>
+                ${sapErrorMessage ? `<div class="alert alert-warning py-2"><strong>Mensaje SAP:</strong> ${escapeHtml(sapErrorMessage)}</div>` : ''}
+                <div class="row">
+                    <div class="col-lg-6 mb-3">
+                        <div class="font-weight-bold mb-1">Request JSON Borrador SAP Recepci&oacute;n</div>
+                        <pre style="${consolaStyle}">${escapeHtml(formatearDetalleSap(requestJson, 'Sin request disponible.'))}</pre>
+                    </div>
+                    <div class="col-lg-6 mb-3">
+                        <div class="font-weight-bold mb-1">Response JSON Borrador SAP Recepci&oacute;n</div>
+                        <pre style="${consolaStyle}">${escapeHtml(formatearDetalleSap(responseJson, 'SAP respondio sin cuerpo.'))}</pre>
+                    </div>
+                </div>
+                ${respuesta.sap_error || estado.sap_error ? `
+                    <details class="mb-0">
+                        <summary>Ver error t&eacute;cnico completo</summary>
+                        <div class="form-group mt-2 mb-0">
+                            <pre style="${consolaStyle}">${escapeHtml(formatearDetalleSap(respuesta.sap_error || estado.sap_error, 'Sin error tecnico adicional.'))}</pre>
+                        </div>
+                    </details>` : ''}
+            </div>
+        `;
+    }
+
+    function actualizarEstadoSapRecepcionDraft(draft, estanqueGuardado, puedeEditar, resultado) {
+        const estado = draft || {};
+        const respuesta = resultado || {};
+        const source = ((respuesta.preview || {}).source_data) || {};
+        const creado = !!estado.sent;
+        const pesoGuardado = !!normalizarTexto(
+            respuesta.peso_informado_guia
+            || estado.quantity
+            || source.peso_informado_guia
+            || ''
+        );
+        $('#btn_crear_borrador_sap_recepcion')
+            .toggle(estanqueCamionTipo === 'RECEPCION')
+            .prop('disabled', !puedeEditar || !estanqueGuardado || !pesoGuardado || creado)
+            .text(creado ? 'Borrador SAP creado' : 'Crear Borrador SAP');
+        $('#btn_enviar_estanque').prop('disabled', !puedeEditar || !estanqueGuardado || !pesoGuardado || !creado);
+        if (estanqueCamionTipo === 'RECEPCION') {
+            $('#sap_recepcion_draft_panel').html(renderSapRecepcionDraftPanel(estado, resultado)).show();
+        } else {
+            $('#sap_recepcion_draft_panel').empty().hide();
         }
     }
 
@@ -5635,6 +5772,8 @@ function inicializarConductoresIngresoCamion(limpiarActual) {
         $('#btn_guardar_estanque').text('Guardar estanque');
         $('#btn_enviar_estanque').text('Enviar siguiente etapa');
         $('#btn_crear_borrador_sap_despacho').hide().prop('disabled', true).text('Crear Borrador SAP');
+        $('#btn_crear_borrador_sap_recepcion').hide().prop('disabled', true).text('Crear Borrador SAP');
+        $('#sap_recepcion_draft_panel').empty().hide();
         $('#btn_guardar_estanque, #btn_enviar_estanque').prop('disabled', true);
         $('#ModalEstanqueCamion').modal('show');
 
@@ -5650,8 +5789,10 @@ function inicializarConductoresIngresoCamion(limpiarActual) {
 
                 const opciones = response.opciones_estanque || [];
                 const puedeEditar = !!response.puede_editar && !response.enviado_siguiente;
-                const esDespacho = String(response.tipo_citacion || '').toUpperCase() === 'DESPACHO';
-                estanqueCamionTipo = esDespacho ? 'DESPACHO' : '';
+                const tipoCitacion = String(response.tipo_citacion || '').toUpperCase();
+                const esDespacho = tipoCitacion === 'DESPACHO';
+                const esRecepcion = tipoCitacion === 'RECEPCION';
+                estanqueCamionTipo = esDespacho ? 'DESPACHO' : (esRecepcion ? 'RECEPCION' : '');
                 const esTrasvasije = !!response.es_trasvasije;
                 const bloqueo = response.mensaje_bloqueo
                     || (!esDespacho && !esTrasvasije && !opciones.length ? 'No hay estanques configurados para el almacén definido en la planificación.' : '');
@@ -5692,6 +5833,7 @@ function inicializarConductoresIngresoCamion(limpiarActual) {
                     return;
                 }
 
+                $('#estanque_camion_form_campos').html(renderFormularioEstanqueRecepcion(response));
                 $('#estanque_almacen_planificacion').val(response.almacen || 'No registrado');
 
                 if (esTrasvasije) {
@@ -5717,7 +5859,13 @@ function inicializarConductoresIngresoCamion(limpiarActual) {
                     bloquearControlesEstanqueCamion(!puedeEditar || !!bloqueo, bloqueo);
                 }
 
-                $('#btn_enviar_estanque').prop('disabled', !puedeEditar || !response.estanque_actual);
+                if (esRecepcion) {
+                    actualizarEstadoSapRecepcionDraft(response.sap_recepcion_draft || {}, !!response.estanque_actual, puedeEditar, response);
+                } else {
+                    $('#btn_enviar_estanque').prop('disabled', !puedeEditar || !response.estanque_actual);
+                    $('#btn_crear_borrador_sap_recepcion').hide().prop('disabled', true);
+                    $('#sap_recepcion_draft_panel').empty().hide();
+                }
 
                 if (response.enviado_siguiente) {
                     $('#estanque_camion_alert').show().text('Esta citación ya fue enviada a la siguiente etapa.');
@@ -5816,7 +5964,7 @@ function inicializarConductoresIngresoCamion(limpiarActual) {
             ['Proveedor / CardCode', (source.card_name || '-') + ' / ' + (payload.CardCode || source.card_code || '-')],
             ['ItemCode', line.ItemCode || source.item_code || '-'],
             ['Quantity usado', line.Quantity ?? source.peso_informado_guia ?? '-'],
-            ['WarehouseCode', line.WarehouseCode || '-'],
+            ['BaseType / BaseLine', (line.BaseType ?? '-') + ' / ' + (line.BaseLine ?? '-')],
             ['BatchNumber', batch.BatchNumber || source.batch_number || '-'],
             ['NumAtCard', payload.NumAtCard || source.num_at_card || '-'],
             ['Origen cantidad', source.origen_cantidad || response.origen_cantidad || 'peso_guia']
@@ -6016,6 +6164,75 @@ function inicializarConductoresIngresoCamion(limpiarActual) {
             }
         });
     }
+
+    function crearBorradorSapRecepcion() {
+        if (!estanqueCamionCitacionId || estanqueCamionTipo !== 'RECEPCION') {
+            return;
+        }
+
+        const boton = $('#btn_crear_borrador_sap_recepcion');
+        const pesoRecepcion = normalizarTexto($('#recepcion_peso_informado').val());
+        const pesoRecepcionNumero = Number(String(pesoRecepcion).replace(',', '.'));
+        if (!pesoRecepcion || !Number.isFinite(pesoRecepcionNumero) || pesoRecepcionNumero <= 0) {
+            Swal.fire({
+                icon: 'warning',
+                title: 'Peso informado requerido',
+                text: 'No se puede crear Borrador SAP: falta peso informado.'
+            });
+            return;
+        }
+        Swal.fire({
+            icon: 'question',
+            title: 'Crear Borrador SAP',
+            html: 'Se creara el Borrador SAP de recepcion usando los datos guardados de la citacion.<br><small>POST /Drafts en la base SAP QA configurada.</small>',
+            showCancelButton: true,
+            confirmButtonText: 'Crear Borrador SAP',
+            cancelButtonText: 'Cancelar'
+        }).then(function (result) {
+            if (!result.isConfirmed) {
+                return;
+            }
+            
+            boton.prop('disabled', true).html('<i class="fas fa-spinner fa-spin mr-1"></i> Creando...');
+            $.ajax({
+                url: '/pla-citacion-borrador-sap-peso-guia/' + estanqueCamionCitacionId + '/enviar/',
+                type: 'POST',
+                headers: {'X-CSRFToken': '{{ csrf_token }}'},
+                data: {
+                    origen_cantidad: 'peso_guia',
+                    _empresa_id: '{{ empresa_id }}',
+                    empresa_id: '{{ empresa_id }}'
+                },
+                success: function (response) {
+                    const status = response.status || {};
+                    actualizarEstadoSapRecepcionDraft(status, true, true, response);
+                    Swal.fire({
+                        icon: 'success',
+                        title: 'Borrador SAP creado',
+                        text: response.message || 'Borrador SAP de recepcion creado correctamente.'
+                    });
+                },
+                error: function (xhr) {
+                    const response = xhr.responseJSON || {};
+                    const status = response.status || response.sap_status || {};
+                    actualizarEstadoSapRecepcionDraft(status, true, true, response);
+                    Swal.fire({
+                        icon: 'warning',
+                        title: 'No se pudo crear',
+                        html: '<div class="text-left">' + escapeHtml(response.message || 'No fue posible crear el Borrador SAP.') + '</div>',
+                        width: '720px'
+                    });
+                },
+                complete: function () {
+                    const creado = ($('#btn_crear_borrador_sap_recepcion').text() || '').indexOf('creado') >= 0;
+                    if (!creado) {
+                        boton.prop('disabled', false).text('Crear Borrador SAP');
+                    }
+                }
+            });
+        });
+    }
+
     $(document)
         .off('click.borrador-sap-documentos', '#btn_ver_documentos_borrador_sap')
         .on('click.borrador-sap-documentos', '#btn_ver_documentos_borrador_sap', function () {
@@ -6026,6 +6243,19 @@ function inicializarConductoresIngresoCamion(limpiarActual) {
         .off('click.acd-documentos', '#btn_acd_ver_documentos')
         .on('click.acd-documentos', '#btn_acd_ver_documentos', function () {
             $('#acd_documentos_adjuntos').toggle();
+        });
+
+    $(document)
+        .off('input.recepcion-peso change.recepcion-estanque', '#recepcion_peso_informado, #estanque_operacional')
+        .on('input.recepcion-peso change.recepcion-estanque', '#recepcion_peso_informado, #estanque_operacional', function () {
+            if (estanqueCamionTipo === 'RECEPCION') {
+                $('#btn_crear_borrador_sap_recepcion, #btn_enviar_estanque').prop('disabled', true);
+                $('#estanque_camion_bloqueo')
+                    .removeClass('alert-success')
+                    .addClass('alert-warning')
+                    .show()
+                    .text('Guarde estanque y peso informado antes de crear el Borrador SAP.');
+            }
         });
 
     $(document)
@@ -6308,11 +6538,29 @@ function inicializarConductoresIngresoCamion(limpiarActual) {
         }
 
         const estanque = normalizarTexto($('#estanque_operacional').val());
+        const pesoRecepcion = normalizarTexto($('#recepcion_peso_informado').val());
         if (!estanque) {
             Swal.fire({
                 icon: 'warning',
                 title: 'Estanque requerido',
                 text: 'Debe seleccionar un estanque destino.'
+            });
+            return;
+        }
+        if (!pesoRecepcion) {
+            Swal.fire({
+                icon: 'warning',
+                title: 'Peso informado requerido',
+                text: 'No se puede crear Borrador SAP: falta peso informado.'
+            });
+            return;
+        }
+        const pesoRecepcionNumero = Number(String(pesoRecepcion).replace(',', '.'));
+        if (!Number.isFinite(pesoRecepcionNumero) || pesoRecepcionNumero <= 0) {
+            Swal.fire({
+                icon: 'warning',
+                title: 'Peso informado invalido',
+                text: 'Debe ingresar un peso informado numerico y mayor a 0.'
             });
             return;
         }
@@ -6327,7 +6575,10 @@ function inicializarConductoresIngresoCamion(limpiarActual) {
             $.ajax({
                 url: `/pla-citacion-estanque/${estanqueCamionCitacionId}/`,
                 type: 'POST',
-                data: { estanque: estanque },
+                data: {
+                    estanque: estanque,
+                    peso_informado: pesoRecepcion
+                },
                 headers: {
                     'X-CSRFToken': '{{ csrf_token }}'
                 },
@@ -6341,13 +6592,22 @@ function inicializarConductoresIngresoCamion(limpiarActual) {
                         return;
                     }
 
-                    $('#btn_enviar_estanque').prop('disabled', false);
+                    if (estanqueCamionTipo === 'RECEPCION') {
+                        actualizarEstadoSapRecepcionDraft(response.sap_recepcion_draft || {}, true, true, response);
+                        $('#estanque_camion_bloqueo')
+                            .removeClass('alert-warning')
+                            .addClass('alert-success')
+                            .show()
+                            .text('Datos guardados. Borrador SAP pendiente.');
+                    } else {
+                        $('#btn_enviar_estanque').prop('disabled', false);
+                    }
                     $(`#citacion-row-${estanqueCamionCitacionId}`).addClass('citacion-estanque-asignado');
 
                     Swal.fire({
                         icon: 'success',
-                        title: 'Estanque guardado',
-                        text: response.message || 'Estanque guardado correctamente.'
+                        title: estanqueCamionTipo === 'RECEPCION' ? 'Datos guardados' : 'Estanque guardado',
+                        text: response.message || (estanqueCamionTipo === 'RECEPCION' ? 'Datos guardados. Borrador SAP pendiente.' : 'Estanque guardado correctamente.')
                     });
                 },
                 error: function (xhr) {

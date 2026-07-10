@@ -309,6 +309,7 @@ urlpatterns = [
     path('operacion-planta/<int:pk>/borrador-sap-preview/', login_required(views.ajax_operacion_planta_borrador_sap_preview), name='ajax_operacion_planta_borrador_sap_preview'),
     path('operacion-planta/<int:pk>/borrador-sap-enviar/', login_required(views.ajax_operacion_planta_borrador_sap_enviar), name='ajax_operacion_planta_borrador_sap_enviar'),
     path('operacion-planta/<int:pk>/sap-despacho-actualizar/', login_required(views.ajax_operacion_planta_actualizar_sap_despacho), name='ajax_operacion_planta_actualizar_sap_despacho'),
+    path('operacion-planta/<int:pk>/sap-recepcion-actualizar/', login_required(views.ajax_operacion_planta_actualizar_sap_recepcion), name='ajax_operacion_planta_actualizar_sap_recepcion'),
     path('operacion-planta/<int:pk>/autorizar-salida/', login_required(views.ajax_operacion_planta_autorizar_salida), name='ajax_operacion_planta_autorizar_salida'),
     path('ajax/operacion-planta/ticket-pesaje/', login_required(views.ajax_operacion_planta_obtener_ticket_pesaje), name='ajax_operacion_planta_obtener_ticket_pesaje'),
     path('ajax/operacion-planta/ticket-pesaje/descargar/', login_required(views.ajax_operacion_planta_descargar_ticket_pesaje), name='ajax_operacion_planta_descargar_ticket_pesaje'),
