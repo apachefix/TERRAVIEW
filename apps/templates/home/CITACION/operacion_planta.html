@@ -2744,74 +2744,51 @@
                                     {% endif %}
 
                                     {% if paso.requiere_resultado_calidad %}
-                                    <div class="op-lab-panel operacion-calidad-box"
-                                         data-paso="{{ paso.nombre }}"
-                                         data-calidad-registrada="{% if paso.resultado_calidad %}true{% else %}false{% endif %}"
-                                         data-validacion-calidad="{% if paso.validacion_calidad.registrada %}true{% else %}false{% endif %}">
+                                    <div class="op-lab-panel operacion-calidad-box" data-paso="{{ paso.nombre }}">
                                         <div>
-                                            <div class="op-lab-title"><i class="fas fa-flask"></i> Resultado de laboratorio</div>
-                                            <div class="op-lab-subtitle">Seleccione el resultado del analisis</div>
-                                            <div class="op-lab-sample-note {% if not paso.observacion_toma_muestra %}is-muted{% endif %}">
-                                                <strong>Observacion toma de muestra</strong>
-                                                {{ paso.observacion_toma_muestra|default:'Sin observacion registrada' }}
+                                            <div class="op-lab-title"><i class="fas fa-flask"></i> Analisis y Calidad</div>
+                                            <div class="op-lab-subtitle">Proceso interno automatico de TERRAVIEW</div>
+                                            <div class="op-result-dashboard-grid mt-3">
+                                                <div class="op-dashboard-card"><div class="op-dashboard-card-title">Citacion</div><strong>#{{ citacion.id }}</strong></div>
+                                                <div class="op-dashboard-card"><div class="op-dashboard-card-title">Numero de guia</div><strong>{{ numero_guia_operacion|default:'Sin registrar' }}</strong></div>
+                                                <div class="op-dashboard-card"><div class="op-dashboard-card-title">Patente</div><strong>{{ patente|default:'Sin registrar' }}</strong></div>
+                                                <div class="op-dashboard-card"><div class="op-dashboard-card-title">Insumo</div><strong>{{ insumo_operacion|default:'Sin insumo' }}</strong></div>
                                             </div>
-                                            <div class="op-action-stack mt-3">
-                                                <button type="button"
-                                                        class="op-glass-button is-primary btn-validar-calidad {% if paso.validacion_calidad.registrada %}is-success{% endif %}"
-                                                        data-paso="{{ paso.nombre }}"
-                                                        onclick="abrirModalValidacionCalidad(this)"
-                                                        {% if not paso.activo or not paso.puede_editar or paso.resultado_calidad or paso.validacion_calidad.registrada %}disabled{% endif %}>
-                                                    <i class="op-glass-icon fas {% if paso.validacion_calidad.registrada %}fa-check{% else %}fa-clipboard-check{% endif %}"></i>
-                                                    {% if paso.validacion_calidad.registrada %}Validacion realizada{% else %}Validar{% endif %}
-                                                </button>
+                                            <div class="op-action-state mt-3">
+                                                <strong>{{ paso.resultado_calidad.mensaje }}</strong>
+                                                Estado: {{ paso.resultado_calidad.estado }} | Origen: {{ paso.resultado_calidad.origen }}
                                             </div>
-                                            <div class="op-action-state op-validacion-calidad-state mt-3">
-                                                {% if paso.validacion_calidad.registrada %}
-                                                    <strong>Validacion realizada: insumo y guia revisados</strong>
-                                                    {{ paso.validacion_calidad.fecha_hora }} por {{ paso.validacion_calidad.usuario }}
-                                                {% else %}
-                                                    <strong>Validacion pendiente</strong>
-                                                    Revise insumo y guia antes de aprobar o rechazar.
-                                                {% endif %}
-                                            </div>
-                                            <div class="op-action-stack">
-                                                <button type="button"
-                                                        class="op-glass-button is-success btn-resultado-calidad"
-                                                        data-resultado="APROBADO"
-                                                        {% if not paso.activo or not paso.puede_editar or paso.resultado_calidad or not paso.validacion_calidad.registrada %}disabled{% endif %}>
-                                                    <i class="op-glass-icon fas fa-check"></i>
-                                                    Aprobado
-                                                </button>
-                                                <button type="button"
-                                                        class="op-glass-button is-danger btn-resultado-calidad"
-                                                        data-resultado="RECHAZADO"
-                                                        {% if not paso.activo or not paso.puede_editar or paso.resultado_calidad or not paso.validacion_calidad.registrada %}disabled{% endif %}>
-                                                    <i class="op-glass-icon fas fa-times"></i>
-                                                    Rechazado
-                                                </button>
-                                            </div>
+                                            {% if paso.resultado_calidad.estado == 'RECHAZADO' %}
+                                                <div class="alert alert-danger mt-3 mb-0"><i class="fas fa-truck mr-2"></i>Cami&oacute;n autorizado para salir de planta por rechazo de calidad</div>
+                                            {% elif paso.resultado_calidad.estado == 'APRUEBA_CLIENTE' %}
+                                                <div class="alert alert-warning mt-3 mb-0"><i class="fas fa-user-clock mr-2"></i>En espera de aprobaci&oacute;n del cliente</div>
+                                            {% elif paso.resultado_calidad.estado == 'APROBADO' %}
+                                                <div class="alert alert-success mt-3 mb-0"><i class="fas fa-check-circle mr-2"></i>Etapa cerrada autom&aacute;ticamente y avance a Resultado Calidad</div>
+                                            {% endif %}
                                         </div>
                                         <div class="op-lab-fields">
-                                            <div>
-                                                <label>Documento opcional</label>
-                                                <input type="file"
-                                                       class="form-control-file operacion-calidad-documento"
-                                                       {% if not paso.activo or not paso.puede_editar or paso.resultado_calidad %}disabled{% endif %}>
+                                            <div class="op-lab-result-card">
+                                                <div class="op-hourglass {% if not paso.resultado_calidad.temporizador_activo %}descarga-finalizada{% else %}descarga-activa{% endif %}">
+                                                    <div class="op-hourglass-inner"><span class="op-hourglass-neck"></span><span class="op-hourglass-glass-shine"></span><span class="op-hourglass-sand-layer"><span class="op-hourglass-sand-top"></span><span class="op-hourglass-flow"></span><span class="op-hourglass-sand-bottom"></span></span></div>
+                                                </div>
+                                                <strong class="op-wait-clock-time" {% if paso.resultado_calidad.temporizador_activo %}data-wait-start="{{ paso.resultado_calidad.inicio_iso }}"{% endif %}>{{ paso.resultado_calidad.duracion_legible }}</strong>
+                                                <br>Inicio: {{ paso.resultado_calidad.inicio }}
+                                                <br>Ultimo cambio: {{ paso.resultado_calidad.ultimo_cambio }}
+                                                {% if paso.resultado_calidad.cierre %}<br>Cierre: {{ paso.resultado_calidad.cierre }}{% endif %}
+                                                {% if paso.resultado_calidad.usuario %}<br>Responsable: {{ paso.resultado_calidad.usuario }}{% endif %}
+                                                {% if paso.resultado_calidad.observacion %}<br>Observacion: {{ paso.resultado_calidad.observacion }}{% endif %}
                                             </div>
                                             <div class="op-lab-result-card">
-                                                {% if paso.resultado_calidad %}
-                                                    <strong>Resultado: {{ paso.resultado_calidad.resultado_calidad }}</strong>
-                                                    {{ paso.resultado_calidad.fecha_hora }} por {{ paso.resultado_calidad.usuario }}
-                                                    {% if paso.resultado_calidad.documento_nombre %}
-                                                        <br>Documento: {{ paso.resultado_calidad.documento_nombre }}
-                                                    {% endif %}
-                                                    {% if paso.resultado_calidad.comentario %}
-                                                        <br>Comentario: {{ paso.resultado_calidad.comentario }}
-                                                    {% endif %}
-                                                {% else %}
-                                                    <strong>Control de calidad pendiente</strong>
-                                                    El documento es opcional. Ingrese comentario en Observacion si corresponde.
-                                                {% endif %}
+                                                <strong>Historial de estados</strong>
+                                                {% for cambio in paso.resultado_calidad.historial %}
+                                                    <div class="border-top pt-2 mt-2">
+                                                        {{ cambio.fecha }} &middot; {{ cambio.estado_anterior|default:'INICIO' }} &rarr; {{ cambio.estado_nuevo }}<br>
+                                                        <small>{{ cambio.origen }} &middot; {{ cambio.responsable|default:'Sistema' }}</small>
+                                                        {% if cambio.observacion %}<br><small>{{ cambio.observacion }}</small>{% endif %}
+                                                    </div>
+                                                {% empty %}
+                                                    <div class="op-dashboard-muted mt-2">Sin cambios registrados.</div>
+                                                {% endfor %}
                                             </div>
                                         </div>
                                     </div>
@@ -4028,7 +4005,7 @@
                                     </div>
                                     {% endif %}
 
-                                    {% if not paso.requiere_preparacion_descarga and not paso.requiere_ciclo_descarga and not paso.requiere_cierre_carga_despacho and not paso.requiere_borrador_sap and not paso.requiere_autorizar_salida and not paso.requiere_confirmar_salida and not paso.requiere_autorizacion_salida_bodega_externa and not paso.requiere_ingreso_planta_bodega_externa %}
+                                    {% if not paso.requiere_resultado_calidad and not paso.requiere_preparacion_descarga and not paso.requiere_ciclo_descarga and not paso.requiere_cierre_carga_despacho and not paso.requiere_borrador_sap and not paso.requiere_autorizar_salida and not paso.requiere_confirmar_salida and not paso.requiere_autorizacion_salida_bodega_externa and not paso.requiere_ingreso_planta_bodega_externa %}
                                     <div class="form-group">
                                         <label>Observacion</label>
                                         <textarea class="form-control operacion-observacion" data-paso="{{ paso.nombre }}" rows="4" {% if not paso.puede_guardar_observacion %}readonly{% endif %}>{{ paso.observacion }}</textarea>

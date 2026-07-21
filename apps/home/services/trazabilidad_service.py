@@ -13,6 +13,8 @@ from apps.home.models import (
     DATO_OPERACION,
     ETAPA_LOG,
     OPERACION_PLANTA_LOG,
+    RESULTADO_CALIDAD_HISTORIAL,
+    RESULTADO_CALIDAD_OPERACION,
     SYSLOGGER,
 )
 
@@ -165,6 +167,12 @@ def queryset_citaciones_trazabilidad(empresa_id):
         'adjuntos',
     ).order_by('-CPA_FFECHAASOCIACION', '-id')
     items = CITACION_ITEM.objects.select_related('IT_NID').order_by('id')
+    historial_calidad = RESULTADO_CALIDAD_HISTORIAL.objects.select_related('US_NID').order_by(
+        'RCH_FFECHAREGISTRO', 'id'
+    )
+    resultados_calidad = RESULTADO_CALIDAD_OPERACION.objects.select_related('US_NID').prefetch_related(
+        Prefetch('historial', queryset=historial_calidad, to_attr='trazabilidad_historial')
+    )
 
     return CITACION.objects.filter(
         EP_NID_id=empresa_id,
@@ -179,6 +187,7 @@ def queryset_citaciones_trazabilidad(empresa_id):
         Prefetch('documentos_expediente', queryset=documentos, to_attr='trazabilidad_documentos'),
         Prefetch('camiones_patio', queryset=camiones, to_attr='trazabilidad_camiones'),
         Prefetch('citacion_item_set', queryset=items, to_attr='trazabilidad_items'),
+        Prefetch('resultado_calidad_operacion', queryset=resultados_calidad, to_attr='trazabilidad_calidad'),
     )
 
 
@@ -201,7 +210,20 @@ def buscar_citaciones(empresa_id, termino):
         )
         | Q(camiones_patio__CPA_CNUMERO_GUIA__iexact=termino)
     ).distinct().order_by('-CI_FFECHACITACION', '-id')
-    return list(coincidencias), 'guia'
+    coincidencias = list(coincidencias)
+    if coincidencias:
+        return coincidencias, 'guia'
+
+    patentes = base.filter(
+        Q(CA_NID__CAM_CPATENTE__iexact=termino)
+        | Q(detalle_despacho__CDD_CPATENTE__iexact=termino)
+        | Q(camiones_patio__CPA_CPATENTE__iexact=termino)
+        | Q(
+            dato_operacion__CAMP_NID__CA_CCODIGO='ING_PATENTE',
+            dato_operacion__DO_CVALOR__iexact=termino,
+        )
+    ).distinct().order_by('-CI_FFECHACITACION', '-id')
+    return list(patentes), 'patente'
 
 
 def obtener_numero_guia(citacion, datos_operacion=None):
@@ -405,6 +427,27 @@ def construir_trazabilidad(citacion, logs_sistema=None):
                 else _detalle_visible(log.OPL_CPASO, log.OPL_COBSERVACION)
             ),
         })
+
+    calidad = getattr(citacion, 'trazabilidad_calidad', None)
+    if calidad:
+        for cambio in getattr(calidad, 'trazabilidad_historial', []):
+            eventos.append({
+                'tipo_evento': 'calidad',
+                'nombre': cambio.RCH_CEVENTO,
+                'estado': cambio.RCH_CESTADO_NUEVO,
+                'fecha': cambio.RCH_FFECHAREGISTRO,
+                'responsable': _usuario_nombre(cambio.US_NID) or _texto(cambio.RCH_CRESPONSABLE_SISTEMA),
+                'datos': [
+                    {'etiqueta': 'Estado anterior', 'valor': _texto(cambio.RCH_CESTADO_ANTERIOR) or SIN_INFORMACION},
+                    {'etiqueta': 'Estado nuevo', 'valor': cambio.RCH_CESTADO_NUEVO},
+                    {'etiqueta': 'Origen', 'valor': cambio.RCH_CORIGEN},
+                    {'etiqueta': 'Guia', 'valor': calidad.RCO_CNUMERO_GUIA or SIN_INFORMACION},
+                    {'etiqueta': 'Citacion', 'valor': f'#{citacion.id}'},
+                    {'etiqueta': 'Resultado', 'valor': cambio.RCH_CRESULTADO or SIN_INFORMACION},
+                    {'etiqueta': 'Observacion', 'valor': cambio.RCH_COBSERVACION or SIN_INFORMACION},
+                ],
+                'detalle_visible': '',
+            })
 
     if logs_sistema is None:
         logs_sistema = SYSLOGGER.objects.select_related('US_NID').filter(

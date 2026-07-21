@@ -75,6 +75,11 @@ from .services.trazabilidad_service import (
     limpiar_termino_busqueda,
     obtener_numero_guia,
 )
+from .services.calidad_service import (
+    asegurar_calidad_iniciada,
+    procesar_resultado_calidad,
+    serializar_resultado_calidad,
+)
 from datetime import datetime, time
 from decimal import Decimal, InvalidOperation, ROUND_HALF_UP
 from io import BytesIO
@@ -7594,6 +7599,14 @@ def resolver_estado_operacional_visible(citacion, pasos_config, pasos_completado
         or ''
     ).strip().upper()
 
+    resultado_calidad = RESULTADO_CALIDAD_OPERACION.objects.filter(CI_NID=citacion).only('RCO_CESTADO').first()
+    if (
+        resultado_calidad
+        and resultado_calidad.RCO_CESTADO == RESULTADO_CALIDAD_OPERACION.Estado.RECHAZADO
+        and PASO_ANALISIS_CALIDAD in nombres_pasos
+    ):
+        return PASO_ANALISIS_CALIDAD
+
     if (
         tipo_citacion != CIT_DESPACHO
         and boton_desde_etapa_tecnica in nombres_pasos
@@ -8769,6 +8782,16 @@ def _leer_metadata_resultado_calidad(citacion):
 
 
 def _payload_resultado_calidad(citacion):
+    registro = RESULTADO_CALIDAD_OPERACION.objects.filter(CI_NID=citacion).first()
+    if registro:
+        payload = serializar_resultado_calidad(registro)
+        payload.update({
+            'fecha_hora': payload.get('ultimo_cambio') or '',
+            'documento_nombre': '',
+            'documento_ruta': '',
+            'download_url': '',
+        })
+        return payload
     metadata = _leer_metadata_resultado_calidad(citacion)
     if not metadata:
         return None
@@ -16185,6 +16208,8 @@ def OPERACION_PLANTA_CITACION(request, pk):
         CI_NID=citacion
     ).order_by('-OPL_FFECHAREGISTRO')
     paso_actual_visible, _, pasos_completados = obtener_paso_activo_operacion(citacion, pasos_config)
+    if paso_actual_visible == PASO_ANALISIS_CALIDAD:
+        asegurar_calidad_iniciada(citacion, request.user)
     ultimo_log_por_paso = {}
     for log in logs:
         if log.OPL_CPASO not in ultimo_log_por_paso:
@@ -16478,6 +16503,13 @@ def OPERACION_PLANTA_GUARDAR_PASO(request, pk):
         else:
             observacion = observacion_metadata
 
+    if paso == PASO_ANALISIS_CALIDAD:
+        return respuesta_error(
+            'Analisis y Calidad se cierra unicamente mediante el servicio central de resultados.',
+            status=409,
+            citacion_obj=citacion,
+        )
+
     if paso == PASO_CICLO_DESCARGA:
         if es_citacion_despacho(citacion):
             if not _ciclo_carga_despacho_completo(citacion):
@@ -16551,6 +16583,14 @@ def OPERACION_PLANTA_GUARDAR_PASO(request, pk):
         OPL_CESTADO=OPERACION_PLANTA_LOG.ESTADO_COMPLETADO,
         OPL_COBSERVACION=observacion
     )
+
+    siguiente_paso = resolver_estado_operacional_visible(
+        citacion,
+        pasos_config,
+        logs_completados | {paso},
+    )
+    if siguiente_paso == PASO_ANALISIS_CALIDAD:
+        asegurar_calidad_iniciada(citacion, request.user)
 
     if paso == PASO_CONFIRMAR_SALIDA:
         citacion.CI_CESTADO = CIT_TERMINADO
@@ -16816,29 +16856,18 @@ def ajax_operacion_planta_registrar_resultado_calidad(request, pk):
             'message': f'Solo lectura: este paso corresponde a {" / ".join(responsables_paso)}'
         }, status=403)
 
-    if not _leer_metadata_validacion_calidad(citacion):
-        return JsonResponse({
-            'success': False,
-            'message': 'Debe validar insumo y guia antes de aprobar o rechazar calidad.'
-        }, status=400)
-
     resultado = str(request.POST.get('resultado_calidad') or '').strip().upper()
     comentario = str(request.POST.get('comentario') or '').strip()
-    archivo = request.FILES.get('documento_calidad')
 
     try:
-        with transaction.atomic():
-            metadata = _registrar_resultado_calidad(citacion, request.user, resultado, comentario, archivo)
-            log = OPERACION_PLANTA_LOG.objects.create(
-                US_NID=request.user,
-                EP_NID=citacion.EP_NID,
-                PL_NID=citacion.PL_NID,
-                CI_NID=citacion,
-                OPL_CPASO=PASO_ANALISIS_CALIDAD,
-                OPL_CPERFIL_RESPONSABLE=' / '.join(responsables_paso),
-                OPL_CESTADO=OPERACION_PLANTA_LOG.ESTADO_COMPLETADO,
-                OPL_COBSERVACION=metadata.get('comentario') or ''
-            )
+        registro, cambiado = procesar_resultado_calidad(
+            citacion,
+            resultado,
+            RESULTADO_CALIDAD_OPERACION.Origen.OPERACION_PLANTA,
+            observacion=comentario,
+            usuario=request.user,
+        )
+        metadata = serializar_resultado_calidad(registro)
     except ValueError as e:
         return JsonResponse({'success': False, 'message': str(e)}, status=400)
     except Exception as e:
@@ -16846,11 +16875,12 @@ def ajax_operacion_planta_registrar_resultado_calidad(request, pk):
 
     return JsonResponse({
         'success': True,
-        'message': f'Resultado de calidad {resultado} registrado.',
+        'message': f'Resultado de calidad {resultado} registrado.' if cambiado else 'El resultado de calidad ya estaba registrado.',
         'resultado_calidad': metadata,
         'paso': PASO_ANALISIS_CALIDAD,
         'usuario': request.user.username,
-        'fecha': timezone.localtime(log.OPL_FFECHAREGISTRO).strftime('%d/%m/%Y %H:%M')
+        'fecha': metadata.get('ultimo_cambio') or '',
+        'cambiado': cambiado,
     })
 
 
@@ -26589,6 +26619,11 @@ def _seleccionar_citacion_estado_camion(queryset):
 
 
 def _mensaje_estado_camion(citacion, paso_actual, salida_vigente, ingreso_autorizado):
+    calidad = RESULTADO_CALIDAD_OPERACION.objects.filter(CI_NID=citacion).only(
+        'RCO_CESTADO', 'RCO_BAUTORIZA_SALIDA'
+    ).first()
+    if calidad and calidad.RCO_CESTADO == RESULTADO_CALIDAD_OPERACION.Estado.RECHAZADO and calidad.RCO_BAUTORIZA_SALIDA:
+        return 'Camión autorizado para salir de planta por rechazo de calidad'
     if salida_vigente:
         return 'Camion autorizado para salir de planta. Pendiente ingreso/reingreso por Guardia Porteria.'
     if paso_actual == PASO_INGRESO_PLANTA_DESPACHO:
@@ -26667,6 +26702,17 @@ def _estado_camion_payload(citacion):
     citacion_activa = str(citacion.CI_CESTADO or '').upper() not in {CIT_TERMINADO, CIT_RECHAZADO}
     accion_etapa_nombre = nombre_visible_paso_operacion(citacion, paso_accion) if paso_accion else ''
     accion_url = _url_accion_estado_camion(citacion, paso_accion) if citacion_activa and paso_accion else ''
+    calidad = RESULTADO_CALIDAD_OPERACION.objects.filter(CI_NID=citacion).only(
+        'RCO_CESTADO', 'RCO_BAUTORIZA_SALIDA'
+    ).first()
+    salida_calidad = bool(
+        calidad
+        and calidad.RCO_CESTADO == RESULTADO_CALIDAD_OPERACION.Estado.RECHAZADO
+        and calidad.RCO_BAUTORIZA_SALIDA
+    )
+    if salida_calidad:
+        proxima_accion = 'Autorizar salida por rechazo de calidad'
+        accion_url = ''
 
     return {
         'patente': texto_sin_informacion(patente),
@@ -26686,8 +26732,10 @@ def _estado_camion_payload(citacion):
         'accion_label': f'Ir a {accion_etapa_nombre}' if accion_etapa_nombre else 'Ir a la accion',
         'accion_etapa_codigo': _codigo_etapa_accion_estado_camion(paso_accion),
         'accion_etapa_nombre': accion_etapa_nombre,
-        'salida_vigente': salida_vigente,
-        'salida_vigente_texto': 'Si' if salida_vigente else 'No',
+        'salida_vigente': salida_vigente or salida_calidad,
+        'salida_vigente_texto': 'Si' if salida_vigente or salida_calidad else 'No',
+        'salida_autorizada_calidad': salida_calidad,
+        'resultado_calidad': calidad.RCO_CESTADO if calidad else '',
         'ingreso_reingreso': ingreso_autorizado,
         'ingreso_reingreso_texto': 'Si' if ingreso_autorizado else 'No',
         'timer_activo': bool(tramo.get('activa')),
@@ -26722,7 +26770,7 @@ def estado_camion_ajax(request):
         })
 
     payload = _estado_camion_payload(citacion)
-    if payload.get('mensaje') == 'No se encontro una citacion activa para esta patente.':
+    if payload.get('mensaje') == 'No se encontro una citacion activa para esta patente.' and not payload.get('salida_autorizada_calidad'):
         return JsonResponse({'success': False, 'message': payload['mensaje'], 'data': payload})
 
     return JsonResponse({'success': True, 'data': payload})

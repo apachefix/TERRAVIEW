@@ -1314,6 +1314,86 @@ class OPERACION_PLANTA_LOG(models.Model):
         return f'{self.CI_NID_id} - {self.OPL_CPASO} - {self.OPL_CESTADO}'
 
 
+class RESULTADO_CALIDAD_OPERACION(models.Model):
+    class Estado(models.TextChoices):
+        PENDIENTE = 'PENDIENTE', 'Pendiente'
+        APROBADO = 'APROBADO', 'Aprobado'
+        RECHAZADO = 'RECHAZADO', 'Rechazado'
+        APRUEBA_CLIENTE = 'APRUEBA_CLIENTE', 'Aprueba cliente'
+
+    class Origen(models.TextChoices):
+        OPERACION_PLANTA = 'OPERACION_PLANTA', 'Operacion Planta'
+        EXCEL_CALIDAD = 'EXCEL_CALIDAD', 'Excel Calidad'
+        CORREO_CLIENTE = 'CORREO_CLIENTE', 'Correo cliente'
+        MANUAL_PRUEBA = 'MANUAL_PRUEBA', 'Manual / prueba'
+
+    EP_NID = models.ForeignKey(EMPRESA, verbose_name='Empresa', on_delete=models.PROTECT)
+    CI_NID = models.OneToOneField(
+        CITACION,
+        verbose_name='Citacion',
+        on_delete=models.PROTECT,
+        related_name='resultado_calidad_operacion',
+    )
+    PL_NID = models.ForeignKey(PLANIFICACION, verbose_name='Proceso Operacion Planta', on_delete=models.PROTECT)
+    ET_NID = models.ForeignKey(ETAPA, verbose_name='Etapa operacional', on_delete=models.PROTECT, null=True, blank=True)
+    CA_NID = models.ForeignKey(CAMION, verbose_name='Patente / camion', on_delete=models.PROTECT, null=True, blank=True)
+    RCO_CNUMERO_GUIA = models.CharField('Numero de guia', max_length=128, null=True, blank=True, db_index=True)
+    RCO_CESTADO = models.CharField('Estado actual', max_length=32, choices=Estado.choices, default=Estado.PENDIENTE)
+    RCO_CORIGEN = models.CharField('Origen actualizacion', max_length=32, choices=Origen.choices, default=Origen.OPERACION_PLANTA)
+    RCO_FINICIO = models.DateTimeField('Inicio analisis')
+    RCO_FACTUALIZACION = models.DateTimeField('Ultimo cambio', default=timezone.now)
+    RCO_FDETENCION_TEMPORIZADOR = models.DateTimeField('Detencion temporizador', null=True, blank=True)
+    RCO_FSOLICITUD_CLIENTE = models.DateTimeField('Solicitud aprobacion cliente', null=True, blank=True)
+    RCO_FRESOLUCION_FINAL = models.DateTimeField('Resolucion final', null=True, blank=True)
+    RCO_FCIERRE = models.DateTimeField('Cierre definitivo', null=True, blank=True)
+    RCO_COBSERVACION = models.TextField('Observacion', null=True, blank=True)
+    US_NID = models.ForeignKey(User, verbose_name='Usuario responsable', on_delete=models.PROTECT, null=True, blank=True)
+    RCO_CRESPONSABLE_SISTEMA = models.CharField('Sistema responsable', max_length=128, null=True, blank=True)
+    RCO_BCIERRE_AUTOMATICO = models.BooleanField('Cierre automatico', default=False)
+    RCO_BAUTORIZA_SALIDA = models.BooleanField('Autorizacion de salida', default=False)
+    RCO_NDURACION_SEGUNDOS = models.BigIntegerField('Duracion acumulada analisis', default=0)
+
+    class Meta:
+        db_table = 'RESULTADO_CALIDAD_OPERACION'
+        indexes = [
+            models.Index(fields=['EP_NID', 'RCO_CNUMERO_GUIA'], name='RCO_EP_GUIA_IDX'),
+            models.Index(fields=['EP_NID', 'RCO_CESTADO'], name='RCO_EP_ESTADO_IDX'),
+        ]
+
+    @property
+    def temporizador_activo(self):
+        return self.RCO_FDETENCION_TEMPORIZADOR is None and self.RCO_CESTADO == self.Estado.PENDIENTE
+
+    def __str__(self):
+        return f'{self.CI_NID_id} - {self.RCO_CESTADO}'
+
+
+class RESULTADO_CALIDAD_HISTORIAL(models.Model):
+    RCO_NID = models.ForeignKey(
+        RESULTADO_CALIDAD_OPERACION,
+        verbose_name='Resultado calidad',
+        on_delete=models.CASCADE,
+        related_name='historial',
+    )
+    EP_NID = models.ForeignKey(EMPRESA, verbose_name='Empresa', on_delete=models.PROTECT)
+    CI_NID = models.ForeignKey(CITACION, verbose_name='Citacion', on_delete=models.PROTECT)
+    RCH_CEVENTO = models.CharField('Evento', max_length=64)
+    RCH_CESTADO_ANTERIOR = models.CharField('Estado anterior', max_length=32, null=True, blank=True)
+    RCH_CESTADO_NUEVO = models.CharField('Estado nuevo', max_length=32)
+    RCH_CORIGEN = models.CharField('Origen', max_length=32, choices=RESULTADO_CALIDAD_OPERACION.Origen.choices)
+    RCH_CRESULTADO = models.CharField('Resultado', max_length=32, null=True, blank=True)
+    RCH_COBSERVACION = models.TextField('Observacion', null=True, blank=True)
+    US_NID = models.ForeignKey(User, verbose_name='Usuario responsable', on_delete=models.PROTECT, null=True, blank=True)
+    RCH_CRESPONSABLE_SISTEMA = models.CharField('Sistema responsable', max_length=128, null=True, blank=True)
+    RCH_FFECHAREGISTRO = models.DateTimeField('Fecha registro', default=timezone.now)
+
+    class Meta:
+        db_table = 'RESULTADO_CALIDAD_HISTORIAL'
+        indexes = [
+            models.Index(fields=['CI_NID', 'RCH_FFECHAREGISTRO'], name='RCH_CI_FECHA_IDX'),
+        ]
+
+
 #####################################################################
 ########################## PERFILAMIENTO ############################
 #####################################################################
