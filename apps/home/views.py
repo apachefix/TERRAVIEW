@@ -10868,8 +10868,10 @@ def seleccionar_empresa(request):
         # Caso 2: usuario con una sola empresa
         # Se asigna automáticamente y entra directo al sistema
         if empresas_usuario.count() == 1:
-            empresa_id = empresas_usuario.first().EP_NID_id
+            empresa_unica = empresas_usuario.first()
+            empresa_id = int(empresa_unica.EP_NID_id)
             request.session['empresa_id'] = empresa_id
+            request.session.modified = True
             return redirect('/')
 
         # Caso 3: usuario multiempresa
@@ -13521,10 +13523,18 @@ def Verificar_empresa(request):
 
         # Fallback: empresa activa en session para compatibilidad.
         empresa_id = request.session.get('empresa_id')
+        if empresa_id is not None:
+            try:
+                empresa_id = int(empresa_id)
+            except (TypeError, ValueError):
+                empresa_id = None
+                request.session.pop('empresa_id', None)
 
         # Validar acceso a empresa activa
         if empresa_id:
             if usuario_tiene_empresa(request, empresa_id):
+                request.session['empresa_id'] = empresa_id
+                request.session.modified = True
                 return empresa_id
 
             # Si perdió acceso, limpiar session
@@ -13538,9 +13548,10 @@ def Verificar_empresa(request):
         # Usuario con una sola empresa
         if empresas_usuario.count() == 1:
 
-            empresa_id = empresas_usuario.first().EP_NID_id
+            empresa_id = int(empresas_usuario.first().EP_NID_id)
 
             request.session['empresa_id'] = empresa_id
+            request.session.modified = True
 
             return empresa_id
 

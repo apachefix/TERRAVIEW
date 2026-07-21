@@ -1394,6 +1394,72 @@ class RESULTADO_CALIDAD_HISTORIAL(models.Model):
         ]
 
 
+class EVENTO_INTEGRACION_CALIDAD(models.Model):
+    class EstadoProcesamiento(models.TextChoices):
+        RECIBIDO = 'RECIBIDO', 'Recibido'
+        PROCESADO = 'PROCESADO', 'Procesado'
+        DUPLICADO = 'DUPLICADO', 'Duplicado'
+        ERROR_VALIDACION = 'ERROR_VALIDACION', 'Error validacion'
+        ERROR_PROCESAMIENTO = 'ERROR_PROCESAMIENTO', 'Error procesamiento'
+
+    class EstadoTeams(models.TextChoices):
+        NO_APLICA = 'NO_APLICA', 'No aplica'
+        PENDIENTE = 'PENDIENTE', 'Pendiente'
+        ENVIANDO = 'ENVIANDO', 'Enviando'
+        ENVIADO = 'ENVIADO', 'Enviado'
+        ERROR = 'ERROR', 'Error'
+
+    EIC_CID_EVENTO = models.CharField('Id evento externo', max_length=128, unique=True)
+    EP_NID = models.ForeignKey(EMPRESA, verbose_name='Empresa', on_delete=models.PROTECT, null=True, blank=True)
+    EIC_CNUMERO_GUIA = models.CharField('Numero de guia', max_length=128, db_index=True)
+    EIC_CESTADO_SOLICITADO = models.CharField('Estado solicitado', max_length=32)
+    EIC_CORIGEN = models.CharField('Origen', max_length=32)
+    EIC_FRESULTADO = models.DateTimeField('Fecha resultado externo', null=True, blank=True)
+    EIC_FRECEPCION = models.DateTimeField('Fecha recepcion', default=timezone.now)
+    EIC_FPROCESAMIENTO = models.DateTimeField('Fecha procesamiento', null=True, blank=True)
+    EIC_CESTADO_PROCESAMIENTO = models.CharField(
+        'Estado procesamiento',
+        max_length=32,
+        choices=EstadoProcesamiento.choices,
+        default=EstadoProcesamiento.RECIBIDO,
+    )
+    EIC_CRESULTADO = models.CharField('Resultado procesamiento', max_length=128, null=True, blank=True)
+    EIC_CMENSAJE_TECNICO = models.TextField('Mensaje tecnico', null=True, blank=True)
+    RCO_NID = models.ForeignKey(
+        RESULTADO_CALIDAD_OPERACION,
+        verbose_name='Proceso calidad',
+        on_delete=models.PROTECT,
+        null=True,
+        blank=True,
+        related_name='eventos_integracion',
+    )
+    CI_NID = models.ForeignKey(CITACION, verbose_name='Citacion', on_delete=models.PROTECT, null=True, blank=True)
+    EIC_CPAYLOAD_SANITIZADO = models.TextField('Payload sanitizado', null=True, blank=True)
+    EIC_NCODIGO_RESPUESTA = models.PositiveSmallIntegerField('Codigo respuesta', null=True, blank=True)
+    EIC_BDUPLICADO = models.BooleanField('Evento duplicado recibido', default=False)
+    EIC_BTEAMS_PENDIENTE = models.BooleanField('Teams pendiente', default=False)
+    EIC_BTEAMS_ENVIADO = models.BooleanField('Teams enviado', default=False)
+    EIC_CESTADO_TEAMS = models.CharField(
+        'Estado Teams',
+        max_length=32,
+        choices=EstadoTeams.choices,
+        default=EstadoTeams.NO_APLICA,
+    )
+    EIC_NINTENTOS_TEAMS = models.PositiveSmallIntegerField('Intentos Teams', default=0)
+    EIC_FULTIMO_INTENTO_TEAMS = models.DateTimeField('Ultimo intento Teams', null=True, blank=True)
+    EIC_CERROR_TEAMS = models.TextField('Error Teams sanitizado', null=True, blank=True)
+
+    class Meta:
+        db_table = 'EVENTO_INTEGRACION_CALIDAD'
+        indexes = [
+            models.Index(fields=['EP_NID', 'EIC_CNUMERO_GUIA'], name='EIC_EP_GUIA_IDX'),
+            models.Index(fields=['EIC_CESTADO_TEAMS', 'EIC_BTEAMS_PENDIENTE'], name='EIC_TEAMS_PEND_IDX'),
+        ]
+
+    def __str__(self):
+        return f'{self.EIC_CID_EVENTO} - {self.EIC_CESTADO_PROCESAMIENTO}'
+
+
 #####################################################################
 ########################## PERFILAMIENTO ############################
 #####################################################################

@@ -5,6 +5,7 @@ Copyright (c) 2019 - present AppSeed.us
 
 from django.urls import path, re_path
 from apps.home import views
+from apps.home.api_calidad import resultado_calidad_integracion_api
 from django.contrib.auth.views import login_required
 from django.conf import settings
 from django.conf.urls.static import static
@@ -13,6 +14,12 @@ from django.conf.urls.static import static
 
 
 urlpatterns = [
+
+    path(
+        'api/integraciones/calidad/resultados/',
+        resultado_calidad_integracion_api,
+        name='api_integracion_calidad_resultados',
+    ),
 
     # The home page
     path('dashboard_grafico/', login_required(views.DASHBOARD_GRAFICO), name="dashboard_grafico"),

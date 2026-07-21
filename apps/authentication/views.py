@@ -7,7 +7,7 @@ Copyright (c) 2019 - present AppSeed.us
 from django.shortcuts import render, redirect
 from django.contrib.auth import authenticate, login
 from django.contrib import messages
-from apps.home.models import USUARIO_SOCIONEGOCIO
+from apps.home.models import USERS_EMPRESA, USUARIO_SOCIONEGOCIO
 from .forms import LoginForm, SignUpForm
 
 
@@ -25,6 +25,14 @@ def login_view(request):
             if user is not None:
 
                 login(request, user)
+                empresas_usuario = USERS_EMPRESA.objects.filter(
+                    US_NID=user
+                ).order_by('EP_NID_id')
+                if empresas_usuario.count() == 1:
+                    request.session['empresa_id'] = int(
+                        empresas_usuario.first().EP_NID_id
+                    )
+                    request.session.modified = True
                 # Verificar si el usuario tiene un objeto USERS_EXTENSION asociado
                 if hasattr(request.user, 'userv') and request.user.userv.UX_IS_PROVEEDOR:
                     usuario_socionegocio = USUARIO_SOCIONEGOCIO.objects.filter(US_NID_id=request.user.id).first()

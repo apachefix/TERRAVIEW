@@ -149,14 +149,33 @@
             const EMPRESA_PARAM = '_empresa_id';
             const empresaSelect = document.getElementById('select-empresa-activa');
             const urlParams = new URLSearchParams(window.location.search);
-            let empresaVentana = urlParams.get(EMPRESA_PARAM) || sessionStorage.getItem('empresa_ventana_id');
+            const empresaUrl = urlParams.get(EMPRESA_PARAM);
+            const empresaServidor = '{{ empresa_activa.id|default:'' }}';
+            const empresasAutorizadas = [
+                {% for item in empresas_usuario %}'{{ item.EP_NID_id }}'{% if not forloop.last %}, {% endif %}{% endfor %}
+            ];
+            let empresaVentana = empresaUrl || sessionStorage.getItem('empresa_ventana_id');
 
             if (!empresaVentana && empresaSelect && empresaSelect.value) {
                 empresaVentana = empresaSelect.value;
             }
 
-            if (empresaVentana) {
-                sessionStorage.setItem('empresa_ventana_id', empresaVentana);
+            // Para usuarios de una sola empresa, la relacion validada por el
+            // servidor siempre prevalece sobre un valor residual del navegador.
+            if (empresasAutorizadas.length === 1 && empresaServidor) {
+                empresaVentana = empresaServidor;
+            } else if (
+                empresaVentana
+                && empresasAutorizadas.length
+                && !empresasAutorizadas.includes(String(empresaVentana))
+            ) {
+                empresaVentana = empresaServidor || '';
+            }
+
+            if (empresaVentana && empresasAutorizadas.includes(String(empresaVentana))) {
+                sessionStorage.setItem('empresa_ventana_id', String(empresaVentana));
+            } else {
+                sessionStorage.removeItem('empresa_ventana_id');
             }
 
             window.cambiarEmpresaVentana = function (empresaId) {

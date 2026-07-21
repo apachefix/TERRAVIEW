@@ -629,6 +629,78 @@
         line-height: 1.2;
     }
 
+    .operacion-calidad-box {
+        grid-template-columns: minmax(0, 1.35fr) minmax(280px, 0.65fr);
+        align-items: start;
+    }
+
+    .operacion-calidad-box .op-quality-overview,
+    .operacion-calidad-box .op-quality-clock-panel,
+    .operacion-calidad-box .op-quality-history {
+        min-width: 0;
+    }
+
+    .operacion-calidad-box .op-result-dashboard-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 10px;
+    }
+
+    .operacion-calidad-box .op-dashboard-card {
+        min-height: 0;
+        padding: 12px 14px;
+    }
+
+    .operacion-calidad-box .op-quality-clock-panel {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 8px;
+        height: auto;
+        min-height: 0;
+        text-align: center;
+    }
+
+    .operacion-calidad-box .op-quality-clock-panel .op-hourglass {
+        flex: 0 0 auto;
+        margin-bottom: 2px;
+    }
+
+    .operacion-calidad-box .op-quality-clock-label {
+        color: #607080;
+        font-size: 12px;
+        font-weight: 900;
+        letter-spacing: 0.04em;
+        text-transform: uppercase;
+    }
+
+    .operacion-calidad-box .op-quality-clock-panel .op-wait-clock-time {
+        display: block;
+        position: static;
+        margin: 0;
+        transform: none;
+        font-size: 28px;
+        line-height: 1.1;
+    }
+
+    .operacion-calidad-box .op-quality-clock-meta {
+        width: 100%;
+        padding-top: 8px;
+        border-top: 1px solid rgba(11, 37, 69, 0.10);
+        line-height: 1.55;
+        text-align: left;
+    }
+
+    .operacion-calidad-box .op-quality-clock-meta strong {
+        display: inline;
+        font-size: inherit;
+    }
+
+    .operacion-calidad-box .op-quality-history {
+        grid-column: 1 / -1;
+        height: auto;
+        min-height: 0;
+    }
+
     .op-lab-sample-note {
         margin-top: 12px;
         padding: 12px 14px;
@@ -1728,6 +1800,18 @@
             grid-template-columns: 1fr;
         }
 
+        .operacion-calidad-box {
+            grid-template-columns: minmax(0, 1fr);
+        }
+
+        .operacion-calidad-box .op-quality-history {
+            grid-column: auto;
+        }
+
+        .operacion-calidad-box .op-result-dashboard-grid {
+            grid-template-columns: minmax(0, 1fr);
+        }
+
         .op-quality-summary,
         .op-result-dashboard-grid,
         .op-discharge-grid,
@@ -2745,7 +2829,7 @@
 
                                     {% if paso.requiere_resultado_calidad %}
                                     <div class="op-lab-panel operacion-calidad-box" data-paso="{{ paso.nombre }}">
-                                        <div>
+                                        <div class="op-quality-overview">
                                             <div class="op-lab-title"><i class="fas fa-flask"></i> Analisis y Calidad</div>
                                             <div class="op-lab-subtitle">Proceso interno automatico de TERRAVIEW</div>
                                             <div class="op-result-dashboard-grid mt-3">
@@ -2766,19 +2850,21 @@
                                                 <div class="alert alert-success mt-3 mb-0"><i class="fas fa-check-circle mr-2"></i>Etapa cerrada autom&aacute;ticamente y avance a Resultado Calidad</div>
                                             {% endif %}
                                         </div>
-                                        <div class="op-lab-fields">
-                                            <div class="op-lab-result-card">
+                                        <div class="op-lab-result-card op-quality-clock-panel">
                                                 <div class="op-hourglass {% if not paso.resultado_calidad.temporizador_activo %}descarga-finalizada{% else %}descarga-activa{% endif %}">
                                                     <div class="op-hourglass-inner"><span class="op-hourglass-neck"></span><span class="op-hourglass-glass-shine"></span><span class="op-hourglass-sand-layer"><span class="op-hourglass-sand-top"></span><span class="op-hourglass-flow"></span><span class="op-hourglass-sand-bottom"></span></span></div>
                                                 </div>
+                                                <div class="op-quality-clock-label">Tiempo transcurrido</div>
                                                 <strong class="op-wait-clock-time" {% if paso.resultado_calidad.temporizador_activo %}data-wait-start="{{ paso.resultado_calidad.inicio_iso }}"{% endif %}>{{ paso.resultado_calidad.duracion_legible }}</strong>
-                                                <br>Inicio: {{ paso.resultado_calidad.inicio }}
-                                                <br>Ultimo cambio: {{ paso.resultado_calidad.ultimo_cambio }}
-                                                {% if paso.resultado_calidad.cierre %}<br>Cierre: {{ paso.resultado_calidad.cierre }}{% endif %}
-                                                {% if paso.resultado_calidad.usuario %}<br>Responsable: {{ paso.resultado_calidad.usuario }}{% endif %}
-                                                {% if paso.resultado_calidad.observacion %}<br>Observacion: {{ paso.resultado_calidad.observacion }}{% endif %}
+                                                <div class="op-quality-clock-meta">
+                                                    <div><strong>Inicio:</strong> {{ paso.resultado_calidad.inicio }}</div>
+                                                    <div><strong>Ultimo cambio:</strong> {{ paso.resultado_calidad.ultimo_cambio }}</div>
+                                                    {% if paso.resultado_calidad.cierre %}<div><strong>Cierre:</strong> {{ paso.resultado_calidad.cierre }}</div>{% endif %}
+                                                    {% if paso.resultado_calidad.usuario %}<div><strong>Responsable:</strong> {{ paso.resultado_calidad.usuario }}</div>{% endif %}
+                                                    {% if paso.resultado_calidad.observacion %}<div><strong>Observacion:</strong> {{ paso.resultado_calidad.observacion }}</div>{% endif %}
+                                                </div>
                                             </div>
-                                            <div class="op-lab-result-card">
+                                            <div class="op-lab-result-card op-quality-history">
                                                 <strong>Historial de estados</strong>
                                                 {% for cambio in paso.resultado_calidad.historial %}
                                                     <div class="border-top pt-2 mt-2">
@@ -2789,7 +2875,6 @@
                                                 {% empty %}
                                                     <div class="op-dashboard-muted mt-2">Sin cambios registrados.</div>
                                                 {% endfor %}
-                                            </div>
                                         </div>
                                     </div>
                                     {% endif %}

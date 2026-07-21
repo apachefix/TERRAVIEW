@@ -1,5 +1,8 @@
 import requests
 from django.conf import settings
+from django.urls import reverse
+from django.utils import timezone
+from urllib.parse import urlencode
 
 
 class TeamsNotificationResult:
@@ -276,4 +279,89 @@ def enviar_solicitud_camion_patio_no_planificado_teams(
             ('Revisar solicitud', revisar_url),
             ('Ver camion en patio', camion_url),
         ]
+    )
+
+
+def _valor_calidad(valor):
+    texto = str(valor or '').strip()
+    return texto or '-'
+
+
+def _datos_resultado_calidad(resultado_calidad):
+    citacion = resultado_calidad.CI_NID
+    patente = getattr(resultado_calidad.CA_NID, 'CAM_CPATENTE', '')
+    if not patente and citacion.CA_NID_id:
+        patente = citacion.CA_NID.CAM_CPATENTE
+
+    detalle = getattr(citacion, 'detalle_operacional', None)
+    insumo = getattr(detalle, 'CDO_CINSUMO', '') if detalle else ''
+    if not insumo:
+        item = citacion.citacion_item_set.select_related('IT_NID').order_by('id').first()
+        insumo = item.IT_NID.IT_CNOMBRE if item else ''
+    if not insumo:
+        camion_patio = citacion.camiones_patio.order_by('-CPA_FFECHAASOCIACION', '-id').first()
+        if camion_patio:
+            patente = patente or camion_patio.CPA_CPATENTE
+            insumo = camion_patio.CPA_CINSUMO_DECLARADO_GUIA
+    return patente, insumo
+
+
+def enviar_resultado_calidad_teams(resultado_calidad, evento_integracion):
+    base_url = str(getattr(settings, 'APP_PUBLIC_BASE_URL', '') or '').strip().rstrip('/')
+    if not base_url:
+        return TeamsNotificationResult(
+            success=False,
+            status='APP_PUBLIC_BASE_URL_NO_CONFIGURADO',
+            detail='APP_PUBLIC_BASE_URL no esta configurada para construir enlaces de Teams.',
+        )
+    if not _teams_webhook_url():
+        return TeamsNotificationResult(
+            success=False,
+            status='TEAMS_WEBHOOK_NO_CONFIGURADO',
+            detail='TEAMS_WEBHOOK_URL no esta configurada para el canal de Calidad.',
+        )
+
+    citacion = resultado_calidad.CI_NID
+    empresa_id = resultado_calidad.EP_NID_id
+    patente, insumo = _datos_resultado_calidad(resultado_calidad)
+    params_operacion = urlencode({
+        'empresa_id': empresa_id,
+        '_empresa_id': empresa_id,
+        'etapa_codigo': 'ANALISIS_Y_CALIDAD',
+    })
+    params_trazabilidad = urlencode({
+        'empresa_id': empresa_id,
+        '_empresa_id': empresa_id,
+        'q': resultado_calidad.RCO_CNUMERO_GUIA or '',
+    })
+    operacion_url = f'{base_url}{reverse("operacion_planta_citacion", args=[citacion.id])}?{params_operacion}'
+    trazabilidad_url = f'{base_url}{reverse("trazabilidad_buscar")}?{params_trazabilidad}'
+    aprobado = resultado_calidad.RCO_CESTADO == resultado_calidad.Estado.APROBADO
+    titulo = 'Resultado de calidad aprobado' if aprobado else 'Resultado de calidad rechazado'
+    mensaje = (
+        'Los resultados de calidad se encuentran disponibles para continuar con el proceso.'
+        if aprobado
+        else 'El análisis de calidad fue rechazado. El camión debe salir de planta.'
+    )
+    fecha = evento_integracion.EIC_FRESULTADO or resultado_calidad.RCO_FACTUALIZACION
+    fecha_texto = timezone.localtime(fecha).strftime('%d/%m/%Y %H:%M:%S') if fecha else '-'
+    hechos = [
+        ('Resultado', resultado_calidad.RCO_CESTADO),
+        ('Citacion', f'#{citacion.id}'),
+        ('Numero de guia', _valor_calidad(resultado_calidad.RCO_CNUMERO_GUIA)),
+        ('Patente', _valor_calidad(patente)),
+        ('Insumo', _valor_calidad(insumo)),
+        ('Empresa', _valor_calidad(resultado_calidad.EP_NID.EP_CRAZONSOCIAL)),
+        ('Origen', _valor_calidad(evento_integracion.EIC_CORIGEN)),
+        ('Fecha resultado', fecha_texto),
+    ]
+    return enviar_alerta_camion_no_planificado_teams(
+        '',
+        mensaje,
+        titulo=titulo,
+        hechos=hechos,
+        acciones=[
+            ('Ver Operacion Planta', operacion_url),
+            ('Ver trazabilidad', trazabilidad_url),
+        ],
     )

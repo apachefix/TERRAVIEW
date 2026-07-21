@@ -32,6 +32,67 @@ TRANSICIONES_PERMITIDAS = {
 }
 
 
+class ProcesoCalidadNoEncontrado(ValueError):
+    pass
+
+
+class ProcesoCalidadAmbiguo(ValueError):
+    pass
+
+
+class ProcesoCalidadNoPreparado(ValueError):
+    pass
+
+
+def normalizar_numero_guia(numero_guia):
+    return str(numero_guia or '').strip()
+
+
+def buscar_resultado_calidad_por_guia(empresa_id, numero_guia):
+    guia = normalizar_numero_guia(numero_guia)
+    if not guia:
+        raise ProcesoCalidadNoEncontrado('Numero de guia vacio.')
+    coincidencias = list(
+        RESULTADO_CALIDAD_OPERACION.objects.select_related(
+            'EP_NID', 'CI_NID', 'CI_NID__SC_NID', 'CI_NID__PL_NID',
+            'PL_NID', 'ET_NID', 'CA_NID', 'US_NID',
+        ).filter(
+            EP_NID_id=empresa_id,
+            RCO_CNUMERO_GUIA__iexact=guia,
+            CI_NID__CI_BHABILITADO=True,
+        ).order_by('-RCO_FINICIO', '-id')[:2]
+    )
+    if not coincidencias:
+        citaciones = list(
+            CITACION.objects.filter(
+                EP_NID_id=empresa_id,
+                CI_CNUMERODOCUMENTO__iexact=guia,
+                CI_BHABILITADO=True,
+            ).values_list('id', flat=True)[:2]
+        )
+        if len(citaciones) > 1:
+            raise ProcesoCalidadAmbiguo(
+                'Existe mas de una citacion para la empresa y guia informadas.'
+            )
+        if citaciones:
+            raise ProcesoCalidadNoPreparado(
+                'La guia existe, pero el proceso ANALISIS_Y_CALIDAD aun no esta preparado.'
+            )
+        raise ProcesoCalidadNoEncontrado(
+            'No existe un proceso de Calidad asociado a la empresa y guia informadas.'
+        )
+    if len(coincidencias) > 1:
+        raise ProcesoCalidadAmbiguo(
+            'Existe mas de un proceso de Calidad para la empresa y guia informadas.'
+        )
+    resultado = coincidencias[0]
+    if resultado.CI_NID.EP_NID_id != int(empresa_id):
+        raise ProcesoCalidadNoEncontrado(
+            'El proceso de Calidad no pertenece a la empresa informada.'
+        )
+    return resultado
+
+
 def _numero_guia(citacion):
     return str(citacion.CI_CNUMERODOCUMENTO or '').strip()
 

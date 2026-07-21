@@ -1,8 +1,15 @@
 from django.contrib.auth import get_user_model
 from django.core.management.base import BaseCommand, CommandError
 
-from apps.home.models import CITACION, RESULTADO_CALIDAD_OPERACION
-from apps.home.services.calidad_service import procesar_resultado_calidad, serializar_resultado_calidad
+from apps.home.models import RESULTADO_CALIDAD_OPERACION
+from apps.home.services.calidad_service import (
+    ProcesoCalidadAmbiguo,
+    ProcesoCalidadNoEncontrado,
+    ProcesoCalidadNoPreparado,
+    buscar_resultado_calidad_por_guia,
+    procesar_resultado_calidad,
+    serializar_resultado_calidad,
+)
 
 
 class Command(BaseCommand):
@@ -16,16 +23,12 @@ class Command(BaseCommand):
         parser.add_argument('--observacion', default='')
 
     def handle(self, *args, **options):
-        guia = str(options['guia']).strip()
-        coincidencias = list(CITACION.objects.filter(
-            EP_NID_id=options['empresa_id'],
-            CI_CNUMERODOCUMENTO__iexact=guia,
-            CI_BHABILITADO=True,
-        ).select_related('EP_NID', 'PL_NID', 'SC_NID', 'CA_NID', 'US_NID')[:2])
-        if not coincidencias:
-            raise CommandError('No existe una citacion habilitada para la empresa y guia indicadas.')
-        if len(coincidencias) > 1:
-            raise CommandError('La guia tiene mas de una citacion en la empresa; use una guia univoca para esta prueba.')
+        try:
+            resultado_calidad = buscar_resultado_calidad_por_guia(
+                options['empresa_id'], options['guia']
+            )
+        except (ProcesoCalidadNoEncontrado, ProcesoCalidadAmbiguo, ProcesoCalidadNoPreparado) as exc:
+            raise CommandError(str(exc)) from exc
         try:
             usuario = get_user_model().objects.get(username=options['usuario'])
         except get_user_model().DoesNotExist as exc:
@@ -33,7 +36,7 @@ class Command(BaseCommand):
 
         try:
             registro, cambiado = procesar_resultado_calidad(
-                coincidencias[0],
+                resultado_calidad.CI_NID,
                 options['estado'],
                 RESULTADO_CALIDAD_OPERACION.Origen.MANUAL_PRUEBA,
                 observacion=options['observacion'],
