@@ -730,7 +730,7 @@ class CITACION(models.Model):
     CI_CTIPO = models.CharField(("Tipo citacion"), max_length=128, null=True, blank=True)
     CI_CESTADO = models.CharField(("Estado"), max_length=128, null=False)
     CI_CTIPODOCUMENTO = models.CharField(("Tipo documento"), max_length=128, null=True, blank=True)
-    CI_CNUMERODOCUMENTO = models.CharField(("Numero documento"), max_length=128, null=True, blank=True)
+    CI_CNUMERODOCUMENTO = models.CharField(("Numero documento"), max_length=128, null=True, blank=True, db_index=True)
     CI_NVALORTARIFA = models.DecimalField(("Valor tarifa"), decimal_places=5, max_digits=18, null=True, blank=True)
     CI_NDIFERENCIATARIFA = models.DecimalField(("Diferencia tarifa"), decimal_places=5, max_digits=18, null=True, blank=True)
     CI_CCOMENTARIO = models.TextField(("Comentario"), null=True, blank=True)
@@ -1534,6 +1534,12 @@ def camion_patio_upload_path(instance, filename):
     return f'camiones_patio/{empresa_id}/{patente}/{filename}'
 
 
+TRANSPORTE_A_CARGO_CHOICES = [
+    ('TERRAMAR', 'Terramar'),
+    ('CLIENTE', 'Cliente'),
+]
+
+
 class CAMION_PATIO(models.Model):
     ESTADO_PENDIENTE_ASOCIACION = 'PENDIENTE_ASOCIACION'
     ESTADO_EN_REVISION_RECEPCION = 'EN_REVISION_RECEPCION'
@@ -1551,6 +1557,7 @@ class CAMION_PATIO(models.Model):
 
     EP_NID = models.ForeignKey(EMPRESA, verbose_name='Empresa', on_delete=models.PROTECT)
     CI_NID = models.ForeignKey(CITACION, verbose_name='Citacion asociada', on_delete=models.PROTECT, null=True, blank=True, related_name='camiones_patio')
+    transporte_a_cargo = models.CharField('Transporte a cargo de', max_length=20, choices=TRANSPORTE_A_CARGO_CHOICES, default='TERRAMAR')
     CPA_CPATENTE = models.CharField('Patente camion', max_length=32)
     CPA_CPATENTE_RAMPLA = models.CharField('Patente rampla/acoplado', max_length=32, null=True, blank=True)
     CPA_CNOMBRE_CONDUCTOR = models.CharField('Nombre conductor', max_length=256)
@@ -1613,6 +1620,81 @@ class CAMION_PATIO_ADJUNTO(models.Model):
 
     def __str__(self):
         return f'{self.CPA_NID_id} - {self.CPA_CTIPO_DOCUMENTO}'
+
+
+class CAMION_PATIO_NO_PLANIFICADO(models.Model):
+    ESTADO_PENDIENTE = 'PENDIENTE'
+    ESTADO_APROBADO_PENDIENTE_PLANIFICACION = 'APROBADO_PENDIENTE_PLANIFICACION'
+    ESTADO_APROBADO = 'APROBADO'
+    ESTADO_RECHAZADO = 'RECHAZADO'
+
+    ESTADOS = (
+        (ESTADO_PENDIENTE, 'Pendiente de revision'),
+        (ESTADO_APROBADO_PENDIENTE_PLANIFICACION, 'Aprobado pendiente de planificacion'),
+        (ESTADO_APROBADO, 'Aprobado'),
+        (ESTADO_RECHAZADO, 'Rechazado'),
+    )
+
+    CPA_NID = models.ForeignKey(
+        CAMION_PATIO,
+        verbose_name='Camion patio',
+        on_delete=models.CASCADE,
+        related_name='solicitudes_no_planificado'
+    )
+    EP_NID = models.ForeignKey(EMPRESA, verbose_name='Empresa', on_delete=models.PROTECT)
+    CPNP_CESTADO = models.CharField('Estado', max_length=50, choices=ESTADOS, default=ESTADO_PENDIENTE)
+    US_SOLICITA_ID = models.ForeignKey(
+        User,
+        verbose_name='Usuario solicitante',
+        on_delete=models.PROTECT,
+        related_name='camiones_patio_no_planificados_solicitados'
+    )
+    CPNP_FFECHASOLICITUD = models.DateTimeField('Fecha solicitud', auto_now_add=True)
+    US_PLANIFICADOR_ID = models.ForeignKey(
+        User,
+        verbose_name='Usuario planificador',
+        null=True,
+        blank=True,
+        on_delete=models.PROTECT,
+        related_name='camiones_patio_no_planificados_resueltos'
+    )
+    CPNP_FFECHARESOLUCION = models.DateTimeField('Fecha resolucion', null=True, blank=True)
+    CPNP_CMOTIVO_RECHAZO = models.TextField('Motivo rechazo', blank=True)
+    CPNP_BTEAMS_ENVIADO = models.BooleanField('Teams enviado', default=False)
+    CPNP_CTEAMS_ESTADO = models.CharField('Estado Teams', max_length=50, blank=True)
+    CPNP_CTEAMS_DETALLE = models.TextField('Detalle Teams', blank=True)
+    PL_NID = models.ForeignKey(
+        PLANIFICACION,
+        verbose_name='Planificacion creada',
+        null=True,
+        blank=True,
+        on_delete=models.PROTECT,
+        related_name='solicitudes_camion_patio_no_planificado'
+    )
+    CI_NID = models.ForeignKey(
+        CITACION,
+        verbose_name='Citacion creada',
+        null=True,
+        blank=True,
+        on_delete=models.PROTECT,
+        related_name='solicitudes_camion_patio_no_planificado'
+    )
+
+    class Meta:
+        db_table = 'CAMION_PATIO_NO_PLANIFICADO'
+        constraints = [
+            models.UniqueConstraint(
+                fields=['CPA_NID'],
+                condition=models.Q(CPNP_CESTADO='PENDIENTE'),
+                name='uniq_cam_pat_no_plan_pendiente'
+            )
+        ]
+        indexes = [
+            models.Index(fields=['EP_NID', 'CPNP_CESTADO'], name='CAM_PAT_NP_EP_EST_idx'),
+        ]
+
+    def __str__(self):
+        return f'{self.CPA_NID_id} - {self.CPNP_CESTADO}'
 
 #####################################################################
 ######################### CUPOS PROVEEDOR ###########################

@@ -139,13 +139,45 @@
         return html || '<div class="text-muted">Sin adjuntos</div>';
     }
 
+    function patioRenderNoPlanificado(camion, permisos) {
+        const existe = !!camion.existe_solicitud_no_planificado;
+        const puedeSolicitar = !!(permisos && permisos.puede_solicitar_no_planificado);
+        const estadosClase = {
+            PENDIENTE: 'badge-warning',
+            APROBADO_PENDIENTE_PLANIFICACION: 'badge-info',
+            APROBADO: 'badge-success',
+            RECHAZADO: 'badge-danger'
+        };
+        $('#patioNoPlanificadoEstado')
+            .removeClass('badge-warning badge-info badge-success badge-danger')
+            .addClass(estadosClase[camion.solicitud_estado] || 'badge-secondary')
+            .text(camion.solicitud_estado_label || camion.solicitud_estado || '')
+            .toggle(existe);
+        $('#btnNoPlanificadoPatio')
+            .toggle(puedeSolicitar && !existe)
+            .prop('disabled', existe);
+        $('#btnReintentarTeamsPatio').toggle(
+            existe && puedeSolicitar && !camion.teams_enviado && camion.teams_estado !== 'ENVIANDO'
+        );
+    }
+
     function renderPatioDetalle(data) {
         const camion = data.camion || {};
         const permisos = data.permisos || {};
         patioDetalleActual = data;
         patioCamionActual = camion;
         patioCitacionSeleccionada = null;
-        $('#btnAsociarCamionPatio').prop('disabled', camion.estado === 'ASOCIADO_CITACION');
+        const solicitudBloqueaAsociacion = ['PENDIENTE', 'APROBADO_PENDIENTE_PLANIFICACION'].includes(camion.solicitud_estado);
+        const citacionAprobadaId = camion.solicitud_citacion_id || null;
+        $('#btnAsociarCamionPatio')
+            .prop('disabled', camion.estado === 'ASOCIADO_CITACION' || solicitudBloqueaAsociacion)
+            .text('Buscar citacion');
+        patioRenderNoPlanificado(camion, permisos);
+        $('#patioCitacionAprobada').toggle(!!citacionAprobadaId);
+        $('#patioCitacionAprobadaNumero').text(citacionAprobadaId ? '#' + citacionAprobadaId : '');
+        $('#btnIrCitacionAprobada')
+            .attr('href', camion.solicitud_citacion_url || '#')
+            .toggle(!!citacionAprobadaId && !!camion.solicitud_citacion_url);
         $('#btnEditarCamionPatio').toggle(!!permisos.puede_editar);
         $('#patioModalSubtitle').text('Patente ' + (camion.patente || ''));
         if (permisos.mensaje_bloqueo) {
@@ -178,9 +210,11 @@
             const abrir = cit.abrir_url
                 ? '<a class="btn btn-sm btn-outline-primary patio-open-citation" href="' + patioEscape(cit.abrir_url) + '">Abrir citacion</a>'
                 : '';
-            return '<div class="patio-citation-option citacion-sugerida-card" data-citacion-id="' + patioEscape(cit.id) + '" data-tipo-citacion="' + patioEscape(tipoNormalizado) + '">' +
+            const aprobadaClass = cit.es_citacion_aprobada ? ' is-approved-citation' : '';
+            const aprobadaBadge = cit.es_citacion_aprobada ? '<span class="badge badge-success">Citacion aprobada</span>' : '';
+            return '<div class="patio-citation-option citacion-sugerida-card' + aprobadaClass + '" data-citacion-id="' + patioEscape(cit.id) + '" data-tipo-citacion="' + patioEscape(tipoNormalizado) + '">' +
                 '<div class="d-flex justify-content-between align-items-start flex-wrap" style="gap:8px;">' +
-                '<div class="patio-citation-heading"><strong>Citacion #' + patioEscape(cit.id) + '</strong><span class="badge ' + tipoClass + '">' + patioEscape(tipo) + '</span></div>' +
+                '<div class="patio-citation-heading"><strong>Citacion #' + patioEscape(cit.id) + '</strong><span class="badge ' + tipoClass + '">' + patioEscape(tipo) + '</span>' + aprobadaBadge + '</div>' +
                 '<div class="d-flex flex-wrap" style="gap:6px;"><span class="badge badge-primary">Score ' + patioEscape(cit.score) + '</span>' + abrir + '</div>' +
                 '</div>' +
                 '<div class="patio-citation-grid mt-2">' +
@@ -227,12 +261,77 @@
         $('.patio-citation-option').removeClass('is-selected');
         $(this).addClass('is-selected');
         patioCitacionSeleccionada = $(this).data('citacion-id');
-        $('#btnAsociarCamionPatio').prop('disabled', !patioCamionActual || patioCamionActual.estado === 'ASOCIADO_CITACION');
+        const solicitudBloquea = patioCamionActual && ['PENDIENTE', 'APROBADO_PENDIENTE_PLANIFICACION'].includes(patioCamionActual.solicitud_estado);
+        $('#btnAsociarCamionPatio').prop('disabled', !patioCamionActual || patioCamionActual.estado === 'ASOCIADO_CITACION' || solicitudBloquea);
     });
 
     $(document).off('click', '.patio-citation-filter-btn');
     $(document).on('click', '.patio-citation-filter-btn', function () {
         patioAplicarFiltroCitaciones($(this).data('tipo-citacion-filtro'));
+    });
+
+    $(document).off('click', '#btnNoPlanificadoPatio');
+    $(document).on('click', '#btnNoPlanificadoPatio', function () {
+        if (!patioCamionActual || patioCamionActual.existe_solicitud_no_planificado) return;
+        const boton = $(this);
+        Swal.fire({
+            icon: 'question',
+            title: 'Camion no planificado',
+            text: '¿Confirma que este camion no corresponde a ninguna citacion y debe ser enviado a revision del planificador?',
+            showCancelButton: true,
+            confirmButtonText: 'Enviar a revision',
+            cancelButtonText: 'Cancelar',
+            target: document.body,
+            focusConfirm: true,
+            returnFocus: true,
+            customClass: {
+                container: 'swal-camion-no-planificado-container',
+                popup: 'swal-camion-no-planificado-popup'
+            }
+        }).then(function (result) {
+            if (!result.isConfirmed) return;
+            boton.prop('disabled', true);
+            $.ajax({
+                url: '/camiones-patio/' + patioCamionActual.id + '/no-planificado/',
+                type: 'POST',
+                headers: {'X-CSRFToken': patioCookie('csrftoken')},
+                data: {_empresa_id: PATIO_EMPRESA_ID}
+            }).done(function (response) {
+                patioCamionActual = response.camion || patioCamionActual;
+                if (patioDetalleActual) patioDetalleActual.camion = patioCamionActual;
+                patioRenderNoPlanificado(patioCamionActual, (patioDetalleActual || {}).permisos || {});
+                $('#btnAsociarCamionPatio').prop('disabled', true);
+                patioAlert(response.message || 'Solicitud registrada.', response.teams_enviado ? 'success' : 'warning');
+            }).fail(function (xhr) {
+                const response = xhr.responseJSON || {};
+                patioAlert(response.message || 'No fue posible registrar la solicitud.', 'danger');
+                boton.prop('disabled', false);
+                if (response.solicitud_id) abrirCamionPatio(patioCamionActual.id);
+            });
+        });
+    });
+
+    $(document).off('click', '#btnReintentarTeamsPatio');
+    $(document).on('click', '#btnReintentarTeamsPatio', function () {
+        if (!patioCamionActual || !patioCamionActual.solicitud_id) return;
+        const boton = $(this).prop('disabled', true);
+        $.ajax({
+            url: '/camiones-patio/no-planificado/' + patioCamionActual.solicitud_id + '/reintentar-teams/',
+            type: 'POST',
+            headers: {'X-CSRFToken': patioCookie('csrftoken')},
+            data: {_empresa_id: PATIO_EMPRESA_ID}
+        }).done(function (response) {
+            patioCamionActual.teams_enviado = !!response.teams_enviado;
+            patioCamionActual.teams_estado = response.teams_estado || '';
+            patioRenderNoPlanificado(patioCamionActual, (patioDetalleActual || {}).permisos || {});
+            patioAlert(response.message || 'Notificacion enviada a Teams.', 'success');
+        }).fail(function (xhr) {
+            const response = xhr.responseJSON || {};
+            patioCamionActual.teams_estado = response.teams_estado || patioCamionActual.teams_estado;
+            patioRenderNoPlanificado(patioCamionActual, (patioDetalleActual || {}).permisos || {});
+            patioAlert(response.message || 'No fue posible reenviar a Teams.', 'warning');
+            boton.prop('disabled', false);
+        });
     });
 
     $(document).on('click', '#btnEditarCamionPatio', function () {

@@ -1,0 +1,99 @@
+{% extends "layouts/base.html" %}
+
+{% block title %}Trazabilidad{% endblock %}
+
+{% block stylesheets %}
+<style>
+    .trace-page { max-width: 1480px; margin: 0 auto; }
+    .trace-search-card, .trace-process { border: 1px solid #dbe4ee; border-radius: 10px; background: #fff; box-shadow: 0 8px 24px rgba(11,37,69,.08); }
+    .trace-search-card { padding: 20px; margin-bottom: 18px; }
+    .trace-search-form { display: flex; flex-wrap: wrap; gap: 10px; }
+    .trace-search-form input { flex: 1 1 280px; min-width: 0; }
+    .trace-process { overflow: hidden; margin-bottom: 22px; }
+    .trace-hero { padding: 22px; color: #fff; background: linear-gradient(120deg,#0b2545,#123d70 65%,#d36b5c); }
+    .trace-title-grid { display: grid; grid-template-columns: repeat(4,minmax(0,1fr)); gap: 12px; margin-top: 16px; }
+    .trace-title-item { padding: 12px; border: 1px solid rgba(255,255,255,.2); border-radius: 8px; background: rgba(255,255,255,.1); min-width: 0; }
+    .trace-label { display: block; margin-bottom: 4px; color: inherit; opacity: .72; font-size: 11px; font-weight: 800; text-transform: uppercase; }
+    .trace-value { font-weight: 800; overflow-wrap: anywhere; }
+    .trace-meta { display: grid; grid-template-columns: repeat(4,minmax(0,1fr)); gap: 10px; padding: 18px 22px; background: #f7f9fc; border-bottom: 1px solid #e5ebf2; }
+    .trace-meta-item { padding: 10px; border-radius: 7px; background: #fff; border: 1px solid #e5ebf2; min-width: 0; }
+    .trace-body { padding: 22px; }
+    .trace-timeline { position: relative; padding-left: 30px; }
+    .trace-timeline:before { content:""; position:absolute; left:9px; top:8px; bottom:8px; width:2px; background:#ccd8e5; }
+    .trace-event { position:relative; margin-bottom:16px; padding:16px; border:1px solid #e1e8f0; border-radius:9px; background:#fff; }
+    .trace-event:before { content:""; position:absolute; left:-27px; top:20px; width:13px; height:13px; border-radius:50%; background:#4e87c5; border:3px solid #edf4fb; }
+    .trace-event.is-current { border-color:#d36b5c; box-shadow:0 0 0 2px rgba(211,107,92,.12); }
+    .trace-event.is-current:before { background:#d36b5c; }
+    .trace-event-head { display:flex; flex-wrap:wrap; justify-content:space-between; gap:8px; margin-bottom:10px; }
+    .trace-event-title { color:#0b2545; font-weight:900; }
+    .trace-event-status { color:#506176; font-size:12px; font-weight:800; text-transform:uppercase; }
+    .trace-data { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:8px; margin-top:10px; }
+    .trace-data-item { padding:8px 10px; background:#f7f9fc; border-radius:6px; overflow-wrap:anywhere; }
+    .trace-docs { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:10px; }
+    .trace-doc { padding:12px; border:1px solid #e1e8f0; border-radius:8px; }
+    @media (max-width: 991.98px) { .trace-title-grid,.trace-meta { grid-template-columns:repeat(2,minmax(0,1fr)); } .trace-data,.trace-docs { grid-template-columns:1fr 1fr; } }
+    @media (max-width: 575.98px) { .trace-title-grid,.trace-meta,.trace-data,.trace-docs { grid-template-columns:1fr; } .trace-body,.trace-hero { padding:16px; } .trace-meta { padding:14px 16px; } }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="pcoded-main-container">
+    <div class="pcoded-content trace-page">
+        <div class="page-header"><h4>Trazabilidad por guia o citacion</h4></div>
+        <div class="trace-search-card">
+            <form method="get" action="{% url 'trazabilidad_buscar' %}" class="trace-search-form">
+                <input type="hidden" name="_empresa_id" value="{{ empresa_id }}">
+                <input type="text" name="q" value="{{ termino }}" maxlength="128" class="form-control" placeholder="Buscar guia o citacion..." aria-label="Buscar guia o citacion">
+                <button class="btn btn-primary" type="submit"><i class="fas fa-search"></i> Buscar</button>
+            </form>
+            {% if mensaje %}<div class="alert alert-info mt-3 mb-0">{{ mensaje }}</div>{% endif %}
+        </div>
+
+        {% for resultado in resultados %}
+        <article class="trace-process">
+            <header class="trace-hero">
+                <div><span class="badge badge-light">{% if tipo_coincidencia == 'citacion' %}Coincidencia por citacion{% else %}Coincidencia por guia{% endif %}</span></div>
+                <div class="trace-title-grid">
+                    <div class="trace-title-item"><span class="trace-label">Nombre articulo SAP</span><div class="trace-value">{{ resultado.cabecera.nombre_articulo_sap|default:'Sin informacion' }}</div></div>
+                    <div class="trace-title-item"><span class="trace-label">Numero de guia</span><div class="trace-value">{{ resultado.cabecera.numero_guia|default:'Sin informacion' }}</div></div>
+                    <div class="trace-title-item"><span class="trace-label">Proveedor</span><div class="trace-value">{{ resultado.cabecera.proveedor|default:'Sin informacion' }}</div></div>
+                    <div class="trace-title-item"><span class="trace-label">Cliente</span><div class="trace-value">{{ resultado.cabecera.cliente|default:'Sin informacion' }}</div></div>
+                </div>
+            </header>
+            <div class="trace-meta">
+                <div class="trace-meta-item"><span class="trace-label">Citacion</span><div class="trace-value">#{{ resultado.cabecera.citacion }}</div></div>
+                <div class="trace-meta-item"><span class="trace-label">Patente</span><div class="trace-value">{{ resultado.cabecera.patente|default:'Sin informacion' }}</div></div>
+                <div class="trace-meta-item"><span class="trace-label">Empresa</span><div class="trace-value">{{ resultado.cabecera.empresa|default:'Sin informacion' }}</div></div>
+                <div class="trace-meta-item"><span class="trace-label">Tipo / Flujo</span><div class="trace-value">{{ resultado.cabecera.tipo|default:'Sin informacion' }} / {{ resultado.cabecera.flujo|default:'Sin informacion' }}</div></div>
+                <div class="trace-meta-item"><span class="trace-label">Codigo SAP</span><div class="trace-value">{{ resultado.cabecera.codigo_sap|default:'Sin informacion' }}</div></div>
+                <div class="trace-meta-item"><span class="trace-label">Planificacion</span><div class="trace-value">#{{ resultado.cabecera.planificacion }}</div></div>
+                <div class="trace-meta-item"><span class="trace-label">Fecha planificacion</span><div class="trace-value">{{ resultado.cabecera.fecha_planificacion|default:'Sin informacion' }}</div></div>
+                <div class="trace-meta-item"><span class="trace-label">Fecha ingreso</span><div class="trace-value">{{ resultado.cabecera.fecha_ingreso|default:'Sin informacion' }}</div></div>
+                <div class="trace-meta-item"><span class="trace-label">Conductor</span><div class="trace-value">{{ resultado.cabecera.conductor|default:'Sin informacion' }}</div></div>
+                <div class="trace-meta-item"><span class="trace-label">Transportista</span><div class="trace-value">{{ resultado.cabecera.transportista|default:'Sin informacion' }}</div></div>
+                <div class="trace-meta-item"><span class="trace-label">Transporte a cargo de</span><div class="trace-value">{{ resultado.cabecera.transporte_a_cargo|default:'Sin informacion' }}</div></div>
+                <div class="trace-meta-item"><span class="trace-label">Ruta transportista</span><div class="trace-value">{{ resultado.cabecera.ruta_transportista|default:'Sin informacion' }}</div></div>
+                <div class="trace-meta-item"><span class="trace-label">Ultima etapa</span><div class="trace-value">{{ resultado.cabecera.ultima_etapa|default:'Sin informacion' }}</div></div>
+                <div class="trace-meta-item"><span class="trace-label">Ultimo estado</span><div class="trace-value">{{ resultado.cabecera.ultimo_estado|default:'Sin informacion' }}</div></div>
+                <div class="trace-meta-item"><span class="trace-label">Observaciones</span><div class="trace-value">{{ resultado.cabecera.observaciones|default:'Sin informacion' }}</div></div>
+            </div>
+            <div class="trace-body">
+                <h5>Linea de tiempo</h5>
+                <div class="trace-timeline">
+                    {% for etapa in resultado.etapas %}
+                    <section class="trace-event{% if etapa.actual %} is-current{% endif %}">
+                        <div class="trace-event-head"><div class="trace-event-title">{{ etapa.nombre }}{% if etapa.actual %} <span class="badge badge-danger">Etapa actual</span>{% endif %}</div><div class="trace-event-status">{{ etapa.estado }}</div></div>
+                        <div class="text-muted small">Fecha: {{ etapa.fecha|date:'d/m/Y H:i:s'|default:'Sin informacion' }} &nbsp; Responsable: {{ etapa.responsable|default:'Sin informacion' }}</div>
+                        {% if etapa.detalle_visible %}<div class="mt-2"><strong>Observacion:</strong> {{ etapa.detalle_visible }}</div>{% endif %}
+                        {% if etapa.datos %}<div class="trace-data">{% for dato in etapa.datos %}<div class="trace-data-item"><span class="trace-label">{{ dato.etiqueta }}</span>{{ dato.valor|default:'Sin informacion' }}</div>{% endfor %}</div>{% endif %}
+                    </section>
+                    {% endfor %}
+                </div>
+                <h5 class="mt-4">Documentos adjuntos</h5>
+                {% if resultado.documentos %}<div class="trace-docs">{% for documento in resultado.documentos %}<div class="trace-doc"><span class="trace-label">{{ documento.tipo }}</span><div class="trace-value">{{ documento.nombre }}</div><div class="small text-muted">{{ documento.fecha|date:'d/m/Y H:i' }} · {{ documento.responsable|default:'Sin informacion' }}</div></div>{% endfor %}</div>{% else %}<p class="text-muted">Sin informacion</p>{% endif %}
+            </div>
+        </article>
+        {% endfor %}
+    </div>
+</div>
+{% endblock %}

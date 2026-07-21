@@ -1,0 +1,300 @@
+{% extends "layouts/base.html" %}
+
+{% block title %} Revisar cami&oacute;n no planificado {% endblock %}
+
+{% block stylesheets %}
+<style>
+    .no-planificado-header {
+        background: linear-gradient(100deg, #0f315c 0%, #315b87 55%, #d66f63 100%);
+        color:#fff;
+        border:0;
+        border-radius:12px;
+        padding:20px 24px;
+        margin-bottom:24px;
+        box-shadow:0 8px 22px rgba(15,49,92,.18);
+    }
+    .no-planificado-header h4,
+    .no-planificado-header p,
+    .no-planificado-header span { color:#fff !important; }
+    .no-planificado-header h4 { margin:0 0 6px; font-weight:700; line-height:1.3; }
+    .no-planificado-header .no-planificado-subtitle { color:rgba(255,255,255,.86) !important; margin:0; }
+    .no-planificado-header .no-planificado-status {
+        display:inline-flex;
+        align-items:center;
+        max-width:100%;
+        white-space:normal;
+        line-height:1.25;
+        padding:.45rem .7rem;
+        border:1px solid rgba(255,255,255,.42);
+        background:rgba(0,0,0,.2);
+        border-radius:999px;
+        font-size:.78rem;
+        font-weight:700;
+        text-align:center;
+    }
+    .revision-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(230px,1fr)); gap:12px; }
+    .revision-item { border:1px solid #e2e8f0; border-radius:8px; padding:12px; background:#fff; }
+    .revision-label { color:#6c757d; font-size:12px; font-weight:700; text-transform:uppercase; }
+    .revision-documento { display:flex; justify-content:space-between; gap:12px; align-items:center; border-bottom:1px solid #edf2f7; padding:10px 0; }
+    .no-planificado-continuar { border:1px solid #b9d0e8; border-radius:10px; padding:18px; background:#f4f8fc; }
+    .no-planificado-continuar h5 { color:#0f315c; font-weight:700; }
+    .swal-seleccion-tipo-planificacion { z-index:20000 !important; }
+    @media (max-width:575.98px) {
+        .no-planificado-header { padding:18px; }
+        .no-planificado-header .no-planificado-status { margin-top:14px; }
+    }
+</style>
+{% endblock stylesheets %}
+
+{% block content %}
+<section class="pcoded-main-container">
+    <div class="pcoded-content">
+        <div class="page-header no-planificado-header">
+            <div class="page-block d-flex justify-content-between align-items-center flex-wrap" style="gap:14px;">
+                <div>
+                    <h4>{% if solicitud.CPNP_CESTADO == 'APROBADO_PENDIENTE_PLANIFICACION' %}Cami&oacute;n no planificado aprobado{% else %}Cami&oacute;n no planificado pendiente de revisi&oacute;n{% endif %}</h4>
+                    <p class="no-planificado-subtitle">Solicitud #{{ solicitud.id }} · Cami&oacute;n patio #{{ camion.id }}</p>
+                </div>
+                <span class="no-planificado-status">{{ solicitud.get_CPNP_CESTADO_display }}</span>
+            </div>
+        </div>
+
+        {% if messages %}
+            {% for message in messages %}<div class="alert alert-{{ message.tags|default:'info' }}">{{ message }}</div>{% endfor %}
+        {% endif %}
+
+        <div class="card">
+            <div class="card-body">
+                <div class="d-flex justify-content-between align-items-center flex-wrap mb-3" style="gap:10px;">
+                    <div>
+                        <strong>Estado:</strong>
+                        <span class="badge {% if solicitud.CPNP_CESTADO == 'RECHAZADO' %}badge-danger{% elif solicitud.CPNP_CESTADO == 'APROBADO' or solicitud.CPNP_CESTADO == 'APROBADO_PENDIENTE_PLANIFICACION' %}badge-success{% else %}badge-warning{% endif %}">
+                            {{ solicitud.get_CPNP_CESTADO_display }}
+                        </span>
+                    </div>
+                    <div class="text-muted">Solicitado {{ solicitud.CPNP_FFECHASOLICITUD|date:"d/m/Y H:i" }} por {{ solicitud.US_SOLICITA_ID.username }}</div>
+                </div>
+
+                <div class="revision-grid">
+                    <div class="revision-item"><div class="revision-label">Patente</div>{{ camion.CPA_CPATENTE|default:"-" }}</div>
+                    <div class="revision-item"><div class="revision-label">Transporte a cargo de</div>{{ camion.get_transporte_a_cargo_display|default:"-" }}</div>
+                    <div class="revision-item"><div class="revision-label">Transportista</div>{{ camion.CPA_CTRANSPORTISTA_DECLARADO|default:"-" }}</div>
+                    <div class="revision-item"><div class="revision-label">Conductor</div>{{ camion.CPA_CNOMBRE_CONDUCTOR|default:"-" }}</div>
+                    <div class="revision-item"><div class="revision-label">RUT conductor</div>{{ camion.CPA_CRUT_CONDUCTOR|default:"-" }}</div>
+                    <div class="revision-item"><div class="revision-label">Telefono</div>{{ camion.CPA_CTELEFONO_CONDUCTOR|default:"-" }}</div>
+                    <div class="revision-item"><div class="revision-label">Proveedor declarado</div>{{ camion.CPA_CPROVEEDOR_DECLARADO|default:"-" }}</div>
+                    <div class="revision-item"><div class="revision-label">Cliente declarado</div>{{ camion.CPA_CCLIENTE_DECLARADO|default:"-" }}</div>
+                    <div class="revision-item"><div class="revision-label">Insumo declarado en guia</div>{{ camion.CPA_CINSUMO_DECLARADO_GUIA|default:"-" }}</div>
+                    <div class="revision-item"><div class="revision-label">Guia/documento</div>{{ camion.CPA_CNUMERO_GUIA|default:"-" }}</div>
+                    <div class="revision-item"><div class="revision-label">BL</div>{{ camion.CPA_CBL|default:"-" }}</div>
+                    <div class="revision-item"><div class="revision-label">Lote/contenedor</div>{{ camion.CPA_CLOTE_CONTENEDOR|default:"-" }}</div>
+                    <div class="revision-item"><div class="revision-label">Llegada</div>{{ camion.CPA_FFECHALLEGADA|date:"d/m/Y H:i" }}</div>
+                    <div class="revision-item"><div class="revision-label">Usuario de ingreso</div>{{ camion.US_GUARDIA_ID.username|default:"-" }}</div>
+                    <div class="revision-item"><div class="revision-label">Empresa</div>{{ solicitud.EP_NID.EP_CRAZONSOCIAL|default:"-" }}</div>
+                    <div class="revision-item"><div class="revision-label">Observacion</div>{{ camion.CPA_COBSERVACION|default:"-" }}</div>
+                </div>
+
+                <h5 class="mt-4">Documentos del ingreso</h5>
+                {% for adjunto in adjuntos %}
+                    <div class="revision-documento">
+                        <div>{{ adjunto.nombre }}{% if not adjunto.disponible %} <span class="text-danger">(no disponible)</span>{% endif %}</div>
+                        {% if adjunto.disponible %}<a class="btn btn-sm btn-outline-primary" href="{{ adjunto.url }}" target="_blank" rel="noopener">Abrir</a>{% endif %}
+                    </div>
+                {% empty %}
+                    <div class="alert alert-light border">Sin documentos adjuntos</div>
+                {% endfor %}
+
+                {% if solicitud.CPNP_CMOTIVO_RECHAZO %}
+                    <div class="alert alert-danger mt-4"><strong>Motivo del rechazo:</strong> {{ solicitud.CPNP_CMOTIVO_RECHAZO }}</div>
+                {% endif %}
+
+                {% if not solicitud.CPNP_BTEAMS_ENVIADO %}
+                    <div class="alert alert-warning mt-4">
+                        La notificacion a Teams no fue enviada. Estado: {{ solicitud.CPNP_CTEAMS_ESTADO|default:"pendiente" }}.
+                        <form method="post" action="{% url 'camion_patio_no_planificado_reintentar_teams' solicitud.id %}" class="d-inline">
+                            {% csrf_token %}<input type="hidden" name="_empresa_id" value="{{ empresa_activa_id }}">
+                            <button class="btn btn-sm btn-outline-warning ml-2" type="submit">Reintentar Teams</button>
+                        </form>
+                    </div>
+                {% endif %}
+
+                {% if puede_resolver %}
+                    <hr class="my-4">
+                    <div class="row">
+                        <div class="col-md-5 mb-3">
+                            <form id="form-aprobar-no-planificado" method="post" action="{% url 'camion_patio_no_planificado_aprobar' solicitud.id %}">
+                                {% csrf_token %}<input type="hidden" name="_empresa_id" value="{{ empresa_activa_id }}">
+                                <p>La aprobacion valida los documentos y permite elegir una planificacion existente.</p>
+                                <button id="btn-aprobar-no-planificado" type="submit" class="btn btn-success btn-block">Aprobar y crear planificacion</button>
+                            </form>
+                        </div>
+                        <div class="col-md-7 mb-3">
+                            <form method="post" action="{% url 'camion_patio_no_planificado_rechazar' solicitud.id %}">
+                                {% csrf_token %}<input type="hidden" name="_empresa_id" value="{{ empresa_activa_id }}">
+                                <label for="motivo_rechazo"><strong>Motivo del rechazo</strong></label>
+                                <textarea id="motivo_rechazo" name="motivo_rechazo" class="form-control mb-2" rows="3" required></textarea>
+                                <button type="submit" class="btn btn-danger">Rechazar y retirar de bandeja activa</button>
+                            </form>
+                        </div>
+                    </div>
+                {% endif %}
+
+                {% if solicitud.CPNP_CESTADO == 'APROBADO_PENDIENTE_PLANIFICACION' %}
+                    <hr class="my-4">
+                    <div class="no-planificado-continuar">
+                        <h5 class="mb-2">Planificaci&oacute;n pendiente</h5>
+                        <p class="text-muted mb-3">Los documentos ya fueron aprobados. Seleccione nuevamente Recepci&oacute;n o Despacho para continuar en el listado de planificaciones existentes.</p>
+                        <button id="btn-continuar-no-planificado" type="button" class="btn btn-primary">Continuar selecci&oacute;n de planificaci&oacute;n</button>
+                    </div>
+                {% endif %}
+
+                <a class="btn btn-secondary mt-2" href="{% url 'camiones_patio_list' %}?_empresa_id={{ empresa_activa_id }}">Volver a camiones en patio</a>
+            </div>
+        </div>
+    </div>
+</section>
+{% endblock content %}
+
+{% block javascripts %}
+<script>
+    (function () {
+        const formAprobar = document.getElementById('form-aprobar-no-planificado');
+        const botonAprobar = document.getElementById('btn-aprobar-no-planificado');
+        const botonContinuar = document.getElementById('btn-continuar-no-planificado');
+        let aprobacionEnCurso = false;
+
+        if ((!formAprobar || !botonAprobar) && !botonContinuar) {
+            return;
+        }
+
+        function urlListadoPlanificaciones(tipoPlanificacion) {
+            const parametros = new URLSearchParams({
+                tipo: tipoPlanificacion,
+                _empresa_id: '{{ empresa_activa_id|escapejs }}',
+                solicitud_no_planificado_id: '{{ solicitud.id|escapejs }}'
+            });
+            return '{% url "pla_listall" %}?' + parametros.toString();
+        }
+
+        async function aprobarSolicitud(tipoPlanificacion) {
+            if (aprobacionEnCurso) {
+                return false;
+            }
+
+            aprobacionEnCurso = true;
+            if (botonAprobar) {
+                botonAprobar.disabled = true;
+            }
+            if (typeof Swal.disableButtons === 'function') {
+                Swal.disableButtons();
+            }
+
+            const datos = new FormData(formAprobar);
+            datos.set('tipo_planificacion', tipoPlanificacion);
+
+            try {
+                const respuesta = await fetch(formAprobar.action, {
+                    method: 'POST',
+                    body: datos,
+                    headers: {
+                        'X-Requested-With': 'XMLHttpRequest'
+                    }
+                });
+                const contenido = await respuesta.json().catch(function () { return {}; });
+
+                if (!respuesta.ok || !contenido.success || !contenido.redirect_url) {
+                    const errorRespuesta = new Error(contenido.message || 'No fue posible aprobar la solicitud.');
+                    errorRespuesta.recargarEstado = respuesta.status === 409;
+                    throw errorRespuesta;
+                }
+
+                return contenido;
+            } catch (error) {
+                aprobacionEnCurso = false;
+                if (botonAprobar) {
+                    botonAprobar.disabled = false;
+                }
+                if (typeof Swal.enableButtons === 'function') {
+                    Swal.enableButtons();
+                }
+                Swal.showValidationMessage(error.message || 'No fue posible aprobar la solicitud.');
+                if (error.recargarEstado) {
+                    window.setTimeout(function () {
+                        window.location.reload();
+                    }, 1800);
+                }
+                return false;
+            }
+        }
+
+        function seleccionarTipoPlanificacion(soloContinuar) {
+            if (aprobacionEnCurso) {
+                return;
+            }
+
+            if (botonAprobar) {
+                botonAprobar.disabled = true;
+            }
+            if (botonContinuar) {
+                botonContinuar.disabled = true;
+            }
+
+            Swal.fire({
+                title: soloContinuar ? 'Continuar planificaci\u00f3n' : 'Aprobar documentos',
+                text: 'Seleccione el tipo de planificaci\u00f3n existente que desea revisar',
+                icon: 'question',
+                showCancelButton: true,
+                showDenyButton: true,
+                confirmButtonText: 'Despacho',
+                denyButtonText: 'Recepci\u00f3n',
+                cancelButtonText: 'Cancelar',
+                showLoaderOnConfirm: true,
+                showLoaderOnDeny: true,
+                allowOutsideClick: function () { return !Swal.isLoading(); },
+                allowEscapeKey: function () { return !Swal.isLoading(); },
+                customClass: {
+                    container: 'swal-seleccion-tipo-planificacion'
+                },
+                preConfirm: function () {
+                    if (soloContinuar) {
+                        return { redirect_url: urlListadoPlanificaciones('DESPACHO') };
+                    }
+                    return aprobarSolicitud('DESPACHO');
+                },
+                preDeny: function () {
+                    if (soloContinuar) {
+                        return { redirect_url: urlListadoPlanificaciones('RECEPCION') };
+                    }
+                    return aprobarSolicitud('RECEPCION');
+                }
+            }).then(function (resultado) {
+                if ((resultado.isConfirmed || resultado.isDenied) && resultado.value && resultado.value.redirect_url) {
+                    window.location.href = resultado.value.redirect_url;
+                    return;
+                }
+
+                aprobacionEnCurso = false;
+                if (botonAprobar) {
+                    botonAprobar.disabled = false;
+                }
+                if (botonContinuar) {
+                    botonContinuar.disabled = false;
+                }
+            });
+        }
+
+        if (formAprobar && botonAprobar) {
+            formAprobar.addEventListener('submit', function (event) {
+                event.preventDefault();
+                seleccionarTipoPlanificacion(false);
+            });
+        }
+
+        if (botonContinuar) {
+            botonContinuar.addEventListener('click', function () {
+                seleccionarTipoPlanificacion(true);
+            });
+        }
+    })();
+</script>
+{% endblock javascripts %}

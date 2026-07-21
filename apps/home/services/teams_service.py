@@ -34,9 +34,56 @@ def _teams_webhook_mode():
     return str(getattr(settings, 'TEAMS_WEBHOOK_MODE', 'adaptive') or 'adaptive').strip().lower()
 
 
-def _crear_payload_webhook(mensaje, titulo='ALERTA CAMION NO PLANIFICADO'):
+def _crear_payload_webhook(mensaje, titulo='ALERTA CAMION NO PLANIFICADO', hechos=None, documentos=None, acciones=None):
     if _teams_webhook_mode() == 'text':
         return {'text': f'{titulo}\n\n{mensaje}'}
+
+    cuerpo = [
+        {
+            'type': 'TextBlock',
+            'text': titulo,
+            'weight': 'Bolder',
+            'size': 'Medium'
+        },
+        {
+            'type': 'TextBlock',
+            'text': mensaje,
+            'wrap': True
+        }
+    ]
+    if hechos:
+        cuerpo.append({
+            'type': 'FactSet',
+            'facts': [
+                {'title': str(titulo_hecho), 'value': str(valor or '-')}
+                for titulo_hecho, valor in hechos
+            ]
+        })
+    if documentos:
+        cuerpo.append({
+            'type': 'TextBlock',
+            'text': '**Documentos**',
+            'weight': 'Bolder',
+            'wrap': True
+        })
+        for nombre, url in documentos:
+            cuerpo.append({
+                'type': 'TextBlock',
+                'text': f'[{nombre}]({url})',
+                'wrap': True,
+                'spacing': 'Small'
+            })
+    elif documentos == []:
+        cuerpo.append({
+            'type': 'TextBlock',
+            'text': '**Documentos**\n\nSin documentos adjuntos',
+            'wrap': True
+        })
+
+    acciones_card = [
+        {'type': 'Action.OpenUrl', 'title': str(nombre), 'url': str(url)}
+        for nombre, url in (acciones or []) if url
+    ]
 
     return {
         'type': 'message',
@@ -47,26 +94,15 @@ def _crear_payload_webhook(mensaje, titulo='ALERTA CAMION NO PLANIFICADO'):
                     '$schema': 'http://adaptivecards.io/schemas/adaptive-card.json',
                     'type': 'AdaptiveCard',
                     'version': '1.4',
-                    'body': [
-                        {
-                            'type': 'TextBlock',
-                            'text': titulo,
-                            'weight': 'Bolder',
-                            'size': 'Medium'
-                        },
-                        {
-                            'type': 'TextBlock',
-                            'text': mensaje,
-                            'wrap': True
-                        }
-                    ]
+                    'body': cuerpo,
+                    **({'actions': acciones_card} if acciones_card else {})
                 }
             }
         ]
     }
 
 
-def _enviar_por_webhook(mensaje, titulo='ALERTA CAMION NO PLANIFICADO'):
+def _enviar_por_webhook(mensaje, titulo='ALERTA CAMION NO PLANIFICADO', hechos=None, documentos=None, acciones=None):
     webhook_url = _teams_webhook_url()
 
     if not webhook_url:
@@ -75,7 +111,13 @@ def _enviar_por_webhook(mensaje, titulo='ALERTA CAMION NO PLANIFICADO'):
     response = None
 
     try:
-        payload = _crear_payload_webhook(mensaje, titulo)
+        payload = _crear_payload_webhook(
+            mensaje,
+            titulo,
+            hechos=hechos,
+            documentos=documentos,
+            acciones=acciones
+        )
         response = requests.post(
             webhook_url,
             json=payload,
@@ -102,8 +144,21 @@ def _enviar_por_webhook(mensaje, titulo='ALERTA CAMION NO PLANIFICADO'):
         )
 
 
-def enviar_alerta_camion_no_planificado_teams(destinatario_email, mensaje, titulo='ALERTA CAMION NO PLANIFICADO'):
-    resultado_webhook = _enviar_por_webhook(mensaje, titulo)
+def enviar_alerta_camion_no_planificado_teams(
+    destinatario_email,
+    mensaje,
+    titulo='ALERTA CAMION NO PLANIFICADO',
+    hechos=None,
+    documentos=None,
+    acciones=None
+):
+    resultado_webhook = _enviar_por_webhook(
+        mensaje,
+        titulo,
+        hechos=hechos,
+        documentos=documentos,
+        acciones=acciones
+    )
 
     if resultado_webhook is not None:
         return resultado_webhook
@@ -200,4 +255,25 @@ def enviar_rechazo_camion_no_planificado_teams(destinatario_email, mensaje):
         destinatario_email,
         mensaje,
         titulo='\u26D4 CAMION NO PLANIFICADO RECHAZADO'
+    )
+
+
+def enviar_solicitud_camion_patio_no_planificado_teams(
+    destinatario_email,
+    mensaje,
+    hechos,
+    documentos,
+    revisar_url,
+    camion_url
+):
+    return enviar_alerta_camion_no_planificado_teams(
+        destinatario_email,
+        mensaje,
+        titulo='Camión no planificado pendiente de revisión',
+        hechos=hechos,
+        documentos=documentos,
+        acciones=[
+            ('Revisar solicitud', revisar_url),
+            ('Ver camion en patio', camion_url),
+        ]
     )

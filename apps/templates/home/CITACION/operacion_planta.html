@@ -2340,6 +2340,7 @@
                         </div>
                         <div class="operacion-hero-metrics">
                             <div class="operacion-hero-chip"><span>Citacion</span> #{{ citacion.id }}</div>
+                            <div class="operacion-hero-chip"><span>Guia</span> {% if numero_guia_operacion %}#{{ numero_guia_operacion }}{% else %}Sin registrar{% endif %}</div>
                             <div class="operacion-hero-chip"><span>Patente</span> {{ patente }}</div>
                             <div class="operacion-hero-chip"><span>Tipo</span> {{ citacion.CI_CTIPO }}</div>
                             <div class="operacion-hero-chip"><span>Flujo</span> {{ nombre_flujo }}</div>
@@ -2361,6 +2362,7 @@
                             <li class="breadcrumb-item"><a href="{% url 'home' %}"><i class="feather icon-home"></i></a></li>
                             <li class="breadcrumb-item"><a href="{% if citacion.CI_CTIPO == 'DESPACHO' %}{% url 'cit_listall_despachos' %}{% else %}{% url 'cit_listall_recepciones' %}{% endif %}">Operacion</a></li>
                             <li class="breadcrumb-item">Citacion #{{ citacion.id }}</li>
+                            {% if numero_guia_operacion %}<li class="breadcrumb-item operacion-guia-breadcrumb">Guia #{{ numero_guia_operacion }}</li>{% endif %}
                         </ul>
                 </div>
             </div>

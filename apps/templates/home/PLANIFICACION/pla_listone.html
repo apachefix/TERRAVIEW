@@ -738,7 +738,51 @@
         }
     }
 
+    #ModalCrearDespacho .modal-dialog {
+        max-height: calc(100vh - 2rem);
+        margin: 1rem auto;
+    }
+
+    #ModalCrearDespacho .modal-content {
+        max-height: calc(100vh - 2rem);
+        display: flex;
+        flex-direction: column;
+        overflow: hidden;
+    }
+
+    #ModalCrearDespacho #form_crear_despacho {
+        display: flex;
+        flex: 1 1 auto;
+        flex-direction: column;
+        min-height: 0;
+        overflow: hidden;
+    }
+
+    #ModalCrearDespacho .modal-body {
+        flex: 1 1 auto;
+        min-height: 0;
+        overflow-x: hidden;
+        overflow-y: auto;
+        overscroll-behavior: contain;
+        -webkit-overflow-scrolling: touch;
+        padding-bottom: 1.5rem;
+    }
+
+    #ModalCrearDespacho .modal-header,
+    #ModalCrearDespacho .modal-footer {
+        flex: 0 0 auto;
+    }
+
     @media (max-width: 576px) {
+        #ModalCrearDespacho .modal-dialog {
+            max-height: calc(100vh - 1rem);
+            margin: .5rem auto;
+        }
+
+        #ModalCrearDespacho .modal-content {
+            max-height: calc(100vh - 1rem);
+        }
+
         #ModalIngresoCamion .modal-dialog,
         #ModalSolicitudCamionNoPlanificado .modal-dialog {
             margin: .5rem;
@@ -937,12 +981,20 @@
                                         Camión no planificado
                                     </button>
                                     {% elif not request.user|es_ingreso_camion %}
+                                    {% if planificacion.PL_CTIPOCUPO == 'DESPACHO' and solicitud_camion_patio_no_planificado %}
+                                    <button type="button" class="btn btn-warning" onclick="abrirModalDespachoNoPlanificado()">
+                                        Camión no planificado
+                                    </button>
+                                    {% else %}
                                     <button type="button" class="btn btn-warning" data-toggle="modal" data-target="#ModalCamionNoPlanificado">
                                         Camión no planificado
                                     </button>
+                                    {% endif %}
+                                    {% if not solicitud_camion_patio_no_planificado %}
                                     <button type="button" class="btn btn-danger ml-2" data-toggle="modal" data-target="#ModalRechazarCamionNoPlanificado">
                                         Rechazar camión
                                     </button>
+                                    {% endif %}
                                     {% endif %}
                                 </li>
                                 {% endif %}
@@ -1592,6 +1644,7 @@
                 <form id="form_camion_no_planificado" method="POST">
                     {% csrf_token %}
                     <input type="hidden" id="no_plan_solicitud_id" name="solicitud_id" value="{% if solicitud_camion_no_planificado %}{{ solicitud_camion_no_planificado.id }}{% endif %}">
+                    <input type="hidden" id="no_plan_solicitud_patio_id" name="solicitud_patio_no_planificado_id" value="{% if solicitud_camion_patio_no_planificado %}{{ solicitud_camion_patio_no_planificado.id }}{% endif %}">
                     <input type="hidden" id="no_plan_sap_opor_id" name="sap_opor_id">
                     <input type="hidden" id="no_plan_fecha_llegada" name="fecha_llegada" value="{{ planificacion.PL_FFECHAINICIO|date:'Y-m-d' }}">
                     <input type="hidden" id="no_plan_tipo" name="tipo" value="{{ planificacion.PL_CTIPOCUPO }}">
@@ -1624,8 +1677,8 @@
 
                             <div class="col-lg-4 col-md-6">
                                 <div class="form-group">
-                                    <label>Patente enviada por Guardia</label>
-                                    <input type="text" class="form-control text-uppercase" id="no_plan_patente" name="patente" value="{% if solicitud_camion_no_planificado %}{{ solicitud_camion_no_planificado.CNP_CPATENTE }}{% endif %}" readonly>
+                                    <label>Patente del cami&oacute;n no planificado</label>
+                                    <input type="text" class="form-control text-uppercase" id="no_plan_patente" name="patente" value="{% if solicitud_camion_patio_no_planificado %}{{ solicitud_camion_patio_no_planificado.CPA_NID.CPA_CPATENTE }}{% elif solicitud_camion_no_planificado %}{{ solicitud_camion_no_planificado.CNP_CPATENTE }}{% endif %}" readonly>
                                 </div>
                             </div>
 
@@ -1766,6 +1819,113 @@
             </div>
         </div>
     </div>
+
+    {% if planificacion.PL_CTIPOCUPO == 'DESPACHO' and solicitud_camion_patio_no_planificado %}
+    <div class="modal fade modal-despacho-etapa0" id="ModalCrearDespacho" tabindex="-1" role="dialog" aria-labelledby="ModalCrearDespachoLabel" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-scrollable modal-xl" role="document">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <div>
+                        <h5 class="modal-title" id="ModalCrearDespachoLabel">Crear despacho - Etapa 0</h5>
+                        <small>Agregue el camión no planificado como sobrecupo de la planificación #{{ planificacion.id }}.</small>
+                    </div>
+                    <button type="button" class="close" data-dismiss="modal" aria-label="Cerrar"><span aria-hidden="true">&times;</span></button>
+                </div>
+                <form id="form_crear_despacho" method="POST">
+                    {% csrf_token %}
+                    <input type="hidden" name="solicitud_no_planificado_id" id="despacho_solicitud_no_planificado_id">
+                    <input type="hidden" name="camion_patio_id" id="despacho_camion_patio_id">
+                    <input type="hidden" name="origen" value="camion_no_planificado">
+                    <input type="hidden" name="fecha_llegada" id="despacho_fecha_llegada" value="{{ planificacion.PL_FFECHAINICIO|date:'Y-m-d' }}">
+                    <input type="hidden" name="cliente_nombre" id="despacho_cliente_nombre">
+                    <input type="hidden" name="cliente_codigo" id="despacho_cliente_codigo">
+
+                    <div class="modal-body">
+                        <div class="alert alert-info">
+                            <strong>Antecedentes declarados:</strong>
+                            <span id="despacho_np_antecedentes"></span>
+                        </div>
+
+                        <h6 class="border-bottom pb-2 mb-3">Información SAP</h6>
+                        <div class="row">
+                            <div class="col-12">
+                                <div class="form-group">
+                                    <label>Buscar acuerdo SAP QA</label>
+                                    <select class="form-control" id="despacho_sap_busqueda"></select>
+                                    <small class="form-help-text">Busque por OC cliente, descripción, cliente, código cliente o número de acuerdo SAP.</small>
+                                </div>
+                            </div>
+                            <div class="col-lg-4 col-md-6">
+                                <div class="form-group">
+                                    <label>Cliente</label>
+                                    <select class="form-control" id="despacho_cliente" name="cliente" required>
+                                        <option value="">Seleccione cliente</option>
+                                        {% for cliente in clientes_sap %}
+                                        <option value="{{ cliente.SOP_CARDCODE }}">{{ cliente.SOP_CARDNAME }}</option>
+                                        {% endfor %}
+                                    </select>
+                                </div>
+                            </div>
+                            <div class="col-lg-4 col-md-6"><div class="form-group"><label>Producto SAP / Insumo</label><input type="text" class="form-control" id="despacho_insumo" name="insumo" required></div></div>
+                            <div class="col-lg-4 col-md-6"><div class="form-group"><label>OC Cliente</label><input type="text" class="form-control" id="despacho_oc" name="pedido" required></div></div>
+                            <div class="col-lg-4 col-md-6"><div class="form-group"><label>Código producto SAP</label><input type="text" class="form-control" id="despacho_codigo_sap" name="sap_codigo_producto" readonly></div></div>
+                            <div class="col-lg-4 col-md-6"><div class="form-group"><label>Nombre producto SAP</label><input type="text" class="form-control" id="despacho_nombre_producto_sap" name="sap_nombre_producto" readonly></div></div>
+                            <div class="col-lg-4 col-md-6"><div class="form-group"><label>Acuerdo SAP</label><input type="text" class="form-control" id="despacho_numero_acuerdo_sap" name="sap_numero_acuerdo" readonly><input type="hidden" id="despacho_abs_id_sap" name="sap_abs_id"></div></div>
+                            <div class="col-lg-4 col-md-6"><div class="form-group"><label>Línea acuerdo SAP</label><input type="text" class="form-control" id="despacho_linea_acuerdo_sap" name="sap_linea_acuerdo" readonly></div></div>
+                            <div class="col-lg-4 col-md-6"><div class="form-group"><label>Cantidad contrato SAP</label><input type="text" class="form-control" id="despacho_cantidad_planificada_sap" name="sap_cantidad_planificada" readonly></div></div>
+                            <div class="col-lg-4 col-md-6"><div class="form-group"><label>Cantidad consumida SAP</label><input type="text" class="form-control" id="despacho_cantidad_consumida_sap" name="sap_cantidad_consumida" readonly></div></div>
+                            <div class="col-lg-4 col-md-6"><div class="form-group"><label>Saldo contrato SAP</label><input type="text" class="form-control" id="despacho_saldo_contrato_sap" name="sap_saldo_contrato" readonly></div></div>
+                        </div>
+
+                        <h6 class="border-bottom pb-2 mb-3 mt-2">Planificación despacho</h6>
+                        <div class="alert alert-warning d-none" id="despacho_sap_supera_saldo_alert">La cantidad intentada a despachar supera el saldo contractual calculado en SAP.</div>
+                        <div class="row">
+                            <div class="col-lg-4 col-md-6"><div class="form-group"><label>Cantidad intentada a despachar</label><input type="text" class="form-control" id="despacho_cantidad_intentada" name="cantidad_intentada_despachar" inputmode="decimal" required></div></div>
+                            <div class="col-lg-4 col-md-6"><div class="form-group"><label>Fecha despacho</label><input type="date" class="form-control" id="despacho_fecha" value="{{ planificacion.PL_FFECHAINICIO|date:'Y-m-d' }}" readonly required></div></div>
+                            <div class="col-lg-4 col-md-6"><div class="form-group"><label>Destino</label><input type="text" class="form-control" id="despacho_destino" name="destino" required></div></div>
+                            <div class="col-lg-4 col-md-6"><div class="form-group"><label>Formato</label><select class="form-control" id="despacho_formato" name="tipo_carga" required><option value="">Seleccione formato</option><option value="Cisterna">Cisterna</option><option value="Contenedor">Contenedor</option><option value="Isotank">Isotank</option><option value="IBC">IBC</option></select></div></div>
+                            <div class="col-lg-4 col-md-6"><div class="form-group"><label>Orden de carga</label><input type="text" class="form-control" id="despacho_orden_carga" name="orden_carga" required></div></div>
+                            <div class="col-lg-4 col-md-6"><div class="form-group"><label>Ventana horaria</label><input type="text" class="form-control" id="despacho_ventana_horaria" name="ventana_horaria_despacho" required></div></div>
+                            <div class="col-lg-4 col-md-6"><div class="form-group"><label>Bodega de origen</label><input type="text" class="form-control" id="despacho_bodega" name="bodega" required></div></div>
+                            <div class="col-lg-4 col-md-6">
+                                <div class="form-group">
+                                    <label>Empresa Transporte</label>
+                                    <select class="form-control" id="despacho_empresa_transporte" name="empresa_transporte" required></select>
+                                    <input type="hidden" id="despacho_empresa_transporte_id" name="empresa_transporte_id">
+                                    <input type="text" class="form-control d-none mt-2" id="despacho_empresa_transporte_manual" name="empresa_transporte_manual" placeholder="Ingrese empresa transporte">
+                                </div>
+                            </div>
+                            <div class="col-lg-4 col-md-6">
+                                <div class="form-group">
+                                    <label>Conductor</label>
+                                    <select class="form-control" id="despacho_conductor" name="conductor" required></select>
+                                    <input type="hidden" id="despacho_conductor_id" name="conductor_id">
+                                    <input type="text" class="form-control d-none mt-2" id="despacho_conductor_manual" name="conductor_manual" placeholder="Ingrese nombre conductor">
+                                </div>
+                            </div>
+                            <div class="col-lg-4 col-md-6">
+                                <div class="form-group">
+                                    <label>Patente del camión no planificado</label>
+                                    <input type="text" class="form-control text-uppercase" id="despacho_patente" readonly>
+                                    <input type="hidden" id="despacho_patente_real" name="patente">
+                                    <label class="d-inline-flex align-items-center mt-2 mb-0" style="gap:6px;font-size:12px;color:#6c757d;"><input type="checkbox" id="despacho_ingreso_manual" value="1"><span>Ingreso manual de transporte/conductor</span></label>
+                                </div>
+                            </div>
+                            <div class="col-lg-4 col-md-6"><div class="form-group"><label>Condición de entrega</label><select class="form-control" id="despacho_transportado_por" name="condicion_entrega" required><option value="">Seleccione</option><option value="Terramar">Terramar</option><option value="Cliente">Cliente</option></select></div></div>
+                            <div class="col-lg-4 col-md-6"><div class="form-group"><label>Salida de documento</label><select class="form-control" id="despacho_salida_documento" name="salida_documento" required><option value="">Seleccione</option><option value="Factura de cliente">Factura de cliente</option><option value="Guía de despacho">Guía de despacho</option><option value="Factura anticipada">Factura anticipada</option></select></div></div>
+                            <div class="col-lg-8 col-md-6"><div class="form-group"><label>Secuencia operacional</label><select class="form-control" id="despacho_secuencia_id" name="secuencia_id" required><option value="">Seleccione secuencia</option>{% for secuencia in secuencias %}{% if secuencia.SE_CTIPO == 'DESPACHO' %}<option value="{{ secuencia.id }}">{{ secuencia.SE_CNOMBRE }}</option>{% endif %}{% endfor %}</select></div></div>
+                            <div class="col-12"><div class="form-group"><label>Observación</label><input type="text" class="form-control" id="despacho_observacion" name="observacion"></div></div>
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-dismiss="modal">Cancelar</button>
+                        <button type="button" class="btn btn-success" id="btn_crear_despacho_no_planificado" onclick="crearDespachoNoPlanificado()">Crear</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+    {% endif %}
 
     <div class="modal fade" id="ModalRechazarCamionNoPlanificado" tabindex="-1" role="dialog" aria-labelledby="ModalRechazarCamionNoPlanificadoLabel" aria-hidden="true">
         <div class="modal-dialog modal-dialog-scrollable modal-md" role="document">
@@ -2200,7 +2360,6 @@
             <div class="modal-footer">
                 <button type="button" class="btn btn-secondary" data-dismiss="modal">Cerrar</button>
                 {% if request.user|es_asistente_recepcion %}
-                <button type="button" class="btn btn-warning" id="btn_revision_devolver" onclick="devolverRevisionAsistente()">Rechazar / Devolver a Guardia</button>
                 <button type="button" class="btn btn-success" id="btn_revision_aprobar" onclick="aprobarRevisionAsistente()">Aprobar</button>
                 {% endif %}
                 {% if request.user|es_guardia %}
@@ -2356,6 +2515,7 @@
     let revisionRutasTransportista = [];
     let revisionGuardiaAutorizaPlanta = false;
     let revisionRutaGuardada = false;
+    let revisionRequiereRutaTransportista = true;
     let ingresoCamionCamposPorCodigo = {};
     let acdDespachoLotesSap = [];
     let acdDespachoPuedeEditar = false;
@@ -2623,6 +2783,256 @@
     let noPlanPedidosProductoActual = [];
     let noPlanLineasPedidoActual = [];
     let noPlanBloqueandoCambioPedido = false;
+
+    function despachoNoPlanValor(id) {
+        const elemento = document.getElementById(id);
+        return elemento ? String(elemento.value || '') : '';
+    }
+
+    function despachoNoPlanSet(id, valor) {
+        const elemento = document.getElementById(id);
+        if (elemento) {
+            elemento.value = valor === null || valor === undefined ? '' : valor;
+        }
+    }
+
+    function despachoNoPlanDecimal(valor) {
+        const texto = String(valor || '').trim().replace(/\./g, '').replace(',', '.');
+        const numero = Number(texto);
+        return texto && Number.isFinite(numero) ? numero : null;
+    }
+
+    function actualizarSaldoDespachoNoPlanificado() {
+        const cantidad = despachoNoPlanDecimal(despachoNoPlanValor('despacho_cantidad_intentada'));
+        const saldo = despachoNoPlanDecimal(despachoNoPlanValor('despacho_saldo_contrato_sap'));
+        $('#despacho_sap_supera_saldo_alert').toggleClass('d-none', cantidad === null || saldo === null || cantidad <= saldo);
+    }
+
+    function cargarAcuerdoSapDespachoNoPlanificado(item) {
+        const sap = item || {};
+        const clienteCodigo = sap.cliente_codigo || '';
+        const clienteNombre = sap.cliente_nombre || clienteCodigo;
+        if (clienteCodigo) {
+            const select = $('#despacho_cliente');
+            if (!select.find('option[value="' + String(clienteCodigo).replace(/"/g, '\\"') + '"]').length) {
+                select.append(new Option(clienteNombre, clienteCodigo, true, true));
+            }
+            select.val(clienteCodigo).trigger('change');
+        }
+        despachoNoPlanSet('despacho_oc', sap.oc_cliente || '');
+        despachoNoPlanSet('despacho_insumo', sap.nombre_insumo || '');
+        despachoNoPlanSet('despacho_codigo_sap', sap.codigo_insumo || '');
+        despachoNoPlanSet('despacho_nombre_producto_sap', sap.nombre_insumo || '');
+        despachoNoPlanSet('despacho_numero_acuerdo_sap', sap.sap_acuerdo_numero || '');
+        despachoNoPlanSet('despacho_abs_id_sap', sap.sap_abs_id || '');
+        despachoNoPlanSet('despacho_linea_acuerdo_sap', sap.linea_acuerdo || '');
+        despachoNoPlanSet('despacho_cantidad_planificada_sap', sap.cantidad_planificada || '');
+        despachoNoPlanSet('despacho_cantidad_consumida_sap', sap.cantidad_consumida || '');
+        const saldo = sap.saldo_contrato_sap !== null && sap.saldo_contrato_sap !== undefined
+            ? sap.saldo_contrato_sap
+            : ((Number(sap.cantidad_planificada) || 0) - (Number(sap.cantidad_consumida) || 0));
+        despachoNoPlanSet('despacho_saldo_contrato_sap', saldo);
+        actualizarSaldoDespachoNoPlanificado();
+    }
+
+    function despachoNoPlanIngresoManual() {
+        return $('#despacho_ingreso_manual').is(':checked');
+    }
+
+    function actualizarModoTransporteDespachoNoPlanificado() {
+        const manual = despachoNoPlanIngresoManual();
+        $('#despacho_empresa_transporte, #despacho_conductor').prop('disabled', manual).prop('required', !manual);
+        $('#despacho_empresa_transporte_manual, #despacho_conductor_manual')
+            .toggleClass('d-none', !manual)
+            .prop('disabled', !manual)
+            .prop('required', manual);
+    }
+
+    function inicializarModalDespachoNoPlanificado() {
+        const modal = $('#ModalCrearDespacho');
+        if (!modal.length || !$.fn.select2) {
+            return;
+        }
+
+        ['#despacho_cliente', '#despacho_formato', '#despacho_transportado_por', '#despacho_salida_documento', '#despacho_secuencia_id'].forEach(function (selector) {
+            const select = $(selector);
+            if (!select.hasClass('select2-hidden-accessible')) {
+                select.select2({ placeholder: 'Seleccione', allowClear: true, width: '100%', dropdownParent: modal });
+            }
+        });
+        cargarClientesSapSelect('#despacho_cliente', '#ModalCrearDespacho');
+
+        const acuerdoSelect = $('#despacho_sap_busqueda');
+        if (!acuerdoSelect.hasClass('select2-hidden-accessible')) {
+            acuerdoSelect.select2({
+                placeholder: 'Buscar acuerdo SAP QA...',
+                allowClear: true,
+                width: '100%',
+                dropdownParent: modal,
+                minimumInputLength: 2,
+                ajax: {
+                    url: '/api/sap/despacho-acuerdos/',
+                    dataType: 'json',
+                    delay: 250,
+                    data: function (params) { return { q: params.term || '', _empresa_id: empresaIdActiva() }; },
+                    processResults: function (response) {
+                        return {
+                            results: (response.resultados || []).map(function (item, index) {
+                                return {
+                                    id: String(item.sap_abs_id || '') + '__' + String(item.linea_acuerdo || index),
+                                    text: [item.sap_acuerdo_numero, item.oc_cliente, item.cliente_nombre, item.nombre_insumo].filter(Boolean).join(' | '),
+                                    sap: item
+                                };
+                            })
+                        };
+                    }
+                }
+            });
+        }
+        acuerdoSelect.off('select2:select.noPlanDespacho').on('select2:select.noPlanDespacho', function (event) {
+            cargarAcuerdoSapDespachoNoPlanificado((event.params.data || {}).sap || {});
+        });
+
+        const transportista = $('#despacho_empresa_transporte');
+        if (!transportista.hasClass('select2-hidden-accessible')) {
+            transportista.select2({
+                placeholder: 'Seleccione empresa transporte', allowClear: true, width: '100%', dropdownParent: modal,
+                ajax: {
+                    url: '{% url "ajax_transportistas_ingreso_camion" %}', dataType: 'json', delay: 250,
+                    data: function (params) { return { q: params.term || '', empresa_id: empresaIdActiva() }; },
+                    processResults: function (data) { return { results: data.results || [] }; }
+                }
+            });
+        }
+        transportista.off('select2:select.noPlanDespacho select2:clear.noPlanDespacho')
+            .on('select2:select.noPlanDespacho', function (event) {
+                $('#despacho_empresa_transporte_id').val((event.params.data || {}).socionegocio_id || '');
+                $('#despacho_conductor').val(null).trigger('change');
+                $('#despacho_conductor_id').val('');
+            })
+            .on('select2:clear.noPlanDespacho', function () {
+                $('#despacho_empresa_transporte_id, #despacho_conductor_id').val('');
+                $('#despacho_conductor').val(null).trigger('change');
+            });
+
+        const conductor = $('#despacho_conductor');
+        if (!conductor.hasClass('select2-hidden-accessible')) {
+            conductor.select2({
+                placeholder: 'Seleccione conductor', allowClear: true, width: '100%', dropdownParent: modal,
+                ajax: {
+                    url: '{% url "ajax_conductores_ingreso_camion" %}', dataType: 'json', delay: 250,
+                    data: function (params) {
+                        return {
+                            q: params.term || '', empresa_id: empresaIdActiva(),
+                            transportista_id: $('#despacho_empresa_transporte_id').val(),
+                            transportista: $('#despacho_empresa_transporte').val() || ''
+                        };
+                    },
+                    processResults: function (data) { return { results: data.results || [] }; }
+                }
+            });
+        }
+        conductor.off('select2:select.noPlanDespacho select2:clear.noPlanDespacho')
+            .on('select2:select.noPlanDespacho', function (event) {
+                $('#despacho_conductor_id').val((event.params.data || {}).conductor_id || '');
+            })
+            .on('select2:clear.noPlanDespacho', function () { $('#despacho_conductor_id').val(''); });
+
+        $('#despacho_ingreso_manual').off('change.noPlanDespacho').on('change.noPlanDespacho', actualizarModoTransporteDespachoNoPlanificado);
+        $('#despacho_cantidad_intentada').off('input.noPlanDespacho').on('input.noPlanDespacho', actualizarSaldoDespachoNoPlanificado);
+        actualizarModoTransporteDespachoNoPlanificado();
+    }
+
+    function abrirModalDespachoNoPlanificado() {
+        const solicitud = NO_PLAN_SOLICITUD || {};
+        if (!PLANIFICACION_ES_DESPACHO || solicitud.origen !== 'camion_patio' || !solicitud.solicitud_no_planificado_id || !solicitud.camion_patio_id) {
+            Swal.fire('Solicitud no disponible', 'No fue posible validar el camión no planificado para esta planificación de Despacho.', 'warning');
+            return;
+        }
+
+        const form = document.getElementById('form_crear_despacho');
+        if (!form) {
+            Swal.fire('Error', 'No se encontró el formulario Crear despacho - Etapa 0.', 'error');
+            return;
+        }
+        form.reset();
+        inicializarModalDespachoNoPlanificado();
+        $('#despacho_cliente, #despacho_formato, #despacho_transportado_por, #despacho_salida_documento, #despacho_secuencia_id, #despacho_sap_busqueda, #despacho_empresa_transporte, #despacho_conductor').val(null).trigger('change');
+        despachoNoPlanSet('despacho_solicitud_no_planificado_id', solicitud.solicitud_no_planificado_id);
+        despachoNoPlanSet('despacho_camion_patio_id', solicitud.camion_patio_id);
+        despachoNoPlanSet('despacho_patente', solicitud.patente || '');
+        despachoNoPlanSet('despacho_patente_real', solicitud.patente || '');
+        despachoNoPlanSet('despacho_fecha', '{{ planificacion.PL_FFECHAINICIO|date:"Y-m-d" }}');
+        despachoNoPlanSet('despacho_fecha_llegada', '{{ planificacion.PL_FFECHAINICIO|date:"Y-m-d" }}');
+        despachoNoPlanSet('despacho_observacion', solicitud.observacion || '');
+        $('#despacho_np_antecedentes').text([
+            'Patente: ' + (solicitud.patente || '-'),
+            'Proveedor: ' + (solicitud.proveedor || '-'),
+            'Cliente: ' + (solicitud.cliente_nombre || '-'),
+            'Insumo: ' + (solicitud.insumo || '-'),
+            'Guía/documento: ' + (solicitud.numero_guia || '-'),
+            'BL/contenedor: ' + (solicitud.bl_contenedor || '-')
+        ].join(' · '));
+        $('#ModalCrearDespacho').modal('show');
+    }
+
+    function crearDespachoNoPlanificado() {
+        const form = document.getElementById('form_crear_despacho');
+        if (!form || !form.checkValidity()) {
+            if (form) form.reportValidity();
+            return;
+        }
+        if (despachoNoPlanDecimal(despachoNoPlanValor('despacho_cantidad_intentada')) === null) {
+            Swal.fire('Atención', 'Debe ingresar una cantidad intentada a despachar válida.', 'warning');
+            return;
+        }
+
+        const manual = despachoNoPlanIngresoManual();
+        const empresaTransporte = manual
+            ? despachoNoPlanValor('despacho_empresa_transporte_manual').trim()
+            : String($('#despacho_empresa_transporte').val() || '').trim();
+        const conductor = manual
+            ? despachoNoPlanValor('despacho_conductor_manual').trim()
+            : String($('#despacho_conductor').val() || '').trim();
+        if (!empresaTransporte || !conductor) {
+            Swal.fire('Atención', 'Debe seleccionar o ingresar empresa transporte y conductor.', 'warning');
+            return;
+        }
+
+        const formData = new FormData(form);
+        formData.set('_empresa_id', empresaIdActiva());
+        formData.set('cliente_codigo', $('#despacho_cliente').val() || '');
+        formData.set('cliente_nombre', $('#despacho_cliente option:selected').text().trim());
+        formData.set('empresa_transporte', empresaTransporte);
+        formData.set('conductor', conductor);
+        formData.set('patente', despachoNoPlanValor('despacho_patente_real'));
+        formData.set('codigo', despachoNoPlanValor('despacho_codigo_sap'));
+        formData.set('docentry', despachoNoPlanValor('despacho_abs_id_sap'));
+        formData.set('sap_opor_id', despachoNoPlanValor('despacho_abs_id_sap'));
+        formData.set('contrato_sap', despachoNoPlanValor('despacho_numero_acuerdo_sap'));
+        formData.set('cantidad_disponible', despachoNoPlanValor('despacho_saldo_contrato_sap'));
+        formData.set('inf_24hrs', despachoNoPlanValor('despacho_transportado_por'));
+
+        const boton = $('#btn_crear_despacho_no_planificado').prop('disabled', true).text('Creando...');
+        $.ajax({
+            url: '{% url "crear_citacion_no_planificada" planificacion.id %}',
+            type: 'POST', data: formData, processData: false, contentType: false,
+            headers: { 'X-CSRFToken': document.querySelector('#form_crear_despacho [name=csrfmiddlewaretoken]').value },
+            success: function (response) {
+                if (!response.success) {
+                    Swal.fire('Error', response.message || 'No fue posible crear el despacho.', 'error');
+                    return;
+                }
+                $('#ModalCrearDespacho').modal('hide');
+                Swal.fire('Despacho creado', response.message || 'El camión no planificado fue agregado como sobrecupo.', 'success').then(function () { location.reload(); });
+            },
+            error: function (xhr) {
+                const response = xhr.responseJSON || {};
+                Swal.fire('Error', response.message || 'No fue posible crear el despacho.', 'error');
+            },
+            complete: function () { boton.prop('disabled', false).text('Crear'); }
+        });
+    }
     let noPlanBloquearLimpiezaProducto = false;
 
     function cargarClientesSapSelect(selector, modalSelector, force) {
@@ -2831,6 +3241,19 @@
         });
     }
 
+    function noPlanLimpiarSeleccionSap() {
+        noPlanBloquearLimpiezaProducto = true;
+        $('#no_plan_insumo')
+            .empty()
+            .append(new Option('Seleccione producto', '', false, false))
+            .val('')
+            .trigger('change.select2');
+        noPlanBloquearLimpiezaProducto = false;
+        noPlanSetValue('no_plan_codigo', '');
+        noPlanLimpiarProveedorSap();
+        noPlanLimpiarDatosPedido(true);
+    }
+
     function noPlanCargarProveedorSapEnSelect(codigo, nombre) {
         const proveedorSelect = $('#no_plan_proveedor');
         proveedorSelect.empty();
@@ -2912,6 +3335,9 @@
 
                 noPlanPedidosProductoActual = response.pedidos || [];
                 noPlanSetPedidoOptions(noPlanPedidosProductoActual, seleccion || '');
+            },
+            error: function (xhr) {
+                console.error('Error al cargar pedidos SAP por producto.', xhr.status, xhr.responseJSON || xhr.responseText);
             }
         });
     }
@@ -3063,78 +3489,77 @@
             if (!select.length || !$.fn.select2) {
                 return;
             }
-            if (select.data('select2')) {
-                select.select2('destroy');
+            if (!select.hasClass('select2-hidden-accessible')) {
+                select.select2({
+                    placeholder: config[1],
+                    allowClear: true,
+                    width: '100%',
+                    dropdownParent: modal
+                });
             }
-            select.select2({
-                placeholder: config[1],
+        });
+
+        const productoSelect = $('#no_plan_insumo');
+        if (!productoSelect.hasClass('select2-hidden-accessible')) {
+            productoSelect.select2({
+                placeholder: 'Buscar producto...',
                 allowClear: true,
+                width: '100%',
+                dropdownParent: modal,
+                minimumInputLength: 2,
+                ajax: {
+                    url: '/api/sap/productos/',
+                    dataType: 'json',
+                    delay: 250,
+                    data: function (params) {
+                        return { q: params.term || '' };
+                    },
+                    processResults: function (response) {
+                        return {
+                            results: (response.productos || []).map(function (producto) {
+                                return {
+                                    id: producto.itemcode,
+                                    text: (producto.itemname || producto.itemcode) + ' - ' + producto.itemcode,
+                                    itemname: producto.itemname || ''
+                                };
+                            })
+                        };
+                    }
+                }
+            });
+        }
+
+        const pedidoSelect = $('#no_plan_pedido');
+        if (!pedidoSelect.hasClass('select2-hidden-accessible')) {
+            pedidoSelect.select2({
+                placeholder: 'Seleccione o escriba Pedido SAP',
+                allowClear: true,
+                tags: true,
+                width: '100%',
+                dropdownParent: modal,
+                createTag: function (params) {
+                    const term = $.trim(params.term);
+                    if (!term || !/^\d+$/.test(term)) {
+                        return null;
+                    }
+                    return { id: term, text: term, nuevo: true };
+                }
+            });
+        }
+
+        const proveedorSelect = $('#no_plan_proveedor');
+        if (!proveedorSelect.hasClass('select2-hidden-accessible')) {
+            proveedorSelect.select2({
+                placeholder: 'Proveedor desde Pedido SAP',
+                allowClear: false,
                 width: '100%',
                 dropdownParent: modal
             });
-        });
-
-        if ($('#no_plan_insumo').data('select2')) {
-            $('#no_plan_insumo').select2('destroy');
         }
-        $('#no_plan_insumo').select2({
-            placeholder: 'Buscar producto...',
-            allowClear: true,
-            width: '100%',
-            dropdownParent: modal,
-            minimumInputLength: 2,
-            ajax: {
-                url: '/api/sap/productos/',
-                dataType: 'json',
-                delay: 250,
-                data: function (params) {
-                    return { q: params.term || '' };
-                },
-                processResults: function (response) {
-                    return {
-                        results: (response.productos || []).map(function (producto) {
-                            return {
-                                id: producto.itemcode,
-                                text: (producto.itemname || producto.itemcode) + ' - ' + producto.itemcode,
-                                itemname: producto.itemname || ''
-                            };
-                        })
-                    };
-                }
-            }
-        });
 
-        if ($('#no_plan_pedido').data('select2')) {
-            $('#no_plan_pedido').select2('destroy');
-        }
-        $('#no_plan_pedido').select2({
-            placeholder: 'Seleccione o escriba Pedido SAP',
-            allowClear: true,
-            tags: true,
-            width: '100%',
-            dropdownParent: modal,
-            createTag: function (params) {
-                const term = $.trim(params.term);
-                if (!term || !/^\d+$/.test(term)) {
-                    return null;
-                }
-                return { id: term, text: term, nuevo: true };
-            }
-        });
-
-        if ($('#no_plan_proveedor').data('select2')) {
-            $('#no_plan_proveedor').select2('destroy');
-        }
-        $('#no_plan_proveedor').select2({
-            placeholder: 'Proveedor desde Pedido SAP',
-            allowClear: false,
-            width: '100%',
-            dropdownParent: modal
-        });
-
-        $('#no_plan_insumo')
-            .off('select2:select.noPlanProducto')
-            .on('select2:select.noPlanProducto', function (event) {
+        $(document)
+            .off('select2:select.noPlanProducto', '#no_plan_insumo')
+            .on('select2:select.noPlanProducto', '#no_plan_insumo', function (event) {
                 const data = event.params.data || {};
                 if (data.element) {
                     $(data.element).attr('data-itemname', data.itemname || '');
@@ -3142,8 +3567,8 @@
                     $('#no_plan_insumo option:selected').attr('data-itemname', data.itemname || '');
                 }
             })
-            .off('change.noPlanProducto')
-            .on('change.noPlanProducto', function () {
+            .off('change.noPlanProducto', '#no_plan_insumo')
+            .on('change.noPlanProducto', '#no_plan_insumo', function () {
                 const codigo = $(this).val() || '';
                 noPlanSetValue('no_plan_codigo', codigo);
                 if (!noPlanBloquearLimpiezaProducto) {
@@ -3153,9 +3578,9 @@
                 }
             });
 
-        $('#no_plan_pedido')
-            .off('change.noPlanPedido')
-            .on('change.noPlanPedido', function () {
+        $(document)
+            .off('change.noPlanPedido', '#no_plan_pedido')
+            .on('change.noPlanPedido', '#no_plan_pedido', function () {
                 if (noPlanBloqueandoCambioPedido) {
                     return;
                 }
@@ -3165,8 +3590,10 @@
 
     function precargarSolicitudCamionNoPlanificado() {
         const solicitud = NO_PLAN_SOLICITUD || {};
-        noPlanSetValue('no_plan_solicitud_id', solicitud.id || '');
-        noPlanSetValue('rechazo_solicitud_id', solicitud.id || '');
+        const esSolicitudPatio = solicitud.origen === 'camion_patio';
+        noPlanSetValue('no_plan_solicitud_id', esSolicitudPatio ? '' : (solicitud.id || ''));
+        noPlanSetValue('no_plan_solicitud_patio_id', esSolicitudPatio ? (solicitud.solicitud_patio_id || solicitud.id || '') : '');
+        noPlanSetValue('rechazo_solicitud_id', esSolicitudPatio ? '' : (solicitud.id || ''));
         noPlanSetValue('no_plan_patente', solicitud.patente || '');
         noPlanSetValue('rechazo_patente', solicitud.patente || '');
 
@@ -4072,7 +4499,7 @@
             : '<div class="small text-warning mt-2" id="revision_ruta_estado"><i class="fas fa-exclamation-triangle"></i> Pendiente de guardar</div>';
 
         return `
-            <div class="form-group col-md-6 mb-0" id="revision_ruta_transportista_field">
+            <div class="form-group col-md-6 mb-0" id="bloqueRutaTransportista">
                 <label for="revision_ruta_texto">Ruta del transportista</label>
                 <div class="input-group">
                     <input type="text"
@@ -4116,7 +4543,7 @@
 
     function setRevisionRutasTransportista(options, message) {
         revisionRutasTransportista = options || [];
-        $('#revision_ruta_transportista_field').replaceWith(
+        $('#bloqueRutaTransportista').replaceWith(
             renderRevisionRutaTransportistaCampo(revisionRutasTransportista, message || '')
         );
         poblarRevisionRutaDatalist(revisionRutasTransportista);
@@ -4124,6 +4551,12 @@
     }
 
     function actualizarEstadoRutaRevision(mensaje) {
+        if (!revisionRequiereRutaTransportista) {
+            $('#bloqueRutaTransportista').hide();
+            $('#btn_revision_aprobar').prop('disabled', false);
+            return;
+        }
+        $('#bloqueRutaTransportista').show();
         const texto = revisionRutaGuardada
             ? (mensaje || 'Ruta guardada correctamente')
             : (mensaje || 'Pendiente de guardar');
@@ -4140,13 +4573,16 @@
     }
 
     function invalidarRutaRevision() {
+        if (!revisionRequiereRutaTransportista) {
+            return;
+        }
         revisionRutaGuardada = false;
         actualizarEstadoRutaRevision('Debe guardar ruta antes de aprobar');
         $('#btn_guardar_ruta_transportista').prop('disabled', false).text('Guardar ruta');
     }
 
     function guardarRutaTransportistaRevision() {
-        if (!revisionAsistenteCitacionId) {
+        if (!revisionAsistenteCitacionId || !revisionRequiereRutaTransportista) {
             return;
         }
         sincronizarRutaTransportistaRevision();
@@ -4213,6 +4649,12 @@
     }
 
     function cargarRutasTransportistaRevision(citacionId, fallbackOptions, fallbackMessage) {
+        if (!revisionRequiereRutaTransportista) {
+            revisionRutasTransportista = [];
+            revisionRutaGuardada = true;
+            actualizarEstadoRutaRevision();
+            return;
+        }
         setRevisionRutasTransportista(fallbackOptions || [], fallbackMessage || '');
 
         $.ajax({
@@ -4261,11 +4703,7 @@
                         <label for="revision_lote_contenedor">Lote / Contenedor</label>
                         <input type="text" class="form-control" id="revision_lote_contenedor" value="${escapeHtml(campos.lote_contenedor || '')}">
                     </div>
-                    ${renderRevisionRutaTransportistaCampo(rutas, rutaMensaje)}
-                    <div class="form-group col-md-6 mb-0">
-                        <label for="revision_observacion">Observación devolución</label>
-                        <textarea class="form-control" id="revision_observacion" rows="3"></textarea>
-                    </div>
+                    ${data.requiere_ruta_transportista ? renderRevisionRutaTransportistaCampo(rutas, rutaMensaje) : ''}
                 </div>
             </div>
         `;
@@ -4275,10 +4713,12 @@
         revisionAsistenteCitacionId = citacionId;
         revisionGuardiaAutorizaPlanta = false;
         revisionRutaGuardada = false;
+        revisionRequiereRutaTransportista = true;
+        revisionRutasTransportista = [];
         $('#revision_asistente_subtitulo').text(`Citación #${citacionId}`);
         $('#revision_asistente_alert').hide().text('');
         $('#revision_asistente_contenido').html('<div class="text-center p-3">Cargando...</div>');
-        $('#btn_revision_aprobar, #btn_revision_devolver').prop('disabled', true).show();
+        $('#btn_revision_aprobar').prop('disabled', true).show();
         $('#btn_revision_guardia_porteria').hide().text('Enviar siguiente etapa');
         $('#ModalRevisionAsistente').modal('show');
 
@@ -4293,6 +4733,7 @@
                 }
 
                 const puedeEditarRevision = !!response.puede_editar_revision_asistente;
+                revisionRequiereRutaTransportista = !!response.requiere_ruta_transportista;
                 revisionRutaGuardada = !!response.ruta_transportista_guardada;
                 const esDespachoRevision = String(response.tipo_citacion || '').toUpperCase() === 'DESPACHO';
                 const html = [
@@ -4300,7 +4741,10 @@
                     renderRevisionSection('Datos citación', response.citacion),
                     esDespachoRevision ? renderRevisionSection('Datos del despacho', response.datos_despacho) : '',
                     esDespachoRevision ? renderRevisionSection('Datos SAP', response.datos_sap) : '',
-                    renderRevisionSection('Datos ingresados por Guardia', response.guardia),
+                    renderRevisionSection(
+                        'Datos ingresados por ' + (response.usuario_ingreso_nombre || 'usuario no identificado'),
+                        response.guardia
+                    ),
                     renderRevisionSection('Validación Asistente Recepción', response.validacion_asistente),
                     esDespachoRevision ? '' : renderRevisionSection('Datos operacionales', response.datos_operacionales),
                     renderRevisionSection('Asistente C_D', response.asistente_cd),
@@ -4310,16 +4754,18 @@
                 ].join('');
 
                 $('#revision_asistente_contenido').html(html || '<div class="text-muted">Sin información registrada.</div>');
-                if (puedeEditarRevision) {
+                if (puedeEditarRevision && revisionRequiereRutaTransportista) {
                     cargarRutasTransportistaRevision(
                         citacionId,
                         (response.rutas_transportista && response.rutas_transportista.options) || [],
                         response.rutas_transportista ? response.rutas_transportista.message : ''
                     );
                 }
-                $('#btn_revision_aprobar').prop('disabled', !!response.aprobado_asistente || (puedeEditarRevision && !revisionRutaGuardada));
-                $('#btn_revision_devolver').prop('disabled', !!response.aprobado_asistente);
-
+                $('#btn_revision_aprobar').prop(
+                    'disabled',
+                    !!response.aprobado_asistente
+                        || (puedeEditarRevision && revisionRequiereRutaTransportista && !revisionRutaGuardada)
+                );
                 if (response.aprobado_asistente) {
                     $('#revision_asistente_alert').show().text('Esta citación ya fue aprobada por Asistente Recepción.');
                 }
@@ -4346,7 +4792,7 @@
             return;
         }
 
-        if (!revisionRutaGuardada) {
+        if (revisionRequiereRutaTransportista && !revisionRutaGuardada) {
             Swal.fire({
                 icon: 'warning',
                 title: 'Ruta pendiente',
@@ -4382,44 +4828,6 @@
                     ? xhr.responseJSON.message
                     : 'No fue posible aprobar la citación.';
                 Swal.fire({ icon: 'warning', title: 'No se pudo aprobar', text: message });
-            }
-        });
-    }
-
-    function devolverRevisionAsistente() {
-        if (!revisionAsistenteCitacionId) {
-            return;
-        }
-
-        const observacion = normalizarTexto($('#revision_observacion').val());
-        if (!observacion) {
-            Swal.fire({ icon: 'warning', title: 'Observación requerida', text: 'Debe ingresar una observación para devolver a Guardia.' });
-            return;
-        }
-
-        $.ajax({
-            url: `/pla-citacion-devolver-guardia/${revisionAsistenteCitacionId}/`,
-            type: 'POST',
-            data: {
-                observacion: observacion
-            },
-            headers: {
-                'X-CSRFToken': '{{ csrf_token }}'
-            },
-            success: function (response) {
-                Swal.fire({
-                    icon: 'success',
-                    title: 'Devuelto',
-                    text: response.message || 'Camión devuelto a Guardia.'
-                }).then(function () {
-                    location.reload();
-                });
-            },
-            error: function (xhr) {
-                const message = xhr.responseJSON && xhr.responseJSON.message
-                    ? xhr.responseJSON.message
-                    : 'No fue posible devolver la citación.';
-                Swal.fire({ icon: 'warning', title: 'No se pudo devolver', text: message });
             }
         });
     }
@@ -5800,7 +6208,10 @@ function inicializarConductoresIngresoCamion(limpiarActual) {
                 const html = [
                     renderRevisionSection('Datos planificación', response.planificacion),
                     renderRevisionSection('Datos citación', response.citacion),
-                    renderRevisionSection('Datos ingresados por Guardia', response.guardia),
+                    renderRevisionSection(
+                        'Datos ingresados por ' + (response.usuario_ingreso_nombre || 'Usuario no identificado'),
+                        response.guardia
+                    ),
                     renderRevisionSection('Aprobación Asistente Recepción', response.aprobacion),
                     renderRevisionDocuments(response.documentos)
                 ].join('');
@@ -6915,9 +7326,9 @@ function inicializarConductoresIngresoCamion(limpiarActual) {
     $(document)
         .off('shown.bs.modal.no-plan-clientes', '#ModalCamionNoPlanificado')
         .on('shown.bs.modal.no-plan-clientes', '#ModalCamionNoPlanificado', function () {
+            noPlanLimpiarSeleccionSap();
             inicializarModalCamionNoPlanificado();
             cargarClientesSapSelect('#no_plan_cliente', '#ModalCamionNoPlanificado');
-            noPlanCargarProductosSap(false);
             precargarSolicitudCamionNoPlanificado();
         });
 

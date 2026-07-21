@@ -712,6 +712,18 @@
                     </div>
                     {% endif %}
 
+                    {% if solicitud_no_planificado_id %}
+                    <div class="alert alert-info">
+                        <strong>Solicitud de camion no planificado #{{ solicitud_no_planificado_id }}.</strong>
+                        Cree la planificacion desde cero. Referencia declarada: patente
+                        {{ camion_patio_inicial.patente|default:"-" }}, proveedor
+                        {{ camion_patio_inicial.proveedor|default:"-" }}, cliente
+                        {{ camion_patio_inicial.cliente|default:"-" }}, insumo
+                        {{ camion_patio_inicial.insumo|default:"-" }} y guia
+                        {{ camion_patio_inicial.guia|default:"-" }}.
+                    </div>
+                    {% endif %}
+
                     <div class="alert-etapa">
                         Las citaciones agregadas en esta pantalla aún no están guardadas en base de datos.
                         Revise el listado y, al finalizar, presione <strong>Crear citaciones</strong>.
@@ -1451,6 +1463,7 @@
         </div>
     </div>
 </div>
+{{ camion_patio_inicial|json_script:"camion-patio-inicial-data" }}
 {% endblock content %}
 
 {% block javascripts %}
@@ -1458,6 +1471,8 @@
 
 <script>
     const TIPO_PLANIFICACION_BLOQUEADO = '{{ tipo_planificacion|default:"" }}';
+    const SOLICITUD_NO_PLANIFICADO_ID = '{{ solicitud_no_planificado_id|default:"" }}';
+    const CAMION_PATIO_INICIAL = JSON.parse(document.getElementById('camion-patio-inicial-data').textContent || '{}');
     const MOSTRAR_BL_PLANIFICACION = TIPO_PLANIFICACION_BLOQUEADO !== 'DESPACHO';
     const FORMATOS_DESPACHO_PERMITIDOS = ['Cisterna', 'Contenedor', 'Isotank', 'IBC'];
 
@@ -1699,6 +1714,11 @@
 
             if (cantidadRepetir) {
                 cantidadRepetir.value = 1;
+            }
+            if (SOLICITUD_NO_PLANIFICADO_ID) {
+                setValue('fecha_llegada', CAMION_PATIO_INICIAL.fecha_llegada || '');
+                setValue('bl', CAMION_PATIO_INICIAL.bl || '');
+                setValue('observacion', CAMION_PATIO_INICIAL.observacion || '');
             }
         });
 
@@ -2915,6 +2935,9 @@
         formData.append('cantidad_repetir', citacionesTemporales.length);
         formData.append('es_sobrecupo', esSobrecupo);
         formData.append('cantidad_sobrecupo', cantidadSobrecupo);
+        if (SOLICITUD_NO_PLANIFICADO_ID) {
+            formData.append('solicitud_no_planificado_id', SOLICITUD_NO_PLANIFICADO_ID);
+        }
 
         $.ajax({
             url: '/crear-planificacion-citacion/',

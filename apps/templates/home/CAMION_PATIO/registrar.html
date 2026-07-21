@@ -13,12 +13,8 @@
         grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
         gap: 14px;
     }
-    .patio-doc-row {
-        display: grid;
-        grid-template-columns: 220px minmax(240px, 1fr);
-        gap: 12px;
-        align-items: end;
-        margin-bottom: 12px;
+    .patio-form-full {
+        grid-column: 1 / -1;
     }
     .patio-pending-grid {
         display: grid;
@@ -50,10 +46,26 @@
         font-size: 13px;
         cursor: pointer;
     }
-    @media (max-width: 700px) {
-        .patio-doc-row {
-            grid-template-columns: 1fr;
-        }
+    .patio-documentos-lista {
+        display: grid;
+        gap: 8px;
+        margin-top: 12px;
+    }
+    .patio-documento-item {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+        padding: 9px 12px;
+        border: 1px solid #dfe5ee;
+        border-radius: 6px;
+        background: #f8fafc;
+    }
+    .patio-documento-nombre {
+        min-width: 0;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
     }
 </style>
 {% endblock stylesheets %}
@@ -71,7 +83,7 @@
                         <ul class="breadcrumb">
                             <li class="breadcrumb-item"><a href="/"><i class="feather icon-home"></i></a></li>
                             <li class="breadcrumb-item">Camiones en patio</li>
-                            <li class="breadcrumb-item">Registro Guardia</li>
+                            <li class="breadcrumb-item">Registro Asistente Recepcion</li>
                         </ul>
                     </div>
                 </div>
@@ -87,34 +99,43 @@
                 </div>
                 <div class="card-body">
                     <div class="patio-form-grid">
-                        <div class="form-group">
+                        <div class="form-group patio-form-full">
+                            <label for="patio_transporte_a_cargo">Transporte a cargo de *</label>
+                            <select name="transporte_a_cargo" id="patio_transporte_a_cargo" class="form-control" required>
+                                <option value="TERRAMAR" {% if form_data.transporte_a_cargo != 'CLIENTE' %}selected{% endif %}>Terramar</option>
+                                <option value="CLIENTE" {% if form_data.transporte_a_cargo == 'CLIENTE' %}selected{% endif %}>Cliente</option>
+                            </select>
+                        </div>
+                        <div class="form-group{% if form_data.transporte_a_cargo == 'CLIENTE' %} d-none{% endif %}" id="bloque_transporte_terramar">
                             <label>Empresa transporte *</label>
-                            <select name="transportista" id="patio_transportista" class="form-control" required>
-                                {% if form_data.transportista %}
+                            <select name="transportista" id="patio_transportista" class="form-control" {% if form_data.transporte_a_cargo == 'CLIENTE' %}disabled{% else %}required{% endif %}>
+                                {% if form_data.transportista and form_data.transporte_a_cargo != 'CLIENTE' %}
                                     <option value="{{ form_data.transportista }}" selected>{{ form_data.transportista }}</option>
                                 {% endif %}
                             </select>
-                            <input type="hidden" id="patio_transportista_id" name="transportista_id" value="{{ form_data.transportista_id|default:'' }}">
+                            <input type="hidden" id="patio_transportista_id" name="transportista_id" value="{% if form_data.transporte_a_cargo != 'CLIENTE' %}{{ form_data.transportista_id|default:'' }}{% endif %}" {% if form_data.transporte_a_cargo == 'CLIENTE' %}disabled{% endif %}>
                         </div>
-                        <div class="form-group">
+                        <div class="form-group{% if form_data.transporte_a_cargo == 'CLIENTE' %} d-none{% endif %}" id="bloque_conductor_terramar">
                             <label>Nombre conductor *</label>
-                            <div id="patio_conductor_registrado">
-                                <select name="conductor" id="patio_conductor" class="form-control" required>
-                                    {% if form_data.conductor and not form_data.conductor_manual %}
+                            <div id="patio_conductor_registrado"{% if form_data.conductor_manual %} class="d-none"{% endif %}>
+                                <select name="conductor" id="patio_conductor" class="form-control" {% if form_data.transporte_a_cargo == 'CLIENTE' or form_data.conductor_manual %}disabled{% else %}required{% endif %}>
+                                    {% if form_data.conductor and form_data.transporte_a_cargo != 'CLIENTE' and not form_data.conductor_manual %}
                                         <option value="{{ form_data.conductor }}" selected>{{ form_data.conductor }}</option>
                                     {% endif %}
                                 </select>
                             </div>
-                            <div id="patio_conductor_manual_wrap" class="d-none">
-                                <input type="text" name="conductor_nombre_manual" id="patio_conductor_manual"
-                                       class="form-control" placeholder="Ingrese nombre completo"
-                                       value="{{ form_data.conductor_nombre_manual|default:'' }}">
-                            </div>
-                            <input type="hidden" id="patio_conductor_id" name="conductor_id" value="{{ form_data.conductor_id|default:'' }}">
+                            <input type="hidden" id="patio_conductor_id" name="conductor_id" value="{% if form_data.transporte_a_cargo != 'CLIENTE' %}{{ form_data.conductor_id|default:'' }}{% endif %}" {% if form_data.transporte_a_cargo == 'CLIENTE' or form_data.conductor_manual %}disabled{% endif %}>
                             <label class="patio-manual-toggle" for="patio_conductor_manual_check">
-                                <input type="checkbox" name="conductor_manual" id="patio_conductor_manual_check" value="1" {% if form_data.conductor_manual %}checked{% endif %}>
+                                <input type="checkbox" name="conductor_manual" id="patio_conductor_manual_check" value="1" {% if form_data.conductor_manual %}checked{% endif %} {% if form_data.transporte_a_cargo == 'CLIENTE' %}disabled{% endif %}>
                                 <span>Conductor no registrado</span>
                             </label>
+                        </div>
+                        <div class="form-group{% if form_data.transporte_a_cargo != 'CLIENTE' and not form_data.conductor_manual %} d-none{% endif %}" id="bloque_conductor_cliente">
+                            <label for="patio_conductor_manual">Nombre conductor *</label>
+                            <input type="text" name="conductor_nombre_manual" id="patio_conductor_manual"
+                                   class="form-control" placeholder="Ingrese nombre completo"
+                                   value="{{ form_data.conductor_nombre_manual|default:'' }}"
+                                   {% if form_data.transporte_a_cargo == 'CLIENTE' or form_data.conductor_manual %}required{% else %}disabled{% endif %}>
                         </div>
                         <div class="form-group">
                             <label>Patente camion *</label>
@@ -170,38 +191,20 @@
                     <h5>Documentos adjuntos</h5>
                 </div>
                 <div class="card-body">
-                    <div class="patio-doc-row">
-                        <div class="form-group mb-0">
-                            <label>Tipo</label>
-                            <input type="text" class="form-control" value="Guia" disabled>
-                        </div>
-                        <div class="form-group mb-0">
-                            <label>Archivo guia</label>
-                            <input type="file" name="documento_guia" class="form-control-file">
-                        </div>
-                    </div>
-                    <div class="patio-doc-row">
-                        <div class="form-group mb-0">
-                            <label>Tipo</label>
-                            <input type="text" class="form-control" value="Ticket origen" disabled>
-                        </div>
-                        <div class="form-group mb-0">
-                            <label>Archivo ticket origen</label>
-                            <input type="file" name="documento_ticket_origen" class="form-control-file">
-                        </div>
-                    </div>
-                    <div class="patio-doc-row">
-                        <div class="form-group mb-0">
-                            <label>Tipo</label>
-                            <select name="tipo_documento_adicional" class="form-control">
-                                <option value="SERNAPESCA">Sernapesca</option>
-                                <option value="OTRO">Otro</option>
-                            </select>
-                        </div>
-                        <div class="form-group mb-0">
-                            <label>Archivo adicional</label>
-                            <input type="file" name="documento_sernapesca" class="form-control-file">
-                        </div>
+                    <div class="form-group">
+                        <label for="archivos_documentos">Documentos del ingreso</label>
+                        <input
+                            type="file"
+                            id="archivos_documentos"
+                            name="archivos_documentos"
+                            class="form-control-file"
+                            accept=".pdf,application/pdf"
+                            multiple
+                        >
+                        <small class="form-text text-muted">
+                            Puede agregar un PDF consolidado o varios PDF separados. Vuelva a presionar "Examinar" para agregar más documentos.
+                        </small>
+                        <div id="lista_archivos_documentos" class="patio-documentos-lista d-none" aria-live="polite"></div>
                     </div>
                     <div class="text-right">
                         <button type="submit" class="btn btn-primary">
@@ -247,6 +250,57 @@
 {% block javascripts %}
 <script>
     const PATIO_EMPRESA_ID = "{{ empresa_activa_id|default:'' }}";
+    const archivosDocumentosAcumulados = new DataTransfer();
+
+    function claveArchivoDocumento(archivo) {
+        return [archivo.name, archivo.size, archivo.lastModified].join('::');
+    }
+
+    function tamanoArchivoDocumento(bytes) {
+        if (bytes < 1024) return bytes + ' B';
+        if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
+        return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
+    }
+
+    function sincronizarArchivosDocumentos() {
+        document.getElementById('archivos_documentos').files = archivosDocumentosAcumulados.files;
+    }
+
+    function renderArchivosDocumentos() {
+        const lista = $('#lista_archivos_documentos');
+        lista.empty();
+
+        if (!archivosDocumentosAcumulados.files.length) {
+            lista.addClass('d-none');
+            return;
+        }
+
+        lista.removeClass('d-none');
+        Array.from(archivosDocumentosAcumulados.files).forEach(function (archivo, indice) {
+            const informacion = $('<div>', {class: 'patio-documento-nombre'});
+            informacion.append($('<i>', {class: 'far fa-file-pdf text-danger mr-2'}));
+            informacion.append($('<span>').text(archivo.name));
+            informacion.append($('<small>', {class: 'text-muted ml-2'}).text(tamanoArchivoDocumento(archivo.size)));
+
+            const eliminar = $('<button>', {
+                type: 'button',
+                class: 'btn btn-sm btn-outline-danger patio-documento-eliminar',
+                'data-indice': indice,
+                'aria-label': 'Eliminar ' + archivo.name,
+                title: 'Eliminar archivo'
+            }).append($('<i>', {class: 'fas fa-times'}));
+
+            lista.append(
+                $('<div>', {class: 'patio-documento-item'})
+                    .append(informacion)
+                    .append(eliminar)
+            );
+        });
+    }
+
+    function esTransporteTerramarPatio() {
+        return $('#patio_transporte_a_cargo').val() === 'TERRAMAR';
+    }
 
     function limpiarConductorPatio() {
         $('#patio_conductor').val(null).trigger('change');
@@ -258,24 +312,59 @@
         $('#patio_patentes_sugeridas').empty();
     }
 
+    function limpiarTransporteTerramarPatio() {
+        $('#patio_transportista').val(null).trigger('change');
+        $('#patio_transportista_id').val('');
+        limpiarConductorPatio();
+    }
+
     function actualizarModoConductorPatio(limpiar) {
         limpiar = limpiar !== false;
-        const manual = $('#patio_conductor_manual_check').is(':checked');
+        const terramar = esTransporteTerramarPatio();
+        const manual = terramar && $('#patio_conductor_manual_check').is(':checked');
+        const mostrarManual = !terramar || manual;
+
         if (limpiar) {
             limpiarConductorPatio();
         }
+
         $('#patio_conductor_registrado').toggleClass('d-none', manual);
-        $('#patio_conductor_manual_wrap').toggleClass('d-none', !manual);
-        $('#patio_conductor').prop('disabled', manual).prop('required', !manual);
-        $('#patio_conductor_manual').prop('disabled', !manual).prop('required', manual);
+        $('#bloque_conductor_cliente').toggleClass('d-none', !mostrarManual);
+        $('#patio_conductor').prop('disabled', !terramar || manual).prop('required', terramar && !manual);
+        $('#patio_conductor_id').prop('disabled', !terramar || manual);
+        $('#patio_conductor_manual').prop('disabled', !mostrarManual).prop('required', mostrarManual);
         $('#patio_telefono_conductor').prop('required', true);
-        if (manual) {
+
+        if (limpiar && mostrarManual) {
             $('#patio_conductor_manual').trigger('focus');
         }
     }
 
+    function actualizarTransporteCargoPatio(limpiar) {
+        limpiar = limpiar !== false;
+        const terramar = esTransporteTerramarPatio();
+
+        if (limpiar) {
+            if (terramar) {
+                limpiarConductorPatio();
+            } else {
+                limpiarTransporteTerramarPatio();
+                $('#patio_conductor_manual_check').prop('checked', false);
+            }
+        }
+
+        $('#bloque_transporte_terramar').toggleClass('d-none', !terramar);
+        $('#bloque_conductor_terramar').toggleClass('d-none', !terramar);
+        $('#patio_transportista').prop('disabled', !terramar).prop('required', terramar);
+        $('#patio_transportista_id').prop('disabled', !terramar);
+        $('#patio_conductor_manual_check').prop('disabled', !terramar);
+        actualizarModoConductorPatio(false);
+    }
+
     function initPatioSelect2() {
         if (!$.fn.select2) return;
+        if ($('#patio_transportista').data('select2') || $('#patio_conductor').data('select2')) return;
+
         $('#patio_transportista').select2({
             width: '100%',
             placeholder: 'Seleccione transportista',
@@ -292,6 +381,7 @@
                 }
             }
         }).on('select2:select', function (event) {
+            if (!esTransporteTerramarPatio()) return;
             const item = event.params.data || {};
             $('#patio_transportista_id').val(item.socionegocio_id || '');
             limpiarConductorPatio();
@@ -321,6 +411,7 @@
                 }
             }
         }).on('select2:select', function (event) {
+            if (!esTransporteTerramarPatio()) return;
             const item = event.params.data || {};
             $('#patio_conductor_id').val('');
             $('#patio_rut_conductor').val('');
@@ -343,10 +434,40 @@
 
     $(document).ready(function () {
         initPatioSelect2();
+        $('#archivos_documentos').on('change', function () {
+            const clavesExistentes = new Set(
+                Array.from(archivosDocumentosAcumulados.files).map(claveArchivoDocumento)
+            );
+
+            Array.from(this.files).forEach(function (archivo) {
+                const clave = claveArchivoDocumento(archivo);
+                if (!clavesExistentes.has(clave)) {
+                    archivosDocumentosAcumulados.items.add(archivo);
+                    clavesExistentes.add(clave);
+                }
+            });
+
+            sincronizarArchivosDocumentos();
+            renderArchivosDocumentos();
+        });
+        $('#lista_archivos_documentos').on('click', '.patio-documento-eliminar', function () {
+            const indice = Number($(this).data('indice'));
+            if (!Number.isInteger(indice)) return;
+            archivosDocumentosAcumulados.items.remove(indice);
+            sincronizarArchivosDocumentos();
+            renderArchivosDocumentos();
+        });
+        $('#archivos_documentos').closest('form').on('submit', function () {
+            sincronizarArchivosDocumentos();
+        });
+        $('#patio_transporte_a_cargo').on('change', function () {
+            actualizarTransporteCargoPatio(true);
+        });
         $('#patio_conductor_manual_check').on('change', function () {
             actualizarModoConductorPatio(true);
         });
-        actualizarModoConductorPatio(false);
+        actualizarTransporteCargoPatio(false);
+        renderArchivosDocumentos();
     });
 </script>
 {% endblock javascripts %}

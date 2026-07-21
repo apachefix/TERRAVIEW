@@ -1,0 +1,54 @@
+<li class="nav-item pcoded-menu-caption sidebar-search-caption">
+    <label>Consultas</label>
+</li>
+<li class="nav-item sidebar-search-section">
+    <section class="sidebar-search-card" aria-labelledby="sidebar-estado-camion-title">
+        <h6 class="sidebar-search-title" id="sidebar-estado-camion-title">
+            <i class="fas fa-truck"></i>
+            Estado del cami&oacute;n
+        </h6>
+        <p class="sidebar-search-help">Buscar el estado operacional por patente.</p>
+        <div class="sidebar-search-form">
+            <input type="text"
+                   class="sidebar-search-input"
+                   id="buscar-patente-input"
+                   placeholder="Buscar patente..."
+                   aria-label="Buscar patente"
+                   autocomplete="off">
+            <button type="button"
+                    class="sidebar-search-button"
+                    id="btn-buscar-patente">
+                <i class="fas fa-search"></i>
+                Estado cami&oacute;n
+            </button>
+        </div>
+    </section>
+
+    <section class="sidebar-search-card" aria-labelledby="sidebar-trazabilidad-title">
+        <h6 class="sidebar-search-title" id="sidebar-trazabilidad-title">
+            <i class="fas fa-search-location"></i>
+            Trazabilidad
+        </h6>
+        <p class="sidebar-search-help">Buscar por n&uacute;mero de gu&iacute;a o citaci&oacute;n.</p>
+        <form method="get"
+              action="{% url 'trazabilidad_buscar' %}"
+              class="sidebar-search-form">
+            {% if empresa_activa %}<input type="hidden" name="_empresa_id" value="{{ empresa_activa.id }}">{% endif %}
+            <input type="text"
+                   class="sidebar-search-input"
+                   name="q"
+                   maxlength="128"
+                   id="buscar-guia-citacion-input"
+                   placeholder="Gu&iacute;a o citaci&oacute;n..."
+                   aria-label="Buscar guia o citacion"
+                   autocomplete="off">
+            <button type="submit"
+                    class="sidebar-search-button"
+                    id="btn-buscar-guia-citacion"
+                    aria-label="Buscar guia o citacion">
+                <i class="fas fa-search"></i>
+                Buscar
+            </button>
+        </form>
+    </section>
+</li>

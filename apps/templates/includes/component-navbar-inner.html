@@ -27,6 +27,7 @@
     <li class="nav-item">
         <a href="{% url 'expediente_citacion_list' %}" class="nav-link "><span class="pcoded-micon"><i class="fas fa-folder-open"></i></span><span class="pcoded-mtext">Biblioteca de citaciones</span></a>
     </li>
+    {% include 'includes/sidebar-searches.html' %}
     {% else %}
     
     <li class="nav-item pcoded-hasmenu">
@@ -44,8 +45,8 @@
             {% if request.user|es_guardia or request.user|es_asistente_recepcion or request.user|es_asistente_cd or request.user|es_planificador or request.user|es_usuario_maesc or request.user.is_superuser == 1 %}
                 <li><a href="{% url 'camiones_patio_control' %}{% if request.session.empresa_id %}?_empresa_id={{ request.session.empresa_id }}{% endif %}">Control de cami&oacute;n</a></li>
             {% endif %}
-            {% if request.user|es_guardia or request.user.is_superuser == 1 %}
-                <li><a href="{% url 'camiones_patio_registrar' %}{% if request.session.empresa_id %}?_empresa_id={{ request.session.empresa_id }}{% endif %}">Camiones en Patio</a></li>
+            {% if request.user|es_asistente_recepcion or request.user.is_superuser == 1 %}
+                <li><a href="{% url 'camiones_patio_registrar' %}{% if request.session.empresa_id %}?_empresa_id={{ request.session.empresa_id }}{% endif %}">Registrar cami&oacute;n en patio</a></li>
             {% endif %}
             {% if request.user|es_asistente_recepcion or request.user.is_superuser == 1 %}
                 <li><a href="{% url 'camiones_patio_list' %}{% if request.session.empresa_id %}?_empresa_id={{ request.session.empresa_id }}{% endif %}">Camiones en Patio</a></li>
@@ -161,6 +162,7 @@
     <li class="nav-item">
         <a href="{% url 'expediente_citacion_list' %}" class="nav-link "><span class="pcoded-micon"><i class="fas fa-folder-open"></i></span><span class="pcoded-mtext">Biblioteca de citaciones</span></a>
     </li>
+    {% include 'includes/sidebar-searches.html' %}
     
     {% if not request.user|es_usuario_maesc %}
     {% if request.user|has_vista:'PROFORMAS' or request.user.is_superuser == 1 %}
@@ -175,10 +177,6 @@
         </ul>
     </li>
     {% endif %}
-    
-    <li class="nav-item pcoded-menu-caption">
-        <label>Configuración</label>
-    </li>
     
     {% if request.user|has_vista:'DOCUMENTACION' or request.user.is_superuser == 1 %}
     <li class="nav-item pcoded-hasmenu">
