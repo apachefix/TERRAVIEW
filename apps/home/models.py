@@ -506,6 +506,7 @@ class CONDUCTOR(models.Model):
     CON_CRUT = models.CharField(("Rut"), max_length=128, null=False)
     CON_CEMAIL = models.CharField(("Email"), max_length=128, null=True, blank=True)
     CON_CTELEFONO = models.CharField(("Telefono"), max_length=128, null=True, blank=True)
+    CON_CCODIGO_PAIS_TELEFONO = models.CharField("Codigo pais telefono", max_length=5, null=True, blank=True)
     CON_CDIRECCION = models.CharField(("Direccion"), max_length=256, null=True, blank=True)
     CON_FFECHAREGISTRO = models.DateTimeField(("Fecha registro"), null=True, blank=True)
     CON_BHABILITADO = models.BooleanField(("Habilitado"), default=True)
@@ -1687,6 +1688,13 @@ TRANSPORTE_A_CARGO_CHOICES = [
 
 
 class CAMION_PATIO(models.Model):
+    TIPO_DOCUMENTO_GUIA_DESPACHO = 'GD'
+    TIPO_DOCUMENTO_FACTURA_ELECTRONICA = 'FE'
+    TIPOS_DOCUMENTO = (
+        (TIPO_DOCUMENTO_GUIA_DESPACHO, 'Guía de despacho'),
+        (TIPO_DOCUMENTO_FACTURA_ELECTRONICA, 'Factura electrónica'),
+    )
+
     ESTADO_PENDIENTE_ASOCIACION = 'PENDIENTE_ASOCIACION'
     ESTADO_EN_REVISION_RECEPCION = 'EN_REVISION_RECEPCION'
     ESTADO_ASOCIADO_CITACION = 'ASOCIADO_CITACION'
@@ -1709,11 +1717,13 @@ class CAMION_PATIO(models.Model):
     CPA_CNOMBRE_CONDUCTOR = models.CharField('Nombre conductor', max_length=256)
     CPA_CRUT_CONDUCTOR = models.CharField('RUT conductor', max_length=32, null=True, blank=True)
     CPA_CTELEFONO_CONDUCTOR = models.CharField('Telefono conductor', max_length=64, null=True, blank=True)
+    CPA_CCODIGO_PAIS_TELEFONO = models.CharField('Codigo pais telefono conductor', max_length=5, null=True, blank=True)
     CPA_CTRANSPORTISTA_DECLARADO = models.CharField('Transportista declarado', max_length=256, null=True, blank=True)
     CPA_CPROVEEDOR_DECLARADO = models.CharField('Proveedor declarado', max_length=256, null=True, blank=True)
     CPA_CPRODUCTO_DECLARADO = models.CharField('Producto declarado', max_length=256, null=True, blank=True)
     CPA_CINSUMO_DECLARADO_GUIA = models.CharField('Insumo declarado en guia', max_length=256, null=True, blank=True)
     CPA_CCLIENTE_DECLARADO = models.CharField('Cliente declarado', max_length=256, null=True, blank=True)
+    CPA_CTIPO_DOCUMENTO = models.CharField('Tipo de documento', max_length=2, choices=TIPOS_DOCUMENTO)
     CPA_CNUMERO_GUIA = models.CharField('Numero guia/documento', max_length=128, null=True, blank=True)
     CPA_CBL = models.CharField('BL', max_length=128, null=True, blank=True)
     CPA_CCANTIDAD_EJES = models.CharField('Cantidad de ejes', max_length=64, null=True, blank=True)

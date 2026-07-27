@@ -1,0 +1,52 @@
+# E.164 calling codes. Keep this module as the sole catalogue source.
+COUNTRY_CALLING_CODES = (
+    ("AF", "Afganistan", "+93"), ("AL", "Albania", "+355"), ("DE", "Alemania", "+49"),
+    ("AD", "Andorra", "+376"), ("AO", "Angola", "+244"), ("SA", "Arabia Saudita", "+966"),
+    ("DZ", "Argelia", "+213"), ("AR", "Argentina", "+54"), ("AM", "Armenia", "+374"),
+    ("AU", "Australia", "+61"), ("AT", "Austria", "+43"), ("AZ", "Azerbaiyan", "+994"),
+    ("BS", "Bahamas", "+1"), ("BD", "Bangladesh", "+880"), ("BB", "Barbados", "+1"),
+    ("BE", "Belgica", "+32"), ("BZ", "Belice", "+501"), ("BJ", "Benin", "+229"),
+    ("BY", "Bielorrusia", "+375"), ("BO", "Bolivia", "+591"), ("BA", "Bosnia y Herzegovina", "+387"),
+    ("BW", "Botsuana", "+267"), ("BR", "Brasil", "+55"), ("BN", "Brunei", "+673"),
+    ("BG", "Bulgaria", "+359"), ("BF", "Burkina Faso", "+226"), ("BI", "Burundi", "+257"),
+    ("CV", "Cabo Verde", "+238"), ("KH", "Camboya", "+855"), ("CM", "Camerun", "+237"),
+    ("CA", "Canada", "+1"), ("CL", "Chile", "+56"), ("CN", "China", "+86"),
+    ("CY", "Chipre", "+357"), ("CO", "Colombia", "+57"), ("KR", "Corea del Sur", "+82"),
+    ("CR", "Costa Rica", "+506"), ("HR", "Croacia", "+385"), ("CU", "Cuba", "+53"),
+    ("DK", "Dinamarca", "+45"), ("EC", "Ecuador", "+593"), ("EG", "Egipto", "+20"),
+    ("SV", "El Salvador", "+503"), ("AE", "Emiratos Arabes Unidos", "+971"), ("ES", "Espana", "+34"),
+    ("US", "Estados Unidos / Canada", "+1"), ("EE", "Estonia", "+372"), ("ET", "Etiopia", "+251"),
+    ("PH", "Filipinas", "+63"), ("FI", "Finlandia", "+358"), ("FR", "Francia", "+33"),
+    ("GA", "Gabon", "+241"), ("GE", "Georgia", "+995"), ("GH", "Ghana", "+233"),
+    ("GR", "Grecia", "+30"), ("GT", "Guatemala", "+502"), ("GN", "Guinea", "+224"),
+    ("HT", "Haiti", "+509"), ("HN", "Honduras", "+504"), ("HK", "Hong Kong", "+852"),
+    ("HU", "Hungria", "+36"), ("IN", "India", "+91"), ("ID", "Indonesia", "+62"),
+    ("IE", "Irlanda", "+353"), ("IS", "Islandia", "+354"), ("IL", "Israel", "+972"),
+    ("IT", "Italia", "+39"), ("JM", "Jamaica", "+1"), ("JP", "Japon", "+81"),
+    ("JO", "Jordania", "+962"), ("KZ", "Kazajistan", "+7"), ("KE", "Kenia", "+254"),
+    ("KW", "Kuwait", "+965"), ("LA", "Laos", "+856"), ("LV", "Letonia", "+371"),
+    ("LB", "Libano", "+961"), ("LY", "Libia", "+218"), ("LT", "Lituania", "+370"),
+    ("LU", "Luxemburgo", "+352"), ("MY", "Malasia", "+60"), ("MA", "Marruecos", "+212"),
+    ("MX", "Mexico", "+52"), ("MD", "Moldavia", "+373"), ("MC", "Monaco", "+377"),
+    ("MN", "Mongolia", "+976"), ("ME", "Montenegro", "+382"), ("MZ", "Mozambique", "+258"),
+    ("NA", "Namibia", "+264"), ("NP", "Nepal", "+977"), ("NI", "Nicaragua", "+505"),
+    ("NG", "Nigeria", "+234"), ("NO", "Noruega", "+47"), ("NZ", "Nueva Zelanda", "+64"),
+    ("NL", "Paises Bajos", "+31"), ("PK", "Pakistan", "+92"), ("PA", "Panama", "+507"),
+    ("PY", "Paraguay", "+595"), ("PE", "Peru", "+51"), ("PL", "Polonia", "+48"),
+    ("PT", "Portugal", "+351"), ("PR", "Puerto Rico", "+1"), ("QA", "Qatar", "+974"),
+    ("GB", "Reino Unido", "+44"), ("CZ", "Republica Checa", "+420"), ("DO", "Republica Dominicana", "+1"),
+    ("RO", "Rumania", "+40"), ("RU", "Rusia", "+7"), ("SN", "Senegal", "+221"),
+    ("RS", "Serbia", "+381"), ("SG", "Singapur", "+65"), ("SY", "Siria", "+963"),
+    ("LK", "Sri Lanka", "+94"), ("ZA", "Sudafrica", "+27"), ("SE", "Suecia", "+46"),
+    ("CH", "Suiza", "+41"), ("TH", "Tailandia", "+66"), ("TW", "Taiwan", "+886"),
+    ("TZ", "Tanzania", "+255"), ("TN", "Tunez", "+216"), ("TR", "Turquia", "+90"),
+    ("UA", "Ucrania", "+380"), ("UG", "Uganda", "+256"), ("UY", "Uruguay", "+598"),
+    ("UZ", "Uzbekistan", "+998"), ("VE", "Venezuela", "+58"), ("VN", "Vietnam", "+84"),
+    ("YE", "Yemen", "+967"), ("ZM", "Zambia", "+260"), ("ZW", "Zimbabue", "+263"),
+)
+COUNTRY_BY_CODE = {}
+for iso2, nombre, codigo_telefonico in COUNTRY_CALLING_CODES:
+    COUNTRY_BY_CODE.setdefault(codigo_telefonico, {"iso2": iso2, "nombre": nombre, "codigo_telefonico": codigo_telefonico})
+
+def country_options():
+    return [{"id": iso2, "iso2": iso2, "nombre": nombre, "codigo_telefonico": codigo, "text": f"{nombre} ({codigo})"} for iso2, nombre, codigo in COUNTRY_CALLING_CODES]

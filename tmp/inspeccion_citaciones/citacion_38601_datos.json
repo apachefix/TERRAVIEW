@@ -1,0 +1,4335 @@
+{
+  "citacion_id": 38601,
+  "generado_en": "2026-07-27T13:40:38.515033+00:00",
+  "solo_lectura": true,
+  "secciones": {
+    "1. Identificacion de la citacion": [
+      {
+        "campo": "id",
+        "nombre": "ID",
+        "tipo": "BigAutoField",
+        "valor": 38601,
+        "origen": "CITACION"
+      },
+      {
+        "campo": "US_NID",
+        "nombre": "Id usuario",
+        "tipo": "ForeignKey",
+        "valor": "MAESC",
+        "origen": "CITACION",
+        "relacion": "MAESC"
+      },
+      {
+        "campo": "EP_NID",
+        "nombre": "Id empresa",
+        "tipo": "ForeignKey",
+        "valor": "ACEITES SBH",
+        "origen": "CITACION",
+        "relacion": "ACEITES SBH"
+      },
+      {
+        "campo": "RUT_NID",
+        "nombre": "Id ruta",
+        "tipo": "ForeignKey",
+        "valor": "Sin informacion",
+        "origen": "CITACION",
+        "relacion": "Sin informacion"
+      },
+      {
+        "campo": "TAR_NID",
+        "nombre": "Id tarifa",
+        "tipo": "ForeignKey",
+        "valor": "Sin informacion",
+        "origen": "CITACION",
+        "relacion": "Sin informacion"
+      },
+      {
+        "campo": "PL_NID",
+        "nombre": "Id planificacion",
+        "tipo": "ForeignKey",
+        "valor": "PLANIFICACION object (1208)",
+        "origen": "CITACION",
+        "relacion": "PLANIFICACION object (1208)"
+      },
+      {
+        "campo": "SN_NID",
+        "nombre": "Id socio negocio",
+        "tipo": "ForeignKey",
+        "valor": "Sin informacion",
+        "origen": "CITACION",
+        "relacion": "Sin informacion"
+      },
+      {
+        "campo": "CON_NID",
+        "nombre": "id conductor",
+        "tipo": "ForeignKey",
+        "valor": "Sin informacion",
+        "origen": "CITACION",
+        "relacion": "Sin informacion"
+      },
+      {
+        "campo": "CA_NID",
+        "nombre": "Id camion",
+        "tipo": "ForeignKey",
+        "valor": "Sin informacion",
+        "origen": "CITACION",
+        "relacion": "Sin informacion"
+      },
+      {
+        "campo": "SC_NID",
+        "nombre": "Id secuencia",
+        "tipo": "ForeignKey",
+        "valor": "TRASVASIJE_CLIENTE - Despacho por Trasvasije",
+        "origen": "CITACION",
+        "relacion": "TRASVASIJE_CLIENTE - Despacho por Trasvasije"
+      },
+      {
+        "campo": "PRO_NID",
+        "nombre": "Id proveedor",
+        "tipo": "ForeignKey",
+        "valor": "Sin informacion",
+        "origen": "CITACION",
+        "relacion": "Sin informacion"
+      },
+      {
+        "campo": "CI_FFECHAREGISTRO",
+        "nombre": "Fecha registro",
+        "tipo": "DateTimeField",
+        "valor": "2026-07-23 14:44:18+00:00",
+        "origen": "CITACION"
+      },
+      {
+        "campo": "CI_FFECHAINICIO",
+        "nombre": "Fecha inicio",
+        "tipo": "DateTimeField",
+        "valor": "Sin informacion",
+        "origen": "CITACION"
+      },
+      {
+        "campo": "CI_FFECHATERMINO",
+        "nombre": "Fecha termino",
+        "tipo": "DateTimeField",
+        "valor": "Sin informacion",
+        "origen": "CITACION"
+      },
+      {
+        "campo": "CI_FFECHACITACION",
+        "nombre": "Fecha citacion",
+        "tipo": "DateTimeField",
+        "valor": "2026-07-23 04:00:00+00:00",
+        "origen": "CITACION"
+      },
+      {
+        "campo": "CI_BAVISADO",
+        "nombre": "Avisado",
+        "tipo": "BooleanField",
+        "valor": false,
+        "origen": "CITACION"
+      },
+      {
+        "campo": "CI_BCONFIRMADO",
+        "nombre": "Confirmado",
+        "tipo": "BooleanField",
+        "valor": false,
+        "origen": "CITACION"
+      },
+      {
+        "campo": "CI_BARRIBADO",
+        "nombre": "Arribado",
+        "tipo": "BooleanField",
+        "valor": false,
+        "origen": "CITACION"
+      },
+      {
+        "campo": "CI_BHABILITADO",
+        "nombre": "Habilitado",
+        "tipo": "BooleanField",
+        "valor": true,
+        "origen": "CITACION"
+      },
+      {
+        "campo": "CI_BARCHIVADO",
+        "nombre": "Archivado",
+        "tipo": "BooleanField",
+        "valor": false,
+        "origen": "CITACION"
+      },
+      {
+        "campo": "CI_BSOBRECUPO",
+        "nombre": "Sobre cupo",
+        "tipo": "BooleanField",
+        "valor": false,
+        "origen": "CITACION"
+      },
+      {
+        "campo": "CI_NCUPO",
+        "nombre": "Numero cupo",
+        "tipo": "IntegerField",
+        "valor": 4,
+        "origen": "CITACION"
+      },
+      {
+        "campo": "CI_CTIPO",
+        "nombre": "Tipo citacion",
+        "tipo": "CharField",
+        "valor": "DESPACHO",
+        "origen": "CITACION"
+      },
+      {
+        "campo": "CI_CESTADO",
+        "nombre": "Estado",
+        "tipo": "CharField",
+        "valor": "Despacho Programado",
+        "origen": "CITACION"
+      },
+      {
+        "campo": "CI_CTIPODOCUMENTO",
+        "nombre": "Tipo documento",
+        "tipo": "CharField",
+        "valor": "Sin informacion",
+        "origen": "CITACION"
+      },
+      {
+        "campo": "CI_CNUMERODOCUMENTO",
+        "nombre": "Numero documento",
+        "tipo": "CharField",
+        "valor": "Sin informacion",
+        "origen": "CITACION"
+      },
+      {
+        "campo": "CI_NVALORTARIFA",
+        "nombre": "Valor tarifa",
+        "tipo": "DecimalField",
+        "valor": "Sin informacion",
+        "origen": "CITACION"
+      },
+      {
+        "campo": "CI_NDIFERENCIATARIFA",
+        "nombre": "Diferencia tarifa",
+        "tipo": "DecimalField",
+        "valor": "Sin informacion",
+        "origen": "CITACION"
+      },
+      {
+        "campo": "CI_CCOMENTARIO",
+        "nombre": "Comentario",
+        "tipo": "TextField",
+        "valor": "Sin informacion",
+        "origen": "CITACION"
+      },
+      {
+        "campo": "CI_NID_REF",
+        "nombre": "Id citacion original",
+        "tipo": "IntegerField",
+        "valor": "Sin informacion",
+        "origen": "CITACION"
+      },
+      {
+        "campo": "CI_CTIPO_FLETE",
+        "nombre": "Tipo flete",
+        "tipo": "CharField",
+        "valor": "Cisterna",
+        "origen": "CITACION"
+      },
+      {
+        "campo": "CI_BCONFORME",
+        "nombre": "Entrega conforme",
+        "tipo": "BooleanField",
+        "valor": false,
+        "origen": "CITACION"
+      }
+    ],
+    "2. Empresa, tipo y secuencia": [
+      {
+        "campo": "US_NID",
+        "nombre": "Id usuario",
+        "tipo": "ForeignKey",
+        "valor": "MAESC",
+        "origen": "CITACION",
+        "relacion": "MAESC"
+      },
+      {
+        "campo": "EP_NID",
+        "nombre": "Id empresa",
+        "tipo": "ForeignKey",
+        "valor": "ACEITES SBH",
+        "origen": "CITACION",
+        "relacion": "ACEITES SBH"
+      },
+      {
+        "campo": "PL_NID",
+        "nombre": "Id planificacion",
+        "tipo": "ForeignKey",
+        "valor": "PLANIFICACION object (1208)",
+        "origen": "CITACION",
+        "relacion": "PLANIFICACION object (1208)"
+      },
+      {
+        "campo": "SC_NID",
+        "nombre": "Id secuencia",
+        "tipo": "ForeignKey",
+        "valor": "TRASVASIJE_CLIENTE - Despacho por Trasvasije",
+        "origen": "CITACION",
+        "relacion": "TRASVASIJE_CLIENTE - Despacho por Trasvasije"
+      },
+      {
+        "campo": "CI_FFECHAREGISTRO",
+        "nombre": "Fecha registro",
+        "tipo": "DateTimeField",
+        "valor": "2026-07-23 14:44:18+00:00",
+        "origen": "CITACION"
+      },
+      {
+        "campo": "CI_FFECHAINICIO",
+        "nombre": "Fecha inicio",
+        "tipo": "DateTimeField",
+        "valor": "Sin informacion",
+        "origen": "CITACION"
+      },
+      {
+        "campo": "CI_FFECHATERMINO",
+        "nombre": "Fecha termino",
+        "tipo": "DateTimeField",
+        "valor": "Sin informacion",
+        "origen": "CITACION"
+      },
+      {
+        "campo": "CI_CTIPO",
+        "nombre": "Tipo citacion",
+        "tipo": "CharField",
+        "valor": "DESPACHO",
+        "origen": "CITACION"
+      },
+      {
+        "campo": "CI_CESTADO",
+        "nombre": "Estado",
+        "tipo": "CharField",
+        "valor": "Despacho Programado",
+        "origen": "CITACION"
+      }
+    ],
+    "3. Planificacion": [
+      {
+        "campo": "id",
+        "nombre": "ID",
+        "tipo": "BigAutoField",
+        "valor": 1208,
+        "origen": "PLANIFICACION"
+      },
+      {
+        "campo": "US_NID",
+        "nombre": "Id usuario",
+        "tipo": "ForeignKey",
+        "valor": "MAESC",
+        "origen": "PLANIFICACION",
+        "relacion": "MAESC"
+      },
+      {
+        "campo": "EP_NID",
+        "nombre": "Id empresa",
+        "tipo": "ForeignKey",
+        "valor": "ACEITES SBH",
+        "origen": "PLANIFICACION",
+        "relacion": "ACEITES SBH"
+      },
+      {
+        "campo": "CAL_NID",
+        "nombre": "Id calendario",
+        "tipo": "ForeignKey",
+        "valor": "CALENDARIO object (697)",
+        "origen": "PLANIFICACION",
+        "relacion": "CALENDARIO object (697)"
+      },
+      {
+        "campo": "US_ARCHIVADOR_ID",
+        "nombre": "Usuario archivador",
+        "tipo": "ForeignKey",
+        "valor": "Sin informacion",
+        "origen": "PLANIFICACION",
+        "relacion": "Sin informacion"
+      },
+      {
+        "campo": "PL_CTIPOCUPO",
+        "nombre": "Tipo de cupo",
+        "tipo": "CharField",
+        "valor": "DESPACHO",
+        "origen": "PLANIFICACION"
+      },
+      {
+        "campo": "PL_FFECHAREGISTRO",
+        "nombre": "Fecha registro",
+        "tipo": "DateTimeField",
+        "valor": "2026-07-23 14:44:18+00:00",
+        "origen": "PLANIFICACION"
+      },
+      {
+        "campo": "PL_FFECHAINICIO",
+        "nombre": "Fecha y hora de inicio",
+        "tipo": "DateTimeField",
+        "valor": "2026-07-23 04:00:00+00:00",
+        "origen": "PLANIFICACION"
+      },
+      {
+        "campo": "PL_FFECHAFIN",
+        "nombre": "Fecha y hora de termino",
+        "tipo": "DateTimeField",
+        "valor": "2026-07-24 03:59:00+00:00",
+        "origen": "PLANIFICACION"
+      },
+      {
+        "campo": "PL_FFECHAARCHIVADO",
+        "nombre": "Fecha de archivado",
+        "tipo": "DateField",
+        "valor": "Sin informacion",
+        "origen": "PLANIFICACION"
+      },
+      {
+        "campo": "PL_NCANTIDADCUPOS",
+        "nombre": "Cantidad de cupos",
+        "tipo": "IntegerField",
+        "valor": 4,
+        "origen": "PLANIFICACION"
+      },
+      {
+        "campo": "PL_NSOBRECUPO",
+        "nombre": "Es sobre cupo",
+        "tipo": "BooleanField",
+        "valor": true,
+        "origen": "PLANIFICACION"
+      },
+      {
+        "campo": "PL_NCANTIDADSOBRECUPO",
+        "nombre": "Cantidad de sobrecupos",
+        "tipo": "IntegerField",
+        "valor": 5,
+        "origen": "PLANIFICACION"
+      },
+      {
+        "campo": "PL_BARCHIVADO",
+        "nombre": "Archivado",
+        "tipo": "BooleanField",
+        "valor": false,
+        "origen": "PLANIFICACION"
+      }
+    ],
+    "4. Camion, conductor y transporte": [
+      {
+        "fuente": "CAMION_PATIO",
+        "registros": []
+      },
+      {
+        "fuente": "CAMION_PATIO_NO_PLANIFICADO",
+        "registros": []
+      },
+      {
+        "campo": "RUT_NID",
+        "nombre": "Id ruta",
+        "tipo": "ForeignKey",
+        "valor": "Sin informacion",
+        "origen": "CITACION",
+        "relacion": "Sin informacion"
+      },
+      {
+        "campo": "CON_NID",
+        "nombre": "id conductor",
+        "tipo": "ForeignKey",
+        "valor": "Sin informacion",
+        "origen": "CITACION",
+        "relacion": "Sin informacion"
+      },
+      {
+        "campo": "CA_NID",
+        "nombre": "Id camion",
+        "tipo": "ForeignKey",
+        "valor": "Sin informacion",
+        "origen": "CITACION",
+        "relacion": "Sin informacion"
+      }
+    ],
+    "5. Datos operacionales": [
+      [
+        {
+          "campo": "id",
+          "nombre": "ID",
+          "tipo": "BigAutoField",
+          "valor": 273792,
+          "origen": "DATO_OPERACION"
+        },
+        {
+          "campo": "US_NID",
+          "nombre": "Id usuario",
+          "tipo": "ForeignKey",
+          "valor": "MAESC",
+          "origen": "DATO_OPERACION",
+          "relacion": "MAESC"
+        },
+        {
+          "campo": "EP_NID",
+          "nombre": "Id empresa",
+          "tipo": "ForeignKey",
+          "valor": "ACEITES SBH",
+          "origen": "DATO_OPERACION",
+          "relacion": "ACEITES SBH"
+        },
+        {
+          "campo": "SC_NID",
+          "nombre": "Id secuencia",
+          "tipo": "ForeignKey",
+          "valor": "TRASVASIJE_CLIENTE - Despacho por Trasvasije",
+          "origen": "DATO_OPERACION",
+          "relacion": "TRASVASIJE_CLIENTE - Despacho por Trasvasije"
+        },
+        {
+          "campo": "ET_NID",
+          "nombre": "Id etapa",
+          "tipo": "ForeignKey",
+          "valor": "DESPACHO_PROGRAMADO - Despacho Programado",
+          "origen": "DATO_OPERACION",
+          "relacion": "DESPACHO_PROGRAMADO - Despacho Programado"
+        },
+        {
+          "campo": "CAMP_NID",
+          "nombre": "Id campo",
+          "tipo": "ForeignKey",
+          "valor": "Proveedor SAP",
+          "origen": "DATO_OPERACION",
+          "relacion": "Proveedor SAP"
+        },
+        {
+          "campo": "CI_NID",
+          "nombre": "Id citacion",
+          "tipo": "ForeignKey",
+          "valor": "CITACION object (38601)",
+          "origen": "DATO_OPERACION",
+          "relacion": "CITACION object (38601)"
+        },
+        {
+          "campo": "DO_FFECHAREGISTRO",
+          "nombre": "Fecha registro",
+          "tipo": "DateTimeField",
+          "valor": "2026-07-23 14:44:18+00:00",
+          "origen": "DATO_OPERACION"
+        },
+        {
+          "campo": "DO_CVALOR",
+          "nombre": "Valor dato",
+          "tipo": "TextField",
+          "valor": "TRANSPORTE INTERNACIONAL DON ALBERTO LIMITADA",
+          "origen": "DATO_OPERACION"
+        },
+        {
+          "campo": "DO_NPESO",
+          "nombre": "Peso dato",
+          "tipo": "IntegerField",
+          "valor": "Sin informacion",
+          "origen": "DATO_OPERACION"
+        }
+      ],
+      [
+        {
+          "campo": "id",
+          "nombre": "ID",
+          "tipo": "BigAutoField",
+          "valor": 273793,
+          "origen": "DATO_OPERACION"
+        },
+        {
+          "campo": "US_NID",
+          "nombre": "Id usuario",
+          "tipo": "ForeignKey",
+          "valor": "MAESC",
+          "origen": "DATO_OPERACION",
+          "relacion": "MAESC"
+        },
+        {
+          "campo": "EP_NID",
+          "nombre": "Id empresa",
+          "tipo": "ForeignKey",
+          "valor": "ACEITES SBH",
+          "origen": "DATO_OPERACION",
+          "relacion": "ACEITES SBH"
+        },
+        {
+          "campo": "SC_NID",
+          "nombre": "Id secuencia",
+          "tipo": "ForeignKey",
+          "valor": "TRASVASIJE_CLIENTE - Despacho por Trasvasije",
+          "origen": "DATO_OPERACION",
+          "relacion": "TRASVASIJE_CLIENTE - Despacho por Trasvasije"
+        },
+        {
+          "campo": "ET_NID",
+          "nombre": "Id etapa",
+          "tipo": "ForeignKey",
+          "valor": "DESPACHO_PROGRAMADO - Despacho Programado",
+          "origen": "DATO_OPERACION",
+          "relacion": "DESPACHO_PROGRAMADO - Despacho Programado"
+        },
+        {
+          "campo": "CAMP_NID",
+          "nombre": "Id campo",
+          "tipo": "ForeignKey",
+          "valor": "Contrato SAP",
+          "origen": "DATO_OPERACION",
+          "relacion": "Contrato SAP"
+        },
+        {
+          "campo": "CI_NID",
+          "nombre": "Id citacion",
+          "tipo": "ForeignKey",
+          "valor": "CITACION object (38601)",
+          "origen": "DATO_OPERACION",
+          "relacion": "CITACION object (38601)"
+        },
+        {
+          "campo": "DO_FFECHAREGISTRO",
+          "nombre": "Fecha registro",
+          "tipo": "DateTimeField",
+          "valor": "2026-07-23 14:44:18+00:00",
+          "origen": "DATO_OPERACION"
+        },
+        {
+          "campo": "DO_CVALOR",
+          "nombre": "Valor dato",
+          "tipo": "TextField",
+          "valor": "340",
+          "origen": "DATO_OPERACION",
+          "json": {
+            "original": "340",
+            "formateado": 340,
+            "claves": []
+          }
+        },
+        {
+          "campo": "DO_NPESO",
+          "nombre": "Peso dato",
+          "tipo": "IntegerField",
+          "valor": "Sin informacion",
+          "origen": "DATO_OPERACION"
+        }
+      ]
+    ],
+    "6. Etapas configuradas": [
+      [
+        {
+          "campo": "id",
+          "nombre": "ID",
+          "tipo": "BigAutoField",
+          "valor": 437,
+          "origen": "DETALLE_SECUENCIA"
+        },
+        {
+          "campo": "US_NID",
+          "nombre": "Id usuario",
+          "tipo": "ForeignKey",
+          "valor": "admin",
+          "origen": "DETALLE_SECUENCIA",
+          "relacion": "admin"
+        },
+        {
+          "campo": "USERS_RESPONSABLE_ID",
+          "nombre": "Usuarios responsables",
+          "tipo": "TextField",
+          "valor": "Sin informacion",
+          "origen": "DETALLE_SECUENCIA"
+        },
+        {
+          "campo": "EP_NID",
+          "nombre": "Id empresa",
+          "tipo": "ForeignKey",
+          "valor": "ACEITES SBH",
+          "origen": "DETALLE_SECUENCIA",
+          "relacion": "ACEITES SBH"
+        },
+        {
+          "campo": "SC_NID",
+          "nombre": "Id secuencia",
+          "tipo": "ForeignKey",
+          "valor": "TRASVASIJE_CLIENTE - Despacho por Trasvasije",
+          "origen": "DETALLE_SECUENCIA",
+          "relacion": "TRASVASIJE_CLIENTE - Despacho por Trasvasije"
+        },
+        {
+          "campo": "ET_NID",
+          "nombre": "Id etapa",
+          "tipo": "ForeignKey",
+          "valor": "DESPACHO_PROGRAMADO - Despacho Programado",
+          "origen": "DETALLE_SECUENCIA",
+          "relacion": "DESPACHO_PROGRAMADO - Despacho Programado"
+        },
+        {
+          "campo": "SE_NPASO",
+          "nombre": "Numero paso",
+          "tipo": "IntegerField",
+          "valor": 1,
+          "origen": "DETALLE_SECUENCIA"
+        },
+        {
+          "campo": "SE_BHABILITADO",
+          "nombre": "Habilitado",
+          "tipo": "BooleanField",
+          "valor": true,
+          "origen": "DETALLE_SECUENCIA"
+        },
+        {
+          "campo": "SE_BOBLIGATORIO",
+          "nombre": "Obligatorio",
+          "tipo": "BooleanField",
+          "valor": true,
+          "origen": "DETALLE_SECUENCIA"
+        },
+        {
+          "campo": "SE_FFECHAELIMICACION",
+          "nombre": "Fecha de Eliminacion",
+          "tipo": "DateTimeField",
+          "valor": "Sin informacion",
+          "origen": "DETALLE_SECUENCIA"
+        }
+      ],
+      [
+        {
+          "campo": "id",
+          "nombre": "ID",
+          "tipo": "BigAutoField",
+          "valor": 438,
+          "origen": "DETALLE_SECUENCIA"
+        },
+        {
+          "campo": "US_NID",
+          "nombre": "Id usuario",
+          "tipo": "ForeignKey",
+          "valor": "admin",
+          "origen": "DETALLE_SECUENCIA",
+          "relacion": "admin"
+        },
+        {
+          "campo": "USERS_RESPONSABLE_ID",
+          "nombre": "Usuarios responsables",
+          "tipo": "TextField",
+          "valor": "Sin informacion",
+          "origen": "DETALLE_SECUENCIA"
+        },
+        {
+          "campo": "EP_NID",
+          "nombre": "Id empresa",
+          "tipo": "ForeignKey",
+          "valor": "ACEITES SBH",
+          "origen": "DETALLE_SECUENCIA",
+          "relacion": "ACEITES SBH"
+        },
+        {
+          "campo": "SC_NID",
+          "nombre": "Id secuencia",
+          "tipo": "ForeignKey",
+          "valor": "TRASVASIJE_CLIENTE - Despacho por Trasvasije",
+          "origen": "DETALLE_SECUENCIA",
+          "relacion": "TRASVASIJE_CLIENTE - Despacho por Trasvasije"
+        },
+        {
+          "campo": "ET_NID",
+          "nombre": "Id etapa",
+          "tipo": "ForeignKey",
+          "valor": "INGRESO_PLANTA - Ingreso Planta",
+          "origen": "DETALLE_SECUENCIA",
+          "relacion": "INGRESO_PLANTA - Ingreso Planta"
+        },
+        {
+          "campo": "SE_NPASO",
+          "nombre": "Numero paso",
+          "tipo": "IntegerField",
+          "valor": 2,
+          "origen": "DETALLE_SECUENCIA"
+        },
+        {
+          "campo": "SE_BHABILITADO",
+          "nombre": "Habilitado",
+          "tipo": "BooleanField",
+          "valor": true,
+          "origen": "DETALLE_SECUENCIA"
+        },
+        {
+          "campo": "SE_BOBLIGATORIO",
+          "nombre": "Obligatorio",
+          "tipo": "BooleanField",
+          "valor": true,
+          "origen": "DETALLE_SECUENCIA"
+        },
+        {
+          "campo": "SE_FFECHAELIMICACION",
+          "nombre": "Fecha de Eliminacion",
+          "tipo": "DateTimeField",
+          "valor": "Sin informacion",
+          "origen": "DETALLE_SECUENCIA"
+        }
+      ],
+      [
+        {
+          "campo": "id",
+          "nombre": "ID",
+          "tipo": "BigAutoField",
+          "valor": 551,
+          "origen": "DETALLE_SECUENCIA"
+        },
+        {
+          "campo": "US_NID",
+          "nombre": "Id usuario",
+          "tipo": "ForeignKey",
+          "valor": "MAESC",
+          "origen": "DETALLE_SECUENCIA",
+          "relacion": "MAESC"
+        },
+        {
+          "campo": "USERS_RESPONSABLE_ID",
+          "nombre": "Usuarios responsables",
+          "tipo": "TextField",
+          "valor": "Sin informacion",
+          "origen": "DETALLE_SECUENCIA"
+        },
+        {
+          "campo": "EP_NID",
+          "nombre": "Id empresa",
+          "tipo": "ForeignKey",
+          "valor": "ACEITES SBH",
+          "origen": "DETALLE_SECUENCIA",
+          "relacion": "ACEITES SBH"
+        },
+        {
+          "campo": "SC_NID",
+          "nombre": "Id secuencia",
+          "tipo": "ForeignKey",
+          "valor": "TRASVASIJE_CLIENTE - Despacho por Trasvasije",
+          "origen": "DETALLE_SECUENCIA",
+          "relacion": "TRASVASIJE_CLIENTE - Despacho por Trasvasije"
+        },
+        {
+          "campo": "ET_NID",
+          "nombre": "Id etapa",
+          "tipo": "ForeignKey",
+          "valor": "AUTORIZACIA_A3N_INGRESO - AutorizaciÃƒÂ³n Ingreso",
+          "origen": "DETALLE_SECUENCIA",
+          "relacion": "AUTORIZACIA_A3N_INGRESO - AutorizaciÃƒÂ³n Ingreso"
+        },
+        {
+          "campo": "SE_NPASO",
+          "nombre": "Numero paso",
+          "tipo": "IntegerField",
+          "valor": 3,
+          "origen": "DETALLE_SECUENCIA"
+        },
+        {
+          "campo": "SE_BHABILITADO",
+          "nombre": "Habilitado",
+          "tipo": "BooleanField",
+          "valor": false,
+          "origen": "DETALLE_SECUENCIA"
+        },
+        {
+          "campo": "SE_BOBLIGATORIO",
+          "nombre": "Obligatorio",
+          "tipo": "BooleanField",
+          "valor": true,
+          "origen": "DETALLE_SECUENCIA"
+        },
+        {
+          "campo": "SE_FFECHAELIMICACION",
+          "nombre": "Fecha de Eliminacion",
+          "tipo": "DateTimeField",
+          "valor": "2026-07-23 18:26:55+00:00",
+          "origen": "DETALLE_SECUENCIA"
+        }
+      ],
+      [
+        {
+          "campo": "id",
+          "nombre": "ID",
+          "tipo": "BigAutoField",
+          "valor": 465,
+          "origen": "DETALLE_SECUENCIA"
+        },
+        {
+          "campo": "US_NID",
+          "nombre": "Id usuario",
+          "tipo": "ForeignKey",
+          "valor": "admin",
+          "origen": "DETALLE_SECUENCIA",
+          "relacion": "admin"
+        },
+        {
+          "campo": "USERS_RESPONSABLE_ID",
+          "nombre": "Usuarios responsables",
+          "tipo": "TextField",
+          "valor": "Sin informacion",
+          "origen": "DETALLE_SECUENCIA"
+        },
+        {
+          "campo": "EP_NID",
+          "nombre": "Id empresa",
+          "tipo": "ForeignKey",
+          "valor": "ACEITES SBH",
+          "origen": "DETALLE_SECUENCIA",
+          "relacion": "ACEITES SBH"
+        },
+        {
+          "campo": "SC_NID",
+          "nombre": "Id secuencia",
+          "tipo": "ForeignKey",
+          "valor": "TRASVASIJE_CLIENTE - Despacho por Trasvasije",
+          "origen": "DETALLE_SECUENCIA",
+          "relacion": "TRASVASIJE_CLIENTE - Despacho por Trasvasije"
+        },
+        {
+          "campo": "ET_NID",
+          "nombre": "Id etapa",
+          "tipo": "ForeignKey",
+          "valor": "AUTORIZACION_INGRESO - Autorización Ingreso",
+          "origen": "DETALLE_SECUENCIA",
+          "relacion": "AUTORIZACION_INGRESO - Autorización Ingreso"
+        },
+        {
+          "campo": "SE_NPASO",
+          "nombre": "Numero paso",
+          "tipo": "IntegerField",
+          "valor": 3,
+          "origen": "DETALLE_SECUENCIA"
+        },
+        {
+          "campo": "SE_BHABILITADO",
+          "nombre": "Habilitado",
+          "tipo": "BooleanField",
+          "valor": true,
+          "origen": "DETALLE_SECUENCIA"
+        },
+        {
+          "campo": "SE_BOBLIGATORIO",
+          "nombre": "Obligatorio",
+          "tipo": "BooleanField",
+          "valor": true,
+          "origen": "DETALLE_SECUENCIA"
+        },
+        {
+          "campo": "SE_FFECHAELIMICACION",
+          "nombre": "Fecha de Eliminacion",
+          "tipo": "DateTimeField",
+          "valor": "2026-07-22 20:08:57+00:00",
+          "origen": "DETALLE_SECUENCIA"
+        }
+      ],
+      [
+        {
+          "campo": "id",
+          "nombre": "ID",
+          "tipo": "BigAutoField",
+          "valor": 439,
+          "origen": "DETALLE_SECUENCIA"
+        },
+        {
+          "campo": "US_NID",
+          "nombre": "Id usuario",
+          "tipo": "ForeignKey",
+          "valor": "admin",
+          "origen": "DETALLE_SECUENCIA",
+          "relacion": "admin"
+        },
+        {
+          "campo": "USERS_RESPONSABLE_ID",
+          "nombre": "Usuarios responsables",
+          "tipo": "TextField",
+          "valor": "Sin informacion",
+          "origen": "DETALLE_SECUENCIA"
+        },
+        {
+          "campo": "EP_NID",
+          "nombre": "Id empresa",
+          "tipo": "ForeignKey",
+          "valor": "ACEITES SBH",
+          "origen": "DETALLE_SECUENCIA",
+          "relacion": "ACEITES SBH"
+        },
+        {
+          "campo": "SC_NID",
+          "nombre": "Id secuencia",
+          "tipo": "ForeignKey",
+          "valor": "TRASVASIJE_CLIENTE - Despacho por Trasvasije",
+          "origen": "DETALLE_SECUENCIA",
+          "relacion": "TRASVASIJE_CLIENTE - Despacho por Trasvasije"
+        },
+        {
+          "campo": "ET_NID",
+          "nombre": "Id etapa",
+          "tipo": "ForeignKey",
+          "valor": "AUTORIZACIA3N_INGRESO - AutorizaciÃ³n Ingreso",
+          "origen": "DETALLE_SECUENCIA",
+          "relacion": "AUTORIZACIA3N_INGRESO - AutorizaciÃ³n Ingreso"
+        },
+        {
+          "campo": "SE_NPASO",
+          "nombre": "Numero paso",
+          "tipo": "IntegerField",
+          "valor": 3,
+          "origen": "DETALLE_SECUENCIA"
+        },
+        {
+          "campo": "SE_BHABILITADO",
+          "nombre": "Habilitado",
+          "tipo": "BooleanField",
+          "valor": false,
+          "origen": "DETALLE_SECUENCIA"
+        },
+        {
+          "campo": "SE_BOBLIGATORIO",
+          "nombre": "Obligatorio",
+          "tipo": "BooleanField",
+          "valor": true,
+          "origen": "DETALLE_SECUENCIA"
+        },
+        {
+          "campo": "SE_FFECHAELIMICACION",
+          "nombre": "Fecha de Eliminacion",
+          "tipo": "DateTimeField",
+          "valor": "2026-07-23 13:20:09+00:00",
+          "origen": "DETALLE_SECUENCIA"
+        }
+      ],
+      [
+        {
+          "campo": "id",
+          "nombre": "ID",
+          "tipo": "BigAutoField",
+          "valor": 561,
+          "origen": "DETALLE_SECUENCIA"
+        },
+        {
+          "campo": "US_NID",
+          "nombre": "Id usuario",
+          "tipo": "ForeignKey",
+          "valor": "MAESC",
+          "origen": "DETALLE_SECUENCIA",
+          "relacion": "MAESC"
+        },
+        {
+          "campo": "USERS_RESPONSABLE_ID",
+          "nombre": "Usuarios responsables",
+          "tipo": "TextField",
+          "valor": "Sin informacion",
+          "origen": "DETALLE_SECUENCIA"
+        },
+        {
+          "campo": "EP_NID",
+          "nombre": "Id empresa",
+          "tipo": "ForeignKey",
+          "valor": "ACEITES SBH",
+          "origen": "DETALLE_SECUENCIA",
+          "relacion": "ACEITES SBH"
+        },
+        {
+          "campo": "SC_NID",
+          "nombre": "Id secuencia",
+          "tipo": "ForeignKey",
+          "valor": "TRASVASIJE_CLIENTE - Despacho por Trasvasije",
+          "origen": "DETALLE_SECUENCIA",
+          "relacion": "TRASVASIJE_CLIENTE - Despacho por Trasvasije"
+        },
+        {
+          "campo": "ET_NID",
+          "nombre": "Id etapa",
+          "tipo": "ForeignKey",
+          "valor": "ENVIARA_A_ROMANA_INICIO_CICLO - Enviará a Romana Inicio Ciclo",
+          "origen": "DETALLE_SECUENCIA",
+          "relacion": "ENVIARA_A_ROMANA_INICIO_CICLO - Enviará a Romana Inicio Ciclo"
+        },
+        {
+          "campo": "SE_NPASO",
+          "nombre": "Numero paso",
+          "tipo": "IntegerField",
+          "valor": 4,
+          "origen": "DETALLE_SECUENCIA"
+        },
+        {
+          "campo": "SE_BHABILITADO",
+          "nombre": "Habilitado",
+          "tipo": "BooleanField",
+          "valor": true,
+          "origen": "DETALLE_SECUENCIA"
+        },
+        {
+          "campo": "SE_BOBLIGATORIO",
+          "nombre": "Obligatorio",
+          "tipo": "BooleanField",
+          "valor": true,
+          "origen": "DETALLE_SECUENCIA"
+        },
+        {
+          "campo": "SE_FFECHAELIMICACION",
+          "nombre": "Fecha de Eliminacion",
+          "tipo": "DateTimeField",
+          "valor": "Sin informacion",
+          "origen": "DETALLE_SECUENCIA"
+        }
+      ],
+      [
+        {
+          "campo": "id",
+          "nombre": "ID",
+          "tipo": "BigAutoField",
+          "valor": 440,
+          "origen": "DETALLE_SECUENCIA"
+        },
+        {
+          "campo": "US_NID",
+          "nombre": "Id usuario",
+          "tipo": "ForeignKey",
+          "valor": "admin",
+          "origen": "DETALLE_SECUENCIA",
+          "relacion": "admin"
+        },
+        {
+          "campo": "USERS_RESPONSABLE_ID",
+          "nombre": "Usuarios responsables",
+          "tipo": "TextField",
+          "valor": "Sin informacion",
+          "origen": "DETALLE_SECUENCIA"
+        },
+        {
+          "campo": "EP_NID",
+          "nombre": "Id empresa",
+          "tipo": "ForeignKey",
+          "valor": "ACEITES SBH",
+          "origen": "DETALLE_SECUENCIA",
+          "relacion": "ACEITES SBH"
+        },
+        {
+          "campo": "SC_NID",
+          "nombre": "Id secuencia",
+          "tipo": "ForeignKey",
+          "valor": "TRASVASIJE_CLIENTE - Despacho por Trasvasije",
+          "origen": "DETALLE_SECUENCIA",
+          "relacion": "TRASVASIJE_CLIENTE - Despacho por Trasvasije"
+        },
+        {
+          "campo": "ET_NID",
+          "nombre": "Id etapa",
+          "tipo": "ForeignKey",
+          "valor": "ENVA_A_A_ROMANA_INICIO_CICLO - EnvÃ­a a Romana Inicio Ciclo",
+          "origen": "DETALLE_SECUENCIA",
+          "relacion": "ENVA_A_A_ROMANA_INICIO_CICLO - EnvÃ­a a Romana Inicio Ciclo"
+        },
+        {
+          "campo": "SE_NPASO",
+          "nombre": "Numero paso",
+          "tipo": "IntegerField",
+          "valor": 4,
+          "origen": "DETALLE_SECUENCIA"
+        },
+        {
+          "campo": "SE_BHABILITADO",
+          "nombre": "Habilitado",
+          "tipo": "BooleanField",
+          "valor": false,
+          "origen": "DETALLE_SECUENCIA"
+        },
+        {
+          "campo": "SE_BOBLIGATORIO",
+          "nombre": "Obligatorio",
+          "tipo": "BooleanField",
+          "valor": true,
+          "origen": "DETALLE_SECUENCIA"
+        },
+        {
+          "campo": "SE_FFECHAELIMICACION",
+          "nombre": "Fecha de Eliminacion",
+          "tipo": "DateTimeField",
+          "valor": "2026-07-23 13:20:09+00:00",
+          "origen": "DETALLE_SECUENCIA"
+        }
+      ],
+      [
+        {
+          "campo": "id",
+          "nombre": "ID",
+          "tipo": "BigAutoField",
+          "valor": 466,
+          "origen": "DETALLE_SECUENCIA"
+        },
+        {
+          "campo": "US_NID",
+          "nombre": "Id usuario",
+          "tipo": "ForeignKey",
+          "valor": "admin",
+          "origen": "DETALLE_SECUENCIA",
+          "relacion": "admin"
+        },
+        {
+          "campo": "USERS_RESPONSABLE_ID",
+          "nombre": "Usuarios responsables",
+          "tipo": "TextField",
+          "valor": "Sin informacion",
+          "origen": "DETALLE_SECUENCIA"
+        },
+        {
+          "campo": "EP_NID",
+          "nombre": "Id empresa",
+          "tipo": "ForeignKey",
+          "valor": "ACEITES SBH",
+          "origen": "DETALLE_SECUENCIA",
+          "relacion": "ACEITES SBH"
+        },
+        {
+          "campo": "SC_NID",
+          "nombre": "Id secuencia",
+          "tipo": "ForeignKey",
+          "valor": "TRASVASIJE_CLIENTE - Despacho por Trasvasije",
+          "origen": "DETALLE_SECUENCIA",
+          "relacion": "TRASVASIJE_CLIENTE - Despacho por Trasvasije"
+        },
+        {
+          "campo": "ET_NID",
+          "nombre": "Id etapa",
+          "tipo": "ForeignKey",
+          "valor": "ENVIA_A_ROMANA_INICIO_CICLO - Envía a Romana Inicio Ciclo",
+          "origen": "DETALLE_SECUENCIA",
+          "relacion": "ENVIA_A_ROMANA_INICIO_CICLO - Envía a Romana Inicio Ciclo"
+        },
+        {
+          "campo": "SE_NPASO",
+          "nombre": "Numero paso",
+          "tipo": "IntegerField",
+          "valor": 4,
+          "origen": "DETALLE_SECUENCIA"
+        },
+        {
+          "campo": "SE_BHABILITADO",
+          "nombre": "Habilitado",
+          "tipo": "BooleanField",
+          "valor": false,
+          "origen": "DETALLE_SECUENCIA"
+        },
+        {
+          "campo": "SE_BOBLIGATORIO",
+          "nombre": "Obligatorio",
+          "tipo": "BooleanField",
+          "valor": true,
+          "origen": "DETALLE_SECUENCIA"
+        },
+        {
+          "campo": "SE_FFECHAELIMICACION",
+          "nombre": "Fecha de Eliminacion",
+          "tipo": "DateTimeField",
+          "valor": "2026-07-22 20:08:57+00:00",
+          "origen": "DETALLE_SECUENCIA"
+        }
+      ],
+      [
+        {
+          "campo": "id",
+          "nombre": "ID",
+          "tipo": "BigAutoField",
+          "valor": 552,
+          "origen": "DETALLE_SECUENCIA"
+        },
+        {
+          "campo": "US_NID",
+          "nombre": "Id usuario",
+          "tipo": "ForeignKey",
+          "valor": "MAESC",
+          "origen": "DETALLE_SECUENCIA",
+          "relacion": "MAESC"
+        },
+        {
+          "campo": "USERS_RESPONSABLE_ID",
+          "nombre": "Usuarios responsables",
+          "tipo": "TextField",
+          "valor": "Sin informacion",
+          "origen": "DETALLE_SECUENCIA"
+        },
+        {
+          "campo": "EP_NID",
+          "nombre": "Id empresa",
+          "tipo": "ForeignKey",
+          "valor": "ACEITES SBH",
+          "origen": "DETALLE_SECUENCIA",
+          "relacion": "ACEITES SBH"
+        },
+        {
+          "campo": "SC_NID",
+          "nombre": "Id secuencia",
+          "tipo": "ForeignKey",
+          "valor": "TRASVASIJE_CLIENTE - Despacho por Trasvasije",
+          "origen": "DETALLE_SECUENCIA",
+          "relacion": "TRASVASIJE_CLIENTE - Despacho por Trasvasije"
+        },
+        {
+          "campo": "ET_NID",
+          "nombre": "Id etapa",
+          "tipo": "ForeignKey",
+          "valor": "ENVA_A_A_A_ROMANA_INICIO_CICLO - EnvÃƒÂ­a a Romana Inicio Ciclo",
+          "origen": "DETALLE_SECUENCIA",
+          "relacion": "ENVA_A_A_A_ROMANA_INICIO_CICLO - EnvÃƒÂ­a a Romana Inicio Ciclo"
+        },
+        {
+          "campo": "SE_NPASO",
+          "nombre": "Numero paso",
+          "tipo": "IntegerField",
+          "valor": 4,
+          "origen": "DETALLE_SECUENCIA"
+        },
+        {
+          "campo": "SE_BHABILITADO",
+          "nombre": "Habilitado",
+          "tipo": "BooleanField",
+          "valor": false,
+          "origen": "DETALLE_SECUENCIA"
+        },
+        {
+          "campo": "SE_BOBLIGATORIO",
+          "nombre": "Obligatorio",
+          "tipo": "BooleanField",
+          "valor": true,
+          "origen": "DETALLE_SECUENCIA"
+        },
+        {
+          "campo": "SE_FFECHAELIMICACION",
+          "nombre": "Fecha de Eliminacion",
+          "tipo": "DateTimeField",
+          "valor": "2026-07-23 18:26:55+00:00",
+          "origen": "DETALLE_SECUENCIA"
+        }
+      ],
+      [
+        {
+          "campo": "id",
+          "nombre": "ID",
+          "tipo": "BigAutoField",
+          "valor": 441,
+          "origen": "DETALLE_SECUENCIA"
+        },
+        {
+          "campo": "US_NID",
+          "nombre": "Id usuario",
+          "tipo": "ForeignKey",
+          "valor": "admin",
+          "origen": "DETALLE_SECUENCIA",
+          "relacion": "admin"
+        },
+        {
+          "campo": "USERS_RESPONSABLE_ID",
+          "nombre": "Usuarios responsables",
+          "tipo": "TextField",
+          "valor": "Sin informacion",
+          "origen": "DETALLE_SECUENCIA"
+        },
+        {
+          "campo": "EP_NID",
+          "nombre": "Id empresa",
+          "tipo": "ForeignKey",
+          "valor": "ACEITES SBH",
+          "origen": "DETALLE_SECUENCIA",
+          "relacion": "ACEITES SBH"
+        },
+        {
+          "campo": "SC_NID",
+          "nombre": "Id secuencia",
+          "tipo": "ForeignKey",
+          "valor": "TRASVASIJE_CLIENTE - Despacho por Trasvasije",
+          "origen": "DETALLE_SECUENCIA",
+          "relacion": "TRASVASIJE_CLIENTE - Despacho por Trasvasije"
+        },
+        {
+          "campo": "ET_NID",
+          "nombre": "Id etapa",
+          "tipo": "ForeignKey",
+          "valor": "INICIO_CARGA_DESPACHO_CISTERNA - Inicio Carga / Despacho Cisterna",
+          "origen": "DETALLE_SECUENCIA",
+          "relacion": "INICIO_CARGA_DESPACHO_CISTERNA - Inicio Carga / Despacho Cisterna"
+        },
+        {
+          "campo": "SE_NPASO",
+          "nombre": "Numero paso",
+          "tipo": "IntegerField",
+          "valor": 5,
+          "origen": "DETALLE_SECUENCIA"
+        },
+        {
+          "campo": "SE_BHABILITADO",
+          "nombre": "Habilitado",
+          "tipo": "BooleanField",
+          "valor": true,
+          "origen": "DETALLE_SECUENCIA"
+        },
+        {
+          "campo": "SE_BOBLIGATORIO",
+          "nombre": "Obligatorio",
+          "tipo": "BooleanField",
+          "valor": true,
+          "origen": "DETALLE_SECUENCIA"
+        },
+        {
+          "campo": "SE_FFECHAELIMICACION",
+          "nombre": "Fecha de Eliminacion",
+          "tipo": "DateTimeField",
+          "valor": "Sin informacion",
+          "origen": "DETALLE_SECUENCIA"
+        }
+      ],
+      [
+        {
+          "campo": "id",
+          "nombre": "ID",
+          "tipo": "BigAutoField",
+          "valor": 442,
+          "origen": "DETALLE_SECUENCIA"
+        },
+        {
+          "campo": "US_NID",
+          "nombre": "Id usuario",
+          "tipo": "ForeignKey",
+          "valor": "admin",
+          "origen": "DETALLE_SECUENCIA",
+          "relacion": "admin"
+        },
+        {
+          "campo": "USERS_RESPONSABLE_ID",
+          "nombre": "Usuarios responsables",
+          "tipo": "TextField",
+          "valor": "Sin informacion",
+          "origen": "DETALLE_SECUENCIA"
+        },
+        {
+          "campo": "EP_NID",
+          "nombre": "Id empresa",
+          "tipo": "ForeignKey",
+          "valor": "ACEITES SBH",
+          "origen": "DETALLE_SECUENCIA",
+          "relacion": "ACEITES SBH"
+        },
+        {
+          "campo": "SC_NID",
+          "nombre": "Id secuencia",
+          "tipo": "ForeignKey",
+          "valor": "TRASVASIJE_CLIENTE - Despacho por Trasvasije",
+          "origen": "DETALLE_SECUENCIA",
+          "relacion": "TRASVASIJE_CLIENTE - Despacho por Trasvasije"
+        },
+        {
+          "campo": "ET_NID",
+          "nombre": "Id etapa",
+          "tipo": "ForeignKey",
+          "valor": "PESAJE_ROMANA - Pesaje Romana",
+          "origen": "DETALLE_SECUENCIA",
+          "relacion": "PESAJE_ROMANA - Pesaje Romana"
+        },
+        {
+          "campo": "SE_NPASO",
+          "nombre": "Numero paso",
+          "tipo": "IntegerField",
+          "valor": 6,
+          "origen": "DETALLE_SECUENCIA"
+        },
+        {
+          "campo": "SE_BHABILITADO",
+          "nombre": "Habilitado",
+          "tipo": "BooleanField",
+          "valor": true,
+          "origen": "DETALLE_SECUENCIA"
+        },
+        {
+          "campo": "SE_BOBLIGATORIO",
+          "nombre": "Obligatorio",
+          "tipo": "BooleanField",
+          "valor": true,
+          "origen": "DETALLE_SECUENCIA"
+        },
+        {
+          "campo": "SE_FFECHAELIMICACION",
+          "nombre": "Fecha de Eliminacion",
+          "tipo": "DateTimeField",
+          "valor": "Sin informacion",
+          "origen": "DETALLE_SECUENCIA"
+        }
+      ],
+      [
+        {
+          "campo": "id",
+          "nombre": "ID",
+          "tipo": "BigAutoField",
+          "valor": 443,
+          "origen": "DETALLE_SECUENCIA"
+        },
+        {
+          "campo": "US_NID",
+          "nombre": "Id usuario",
+          "tipo": "ForeignKey",
+          "valor": "admin",
+          "origen": "DETALLE_SECUENCIA",
+          "relacion": "admin"
+        },
+        {
+          "campo": "USERS_RESPONSABLE_ID",
+          "nombre": "Usuarios responsables",
+          "tipo": "TextField",
+          "valor": "Sin informacion",
+          "origen": "DETALLE_SECUENCIA"
+        },
+        {
+          "campo": "EP_NID",
+          "nombre": "Id empresa",
+          "tipo": "ForeignKey",
+          "valor": "ACEITES SBH",
+          "origen": "DETALLE_SECUENCIA",
+          "relacion": "ACEITES SBH"
+        },
+        {
+          "campo": "SC_NID",
+          "nombre": "Id secuencia",
+          "tipo": "ForeignKey",
+          "valor": "TRASVASIJE_CLIENTE - Despacho por Trasvasije",
+          "origen": "DETALLE_SECUENCIA",
+          "relacion": "TRASVASIJE_CLIENTE - Despacho por Trasvasije"
+        },
+        {
+          "campo": "ET_NID",
+          "nombre": "Id etapa",
+          "tipo": "ForeignKey",
+          "valor": "CIERRE_PROCESO_DE_CARGA - Cierre Proceso de Carga",
+          "origen": "DETALLE_SECUENCIA",
+          "relacion": "CIERRE_PROCESO_DE_CARGA - Cierre Proceso de Carga"
+        },
+        {
+          "campo": "SE_NPASO",
+          "nombre": "Numero paso",
+          "tipo": "IntegerField",
+          "valor": 7,
+          "origen": "DETALLE_SECUENCIA"
+        },
+        {
+          "campo": "SE_BHABILITADO",
+          "nombre": "Habilitado",
+          "tipo": "BooleanField",
+          "valor": true,
+          "origen": "DETALLE_SECUENCIA"
+        },
+        {
+          "campo": "SE_BOBLIGATORIO",
+          "nombre": "Obligatorio",
+          "tipo": "BooleanField",
+          "valor": true,
+          "origen": "DETALLE_SECUENCIA"
+        },
+        {
+          "campo": "SE_FFECHAELIMICACION",
+          "nombre": "Fecha de Eliminacion",
+          "tipo": "DateTimeField",
+          "valor": "Sin informacion",
+          "origen": "DETALLE_SECUENCIA"
+        }
+      ],
+      [
+        {
+          "campo": "id",
+          "nombre": "ID",
+          "tipo": "BigAutoField",
+          "valor": 553,
+          "origen": "DETALLE_SECUENCIA"
+        },
+        {
+          "campo": "US_NID",
+          "nombre": "Id usuario",
+          "tipo": "ForeignKey",
+          "valor": "MAESC",
+          "origen": "DETALLE_SECUENCIA",
+          "relacion": "MAESC"
+        },
+        {
+          "campo": "USERS_RESPONSABLE_ID",
+          "nombre": "Usuarios responsables",
+          "tipo": "TextField",
+          "valor": "Sin informacion",
+          "origen": "DETALLE_SECUENCIA"
+        },
+        {
+          "campo": "EP_NID",
+          "nombre": "Id empresa",
+          "tipo": "ForeignKey",
+          "valor": "ACEITES SBH",
+          "origen": "DETALLE_SECUENCIA",
+          "relacion": "ACEITES SBH"
+        },
+        {
+          "campo": "SC_NID",
+          "nombre": "Id secuencia",
+          "tipo": "ForeignKey",
+          "valor": "TRASVASIJE_CLIENTE - Despacho por Trasvasije",
+          "origen": "DETALLE_SECUENCIA",
+          "relacion": "TRASVASIJE_CLIENTE - Despacho por Trasvasije"
+        },
+        {
+          "campo": "ET_NID",
+          "nombre": "Id etapa",
+          "tipo": "ForeignKey",
+          "valor": "EMISIA_A3N_GUA_A_A_FACTURA - EmisiÃƒÂ³n GuÃƒÂ­a / Factura",
+          "origen": "DETALLE_SECUENCIA",
+          "relacion": "EMISIA_A3N_GUA_A_A_FACTURA - EmisiÃƒÂ³n GuÃƒÂ­a / Factura"
+        },
+        {
+          "campo": "SE_NPASO",
+          "nombre": "Numero paso",
+          "tipo": "IntegerField",
+          "valor": 8,
+          "origen": "DETALLE_SECUENCIA"
+        },
+        {
+          "campo": "SE_BHABILITADO",
+          "nombre": "Habilitado",
+          "tipo": "BooleanField",
+          "valor": false,
+          "origen": "DETALLE_SECUENCIA"
+        },
+        {
+          "campo": "SE_BOBLIGATORIO",
+          "nombre": "Obligatorio",
+          "tipo": "BooleanField",
+          "valor": true,
+          "origen": "DETALLE_SECUENCIA"
+        },
+        {
+          "campo": "SE_FFECHAELIMICACION",
+          "nombre": "Fecha de Eliminacion",
+          "tipo": "DateTimeField",
+          "valor": "2026-07-23 18:26:55+00:00",
+          "origen": "DETALLE_SECUENCIA"
+        }
+      ],
+      [
+        {
+          "campo": "id",
+          "nombre": "ID",
+          "tipo": "BigAutoField",
+          "valor": 444,
+          "origen": "DETALLE_SECUENCIA"
+        },
+        {
+          "campo": "US_NID",
+          "nombre": "Id usuario",
+          "tipo": "ForeignKey",
+          "valor": "admin",
+          "origen": "DETALLE_SECUENCIA",
+          "relacion": "admin"
+        },
+        {
+          "campo": "USERS_RESPONSABLE_ID",
+          "nombre": "Usuarios responsables",
+          "tipo": "TextField",
+          "valor": "Sin informacion",
+          "origen": "DETALLE_SECUENCIA"
+        },
+        {
+          "campo": "EP_NID",
+          "nombre": "Id empresa",
+          "tipo": "ForeignKey",
+          "valor": "ACEITES SBH",
+          "origen": "DETALLE_SECUENCIA",
+          "relacion": "ACEITES SBH"
+        },
+        {
+          "campo": "SC_NID",
+          "nombre": "Id secuencia",
+          "tipo": "ForeignKey",
+          "valor": "TRASVASIJE_CLIENTE - Despacho por Trasvasije",
+          "origen": "DETALLE_SECUENCIA",
+          "relacion": "TRASVASIJE_CLIENTE - Despacho por Trasvasije"
+        },
+        {
+          "campo": "ET_NID",
+          "nombre": "Id etapa",
+          "tipo": "ForeignKey",
+          "valor": "EMISIA3N_GUA_A_FACTURA - EmisiÃ³n GuÃ­a / Factura",
+          "origen": "DETALLE_SECUENCIA",
+          "relacion": "EMISIA3N_GUA_A_FACTURA - EmisiÃ³n GuÃ­a / Factura"
+        },
+        {
+          "campo": "SE_NPASO",
+          "nombre": "Numero paso",
+          "tipo": "IntegerField",
+          "valor": 8,
+          "origen": "DETALLE_SECUENCIA"
+        },
+        {
+          "campo": "SE_BHABILITADO",
+          "nombre": "Habilitado",
+          "tipo": "BooleanField",
+          "valor": false,
+          "origen": "DETALLE_SECUENCIA"
+        },
+        {
+          "campo": "SE_BOBLIGATORIO",
+          "nombre": "Obligatorio",
+          "tipo": "BooleanField",
+          "valor": true,
+          "origen": "DETALLE_SECUENCIA"
+        },
+        {
+          "campo": "SE_FFECHAELIMICACION",
+          "nombre": "Fecha de Eliminacion",
+          "tipo": "DateTimeField",
+          "valor": "2026-07-23 13:20:09+00:00",
+          "origen": "DETALLE_SECUENCIA"
+        }
+      ],
+      [
+        {
+          "campo": "id",
+          "nombre": "ID",
+          "tipo": "BigAutoField",
+          "valor": 467,
+          "origen": "DETALLE_SECUENCIA"
+        },
+        {
+          "campo": "US_NID",
+          "nombre": "Id usuario",
+          "tipo": "ForeignKey",
+          "valor": "admin",
+          "origen": "DETALLE_SECUENCIA",
+          "relacion": "admin"
+        },
+        {
+          "campo": "USERS_RESPONSABLE_ID",
+          "nombre": "Usuarios responsables",
+          "tipo": "TextField",
+          "valor": "Sin informacion",
+          "origen": "DETALLE_SECUENCIA"
+        },
+        {
+          "campo": "EP_NID",
+          "nombre": "Id empresa",
+          "tipo": "ForeignKey",
+          "valor": "ACEITES SBH",
+          "origen": "DETALLE_SECUENCIA",
+          "relacion": "ACEITES SBH"
+        },
+        {
+          "campo": "SC_NID",
+          "nombre": "Id secuencia",
+          "tipo": "ForeignKey",
+          "valor": "TRASVASIJE_CLIENTE - Despacho por Trasvasije",
+          "origen": "DETALLE_SECUENCIA",
+          "relacion": "TRASVASIJE_CLIENTE - Despacho por Trasvasije"
+        },
+        {
+          "campo": "ET_NID",
+          "nombre": "Id etapa",
+          "tipo": "ForeignKey",
+          "valor": "EMISION_GUIA_FACTURA - Emisión Guía / Factura",
+          "origen": "DETALLE_SECUENCIA",
+          "relacion": "EMISION_GUIA_FACTURA - Emisión Guía / Factura"
+        },
+        {
+          "campo": "SE_NPASO",
+          "nombre": "Numero paso",
+          "tipo": "IntegerField",
+          "valor": 8,
+          "origen": "DETALLE_SECUENCIA"
+        },
+        {
+          "campo": "SE_BHABILITADO",
+          "nombre": "Habilitado",
+          "tipo": "BooleanField",
+          "valor": true,
+          "origen": "DETALLE_SECUENCIA"
+        },
+        {
+          "campo": "SE_BOBLIGATORIO",
+          "nombre": "Obligatorio",
+          "tipo": "BooleanField",
+          "valor": true,
+          "origen": "DETALLE_SECUENCIA"
+        },
+        {
+          "campo": "SE_FFECHAELIMICACION",
+          "nombre": "Fecha de Eliminacion",
+          "tipo": "DateTimeField",
+          "valor": "2026-07-22 20:08:57+00:00",
+          "origen": "DETALLE_SECUENCIA"
+        }
+      ],
+      [
+        {
+          "campo": "id",
+          "nombre": "ID",
+          "tipo": "BigAutoField",
+          "valor": 445,
+          "origen": "DETALLE_SECUENCIA"
+        },
+        {
+          "campo": "US_NID",
+          "nombre": "Id usuario",
+          "tipo": "ForeignKey",
+          "valor": "admin",
+          "origen": "DETALLE_SECUENCIA",
+          "relacion": "admin"
+        },
+        {
+          "campo": "USERS_RESPONSABLE_ID",
+          "nombre": "Usuarios responsables",
+          "tipo": "TextField",
+          "valor": "Sin informacion",
+          "origen": "DETALLE_SECUENCIA"
+        },
+        {
+          "campo": "EP_NID",
+          "nombre": "Id empresa",
+          "tipo": "ForeignKey",
+          "valor": "ACEITES SBH",
+          "origen": "DETALLE_SECUENCIA",
+          "relacion": "ACEITES SBH"
+        },
+        {
+          "campo": "SC_NID",
+          "nombre": "Id secuencia",
+          "tipo": "ForeignKey",
+          "valor": "TRASVASIJE_CLIENTE - Despacho por Trasvasije",
+          "origen": "DETALLE_SECUENCIA",
+          "relacion": "TRASVASIJE_CLIENTE - Despacho por Trasvasije"
+        },
+        {
+          "campo": "ET_NID",
+          "nombre": "Id etapa",
+          "tipo": "ForeignKey",
+          "valor": "AUTORIZACIA3N_SALIDA - AutorizaciÃ³n Salida",
+          "origen": "DETALLE_SECUENCIA",
+          "relacion": "AUTORIZACIA3N_SALIDA - AutorizaciÃ³n Salida"
+        },
+        {
+          "campo": "SE_NPASO",
+          "nombre": "Numero paso",
+          "tipo": "IntegerField",
+          "valor": 9,
+          "origen": "DETALLE_SECUENCIA"
+        },
+        {
+          "campo": "SE_BHABILITADO",
+          "nombre": "Habilitado",
+          "tipo": "BooleanField",
+          "valor": false,
+          "origen": "DETALLE_SECUENCIA"
+        },
+        {
+          "campo": "SE_BOBLIGATORIO",
+          "nombre": "Obligatorio",
+          "tipo": "BooleanField",
+          "valor": true,
+          "origen": "DETALLE_SECUENCIA"
+        },
+        {
+          "campo": "SE_FFECHAELIMICACION",
+          "nombre": "Fecha de Eliminacion",
+          "tipo": "DateTimeField",
+          "valor": "2026-07-23 13:20:09+00:00",
+          "origen": "DETALLE_SECUENCIA"
+        }
+      ],
+      [
+        {
+          "campo": "id",
+          "nombre": "ID",
+          "tipo": "BigAutoField",
+          "valor": 554,
+          "origen": "DETALLE_SECUENCIA"
+        },
+        {
+          "campo": "US_NID",
+          "nombre": "Id usuario",
+          "tipo": "ForeignKey",
+          "valor": "MAESC",
+          "origen": "DETALLE_SECUENCIA",
+          "relacion": "MAESC"
+        },
+        {
+          "campo": "USERS_RESPONSABLE_ID",
+          "nombre": "Usuarios responsables",
+          "tipo": "TextField",
+          "valor": "Sin informacion",
+          "origen": "DETALLE_SECUENCIA"
+        },
+        {
+          "campo": "EP_NID",
+          "nombre": "Id empresa",
+          "tipo": "ForeignKey",
+          "valor": "ACEITES SBH",
+          "origen": "DETALLE_SECUENCIA",
+          "relacion": "ACEITES SBH"
+        },
+        {
+          "campo": "SC_NID",
+          "nombre": "Id secuencia",
+          "tipo": "ForeignKey",
+          "valor": "TRASVASIJE_CLIENTE - Despacho por Trasvasije",
+          "origen": "DETALLE_SECUENCIA",
+          "relacion": "TRASVASIJE_CLIENTE - Despacho por Trasvasije"
+        },
+        {
+          "campo": "ET_NID",
+          "nombre": "Id etapa",
+          "tipo": "ForeignKey",
+          "valor": "AUTORIZACIA_A3N_SALIDA - AutorizaciÃƒÂ³n Salida",
+          "origen": "DETALLE_SECUENCIA",
+          "relacion": "AUTORIZACIA_A3N_SALIDA - AutorizaciÃƒÂ³n Salida"
+        },
+        {
+          "campo": "SE_NPASO",
+          "nombre": "Numero paso",
+          "tipo": "IntegerField",
+          "valor": 9,
+          "origen": "DETALLE_SECUENCIA"
+        },
+        {
+          "campo": "SE_BHABILITADO",
+          "nombre": "Habilitado",
+          "tipo": "BooleanField",
+          "valor": false,
+          "origen": "DETALLE_SECUENCIA"
+        },
+        {
+          "campo": "SE_BOBLIGATORIO",
+          "nombre": "Obligatorio",
+          "tipo": "BooleanField",
+          "valor": true,
+          "origen": "DETALLE_SECUENCIA"
+        },
+        {
+          "campo": "SE_FFECHAELIMICACION",
+          "nombre": "Fecha de Eliminacion",
+          "tipo": "DateTimeField",
+          "valor": "2026-07-23 18:26:55+00:00",
+          "origen": "DETALLE_SECUENCIA"
+        }
+      ],
+      [
+        {
+          "campo": "id",
+          "nombre": "ID",
+          "tipo": "BigAutoField",
+          "valor": 468,
+          "origen": "DETALLE_SECUENCIA"
+        },
+        {
+          "campo": "US_NID",
+          "nombre": "Id usuario",
+          "tipo": "ForeignKey",
+          "valor": "admin",
+          "origen": "DETALLE_SECUENCIA",
+          "relacion": "admin"
+        },
+        {
+          "campo": "USERS_RESPONSABLE_ID",
+          "nombre": "Usuarios responsables",
+          "tipo": "TextField",
+          "valor": "Sin informacion",
+          "origen": "DETALLE_SECUENCIA"
+        },
+        {
+          "campo": "EP_NID",
+          "nombre": "Id empresa",
+          "tipo": "ForeignKey",
+          "valor": "ACEITES SBH",
+          "origen": "DETALLE_SECUENCIA",
+          "relacion": "ACEITES SBH"
+        },
+        {
+          "campo": "SC_NID",
+          "nombre": "Id secuencia",
+          "tipo": "ForeignKey",
+          "valor": "TRASVASIJE_CLIENTE - Despacho por Trasvasije",
+          "origen": "DETALLE_SECUENCIA",
+          "relacion": "TRASVASIJE_CLIENTE - Despacho por Trasvasije"
+        },
+        {
+          "campo": "ET_NID",
+          "nombre": "Id etapa",
+          "tipo": "ForeignKey",
+          "valor": "AUTORIZACION_SALIDA - Autorización Salida",
+          "origen": "DETALLE_SECUENCIA",
+          "relacion": "AUTORIZACION_SALIDA - Autorización Salida"
+        },
+        {
+          "campo": "SE_NPASO",
+          "nombre": "Numero paso",
+          "tipo": "IntegerField",
+          "valor": 9,
+          "origen": "DETALLE_SECUENCIA"
+        },
+        {
+          "campo": "SE_BHABILITADO",
+          "nombre": "Habilitado",
+          "tipo": "BooleanField",
+          "valor": true,
+          "origen": "DETALLE_SECUENCIA"
+        },
+        {
+          "campo": "SE_BOBLIGATORIO",
+          "nombre": "Obligatorio",
+          "tipo": "BooleanField",
+          "valor": true,
+          "origen": "DETALLE_SECUENCIA"
+        },
+        {
+          "campo": "SE_FFECHAELIMICACION",
+          "nombre": "Fecha de Eliminacion",
+          "tipo": "DateTimeField",
+          "valor": "2026-07-22 20:08:57+00:00",
+          "origen": "DETALLE_SECUENCIA"
+        }
+      ],
+      [
+        {
+          "campo": "id",
+          "nombre": "ID",
+          "tipo": "BigAutoField",
+          "valor": 446,
+          "origen": "DETALLE_SECUENCIA"
+        },
+        {
+          "campo": "US_NID",
+          "nombre": "Id usuario",
+          "tipo": "ForeignKey",
+          "valor": "admin",
+          "origen": "DETALLE_SECUENCIA",
+          "relacion": "admin"
+        },
+        {
+          "campo": "USERS_RESPONSABLE_ID",
+          "nombre": "Usuarios responsables",
+          "tipo": "TextField",
+          "valor": "Sin informacion",
+          "origen": "DETALLE_SECUENCIA"
+        },
+        {
+          "campo": "EP_NID",
+          "nombre": "Id empresa",
+          "tipo": "ForeignKey",
+          "valor": "ACEITES SBH",
+          "origen": "DETALLE_SECUENCIA",
+          "relacion": "ACEITES SBH"
+        },
+        {
+          "campo": "SC_NID",
+          "nombre": "Id secuencia",
+          "tipo": "ForeignKey",
+          "valor": "TRASVASIJE_CLIENTE - Despacho por Trasvasije",
+          "origen": "DETALLE_SECUENCIA",
+          "relacion": "TRASVASIJE_CLIENTE - Despacho por Trasvasije"
+        },
+        {
+          "campo": "ET_NID",
+          "nombre": "Id etapa",
+          "tipo": "ForeignKey",
+          "valor": "CONFIRMAR_SALIDA - Confirmar Salida",
+          "origen": "DETALLE_SECUENCIA",
+          "relacion": "CONFIRMAR_SALIDA - Confirmar Salida"
+        },
+        {
+          "campo": "SE_NPASO",
+          "nombre": "Numero paso",
+          "tipo": "IntegerField",
+          "valor": 10,
+          "origen": "DETALLE_SECUENCIA"
+        },
+        {
+          "campo": "SE_BHABILITADO",
+          "nombre": "Habilitado",
+          "tipo": "BooleanField",
+          "valor": true,
+          "origen": "DETALLE_SECUENCIA"
+        },
+        {
+          "campo": "SE_BOBLIGATORIO",
+          "nombre": "Obligatorio",
+          "tipo": "BooleanField",
+          "valor": true,
+          "origen": "DETALLE_SECUENCIA"
+        },
+        {
+          "campo": "SE_FFECHAELIMICACION",
+          "nombre": "Fecha de Eliminacion",
+          "tipo": "DateTimeField",
+          "valor": "Sin informacion",
+          "origen": "DETALLE_SECUENCIA"
+        }
+      ]
+    ],
+    "7. Logs de operacion planta": [],
+    "8. Historial y auditoria": [],
+    "9. Documentos": [
+      {
+        "modelo": "home.CITACION_DOCUMENTO",
+        "campo_relacion": "CI_NID",
+        "registros": []
+      }
+    ],
+    "10. Pesajes": [],
+    "11. Calidad y toma de muestra": [
+      {
+        "modelo": "home.RESULTADO_CALIDAD_OPERACION",
+        "campo_relacion": "CI_NID",
+        "registros": []
+      },
+      {
+        "modelo": "home.RESULTADO_CALIDAD_HISTORIAL",
+        "campo_relacion": "CI_NID",
+        "registros": []
+      },
+      {
+        "modelo": "home.EVENTO_INTEGRACION_CALIDAD",
+        "campo_relacion": "CI_NID",
+        "registros": []
+      }
+    ],
+    "12. Carga o descarga": [
+      {
+        "modelo": "home.CITACION_DETALLE_OPERACIONAL",
+        "campo_relacion": "CI_NID",
+        "registros": [
+          [
+            {
+              "campo": "id",
+              "nombre": "ID",
+              "tipo": "BigAutoField",
+              "valor": 83,
+              "origen": "CITACION_DETALLE_OPERACIONAL"
+            },
+            {
+              "campo": "CI_NID",
+              "nombre": "Id citacion",
+              "tipo": "OneToOneField",
+              "valor": "CITACION object (38601)",
+              "origen": "CITACION_DETALLE_OPERACIONAL",
+              "relacion": "CITACION object (38601)"
+            },
+            {
+              "campo": "EP_NID",
+              "nombre": "Id empresa",
+              "tipo": "ForeignKey",
+              "valor": "ACEITES SBH",
+              "origen": "CITACION_DETALLE_OPERACIONAL",
+              "relacion": "ACEITES SBH"
+            },
+            {
+              "campo": "US_NID",
+              "nombre": "Usuario creacion",
+              "tipo": "ForeignKey",
+              "valor": "MAESC",
+              "origen": "CITACION_DETALLE_OPERACIONAL",
+              "relacion": "MAESC"
+            },
+            {
+              "campo": "CDO_CORIGEN",
+              "nombre": "Origen",
+              "tipo": "CharField",
+              "valor": "planificacion",
+              "origen": "CITACION_DETALLE_OPERACIONAL"
+            },
+            {
+              "campo": "CDO_CINF_24HRS",
+              "nombre": "Inf 24 hrs",
+              "tipo": "CharField",
+              "valor": "Terramar",
+              "origen": "CITACION_DETALLE_OPERACIONAL"
+            },
+            {
+              "campo": "CDO_CCODIGO_SAP",
+              "nombre": "Codigo SAP",
+              "tipo": "CharField",
+              "valor": "800049",
+              "origen": "CITACION_DETALLE_OPERACIONAL",
+              "json": {
+                "original": "800049",
+                "formateado": 800049,
+                "claves": []
+              }
+            },
+            {
+              "campo": "CDO_CINSUMO",
+              "nombre": "Insumo producto",
+              "tipo": "CharField",
+              "valor": "ACEITE DE AVE",
+              "origen": "CITACION_DETALLE_OPERACIONAL"
+            },
+            {
+              "campo": "CDO_CPEDIDO_SAP",
+              "nombre": "Pedido SAP",
+              "tipo": "CharField",
+              "valor": "4036022",
+              "origen": "CITACION_DETALLE_OPERACIONAL",
+              "json": {
+                "original": "4036022",
+                "formateado": 4036022,
+                "claves": []
+              }
+            },
+            {
+              "campo": "CDO_CSAP_OPOR_ID",
+              "nombre": "SAP OPOR id",
+              "tipo": "CharField",
+              "valor": "2899",
+              "origen": "CITACION_DETALLE_OPERACIONAL",
+              "json": {
+                "original": "2899",
+                "formateado": 2899,
+                "claves": []
+              }
+            },
+            {
+              "campo": "CDO_CPROVEEDOR_CODIGO",
+              "nombre": "Codigo proveedor",
+              "tipo": "CharField",
+              "valor": "Sin informacion",
+              "origen": "CITACION_DETALLE_OPERACIONAL"
+            },
+            {
+              "campo": "CDO_CBL_CONTENEDOR",
+              "nombre": "BL contenedor",
+              "tipo": "CharField",
+              "valor": "Sin informacion",
+              "origen": "CITACION_DETALLE_OPERACIONAL"
+            },
+            {
+              "campo": "CDO_NCANTIDAD_DISPONIBLE",
+              "nombre": "Cantidad disponible",
+              "tipo": "DecimalField",
+              "valor": "77.93000",
+              "origen": "CITACION_DETALLE_OPERACIONAL"
+            },
+            {
+              "campo": "CDO_CDOCENTRY",
+              "nombre": "DocEntry",
+              "tipo": "CharField",
+              "valor": "2899",
+              "origen": "CITACION_DETALLE_OPERACIONAL",
+              "json": {
+                "original": "2899",
+                "formateado": 2899,
+                "claves": []
+              }
+            },
+            {
+              "campo": "CDO_CPRODUCTOR",
+              "nombre": "Productor",
+              "tipo": "CharField",
+              "valor": "TRANSPORTE INTERNACIONAL DON ALBERTO LIMITADA",
+              "origen": "CITACION_DETALLE_OPERACIONAL"
+            },
+            {
+              "campo": "CDO_CALMACEN_DESTINO",
+              "nombre": "Almacen destino",
+              "tipo": "CharField",
+              "valor": "SBH",
+              "origen": "CITACION_DETALLE_OPERACIONAL"
+            },
+            {
+              "campo": "CDO_CESTANQUE_DESTINO",
+              "nombre": "Estanque destino",
+              "tipo": "CharField",
+              "valor": "SBH",
+              "origen": "CITACION_DETALLE_OPERACIONAL"
+            },
+            {
+              "campo": "CDO_COBSERVACION",
+              "nombre": "Observacion",
+              "tipo": "TextField",
+              "valor": "Sin informacion",
+              "origen": "CITACION_DETALLE_OPERACIONAL"
+            },
+            {
+              "campo": "CDO_FFECHACREACION",
+              "nombre": "Fecha creacion",
+              "tipo": "DateTimeField",
+              "valor": "2026-07-23 14:44:18+00:00",
+              "origen": "CITACION_DETALLE_OPERACIONAL"
+            }
+          ]
+        ]
+      },
+      {
+        "modelo": "home.CITACION_DESPACHO_DETALLE",
+        "campo_relacion": "CI_NID",
+        "registros": [
+          [
+            {
+              "campo": "id",
+              "nombre": "ID",
+              "tipo": "BigAutoField",
+              "valor": 20,
+              "origen": "CITACION_DESPACHO_DETALLE"
+            },
+            {
+              "campo": "CI_NID",
+              "nombre": "Id citacion",
+              "tipo": "OneToOneField",
+              "valor": "CITACION object (38601)",
+              "origen": "CITACION_DESPACHO_DETALLE",
+              "relacion": "CITACION object (38601)"
+            },
+            {
+              "campo": "EP_NID",
+              "nombre": "Id empresa",
+              "tipo": "ForeignKey",
+              "valor": "ACEITES SBH",
+              "origen": "CITACION_DESPACHO_DETALLE",
+              "relacion": "ACEITES SBH"
+            },
+            {
+              "campo": "US_NID",
+              "nombre": "Usuario creacion",
+              "tipo": "ForeignKey",
+              "valor": "MAESC",
+              "origen": "CITACION_DESPACHO_DETALLE",
+              "relacion": "MAESC"
+            },
+            {
+              "campo": "CDD_CDESTINO",
+              "nombre": "Destino",
+              "tipo": "CharField",
+              "valor": "Chillan",
+              "origen": "CITACION_DESPACHO_DETALLE"
+            },
+            {
+              "campo": "CDD_COC_CLIENTE",
+              "nombre": "OC cliente",
+              "tipo": "CharField",
+              "valor": "4036022",
+              "origen": "CITACION_DESPACHO_DETALLE",
+              "json": {
+                "original": "4036022",
+                "formateado": 4036022,
+                "claves": []
+              }
+            },
+            {
+              "campo": "CDD_NCANTIDAD_INTENTADA_DESPACHAR",
+              "nombre": "Cantidad intentada a despachar",
+              "tipo": "DecimalField",
+              "valor": "1.00000",
+              "origen": "CITACION_DESPACHO_DETALLE"
+            },
+            {
+              "campo": "CDD_CCONDICION_ENTREGA",
+              "nombre": "Condicion de entrega",
+              "tipo": "CharField",
+              "valor": "Terramar",
+              "origen": "CITACION_DESPACHO_DETALLE"
+            },
+            {
+              "campo": "CDD_CSALIDA_DOCUMENTO",
+              "nombre": "Salida de documento",
+              "tipo": "CharField",
+              "valor": "Factura de cliente",
+              "origen": "CITACION_DESPACHO_DETALLE"
+            },
+            {
+              "campo": "CDD_CEMPRESA_TRANSPORTE",
+              "nombre": "Empresa transporte",
+              "tipo": "CharField",
+              "valor": "TRANSPORTE INTERNACIONAL DON ALBERTO LIMITADA",
+              "origen": "CITACION_DESPACHO_DETALLE"
+            },
+            {
+              "campo": "CDD_CCONDUCTOR",
+              "nombre": "Conductor",
+              "tipo": "CharField",
+              "valor": "LUCIANO COLOMBATTO",
+              "origen": "CITACION_DESPACHO_DETALLE"
+            },
+            {
+              "campo": "CDD_CTELEFONO_CONDUCTOR",
+              "nombre": "Telefono conductor",
+              "tipo": "CharField",
+              "valor": "Sin informacion",
+              "origen": "CITACION_DESPACHO_DETALLE"
+            },
+            {
+              "campo": "CDD_CPATENTE",
+              "nombre": "Patente",
+              "tipo": "CharField",
+              "valor": "GFCK21",
+              "origen": "CITACION_DESPACHO_DETALLE"
+            },
+            {
+              "campo": "CDD_CORDEN_CARGA",
+              "nombre": "Orden de carga",
+              "tipo": "CharField",
+              "valor": "4",
+              "origen": "CITACION_DESPACHO_DETALLE",
+              "json": {
+                "original": "4",
+                "formateado": 4,
+                "claves": []
+              }
+            },
+            {
+              "campo": "CDD_CVENTANA_HORARIA_DESPACHO",
+              "nombre": "Ventana horaria despacho",
+              "tipo": "CharField",
+              "valor": "21hrs",
+              "origen": "CITACION_DESPACHO_DETALLE"
+            },
+            {
+              "campo": "CDD_NPESO_INFORMADO",
+              "nombre": "Peso informado",
+              "tipo": "DecimalField",
+              "valor": "Sin informacion",
+              "origen": "CITACION_DESPACHO_DETALLE"
+            },
+            {
+              "campo": "CDD_CBODEGA",
+              "nombre": "Bodega",
+              "tipo": "CharField",
+              "valor": "SBH",
+              "origen": "CITACION_DESPACHO_DETALLE"
+            },
+            {
+              "campo": "CDD_CSECUENCIA_OPERACIONAL_CODIGO",
+              "nombre": "Codigo secuencia operacional",
+              "tipo": "CharField",
+              "valor": "Sin informacion",
+              "origen": "CITACION_DESPACHO_DETALLE"
+            },
+            {
+              "campo": "CDD_CSECUENCIA_OPERACIONAL_NOMBRE",
+              "nombre": "Nombre secuencia operacional",
+              "tipo": "CharField",
+              "valor": "Despacho por Trasvasije",
+              "origen": "CITACION_DESPACHO_DETALLE"
+            },
+            {
+              "campo": "CDD_CSAP_ABS_ID",
+              "nombre": "SAP AbsID",
+              "tipo": "CharField",
+              "valor": "2899",
+              "origen": "CITACION_DESPACHO_DETALLE",
+              "json": {
+                "original": "2899",
+                "formateado": 2899,
+                "claves": []
+              }
+            },
+            {
+              "campo": "CDD_CSAP_NUMERO_ACUERDO",
+              "nombre": "Numero acuerdo SAP",
+              "tipo": "CharField",
+              "valor": "340",
+              "origen": "CITACION_DESPACHO_DETALLE",
+              "json": {
+                "original": "340",
+                "formateado": 340,
+                "claves": []
+              }
+            },
+            {
+              "campo": "CDD_CSAP_LINEA_ACUERDO",
+              "nombre": "Linea acuerdo SAP",
+              "tipo": "CharField",
+              "valor": "1",
+              "origen": "CITACION_DESPACHO_DETALLE",
+              "json": {
+                "original": "1",
+                "formateado": 1,
+                "claves": []
+              }
+            },
+            {
+              "campo": "CDD_CSAP_CLIENTE_CODIGO",
+              "nombre": "Codigo cliente SAP",
+              "tipo": "CharField",
+              "valor": "C77424780",
+              "origen": "CITACION_DESPACHO_DETALLE"
+            },
+            {
+              "campo": "CDD_CSAP_CLIENTE_NOMBRE",
+              "nombre": "Nombre cliente SAP",
+              "tipo": "CharField",
+              "valor": "EWOS CHILE ALIMENTOS LTDA",
+              "origen": "CITACION_DESPACHO_DETALLE"
+            },
+            {
+              "campo": "CDD_CSAP_OC_CLIENTE",
+              "nombre": "OC cliente SAP",
+              "tipo": "CharField",
+              "valor": "4036022",
+              "origen": "CITACION_DESPACHO_DETALLE",
+              "json": {
+                "original": "4036022",
+                "formateado": 4036022,
+                "claves": []
+              }
+            },
+            {
+              "campo": "CDD_CSAP_CODIGO_PRODUCTO",
+              "nombre": "Codigo producto SAP",
+              "tipo": "CharField",
+              "valor": "800049",
+              "origen": "CITACION_DESPACHO_DETALLE",
+              "json": {
+                "original": "800049",
+                "formateado": 800049,
+                "claves": []
+              }
+            },
+            {
+              "campo": "CDD_CSAP_NOMBRE_PRODUCTO",
+              "nombre": "Nombre producto SAP",
+              "tipo": "CharField",
+              "valor": "ACEITE DE AVE",
+              "origen": "CITACION_DESPACHO_DETALLE"
+            },
+            {
+              "campo": "CDD_NSAP_CANTIDAD_PLANIFICADA",
+              "nombre": "Cantidad planificada SAP",
+              "tipo": "DecimalField",
+              "valor": "300.00000",
+              "origen": "CITACION_DESPACHO_DETALLE"
+            },
+            {
+              "campo": "CDD_NSAP_CANTIDAD_CONSUMIDA",
+              "nombre": "Cantidad consumida SAP",
+              "tipo": "DecimalField",
+              "valor": "222.07000",
+              "origen": "CITACION_DESPACHO_DETALLE"
+            },
+            {
+              "campo": "CDD_NSAP_SALDO_CONTRATO",
+              "nombre": "Saldo contrato SAP",
+              "tipo": "DecimalField",
+              "valor": "77.93000",
+              "origen": "CITACION_DESPACHO_DETALLE"
+            },
+            {
+              "campo": "CDD_CSAP_UNIDAD_MEDIDA",
+              "nombre": "Unidad medida SAP",
+              "tipo": "CharField",
+              "valor": "Cisterna",
+              "origen": "CITACION_DESPACHO_DETALLE"
+            },
+            {
+              "campo": "CDD_CSAP_DRAFT_DOCENTRY",
+              "nombre": "DocEntry draft SAP despacho",
+              "tipo": "CharField",
+              "valor": "Sin informacion",
+              "origen": "CITACION_DESPACHO_DETALLE"
+            },
+            {
+              "campo": "CDD_CSAP_DRAFT_DOCNUM",
+              "nombre": "DocNum draft SAP despacho",
+              "tipo": "CharField",
+              "valor": "Sin informacion",
+              "origen": "CITACION_DESPACHO_DETALLE"
+            },
+            {
+              "campo": "CDD_CJSON_DRAFT_REQUEST",
+              "nombre": "JSON request draft SAP despacho",
+              "tipo": "TextField",
+              "valor": "Sin informacion",
+              "origen": "CITACION_DESPACHO_DETALLE"
+            },
+            {
+              "campo": "CDD_CJSON_DRAFT_RESPONSE",
+              "nombre": "JSON response draft SAP despacho",
+              "tipo": "TextField",
+              "valor": "Sin informacion",
+              "origen": "CITACION_DESPACHO_DETALLE"
+            },
+            {
+              "campo": "CDD_FFECHA_DRAFT_SAP",
+              "nombre": "Fecha draft SAP despacho",
+              "tipo": "DateTimeField",
+              "valor": "Sin informacion",
+              "origen": "CITACION_DESPACHO_DETALLE"
+            },
+            {
+              "campo": "CDD_USUARIO_DRAFT_SAP",
+              "nombre": "Usuario draft SAP despacho",
+              "tipo": "ForeignKey",
+              "valor": "Sin informacion",
+              "origen": "CITACION_DESPACHO_DETALLE",
+              "relacion": "Sin informacion"
+            },
+            {
+              "campo": "CDD_CESTADO_DRAFT_SAP",
+              "nombre": "Estado draft SAP despacho",
+              "tipo": "CharField",
+              "valor": "Sin informacion",
+              "origen": "CITACION_DESPACHO_DETALLE"
+            },
+            {
+              "campo": "CDD_CSAP_UPDATE_ESTADO",
+              "nombre": "Estado update SAP despacho",
+              "tipo": "CharField",
+              "valor": "Sin informacion",
+              "origen": "CITACION_DESPACHO_DETALLE"
+            },
+            {
+              "campo": "CDD_CSAP_UPDATE_DOCENTRY",
+              "nombre": "DocEntry update SAP despacho",
+              "tipo": "CharField",
+              "valor": "Sin informacion",
+              "origen": "CITACION_DESPACHO_DETALLE"
+            },
+            {
+              "campo": "CDD_CJSON_UPDATE_REQUEST",
+              "nombre": "JSON request update SAP despacho",
+              "tipo": "TextField",
+              "valor": "Sin informacion",
+              "origen": "CITACION_DESPACHO_DETALLE"
+            },
+            {
+              "campo": "CDD_CJSON_UPDATE_RESPONSE",
+              "nombre": "JSON response update SAP despacho",
+              "tipo": "TextField",
+              "valor": "Sin informacion",
+              "origen": "CITACION_DESPACHO_DETALLE"
+            },
+            {
+              "campo": "CDD_FFECHA_UPDATE_SAP",
+              "nombre": "Fecha update SAP despacho",
+              "tipo": "DateTimeField",
+              "valor": "Sin informacion",
+              "origen": "CITACION_DESPACHO_DETALLE"
+            },
+            {
+              "campo": "CDD_USUARIO_UPDATE_SAP",
+              "nombre": "Usuario update SAP despacho",
+              "tipo": "ForeignKey",
+              "valor": "Sin informacion",
+              "origen": "CITACION_DESPACHO_DETALLE",
+              "relacion": "Sin informacion"
+            },
+            {
+              "campo": "CDD_NSAP_PESO_SALIDA",
+              "nombre": "Peso salida SAP despacho",
+              "tipo": "DecimalField",
+              "valor": "Sin informacion",
+              "origen": "CITACION_DESPACHO_DETALLE"
+            },
+            {
+              "campo": "CDD_FFECHACREACION",
+              "nombre": "Fecha creacion",
+              "tipo": "DateTimeField",
+              "valor": "2026-07-23 14:44:18+00:00",
+              "origen": "CITACION_DESPACHO_DETALLE"
+            },
+            {
+              "campo": "CDD_FFECHAACTUALIZACION",
+              "nombre": "Fecha actualizacion",
+              "tipo": "DateTimeField",
+              "valor": "2026-07-23 14:44:18+00:00",
+              "origen": "CITACION_DESPACHO_DETALLE"
+            }
+          ]
+        ]
+      },
+      {
+        "campo": "CI_CTIPO",
+        "nombre": "Tipo citacion",
+        "tipo": "CharField",
+        "valor": "DESPACHO",
+        "origen": "CITACION"
+      }
+    ],
+    "13. SAP local": [
+      {
+        "modelo": "home.CITACION_DETALLE_OPERACIONAL",
+        "campo_relacion": "CI_NID",
+        "registros": [
+          [
+            {
+              "campo": "id",
+              "nombre": "ID",
+              "tipo": "BigAutoField",
+              "valor": 83,
+              "origen": "CITACION_DETALLE_OPERACIONAL"
+            },
+            {
+              "campo": "CI_NID",
+              "nombre": "Id citacion",
+              "tipo": "OneToOneField",
+              "valor": "CITACION object (38601)",
+              "origen": "CITACION_DETALLE_OPERACIONAL",
+              "relacion": "CITACION object (38601)"
+            },
+            {
+              "campo": "EP_NID",
+              "nombre": "Id empresa",
+              "tipo": "ForeignKey",
+              "valor": "ACEITES SBH",
+              "origen": "CITACION_DETALLE_OPERACIONAL",
+              "relacion": "ACEITES SBH"
+            },
+            {
+              "campo": "US_NID",
+              "nombre": "Usuario creacion",
+              "tipo": "ForeignKey",
+              "valor": "MAESC",
+              "origen": "CITACION_DETALLE_OPERACIONAL",
+              "relacion": "MAESC"
+            },
+            {
+              "campo": "CDO_CORIGEN",
+              "nombre": "Origen",
+              "tipo": "CharField",
+              "valor": "planificacion",
+              "origen": "CITACION_DETALLE_OPERACIONAL"
+            },
+            {
+              "campo": "CDO_CINF_24HRS",
+              "nombre": "Inf 24 hrs",
+              "tipo": "CharField",
+              "valor": "Terramar",
+              "origen": "CITACION_DETALLE_OPERACIONAL"
+            },
+            {
+              "campo": "CDO_CCODIGO_SAP",
+              "nombre": "Codigo SAP",
+              "tipo": "CharField",
+              "valor": "800049",
+              "origen": "CITACION_DETALLE_OPERACIONAL",
+              "json": {
+                "original": "800049",
+                "formateado": 800049,
+                "claves": []
+              }
+            },
+            {
+              "campo": "CDO_CINSUMO",
+              "nombre": "Insumo producto",
+              "tipo": "CharField",
+              "valor": "ACEITE DE AVE",
+              "origen": "CITACION_DETALLE_OPERACIONAL"
+            },
+            {
+              "campo": "CDO_CPEDIDO_SAP",
+              "nombre": "Pedido SAP",
+              "tipo": "CharField",
+              "valor": "4036022",
+              "origen": "CITACION_DETALLE_OPERACIONAL",
+              "json": {
+                "original": "4036022",
+                "formateado": 4036022,
+                "claves": []
+              }
+            },
+            {
+              "campo": "CDO_CSAP_OPOR_ID",
+              "nombre": "SAP OPOR id",
+              "tipo": "CharField",
+              "valor": "2899",
+              "origen": "CITACION_DETALLE_OPERACIONAL",
+              "json": {
+                "original": "2899",
+                "formateado": 2899,
+                "claves": []
+              }
+            },
+            {
+              "campo": "CDO_CPROVEEDOR_CODIGO",
+              "nombre": "Codigo proveedor",
+              "tipo": "CharField",
+              "valor": "Sin informacion",
+              "origen": "CITACION_DETALLE_OPERACIONAL"
+            },
+            {
+              "campo": "CDO_CBL_CONTENEDOR",
+              "nombre": "BL contenedor",
+              "tipo": "CharField",
+              "valor": "Sin informacion",
+              "origen": "CITACION_DETALLE_OPERACIONAL"
+            },
+            {
+              "campo": "CDO_NCANTIDAD_DISPONIBLE",
+              "nombre": "Cantidad disponible",
+              "tipo": "DecimalField",
+              "valor": "77.93000",
+              "origen": "CITACION_DETALLE_OPERACIONAL"
+            },
+            {
+              "campo": "CDO_CDOCENTRY",
+              "nombre": "DocEntry",
+              "tipo": "CharField",
+              "valor": "2899",
+              "origen": "CITACION_DETALLE_OPERACIONAL",
+              "json": {
+                "original": "2899",
+                "formateado": 2899,
+                "claves": []
+              }
+            },
+            {
+              "campo": "CDO_CPRODUCTOR",
+              "nombre": "Productor",
+              "tipo": "CharField",
+              "valor": "TRANSPORTE INTERNACIONAL DON ALBERTO LIMITADA",
+              "origen": "CITACION_DETALLE_OPERACIONAL"
+            },
+            {
+              "campo": "CDO_CALMACEN_DESTINO",
+              "nombre": "Almacen destino",
+              "tipo": "CharField",
+              "valor": "SBH",
+              "origen": "CITACION_DETALLE_OPERACIONAL"
+            },
+            {
+              "campo": "CDO_CESTANQUE_DESTINO",
+              "nombre": "Estanque destino",
+              "tipo": "CharField",
+              "valor": "SBH",
+              "origen": "CITACION_DETALLE_OPERACIONAL"
+            },
+            {
+              "campo": "CDO_COBSERVACION",
+              "nombre": "Observacion",
+              "tipo": "TextField",
+              "valor": "Sin informacion",
+              "origen": "CITACION_DETALLE_OPERACIONAL"
+            },
+            {
+              "campo": "CDO_FFECHACREACION",
+              "nombre": "Fecha creacion",
+              "tipo": "DateTimeField",
+              "valor": "2026-07-23 14:44:18+00:00",
+              "origen": "CITACION_DETALLE_OPERACIONAL"
+            }
+          ]
+        ]
+      },
+      {
+        "modelo": "home.CITACION_DESPACHO_DETALLE",
+        "campo_relacion": "CI_NID",
+        "registros": [
+          [
+            {
+              "campo": "id",
+              "nombre": "ID",
+              "tipo": "BigAutoField",
+              "valor": 20,
+              "origen": "CITACION_DESPACHO_DETALLE"
+            },
+            {
+              "campo": "CI_NID",
+              "nombre": "Id citacion",
+              "tipo": "OneToOneField",
+              "valor": "CITACION object (38601)",
+              "origen": "CITACION_DESPACHO_DETALLE",
+              "relacion": "CITACION object (38601)"
+            },
+            {
+              "campo": "EP_NID",
+              "nombre": "Id empresa",
+              "tipo": "ForeignKey",
+              "valor": "ACEITES SBH",
+              "origen": "CITACION_DESPACHO_DETALLE",
+              "relacion": "ACEITES SBH"
+            },
+            {
+              "campo": "US_NID",
+              "nombre": "Usuario creacion",
+              "tipo": "ForeignKey",
+              "valor": "MAESC",
+              "origen": "CITACION_DESPACHO_DETALLE",
+              "relacion": "MAESC"
+            },
+            {
+              "campo": "CDD_CDESTINO",
+              "nombre": "Destino",
+              "tipo": "CharField",
+              "valor": "Chillan",
+              "origen": "CITACION_DESPACHO_DETALLE"
+            },
+            {
+              "campo": "CDD_COC_CLIENTE",
+              "nombre": "OC cliente",
+              "tipo": "CharField",
+              "valor": "4036022",
+              "origen": "CITACION_DESPACHO_DETALLE",
+              "json": {
+                "original": "4036022",
+                "formateado": 4036022,
+                "claves": []
+              }
+            },
+            {
+              "campo": "CDD_NCANTIDAD_INTENTADA_DESPACHAR",
+              "nombre": "Cantidad intentada a despachar",
+              "tipo": "DecimalField",
+              "valor": "1.00000",
+              "origen": "CITACION_DESPACHO_DETALLE"
+            },
+            {
+              "campo": "CDD_CCONDICION_ENTREGA",
+              "nombre": "Condicion de entrega",
+              "tipo": "CharField",
+              "valor": "Terramar",
+              "origen": "CITACION_DESPACHO_DETALLE"
+            },
+            {
+              "campo": "CDD_CSALIDA_DOCUMENTO",
+              "nombre": "Salida de documento",
+              "tipo": "CharField",
+              "valor": "Factura de cliente",
+              "origen": "CITACION_DESPACHO_DETALLE"
+            },
+            {
+              "campo": "CDD_CEMPRESA_TRANSPORTE",
+              "nombre": "Empresa transporte",
+              "tipo": "CharField",
+              "valor": "TRANSPORTE INTERNACIONAL DON ALBERTO LIMITADA",
+              "origen": "CITACION_DESPACHO_DETALLE"
+            },
+            {
+              "campo": "CDD_CCONDUCTOR",
+              "nombre": "Conductor",
+              "tipo": "CharField",
+              "valor": "LUCIANO COLOMBATTO",
+              "origen": "CITACION_DESPACHO_DETALLE"
+            },
+            {
+              "campo": "CDD_CTELEFONO_CONDUCTOR",
+              "nombre": "Telefono conductor",
+              "tipo": "CharField",
+              "valor": "Sin informacion",
+              "origen": "CITACION_DESPACHO_DETALLE"
+            },
+            {
+              "campo": "CDD_CPATENTE",
+              "nombre": "Patente",
+              "tipo": "CharField",
+              "valor": "GFCK21",
+              "origen": "CITACION_DESPACHO_DETALLE"
+            },
+            {
+              "campo": "CDD_CORDEN_CARGA",
+              "nombre": "Orden de carga",
+              "tipo": "CharField",
+              "valor": "4",
+              "origen": "CITACION_DESPACHO_DETALLE",
+              "json": {
+                "original": "4",
+                "formateado": 4,
+                "claves": []
+              }
+            },
+            {
+              "campo": "CDD_CVENTANA_HORARIA_DESPACHO",
+              "nombre": "Ventana horaria despacho",
+              "tipo": "CharField",
+              "valor": "21hrs",
+              "origen": "CITACION_DESPACHO_DETALLE"
+            },
+            {
+              "campo": "CDD_NPESO_INFORMADO",
+              "nombre": "Peso informado",
+              "tipo": "DecimalField",
+              "valor": "Sin informacion",
+              "origen": "CITACION_DESPACHO_DETALLE"
+            },
+            {
+              "campo": "CDD_CBODEGA",
+              "nombre": "Bodega",
+              "tipo": "CharField",
+              "valor": "SBH",
+              "origen": "CITACION_DESPACHO_DETALLE"
+            },
+            {
+              "campo": "CDD_CSECUENCIA_OPERACIONAL_CODIGO",
+              "nombre": "Codigo secuencia operacional",
+              "tipo": "CharField",
+              "valor": "Sin informacion",
+              "origen": "CITACION_DESPACHO_DETALLE"
+            },
+            {
+              "campo": "CDD_CSECUENCIA_OPERACIONAL_NOMBRE",
+              "nombre": "Nombre secuencia operacional",
+              "tipo": "CharField",
+              "valor": "Despacho por Trasvasije",
+              "origen": "CITACION_DESPACHO_DETALLE"
+            },
+            {
+              "campo": "CDD_CSAP_ABS_ID",
+              "nombre": "SAP AbsID",
+              "tipo": "CharField",
+              "valor": "2899",
+              "origen": "CITACION_DESPACHO_DETALLE",
+              "json": {
+                "original": "2899",
+                "formateado": 2899,
+                "claves": []
+              }
+            },
+            {
+              "campo": "CDD_CSAP_NUMERO_ACUERDO",
+              "nombre": "Numero acuerdo SAP",
+              "tipo": "CharField",
+              "valor": "340",
+              "origen": "CITACION_DESPACHO_DETALLE",
+              "json": {
+                "original": "340",
+                "formateado": 340,
+                "claves": []
+              }
+            },
+            {
+              "campo": "CDD_CSAP_LINEA_ACUERDO",
+              "nombre": "Linea acuerdo SAP",
+              "tipo": "CharField",
+              "valor": "1",
+              "origen": "CITACION_DESPACHO_DETALLE",
+              "json": {
+                "original": "1",
+                "formateado": 1,
+                "claves": []
+              }
+            },
+            {
+              "campo": "CDD_CSAP_CLIENTE_CODIGO",
+              "nombre": "Codigo cliente SAP",
+              "tipo": "CharField",
+              "valor": "C77424780",
+              "origen": "CITACION_DESPACHO_DETALLE"
+            },
+            {
+              "campo": "CDD_CSAP_CLIENTE_NOMBRE",
+              "nombre": "Nombre cliente SAP",
+              "tipo": "CharField",
+              "valor": "EWOS CHILE ALIMENTOS LTDA",
+              "origen": "CITACION_DESPACHO_DETALLE"
+            },
+            {
+              "campo": "CDD_CSAP_OC_CLIENTE",
+              "nombre": "OC cliente SAP",
+              "tipo": "CharField",
+              "valor": "4036022",
+              "origen": "CITACION_DESPACHO_DETALLE",
+              "json": {
+                "original": "4036022",
+                "formateado": 4036022,
+                "claves": []
+              }
+            },
+            {
+              "campo": "CDD_CSAP_CODIGO_PRODUCTO",
+              "nombre": "Codigo producto SAP",
+              "tipo": "CharField",
+              "valor": "800049",
+              "origen": "CITACION_DESPACHO_DETALLE",
+              "json": {
+                "original": "800049",
+                "formateado": 800049,
+                "claves": []
+              }
+            },
+            {
+              "campo": "CDD_CSAP_NOMBRE_PRODUCTO",
+              "nombre": "Nombre producto SAP",
+              "tipo": "CharField",
+              "valor": "ACEITE DE AVE",
+              "origen": "CITACION_DESPACHO_DETALLE"
+            },
+            {
+              "campo": "CDD_NSAP_CANTIDAD_PLANIFICADA",
+              "nombre": "Cantidad planificada SAP",
+              "tipo": "DecimalField",
+              "valor": "300.00000",
+              "origen": "CITACION_DESPACHO_DETALLE"
+            },
+            {
+              "campo": "CDD_NSAP_CANTIDAD_CONSUMIDA",
+              "nombre": "Cantidad consumida SAP",
+              "tipo": "DecimalField",
+              "valor": "222.07000",
+              "origen": "CITACION_DESPACHO_DETALLE"
+            },
+            {
+              "campo": "CDD_NSAP_SALDO_CONTRATO",
+              "nombre": "Saldo contrato SAP",
+              "tipo": "DecimalField",
+              "valor": "77.93000",
+              "origen": "CITACION_DESPACHO_DETALLE"
+            },
+            {
+              "campo": "CDD_CSAP_UNIDAD_MEDIDA",
+              "nombre": "Unidad medida SAP",
+              "tipo": "CharField",
+              "valor": "Cisterna",
+              "origen": "CITACION_DESPACHO_DETALLE"
+            },
+            {
+              "campo": "CDD_CSAP_DRAFT_DOCENTRY",
+              "nombre": "DocEntry draft SAP despacho",
+              "tipo": "CharField",
+              "valor": "Sin informacion",
+              "origen": "CITACION_DESPACHO_DETALLE"
+            },
+            {
+              "campo": "CDD_CSAP_DRAFT_DOCNUM",
+              "nombre": "DocNum draft SAP despacho",
+              "tipo": "CharField",
+              "valor": "Sin informacion",
+              "origen": "CITACION_DESPACHO_DETALLE"
+            },
+            {
+              "campo": "CDD_CJSON_DRAFT_REQUEST",
+              "nombre": "JSON request draft SAP despacho",
+              "tipo": "TextField",
+              "valor": "Sin informacion",
+              "origen": "CITACION_DESPACHO_DETALLE"
+            },
+            {
+              "campo": "CDD_CJSON_DRAFT_RESPONSE",
+              "nombre": "JSON response draft SAP despacho",
+              "tipo": "TextField",
+              "valor": "Sin informacion",
+              "origen": "CITACION_DESPACHO_DETALLE"
+            },
+            {
+              "campo": "CDD_FFECHA_DRAFT_SAP",
+              "nombre": "Fecha draft SAP despacho",
+              "tipo": "DateTimeField",
+              "valor": "Sin informacion",
+              "origen": "CITACION_DESPACHO_DETALLE"
+            },
+            {
+              "campo": "CDD_USUARIO_DRAFT_SAP",
+              "nombre": "Usuario draft SAP despacho",
+              "tipo": "ForeignKey",
+              "valor": "Sin informacion",
+              "origen": "CITACION_DESPACHO_DETALLE",
+              "relacion": "Sin informacion"
+            },
+            {
+              "campo": "CDD_CESTADO_DRAFT_SAP",
+              "nombre": "Estado draft SAP despacho",
+              "tipo": "CharField",
+              "valor": "Sin informacion",
+              "origen": "CITACION_DESPACHO_DETALLE"
+            },
+            {
+              "campo": "CDD_CSAP_UPDATE_ESTADO",
+              "nombre": "Estado update SAP despacho",
+              "tipo": "CharField",
+              "valor": "Sin informacion",
+              "origen": "CITACION_DESPACHO_DETALLE"
+            },
+            {
+              "campo": "CDD_CSAP_UPDATE_DOCENTRY",
+              "nombre": "DocEntry update SAP despacho",
+              "tipo": "CharField",
+              "valor": "Sin informacion",
+              "origen": "CITACION_DESPACHO_DETALLE"
+            },
+            {
+              "campo": "CDD_CJSON_UPDATE_REQUEST",
+              "nombre": "JSON request update SAP despacho",
+              "tipo": "TextField",
+              "valor": "Sin informacion",
+              "origen": "CITACION_DESPACHO_DETALLE"
+            },
+            {
+              "campo": "CDD_CJSON_UPDATE_RESPONSE",
+              "nombre": "JSON response update SAP despacho",
+              "tipo": "TextField",
+              "valor": "Sin informacion",
+              "origen": "CITACION_DESPACHO_DETALLE"
+            },
+            {
+              "campo": "CDD_FFECHA_UPDATE_SAP",
+              "nombre": "Fecha update SAP despacho",
+              "tipo": "DateTimeField",
+              "valor": "Sin informacion",
+              "origen": "CITACION_DESPACHO_DETALLE"
+            },
+            {
+              "campo": "CDD_USUARIO_UPDATE_SAP",
+              "nombre": "Usuario update SAP despacho",
+              "tipo": "ForeignKey",
+              "valor": "Sin informacion",
+              "origen": "CITACION_DESPACHO_DETALLE",
+              "relacion": "Sin informacion"
+            },
+            {
+              "campo": "CDD_NSAP_PESO_SALIDA",
+              "nombre": "Peso salida SAP despacho",
+              "tipo": "DecimalField",
+              "valor": "Sin informacion",
+              "origen": "CITACION_DESPACHO_DETALLE"
+            },
+            {
+              "campo": "CDD_FFECHACREACION",
+              "nombre": "Fecha creacion",
+              "tipo": "DateTimeField",
+              "valor": "2026-07-23 14:44:18+00:00",
+              "origen": "CITACION_DESPACHO_DETALLE"
+            },
+            {
+              "campo": "CDD_FFECHAACTUALIZACION",
+              "nombre": "Fecha actualizacion",
+              "tipo": "DateTimeField",
+              "valor": "2026-07-23 14:44:18+00:00",
+              "origen": "CITACION_DESPACHO_DETALLE"
+            }
+          ]
+        ]
+      },
+      {
+        "modelo": "home.DATO_OPERACION",
+        "campo_relacion": "CI_NID",
+        "registros": [
+          [
+            {
+              "campo": "id",
+              "nombre": "ID",
+              "tipo": "BigAutoField",
+              "valor": 273792,
+              "origen": "DATO_OPERACION"
+            },
+            {
+              "campo": "US_NID",
+              "nombre": "Id usuario",
+              "tipo": "ForeignKey",
+              "valor": "MAESC",
+              "origen": "DATO_OPERACION",
+              "relacion": "MAESC"
+            },
+            {
+              "campo": "EP_NID",
+              "nombre": "Id empresa",
+              "tipo": "ForeignKey",
+              "valor": "ACEITES SBH",
+              "origen": "DATO_OPERACION",
+              "relacion": "ACEITES SBH"
+            },
+            {
+              "campo": "SC_NID",
+              "nombre": "Id secuencia",
+              "tipo": "ForeignKey",
+              "valor": "TRASVASIJE_CLIENTE - Despacho por Trasvasije",
+              "origen": "DATO_OPERACION",
+              "relacion": "TRASVASIJE_CLIENTE - Despacho por Trasvasije"
+            },
+            {
+              "campo": "ET_NID",
+              "nombre": "Id etapa",
+              "tipo": "ForeignKey",
+              "valor": "DESPACHO_PROGRAMADO - Despacho Programado",
+              "origen": "DATO_OPERACION",
+              "relacion": "DESPACHO_PROGRAMADO - Despacho Programado"
+            },
+            {
+              "campo": "CAMP_NID",
+              "nombre": "Id campo",
+              "tipo": "ForeignKey",
+              "valor": "Proveedor SAP",
+              "origen": "DATO_OPERACION",
+              "relacion": "Proveedor SAP"
+            },
+            {
+              "campo": "CI_NID",
+              "nombre": "Id citacion",
+              "tipo": "ForeignKey",
+              "valor": "CITACION object (38601)",
+              "origen": "DATO_OPERACION",
+              "relacion": "CITACION object (38601)"
+            },
+            {
+              "campo": "DO_FFECHAREGISTRO",
+              "nombre": "Fecha registro",
+              "tipo": "DateTimeField",
+              "valor": "2026-07-23 14:44:18+00:00",
+              "origen": "DATO_OPERACION"
+            },
+            {
+              "campo": "DO_CVALOR",
+              "nombre": "Valor dato",
+              "tipo": "TextField",
+              "valor": "TRANSPORTE INTERNACIONAL DON ALBERTO LIMITADA",
+              "origen": "DATO_OPERACION"
+            },
+            {
+              "campo": "DO_NPESO",
+              "nombre": "Peso dato",
+              "tipo": "IntegerField",
+              "valor": "Sin informacion",
+              "origen": "DATO_OPERACION"
+            }
+          ],
+          [
+            {
+              "campo": "id",
+              "nombre": "ID",
+              "tipo": "BigAutoField",
+              "valor": 273793,
+              "origen": "DATO_OPERACION"
+            },
+            {
+              "campo": "US_NID",
+              "nombre": "Id usuario",
+              "tipo": "ForeignKey",
+              "valor": "MAESC",
+              "origen": "DATO_OPERACION",
+              "relacion": "MAESC"
+            },
+            {
+              "campo": "EP_NID",
+              "nombre": "Id empresa",
+              "tipo": "ForeignKey",
+              "valor": "ACEITES SBH",
+              "origen": "DATO_OPERACION",
+              "relacion": "ACEITES SBH"
+            },
+            {
+              "campo": "SC_NID",
+              "nombre": "Id secuencia",
+              "tipo": "ForeignKey",
+              "valor": "TRASVASIJE_CLIENTE - Despacho por Trasvasije",
+              "origen": "DATO_OPERACION",
+              "relacion": "TRASVASIJE_CLIENTE - Despacho por Trasvasije"
+            },
+            {
+              "campo": "ET_NID",
+              "nombre": "Id etapa",
+              "tipo": "ForeignKey",
+              "valor": "DESPACHO_PROGRAMADO - Despacho Programado",
+              "origen": "DATO_OPERACION",
+              "relacion": "DESPACHO_PROGRAMADO - Despacho Programado"
+            },
+            {
+              "campo": "CAMP_NID",
+              "nombre": "Id campo",
+              "tipo": "ForeignKey",
+              "valor": "Contrato SAP",
+              "origen": "DATO_OPERACION",
+              "relacion": "Contrato SAP"
+            },
+            {
+              "campo": "CI_NID",
+              "nombre": "Id citacion",
+              "tipo": "ForeignKey",
+              "valor": "CITACION object (38601)",
+              "origen": "DATO_OPERACION",
+              "relacion": "CITACION object (38601)"
+            },
+            {
+              "campo": "DO_FFECHAREGISTRO",
+              "nombre": "Fecha registro",
+              "tipo": "DateTimeField",
+              "valor": "2026-07-23 14:44:18+00:00",
+              "origen": "DATO_OPERACION"
+            },
+            {
+              "campo": "DO_CVALOR",
+              "nombre": "Valor dato",
+              "tipo": "TextField",
+              "valor": "340",
+              "origen": "DATO_OPERACION",
+              "json": {
+                "original": "340",
+                "formateado": 340,
+                "claves": []
+              }
+            },
+            {
+              "campo": "DO_NPESO",
+              "nombre": "Peso dato",
+              "tipo": "IntegerField",
+              "valor": "Sin informacion",
+              "origen": "DATO_OPERACION"
+            }
+          ]
+        ]
+      }
+    ],
+    "14. Informacion disponible que actualmente no aparece en E.L.I.": [
+      {
+        "dato": "ID",
+        "fuente": "CITACION",
+        "valor": 38601,
+        "aparece_en_eli": "No confirmado / no detectado",
+        "recomendacion": "evaluar"
+      },
+      {
+        "dato": "Id usuario",
+        "fuente": "CITACION",
+        "valor": "MAESC",
+        "aparece_en_eli": "No confirmado / no detectado",
+        "recomendacion": "evaluar"
+      },
+      {
+        "dato": "Id empresa",
+        "fuente": "CITACION",
+        "valor": "ACEITES SBH",
+        "aparece_en_eli": "No confirmado / no detectado",
+        "recomendacion": "evaluar"
+      },
+      {
+        "dato": "Id planificacion",
+        "fuente": "CITACION",
+        "valor": "PLANIFICACION object (1208)",
+        "aparece_en_eli": "No confirmado / no detectado",
+        "recomendacion": "evaluar"
+      },
+      {
+        "dato": "Id secuencia",
+        "fuente": "CITACION",
+        "valor": "TRASVASIJE_CLIENTE - Despacho por Trasvasije",
+        "aparece_en_eli": "No confirmado / no detectado",
+        "recomendacion": "evaluar"
+      },
+      {
+        "dato": "Fecha registro",
+        "fuente": "CITACION",
+        "valor": "2026-07-23 14:44:18+00:00",
+        "aparece_en_eli": "No confirmado / no detectado",
+        "recomendacion": "evaluar"
+      },
+      {
+        "dato": "Fecha citacion",
+        "fuente": "CITACION",
+        "valor": "2026-07-23 04:00:00+00:00",
+        "aparece_en_eli": "Probablemente si (coincidencia semantica)",
+        "recomendacion": "dato duplicado"
+      },
+      {
+        "dato": "Avisado",
+        "fuente": "CITACION",
+        "valor": false,
+        "aparece_en_eli": "No confirmado / no detectado",
+        "recomendacion": "evaluar"
+      },
+      {
+        "dato": "Confirmado",
+        "fuente": "CITACION",
+        "valor": false,
+        "aparece_en_eli": "No confirmado / no detectado",
+        "recomendacion": "evaluar"
+      },
+      {
+        "dato": "Arribado",
+        "fuente": "CITACION",
+        "valor": false,
+        "aparece_en_eli": "No confirmado / no detectado",
+        "recomendacion": "evaluar"
+      },
+      {
+        "dato": "Habilitado",
+        "fuente": "CITACION",
+        "valor": true,
+        "aparece_en_eli": "No confirmado / no detectado",
+        "recomendacion": "evaluar"
+      },
+      {
+        "dato": "Archivado",
+        "fuente": "CITACION",
+        "valor": false,
+        "aparece_en_eli": "No confirmado / no detectado",
+        "recomendacion": "evaluar"
+      },
+      {
+        "dato": "Sobre cupo",
+        "fuente": "CITACION",
+        "valor": false,
+        "aparece_en_eli": "No confirmado / no detectado",
+        "recomendacion": "evaluar"
+      },
+      {
+        "dato": "Numero cupo",
+        "fuente": "CITACION",
+        "valor": 4,
+        "aparece_en_eli": "No confirmado / no detectado",
+        "recomendacion": "evaluar"
+      },
+      {
+        "dato": "Tipo citacion",
+        "fuente": "CITACION",
+        "valor": "DESPACHO",
+        "aparece_en_eli": "No confirmado / no detectado",
+        "recomendacion": "evaluar"
+      },
+      {
+        "dato": "Estado",
+        "fuente": "CITACION",
+        "valor": "Despacho Programado",
+        "aparece_en_eli": "No confirmado / no detectado",
+        "recomendacion": "evaluar"
+      },
+      {
+        "dato": "Tipo flete",
+        "fuente": "CITACION",
+        "valor": "Cisterna",
+        "aparece_en_eli": "No confirmado / no detectado",
+        "recomendacion": "evaluar"
+      },
+      {
+        "dato": "Entrega conforme",
+        "fuente": "CITACION",
+        "valor": false,
+        "aparece_en_eli": "No confirmado / no detectado",
+        "recomendacion": "evaluar"
+      },
+      {
+        "dato": "ID",
+        "fuente": "CITACION_DETALLE_OPERACIONAL",
+        "valor": 83,
+        "aparece_en_eli": "No confirmado / no detectado",
+        "recomendacion": "evaluar"
+      },
+      {
+        "dato": "Id citacion",
+        "fuente": "CITACION_DETALLE_OPERACIONAL",
+        "valor": "CITACION object (38601)",
+        "aparece_en_eli": "No confirmado / no detectado",
+        "recomendacion": "evaluar"
+      },
+      {
+        "dato": "Id empresa",
+        "fuente": "CITACION_DETALLE_OPERACIONAL",
+        "valor": "ACEITES SBH",
+        "aparece_en_eli": "No confirmado / no detectado",
+        "recomendacion": "evaluar"
+      },
+      {
+        "dato": "Usuario creacion",
+        "fuente": "CITACION_DETALLE_OPERACIONAL",
+        "valor": "MAESC",
+        "aparece_en_eli": "No confirmado / no detectado",
+        "recomendacion": "evaluar"
+      },
+      {
+        "dato": "Origen",
+        "fuente": "CITACION_DETALLE_OPERACIONAL",
+        "valor": "planificacion",
+        "aparece_en_eli": "Probablemente si (coincidencia semantica)",
+        "recomendacion": "dato duplicado"
+      },
+      {
+        "dato": "Inf 24 hrs",
+        "fuente": "CITACION_DETALLE_OPERACIONAL",
+        "valor": "Terramar",
+        "aparece_en_eli": "No confirmado / no detectado",
+        "recomendacion": "evaluar"
+      },
+      {
+        "dato": "Codigo SAP",
+        "fuente": "CITACION_DETALLE_OPERACIONAL",
+        "valor": "800049",
+        "aparece_en_eli": "Probablemente si (coincidencia semantica)",
+        "recomendacion": "dato duplicado"
+      },
+      {
+        "dato": "Insumo producto",
+        "fuente": "CITACION_DETALLE_OPERACIONAL",
+        "valor": "ACEITE DE AVE",
+        "aparece_en_eli": "Probablemente si (coincidencia semantica)",
+        "recomendacion": "dato duplicado"
+      },
+      {
+        "dato": "Pedido SAP",
+        "fuente": "CITACION_DETALLE_OPERACIONAL",
+        "valor": "4036022",
+        "aparece_en_eli": "Probablemente si (coincidencia semantica)",
+        "recomendacion": "dato duplicado"
+      },
+      {
+        "dato": "SAP OPOR id",
+        "fuente": "CITACION_DETALLE_OPERACIONAL",
+        "valor": "2899",
+        "aparece_en_eli": "No confirmado / no detectado",
+        "recomendacion": "evaluar"
+      },
+      {
+        "dato": "Cantidad disponible",
+        "fuente": "CITACION_DETALLE_OPERACIONAL",
+        "valor": "77.93000",
+        "aparece_en_eli": "No confirmado / no detectado",
+        "recomendacion": "evaluar"
+      },
+      {
+        "dato": "DocEntry",
+        "fuente": "CITACION_DETALLE_OPERACIONAL",
+        "valor": "2899",
+        "aparece_en_eli": "No confirmado / no detectado",
+        "recomendacion": "evaluar"
+      },
+      {
+        "dato": "Productor",
+        "fuente": "CITACION_DETALLE_OPERACIONAL",
+        "valor": "TRANSPORTE INTERNACIONAL DON ALBERTO LIMITADA",
+        "aparece_en_eli": "Probablemente si (coincidencia semantica)",
+        "recomendacion": "dato duplicado"
+      },
+      {
+        "dato": "Almacen destino",
+        "fuente": "CITACION_DETALLE_OPERACIONAL",
+        "valor": "SBH",
+        "aparece_en_eli": "Probablemente si (coincidencia semantica)",
+        "recomendacion": "dato duplicado"
+      },
+      {
+        "dato": "Estanque destino",
+        "fuente": "CITACION_DETALLE_OPERACIONAL",
+        "valor": "SBH",
+        "aparece_en_eli": "Probablemente si (coincidencia semantica)",
+        "recomendacion": "dato duplicado"
+      },
+      {
+        "dato": "Fecha creacion",
+        "fuente": "CITACION_DETALLE_OPERACIONAL",
+        "valor": "2026-07-23 14:44:18+00:00",
+        "aparece_en_eli": "No confirmado / no detectado",
+        "recomendacion": "evaluar"
+      },
+      {
+        "dato": "ID",
+        "fuente": "CITACION_DESPACHO_DETALLE",
+        "valor": 20,
+        "aparece_en_eli": "No confirmado / no detectado",
+        "recomendacion": "evaluar"
+      },
+      {
+        "dato": "Id citacion",
+        "fuente": "CITACION_DESPACHO_DETALLE",
+        "valor": "CITACION object (38601)",
+        "aparece_en_eli": "No confirmado / no detectado",
+        "recomendacion": "evaluar"
+      },
+      {
+        "dato": "Id empresa",
+        "fuente": "CITACION_DESPACHO_DETALLE",
+        "valor": "ACEITES SBH",
+        "aparece_en_eli": "No confirmado / no detectado",
+        "recomendacion": "evaluar"
+      },
+      {
+        "dato": "Usuario creacion",
+        "fuente": "CITACION_DESPACHO_DETALLE",
+        "valor": "MAESC",
+        "aparece_en_eli": "No confirmado / no detectado",
+        "recomendacion": "evaluar"
+      },
+      {
+        "dato": "Destino",
+        "fuente": "CITACION_DESPACHO_DETALLE",
+        "valor": "Chillan",
+        "aparece_en_eli": "Probablemente si (coincidencia semantica)",
+        "recomendacion": "dato duplicado"
+      },
+      {
+        "dato": "OC cliente",
+        "fuente": "CITACION_DESPACHO_DETALLE",
+        "valor": "4036022",
+        "aparece_en_eli": "Probablemente si (coincidencia semantica)",
+        "recomendacion": "dato duplicado"
+      },
+      {
+        "dato": "Cantidad intentada a despachar",
+        "fuente": "CITACION_DESPACHO_DETALLE",
+        "valor": "1.00000",
+        "aparece_en_eli": "No confirmado / no detectado",
+        "recomendacion": "evaluar"
+      },
+      {
+        "dato": "Condicion de entrega",
+        "fuente": "CITACION_DESPACHO_DETALLE",
+        "valor": "Terramar",
+        "aparece_en_eli": "No confirmado / no detectado",
+        "recomendacion": "evaluar"
+      },
+      {
+        "dato": "Salida de documento",
+        "fuente": "CITACION_DESPACHO_DETALLE",
+        "valor": "Factura de cliente",
+        "aparece_en_eli": "No confirmado / no detectado",
+        "recomendacion": "evaluar"
+      },
+      {
+        "dato": "Empresa transporte",
+        "fuente": "CITACION_DESPACHO_DETALLE",
+        "valor": "TRANSPORTE INTERNACIONAL DON ALBERTO LIMITADA",
+        "aparece_en_eli": "No confirmado / no detectado",
+        "recomendacion": "evaluar"
+      },
+      {
+        "dato": "Conductor",
+        "fuente": "CITACION_DESPACHO_DETALLE",
+        "valor": "LUCIANO COLOMBATTO",
+        "aparece_en_eli": "Probablemente si (coincidencia semantica)",
+        "recomendacion": "dato duplicado"
+      },
+      {
+        "dato": "Patente",
+        "fuente": "CITACION_DESPACHO_DETALLE",
+        "valor": "GFCK21",
+        "aparece_en_eli": "Probablemente si (coincidencia semantica)",
+        "recomendacion": "dato duplicado"
+      },
+      {
+        "dato": "Orden de carga",
+        "fuente": "CITACION_DESPACHO_DETALLE",
+        "valor": "4",
+        "aparece_en_eli": "No confirmado / no detectado",
+        "recomendacion": "evaluar"
+      },
+      {
+        "dato": "Ventana horaria despacho",
+        "fuente": "CITACION_DESPACHO_DETALLE",
+        "valor": "21hrs",
+        "aparece_en_eli": "No confirmado / no detectado",
+        "recomendacion": "evaluar"
+      },
+      {
+        "dato": "Bodega",
+        "fuente": "CITACION_DESPACHO_DETALLE",
+        "valor": "SBH",
+        "aparece_en_eli": "No confirmado / no detectado",
+        "recomendacion": "evaluar"
+      },
+      {
+        "dato": "Nombre secuencia operacional",
+        "fuente": "CITACION_DESPACHO_DETALLE",
+        "valor": "Despacho por Trasvasije",
+        "aparece_en_eli": "No confirmado / no detectado",
+        "recomendacion": "evaluar"
+      },
+      {
+        "dato": "SAP AbsID",
+        "fuente": "CITACION_DESPACHO_DETALLE",
+        "valor": "2899",
+        "aparece_en_eli": "No confirmado / no detectado",
+        "recomendacion": "evaluar"
+      },
+      {
+        "dato": "Numero acuerdo SAP",
+        "fuente": "CITACION_DESPACHO_DETALLE",
+        "valor": "340",
+        "aparece_en_eli": "No confirmado / no detectado",
+        "recomendacion": "evaluar"
+      },
+      {
+        "dato": "Linea acuerdo SAP",
+        "fuente": "CITACION_DESPACHO_DETALLE",
+        "valor": "1",
+        "aparece_en_eli": "No confirmado / no detectado",
+        "recomendacion": "evaluar"
+      },
+      {
+        "dato": "Codigo cliente SAP",
+        "fuente": "CITACION_DESPACHO_DETALLE",
+        "valor": "C77424780",
+        "aparece_en_eli": "Probablemente si (coincidencia semantica)",
+        "recomendacion": "dato duplicado"
+      },
+      {
+        "dato": "Nombre cliente SAP",
+        "fuente": "CITACION_DESPACHO_DETALLE",
+        "valor": "EWOS CHILE ALIMENTOS LTDA",
+        "aparece_en_eli": "Probablemente si (coincidencia semantica)",
+        "recomendacion": "dato duplicado"
+      },
+      {
+        "dato": "OC cliente SAP",
+        "fuente": "CITACION_DESPACHO_DETALLE",
+        "valor": "4036022",
+        "aparece_en_eli": "Probablemente si (coincidencia semantica)",
+        "recomendacion": "dato duplicado"
+      },
+      {
+        "dato": "Codigo producto SAP",
+        "fuente": "CITACION_DESPACHO_DETALLE",
+        "valor": "800049",
+        "aparece_en_eli": "Probablemente si (coincidencia semantica)",
+        "recomendacion": "dato duplicado"
+      },
+      {
+        "dato": "Nombre producto SAP",
+        "fuente": "CITACION_DESPACHO_DETALLE",
+        "valor": "ACEITE DE AVE",
+        "aparece_en_eli": "Probablemente si (coincidencia semantica)",
+        "recomendacion": "dato duplicado"
+      },
+      {
+        "dato": "Cantidad planificada SAP",
+        "fuente": "CITACION_DESPACHO_DETALLE",
+        "valor": "300.00000",
+        "aparece_en_eli": "No confirmado / no detectado",
+        "recomendacion": "evaluar"
+      },
+      {
+        "dato": "Cantidad consumida SAP",
+        "fuente": "CITACION_DESPACHO_DETALLE",
+        "valor": "222.07000",
+        "aparece_en_eli": "No confirmado / no detectado",
+        "recomendacion": "evaluar"
+      },
+      {
+        "dato": "Saldo contrato SAP",
+        "fuente": "CITACION_DESPACHO_DETALLE",
+        "valor": "77.93000",
+        "aparece_en_eli": "No confirmado / no detectado",
+        "recomendacion": "evaluar"
+      },
+      {
+        "dato": "Unidad medida SAP",
+        "fuente": "CITACION_DESPACHO_DETALLE",
+        "valor": "Cisterna",
+        "aparece_en_eli": "No confirmado / no detectado",
+        "recomendacion": "evaluar"
+      },
+      {
+        "dato": "Fecha creacion",
+        "fuente": "CITACION_DESPACHO_DETALLE",
+        "valor": "2026-07-23 14:44:18+00:00",
+        "aparece_en_eli": "No confirmado / no detectado",
+        "recomendacion": "evaluar"
+      },
+      {
+        "dato": "Fecha actualizacion",
+        "fuente": "CITACION_DESPACHO_DETALLE",
+        "valor": "2026-07-23 14:44:18+00:00",
+        "aparece_en_eli": "No confirmado / no detectado",
+        "recomendacion": "evaluar"
+      },
+      {
+        "dato": "ID",
+        "fuente": "CITACION_ITEM",
+        "valor": 38601,
+        "aparece_en_eli": "No confirmado / no detectado",
+        "recomendacion": "evaluar"
+      },
+      {
+        "dato": "Id empresa",
+        "fuente": "CITACION_ITEM",
+        "valor": "ACEITES SBH",
+        "aparece_en_eli": "No confirmado / no detectado",
+        "recomendacion": "evaluar"
+      },
+      {
+        "dato": "Id item",
+        "fuente": "CITACION_ITEM",
+        "valor": "ITEM object (26)",
+        "aparece_en_eli": "No confirmado / no detectado",
+        "recomendacion": "evaluar"
+      },
+      {
+        "dato": "Id citacion",
+        "fuente": "CITACION_ITEM",
+        "valor": "CITACION object (38601)",
+        "aparece_en_eli": "No confirmado / no detectado",
+        "recomendacion": "evaluar"
+      },
+      {
+        "dato": "ID",
+        "fuente": "DATO_OPERACION",
+        "valor": 273792,
+        "aparece_en_eli": "No confirmado / no detectado",
+        "recomendacion": "evaluar"
+      },
+      {
+        "dato": "Id usuario",
+        "fuente": "DATO_OPERACION",
+        "valor": "MAESC",
+        "aparece_en_eli": "No confirmado / no detectado",
+        "recomendacion": "evaluar"
+      },
+      {
+        "dato": "Id empresa",
+        "fuente": "DATO_OPERACION",
+        "valor": "ACEITES SBH",
+        "aparece_en_eli": "No confirmado / no detectado",
+        "recomendacion": "evaluar"
+      },
+      {
+        "dato": "Id secuencia",
+        "fuente": "DATO_OPERACION",
+        "valor": "TRASVASIJE_CLIENTE - Despacho por Trasvasije",
+        "aparece_en_eli": "No confirmado / no detectado",
+        "recomendacion": "evaluar"
+      },
+      {
+        "dato": "Id etapa",
+        "fuente": "DATO_OPERACION",
+        "valor": "DESPACHO_PROGRAMADO - Despacho Programado",
+        "aparece_en_eli": "No confirmado / no detectado",
+        "recomendacion": "evaluar"
+      },
+      {
+        "dato": "Id campo",
+        "fuente": "DATO_OPERACION",
+        "valor": "Proveedor SAP",
+        "aparece_en_eli": "No confirmado / no detectado",
+        "recomendacion": "evaluar"
+      },
+      {
+        "dato": "Id citacion",
+        "fuente": "DATO_OPERACION",
+        "valor": "CITACION object (38601)",
+        "aparece_en_eli": "No confirmado / no detectado",
+        "recomendacion": "evaluar"
+      },
+      {
+        "dato": "Fecha registro",
+        "fuente": "DATO_OPERACION",
+        "valor": "2026-07-23 14:44:18+00:00",
+        "aparece_en_eli": "No confirmado / no detectado",
+        "recomendacion": "evaluar"
+      },
+      {
+        "dato": "Valor dato",
+        "fuente": "DATO_OPERACION",
+        "valor": "TRANSPORTE INTERNACIONAL DON ALBERTO LIMITADA",
+        "aparece_en_eli": "No confirmado / no detectado",
+        "recomendacion": "evaluar"
+      },
+      {
+        "dato": "ID",
+        "fuente": "DATO_OPERACION",
+        "valor": 273793,
+        "aparece_en_eli": "No confirmado / no detectado",
+        "recomendacion": "evaluar"
+      },
+      {
+        "dato": "Id usuario",
+        "fuente": "DATO_OPERACION",
+        "valor": "MAESC",
+        "aparece_en_eli": "No confirmado / no detectado",
+        "recomendacion": "evaluar"
+      },
+      {
+        "dato": "Id empresa",
+        "fuente": "DATO_OPERACION",
+        "valor": "ACEITES SBH",
+        "aparece_en_eli": "No confirmado / no detectado",
+        "recomendacion": "evaluar"
+      },
+      {
+        "dato": "Id secuencia",
+        "fuente": "DATO_OPERACION",
+        "valor": "TRASVASIJE_CLIENTE - Despacho por Trasvasije",
+        "aparece_en_eli": "No confirmado / no detectado",
+        "recomendacion": "evaluar"
+      },
+      {
+        "dato": "Id etapa",
+        "fuente": "DATO_OPERACION",
+        "valor": "DESPACHO_PROGRAMADO - Despacho Programado",
+        "aparece_en_eli": "No confirmado / no detectado",
+        "recomendacion": "evaluar"
+      },
+      {
+        "dato": "Id campo",
+        "fuente": "DATO_OPERACION",
+        "valor": "Contrato SAP",
+        "aparece_en_eli": "No confirmado / no detectado",
+        "recomendacion": "evaluar"
+      },
+      {
+        "dato": "Id citacion",
+        "fuente": "DATO_OPERACION",
+        "valor": "CITACION object (38601)",
+        "aparece_en_eli": "No confirmado / no detectado",
+        "recomendacion": "evaluar"
+      },
+      {
+        "dato": "Fecha registro",
+        "fuente": "DATO_OPERACION",
+        "valor": "2026-07-23 14:44:18+00:00",
+        "aparece_en_eli": "No confirmado / no detectado",
+        "recomendacion": "evaluar"
+      },
+      {
+        "dato": "Valor dato",
+        "fuente": "DATO_OPERACION",
+        "valor": "340",
+        "aparece_en_eli": "No confirmado / no detectado",
+        "recomendacion": "evaluar"
+      }
+    ],
+    "15. Datos duplicados o contradictorios": [
+      {
+        "dato": "id id",
+        "fuentes_y_valores": [
+          [
+            "CITACION",
+            38601
+          ],
+          [
+            "CITACION_DETALLE_OPERACIONAL",
+            83
+          ],
+          [
+            "CITACION_DESPACHO_DETALLE",
+            20
+          ],
+          [
+            "CITACION_ITEM",
+            38601
+          ],
+          [
+            "DATO_OPERACION",
+            273792
+          ],
+          [
+            "DATO_OPERACION",
+            273793
+          ]
+        ],
+        "coinciden": false
+      },
+      {
+        "dato": "us nid id usuario",
+        "fuentes_y_valores": [
+          [
+            "CITACION",
+            "MAESC"
+          ],
+          [
+            "DATO_OPERACION",
+            "MAESC"
+          ],
+          [
+            "DATO_OPERACION",
+            "MAESC"
+          ]
+        ],
+        "coinciden": true
+      },
+      {
+        "dato": "ep nid id empresa",
+        "fuentes_y_valores": [
+          [
+            "CITACION",
+            "ACEITES SBH"
+          ],
+          [
+            "CITACION_DETALLE_OPERACIONAL",
+            "ACEITES SBH"
+          ],
+          [
+            "CITACION_DESPACHO_DETALLE",
+            "ACEITES SBH"
+          ],
+          [
+            "CITACION_ITEM",
+            "ACEITES SBH"
+          ],
+          [
+            "DATO_OPERACION",
+            "ACEITES SBH"
+          ],
+          [
+            "DATO_OPERACION",
+            "ACEITES SBH"
+          ]
+        ],
+        "coinciden": true
+      },
+      {
+        "dato": "sc nid id secuencia",
+        "fuentes_y_valores": [
+          [
+            "CITACION",
+            "TRASVASIJE_CLIENTE - Despacho por Trasvasije"
+          ],
+          [
+            "DATO_OPERACION",
+            "TRASVASIJE_CLIENTE - Despacho por Trasvasije"
+          ],
+          [
+            "DATO_OPERACION",
+            "TRASVASIJE_CLIENTE - Despacho por Trasvasije"
+          ]
+        ],
+        "coinciden": true
+      },
+      {
+        "dato": "ci nid id citacion",
+        "fuentes_y_valores": [
+          [
+            "CITACION_DETALLE_OPERACIONAL",
+            "CITACION object (38601)"
+          ],
+          [
+            "CITACION_DESPACHO_DETALLE",
+            "CITACION object (38601)"
+          ],
+          [
+            "CITACION_ITEM",
+            "CITACION object (38601)"
+          ],
+          [
+            "DATO_OPERACION",
+            "CITACION object (38601)"
+          ],
+          [
+            "DATO_OPERACION",
+            "CITACION object (38601)"
+          ]
+        ],
+        "coinciden": true
+      },
+      {
+        "dato": "us nid usuario creacion",
+        "fuentes_y_valores": [
+          [
+            "CITACION_DETALLE_OPERACIONAL",
+            "MAESC"
+          ],
+          [
+            "CITACION_DESPACHO_DETALLE",
+            "MAESC"
+          ]
+        ],
+        "coinciden": true
+      },
+      {
+        "dato": "et nid id etapa",
+        "fuentes_y_valores": [
+          [
+            "DATO_OPERACION",
+            "DESPACHO_PROGRAMADO - Despacho Programado"
+          ],
+          [
+            "DATO_OPERACION",
+            "DESPACHO_PROGRAMADO - Despacho Programado"
+          ]
+        ],
+        "coinciden": true
+      },
+      {
+        "dato": "camp nid id campo",
+        "fuentes_y_valores": [
+          [
+            "DATO_OPERACION",
+            "Proveedor SAP"
+          ],
+          [
+            "DATO_OPERACION",
+            "Contrato SAP"
+          ]
+        ],
+        "coinciden": false
+      },
+      {
+        "dato": "do ffecharegistro fecha registro",
+        "fuentes_y_valores": [
+          [
+            "DATO_OPERACION",
+            "2026-07-23 14:44:18+00:00"
+          ],
+          [
+            "DATO_OPERACION",
+            "2026-07-23 14:44:18+00:00"
+          ]
+        ],
+        "coinciden": true
+      },
+      {
+        "dato": "do cvalor valor dato",
+        "fuentes_y_valores": [
+          [
+            "DATO_OPERACION",
+            "TRANSPORTE INTERNACIONAL DON ALBERTO LIMITADA"
+          ],
+          [
+            "DATO_OPERACION",
+            "340"
+          ]
+        ],
+        "coinciden": false
+      }
+    ],
+    "16. Linea de tiempo completa": [
+      {
+        "fecha": "2026-07-23 04:00:00+00:00",
+        "evento": "Fecha citacion",
+        "etapa": "",
+        "usuario": "",
+        "perfil": "",
+        "fuente": "CITACION",
+        "detalle": "CI_FFECHACITACION"
+      },
+      {
+        "fecha": "2026-07-23 14:44:18+00:00",
+        "evento": "Fecha registro",
+        "etapa": "",
+        "usuario": "",
+        "perfil": "",
+        "fuente": "CITACION",
+        "detalle": "CI_FFECHAREGISTRO"
+      },
+      {
+        "fecha": "2026-07-23 14:44:18+00:00",
+        "evento": "CITACION_DETALLE_OPERACIONAL",
+        "etapa": "",
+        "usuario": "",
+        "perfil": "",
+        "fuente": "CITACION_DETALLE_OPERACIONAL",
+        "detalle": "id=83; CI_NID=CITACION object (38601); EP_NID=ACEITES SBH; US_NID=MAESC; CDO_CORIGEN=planificacion; CDO_CINF_24HRS=Terramar; CDO_CCODIGO_SAP=800049; CDO_CINSUMO=ACEITE DE AVE"
+      },
+      {
+        "fecha": "2026-07-23 14:44:18+00:00",
+        "evento": "CITACION_DESPACHO_DETALLE",
+        "etapa": "",
+        "usuario": "",
+        "perfil": "",
+        "fuente": "CITACION_DESPACHO_DETALLE",
+        "detalle": "id=20; CI_NID=CITACION object (38601); EP_NID=ACEITES SBH; US_NID=MAESC; CDD_CDESTINO=Chillan; CDD_COC_CLIENTE=4036022; CDD_NCANTIDAD_INTENTADA_DESPACHAR=1.00000; CDD_CCONDICION_ENTREGA=Terramar"
+      },
+      {
+        "fecha": "2026-07-23 14:44:18+00:00",
+        "evento": "CITACION_DESPACHO_DETALLE",
+        "etapa": "",
+        "usuario": "",
+        "perfil": "",
+        "fuente": "CITACION_DESPACHO_DETALLE",
+        "detalle": "id=20; CI_NID=CITACION object (38601); EP_NID=ACEITES SBH; US_NID=MAESC; CDD_CDESTINO=Chillan; CDD_COC_CLIENTE=4036022; CDD_NCANTIDAD_INTENTADA_DESPACHAR=1.00000; CDD_CCONDICION_ENTREGA=Terramar"
+      },
+      {
+        "fecha": "2026-07-23 14:44:18+00:00",
+        "evento": "DATO_OPERACION",
+        "etapa": "",
+        "usuario": "",
+        "perfil": "",
+        "fuente": "DATO_OPERACION",
+        "detalle": "id=273792; US_NID=MAESC; EP_NID=ACEITES SBH; SC_NID=TRASVASIJE_CLIENTE - Despacho por Trasvasije; ET_NID=DESPACHO_PROGRAMADO - Despacho Programado; CAMP_NID=Proveedor SAP; CI_NID=CITACION object (38601); DO_FFECHAREGISTRO=2026-07-23 14:44:18+00:00"
+      },
+      {
+        "fecha": "2026-07-23 14:44:18+00:00",
+        "evento": "DATO_OPERACION",
+        "etapa": "",
+        "usuario": "",
+        "perfil": "",
+        "fuente": "DATO_OPERACION",
+        "detalle": "id=273793; US_NID=MAESC; EP_NID=ACEITES SBH; SC_NID=TRASVASIJE_CLIENTE - Despacho por Trasvasije; ET_NID=DESPACHO_PROGRAMADO - Despacho Programado; CAMP_NID=Contrato SAP; CI_NID=CITACION object (38601); DO_FFECHAREGISTRO=2026-07-23 14:44:18+00:00"
+      },
+      {
+        "fecha": "21hrs",
+        "evento": "CITACION_DESPACHO_DETALLE",
+        "etapa": "",
+        "usuario": "",
+        "perfil": "",
+        "fuente": "CITACION_DESPACHO_DETALLE",
+        "detalle": "id=20; CI_NID=CITACION object (38601); EP_NID=ACEITES SBH; US_NID=MAESC; CDD_CDESTINO=Chillan; CDD_COC_CLIENTE=4036022; CDD_NCANTIDAD_INTENTADA_DESPACHAR=1.00000; CDD_CCONDICION_ENTREGA=Terramar"
+      }
+    ],
+    "17. Resumen final": [
+      {
+        "tablas_relacionadas": 17,
+        "registros_totales": 5,
+        "documentos": 0,
+        "etapas_log": 0,
+        "logs_operacion": 0,
+        "campos_con_informacion": 86,
+        "duplicados_o_contradicciones": 10,
+        "relaciones_no_confirmadas": 0
+      }
+    ],
+    "Modelos y relaciones inspeccionados": [
+      {
+        "tabla": "CITACION_DETALLE_OPERACIONAL",
+        "modelo": "home.CITACION_DETALLE_OPERACIONAL",
+        "campo_relacion": "CI_NID",
+        "registros": 1
+      },
+      {
+        "tabla": "CITACION_DESPACHO_DETALLE",
+        "modelo": "home.CITACION_DESPACHO_DETALLE",
+        "campo_relacion": "CI_NID",
+        "registros": 1
+      },
+      {
+        "tabla": "CITACION_ITEM",
+        "modelo": "home.CITACION_ITEM",
+        "campo_relacion": "CI_NID",
+        "registros": 1
+      },
+      {
+        "tabla": "CITACION_EXTRA",
+        "modelo": "home.CITACION_EXTRA",
+        "campo_relacion": "CI_NID",
+        "registros": 0
+      },
+      {
+        "tabla": "ETAPA_LOG",
+        "modelo": "home.ETAPA_LOG",
+        "campo_relacion": "CI_NID",
+        "registros": 0
+      },
+      {
+        "tabla": "ETAPA_ACCION",
+        "modelo": "home.ETAPA_ACCION",
+        "campo_relacion": "CI_NID",
+        "registros": 0
+      },
+      {
+        "tabla": "DATO_ACCION",
+        "modelo": "home.DATO_ACCION",
+        "campo_relacion": "CI_NID",
+        "registros": 0
+      },
+      {
+        "tabla": "DATO_OPERACION",
+        "modelo": "home.DATO_OPERACION",
+        "campo_relacion": "CI_NID",
+        "registros": 2
+      },
+      {
+        "tabla": "CITACION_DOCUMENTO",
+        "modelo": "home.CITACION_DOCUMENTO",
+        "campo_relacion": "CI_NID",
+        "registros": 0
+      },
+      {
+        "tabla": "ESTANQUE_RESERVA",
+        "modelo": "home.ESTANQUE_RESERVA",
+        "campo_relacion": "CI_NID",
+        "registros": 0
+      },
+      {
+        "tabla": "OPERACION_PLANTA_LOG",
+        "modelo": "home.OPERACION_PLANTA_LOG",
+        "campo_relacion": "CI_NID",
+        "registros": 0
+      },
+      {
+        "tabla": "RESULTADO_CALIDAD_OPERACION",
+        "modelo": "home.RESULTADO_CALIDAD_OPERACION",
+        "campo_relacion": "CI_NID",
+        "registros": 0
+      },
+      {
+        "tabla": "RESULTADO_CALIDAD_HISTORIAL",
+        "modelo": "home.RESULTADO_CALIDAD_HISTORIAL",
+        "campo_relacion": "CI_NID",
+        "registros": 0
+      },
+      {
+        "tabla": "EVENTO_INTEGRACION_CALIDAD",
+        "modelo": "home.EVENTO_INTEGRACION_CALIDAD",
+        "campo_relacion": "CI_NID",
+        "registros": 0
+      },
+      {
+        "tabla": "CITACION_PROFORMA",
+        "modelo": "home.CITACION_PROFORMA",
+        "campo_relacion": "CI_NID",
+        "registros": 0
+      },
+      {
+        "tabla": "CAMION_PATIO",
+        "modelo": "home.CAMION_PATIO",
+        "campo_relacion": "CI_NID",
+        "registros": 0
+      },
+      {
+        "tabla": "CAMION_PATIO_NO_PLANIFICADO",
+        "modelo": "home.CAMION_PATIO_NO_PLANIFICADO",
+        "campo_relacion": "CI_NID",
+        "registros": 0
+      }
+    ],
+    "Relaciones no confirmadas": []
+  }
+}

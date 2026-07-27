@@ -62,6 +62,12 @@ from .sap_recepcion import (
     send_goods_receipt_draft_to_sap,
 )
 from .sap_despacho import consultar_acuerdos_despacho
+from .phone_utils import normalize_international_phone, split_legacy_phone
+from .constants.country_calling_codes import country_options
+from .services.notification_service import (
+    crear_notificacion_interna,
+    marcar_notificacion_interna_leida,
+)
 from .services.teams_service import (
     TeamsNotificationResult,
     enviar_alerta_camion_no_planificado_teams,
@@ -253,12 +259,76 @@ def CREAR_PLANIFICACION_CITACION(request):
         citaciones_creadas = []
 
         for i, item in enumerate(citaciones_data):
+            tipo_item_citacion = str(item.get('tipo_operacion', tipo_operacion)).strip().upper()
+            if tipo_item_citacion == 'DESPACHO':
+                condicion_entrega = str(
+                    item.get('condicion_entrega')
+                    or item.get('transportado_por')
+                    or item.get('inf_24hrs')
+                    or ''
+                ).strip()
+                if condicion_entrega not in ['Terramar', 'Cliente']:
+                    return JsonResponse({
+                        'success': False,
+                        'message': 'Debe seleccionar Condicion de entrega para crear el despacho.'
+                    }, status=400)
+
+                def limpiar_texto_despacho(valor):
+                    return re.sub(r'\s+', ' ', str(valor or '')).strip()
+
+                empresa_transporte_manual = limpiar_texto_despacho(
+                    item.get('empresa_transporte_manual') or item.get('empresa_transporte')
+                )
+                conductor_manual = limpiar_texto_despacho(
+                    item.get('conductor_manual') or item.get('conductor')
+                )
+                patente_despacho = limpiar_texto_despacho(item.get('patente')).upper()
+                item['condicion_entrega'] = condicion_entrega
+                item['transportado_por'] = condicion_entrega
+                item['inf_24hrs'] = condicion_entrega
+                item['patente'] = patente_despacho
+
+                if condicion_entrega == 'Cliente':
+                    item['empresa_transporte'] = empresa_transporte_manual
+                    item['proveedor_nombre'] = empresa_transporte_manual
+                    item['proveedor_sap'] = ''
+                    item['proveedor'] = ''
+                    item['proveedor_codigo'] = ''
+                    item['codigo_proveedor_sap'] = ''
+                    item['empresa_transporte_id'] = ''
+                    item['conductor'] = conductor_manual
+                    item['conductor_id'] = ''
+                    item['ingreso_manual_transporte'] = True
+                else:
+                    item['empresa_transporte'] = limpiar_texto_despacho(item.get('empresa_transporte'))
+                    item['empresa_transporte_manual'] = ''
+                    item['conductor'] = limpiar_texto_despacho(item.get('conductor'))
+                    item['conductor_manual'] = ''
+                    item['ingreso_manual_transporte'] = False
+
+                    campos_transporte_terramar = {
+                        'empresa transporte': item.get('empresa_transporte'),
+                        'conductor': item.get('conductor'),
+                        'patente': item.get('patente'),
+                    }
+                    faltantes_transporte = [
+                        etiqueta for etiqueta, valor in campos_transporte_terramar.items()
+                        if not str(valor or '').strip()
+                    ]
+                    if faltantes_transporte:
+                        return JsonResponse({
+                            'success': False,
+                            'message': 'Debe completar los campos de transporte Terramar: ' + ', '.join(faltantes_transporte) + '.'
+                        }, status=400)
+
             cliente_codigo = item.get('cliente_codigo', '').strip()
             proveedor_codigo = item.get('proveedor', '').strip()
             proveedor_codigo_hidden = item.get('proveedor_codigo', '').strip()
             codigo_proveedor_sap = item.get('codigo_proveedor_sap', '').strip()
             proveedor_codigo_final = codigo_proveedor_sap or proveedor_codigo_hidden or proveedor_codigo
             proveedor_sap = item.get('proveedor_sap') or item.get('proveedor_nombre') or ''
+            if tipo_item_citacion == 'DESPACHO' and item.get('condicion_entrega') == 'Cliente':
+                proveedor_sap = ''
             secuencia_item_id = item.get('secuencia_id') or secuencia_id
             secuencia_item = secuencia
 
@@ -278,7 +348,10 @@ def CREAR_PLANIFICACION_CITACION(request):
                 nombre=item.get('cliente_nombre')
             )
 
-            proveedor_sn = resolver_socio_negocio_planificacion(
+            proveedor_sn = None if (
+                tipo_item_citacion == 'DESPACHO'
+                and item.get('condicion_entrega') == 'Cliente'
+            ) else resolver_socio_negocio_planificacion(
                 Empresa,
                 'S',
                 valor=proveedor_codigo,
@@ -286,7 +359,6 @@ def CREAR_PLANIFICACION_CITACION(request):
                 nombre=proveedor_sap or item.get('proveedor_nombre')
             )
 
-            tipo_item_citacion = str(item.get('tipo_operacion', tipo_operacion)).upper()
             if tipo_item_citacion == 'DESPACHO':
                 salida_documento = normalizar_salida_documento_despacho(item.get('salida_documento'))
                 if not salida_documento:
@@ -377,7 +449,7 @@ def CREAR_PLANIFICACION_CITACION(request):
 def CREAR_CITACION_NO_PLANIFICADA(request, pk):
     try:
         if request.method != 'POST':
-            return JsonResponse({'success': False, 'message': 'MÃ©todo no permitido.'})
+            return JsonResponse({'success': False, 'message': 'Método no permitido.'})
 
         Empresa = Verificar_empresa(request)
 
@@ -498,7 +570,7 @@ def CREAR_CITACION_NO_PLANIFICADA(request, pk):
             )
             return JsonResponse({
                 'success': False,
-                'message': 'No quedan sobrecupos disponibles para esta planificaciÃ³n.'
+                'message': 'No quedan sobrecupos disponibles para esta planificación.'
             })
 
         cliente_codigo = request.POST.get('cliente_codigo', '').strip()
@@ -742,13 +814,13 @@ def CREAR_CITACION_NO_PLANIFICADA(request, pk):
 
         return JsonResponse({
             'success': True,
-            'message': 'CamiÃ³n no planificado agregado correctamente.',
+            'message': 'Camión no planificado agregado correctamente.',
             'citacion_id': citacion.id,
             'solicitud_patio_no_planificado_id': solicitud_camion_patio.id if solicitud_camion_patio else None,
         })
 
     except PLANIFICACION.DoesNotExist:
-        return JsonResponse({'success': False, 'message': 'No se encontrÃ³ la planificaciÃ³n.'})
+        return JsonResponse({'success': False, 'message': 'No se encontró la planificación.'})
     except Exception as e:
         transaction.set_rollback(True)
         print('ERROR CREAR_CITACION_NO_PLANIFICADA:', e)
@@ -793,15 +865,15 @@ def NOTIFICAR_CAMION_NO_PLANIFICADO_LEGACY(request):
         fecha_hora = timezone.localtime(timezone.now()).strftime('%d/%m/%Y %H:%M:%S')
         empresa_nombre = empresa.EP_CRAZONSOCIAL if empresa else str(Empresa)
         mensaje = (
-            '🚛 ALERTA CAMIÓN NO PLANIFICADO\n\n'
+            'ALERTA CAMIÓN NO PLANIFICADO\n\n'
             f'Guardia: {request.user.username}\n'
             f'Planificación: {planificacion.id}\n'
             f'Empresa: {empresa_nombre}\n'
             f'Fecha/hora: {fecha_hora}\n\n'
-            'Acción requerida por planificación.'
+            'Acción requerida por Planificación.'
         )
 
-        notificacion = NOTIFICACION.objects.create(
+        notificacion = crear_notificacion_interna(
             USER_SENDER_ID=request.user,
             USER_RECEIVER_ID=planificador,
             EP_NID=empresa,
@@ -818,7 +890,7 @@ def NOTIFICAR_CAMION_NO_PLANIFICADO_LEGACY(request):
             'message': 'Se notifico al planificador',
             'teams_status': resultado_teams.status,
             'teams_sent': resultado_teams.success,
-            'notificacion_id': notificacion.id
+            'notificacion_id': getattr(notificacion, 'id', None)
         })
 
     except PLANIFICACION.DoesNotExist:
@@ -847,7 +919,7 @@ def obtener_planificador_camion_no_planificado():
     return User.objects.filter(username__iexact='MAESC', is_active=True).first()
 
 
-def registrar_log_camion_no_planificado(usuario, empresa, operacion, descripcion, add1='', add2=''):
+def registrar_log_camion_no_planificado(usuario, empresa, operacion, descripcion, add1='', add2='', raise_on_error=False):
     try:
         SYSLOGGER.objects.create(
             US_NID=usuario,
@@ -859,8 +931,13 @@ def registrar_log_camion_no_planificado(usuario, empresa, operacion, descripcion
             LOG_CADD1=str(add1 or '')[:128],
             LOG_CADD2=str(add2 or '')[:128]
         )
-    except Exception as log_error:
-        print('ERROR LOG CAMION_NO_PLANIFICADO:', log_error)
+    except Exception:
+        logger.exception(
+            'Error registrando trazabilidad de camion',
+            extra={'operacion': operacion, 'citacion_id': str(add1 or ''), 'camion_patio_id': str(add2 or '')},
+        )
+        if raise_on_error:
+            raise
 
 
 def armar_mensaje_solicitud_camion_no_planificado(request, solicitud, empresa, planificacion):
@@ -961,7 +1038,7 @@ def SOLICITAR_CAMION_NO_PLANIFICADO(request):
         )
 
         mensaje = armar_mensaje_solicitud_camion_no_planificado(request, solicitud, empresa, planificacion)
-        notificacion = NOTIFICACION.objects.create(
+        notificacion = crear_notificacion_interna(
             USER_SENDER_ID=request.user,
             USER_RECEIVER_ID=planificador,
             EP_NID=empresa,
@@ -985,7 +1062,7 @@ def SOLICITAR_CAMION_NO_PLANIFICADO(request):
             'teams_status': resultado_teams.status,
             'teams_sent': resultado_teams.success,
             'solicitud_id': solicitud.id,
-            'notificacion_id': notificacion.id
+            'notificacion_id': getattr(notificacion, 'id', None)
         })
 
     except PLANIFICACION.DoesNotExist:
@@ -1067,7 +1144,7 @@ def RECHAZAR_CAMION_NO_PLANIFICADO(request):
             f'Link interno: {request.build_absolute_uri(f"/pla_listone/{planificacion.id}")}'
         )
 
-        NOTIFICACION.objects.create(
+        crear_notificacion_interna(
             USER_SENDER_ID=request.user,
             USER_RECEIVER_ID=solicitud.US_GUARDIA_ID,
             EP_NID=empresa,
@@ -1198,7 +1275,7 @@ def _crear_notificacion_citacion_no_planificada(solicitud, usuario_planificador)
     ).strip().upper()
     tipo_operacion = 'Recepción' if tipo_operacion_codigo == 'RECEPCION' else 'Despacho'
     contenido = (
-        'Citación creada para camión no planificado\n'
+        'citación creada para camión no planificado\n'
         f'La citación #{citacion.id} fue creada para la patente {camion.CPA_CPATENTE}.\n'
         f'El camión ya puede continuar con el proceso de {tipo_operacion}.\n'
         f'Planificación: #{planificacion.id if planificacion else "-"}'
@@ -1224,7 +1301,7 @@ def _crear_notificacion_citacion_no_planificada(solicitud, usuario_planificador)
 
     try:
         with transaction.atomic():
-            notificacion = NOTIFICACION.objects.create(
+            notificacion = crear_notificacion_interna(
                 USER_SENDER_ID=usuario_planificador,
                 USER_RECEIVER_ID=destinatario,
                 EP_NID=solicitud.EP_NID,
@@ -1240,6 +1317,17 @@ def _crear_notificacion_citacion_no_planificada(solicitud, usuario_planificador)
             solicitud.EP_NID,
             'PAT_NP_NOT_ERR',
             f'Error controlado al crear notificacion final: {type(exc).__name__}: {str(exc)[:250]}. {datos_log}',
+            solicitud.id,
+            camion.id,
+        )
+        return None, False
+
+    if notificacion is None:
+        registrar_log_camion_no_planificado(
+            usuario_planificador,
+            solicitud.EP_NID,
+            'PAT_NP_NOT_ERR',
+            f'Notificacion final no creada: destinatario sin acceso vigente. {datos_log}',
             solicitud.id,
             camion.id,
         )
@@ -1415,7 +1503,7 @@ def notificar_camion_patio_nuevo(camion, usuario_registra):
             NOT_BHABILITADO=True,
         ).exists():
             continue
-        NOTIFICACION.objects.create(
+        crear_notificacion_interna(
             USER_SENDER_ID=usuario_registra,
             USER_RECEIVER_ID=usuario,
             EP_NID=empresa,
@@ -1439,13 +1527,61 @@ def _detalle_operacional_citacion(citacion):
         return None
 
 
+def _normalizar_patente_camion_patio(valor):
+    return (
+        str(valor or '')
+        .strip()
+        .upper()
+        .replace('-', '')
+        .replace(' ', '')
+        .replace('.', '')
+    )
+
+
+def _tipo_citacion_patio(citacion):
+    tipo = str(citacion.CI_CTIPO or (citacion.PL_NID.PL_CTIPOCUPO if citacion.PL_NID else '') or '').upper()
+    return tipo if tipo in {CIT_DESPACHO, CIT_RECEPCION} else CIT_RECEPCION
+
+
+def _detalle_despacho_citacion_patio(citacion):
+    try:
+        return citacion.detalle_despacho
+    except (CITACION_DESPACHO_DETALLE.DoesNotExist, AttributeError):
+        return None
+
+
+def _patente_planificada_despacho_patio(citacion, valores_ingreso=None):
+    if _tipo_citacion_patio(citacion) != CIT_DESPACHO:
+        return ''
+    detalle_despacho = _detalle_despacho_citacion_patio(citacion)
+    if detalle_despacho and str(detalle_despacho.CDD_CPATENTE or '').strip():
+        return str(detalle_despacho.CDD_CPATENTE or '').strip()
+    valores_ingreso = valores_ingreso if valores_ingreso is not None else obtener_valores_ingreso_camion(citacion)
+    return str(valores_ingreso.get('patente') or '').strip()
+
+
+def _estado_patente_despacho_patio(camion, citacion, valores_ingreso=None):
+    patente_citacion = _patente_planificada_despacho_patio(citacion, valores_ingreso=valores_ingreso)
+    patente_camion_normalizada = _normalizar_patente_camion_patio(camion.CPA_CPATENTE)
+    patente_citacion_normalizada = _normalizar_patente_camion_patio(patente_citacion)
+    if not patente_citacion_normalizada:
+        return patente_citacion, patente_citacion_normalizada, False, 'pendiente'
+    if patente_camion_normalizada and patente_camion_normalizada == patente_citacion_normalizada:
+        return patente_citacion, patente_citacion_normalizada, True, 'coincide'
+    return patente_citacion, patente_citacion_normalizada, False, 'distinta'
+
+
 def _score_citacion_camion_patio(camion, citacion):
     detalle = _detalle_operacional_citacion(citacion)
     valores_ingreso = obtener_valores_ingreso_camion(citacion)
+    tipo = _tipo_citacion_patio(citacion)
     score = 0
     razones = []
-    patente_camion = _normalizar_match_texto(camion.CPA_CPATENTE).replace(' ', '')
-    patente_citacion = _normalizar_match_texto(valores_ingreso.get('patente')).replace(' ', '')
+    patente, patente_normalizada, patente_coincide, patente_estado = _estado_patente_despacho_patio(
+        camion,
+        citacion,
+        valores_ingreso=valores_ingreso,
+    )
     producto_camion = _normalizar_match_texto(camion.CPA_CINSUMO_DECLARADO_GUIA)
     proveedor_camion = _normalizar_match_texto(camion.CPA_CPROVEEDOR_DECLARADO)
     cliente_camion = _normalizar_match_texto(camion.CPA_CCLIENTE_DECLARADO)
@@ -1453,7 +1589,7 @@ def _score_citacion_camion_patio(camion, citacion):
     proveedor_citacion = _normalizar_match_texto((detalle.CDO_CPRODUCTOR if detalle else '') or (citacion.PRO_NID.SN_CRAZONSOCIAL if citacion.PRO_NID else ''))
     cliente_citacion = _normalizar_match_texto(citacion.SN_NID.SN_CRAZONSOCIAL if citacion.SN_NID else '')
 
-    if patente_camion and patente_citacion and patente_camion == patente_citacion:
+    if tipo == CIT_DESPACHO and patente_coincide:
         score += 100
         razones.append('Patente coincide')
     if producto_camion and producto_citacion and (producto_camion in producto_citacion or producto_citacion in producto_camion):
@@ -1475,15 +1611,18 @@ def _score_citacion_camion_patio(camion, citacion):
         elif horas <= 72:
             score += 4
             razones.append('Horario relacionado')
-    return score, razones
+    return score, list(dict.fromkeys(razones)), {
+        'patente': patente if tipo == CIT_DESPACHO else '',
+        'patente_normalizada': patente_normalizada if tipo == CIT_DESPACHO else '',
+        'patente_coincide': patente_coincide if tipo == CIT_DESPACHO else False,
+        'patente_estado': patente_estado if tipo == CIT_DESPACHO else '',
+    }
 
 
 def _serializar_citacion_patio(camion, citacion, citacion_aprobada_id=None):
     detalle = _detalle_operacional_citacion(citacion)
-    score, razones = _score_citacion_camion_patio(camion, citacion)
-    tipo = str(citacion.CI_CTIPO or (citacion.PL_NID.PL_CTIPOCUPO if citacion.PL_NID else '') or '').upper()
-    if tipo not in {CIT_DESPACHO, CIT_RECEPCION}:
-        tipo = CIT_RECEPCION
+    score, razones, patente_info = _score_citacion_camion_patio(camion, citacion)
+    tipo = _tipo_citacion_patio(citacion)
     abrir_url = ''
     if citacion.PL_NID_id:
         abrir_url = (
@@ -1494,6 +1633,7 @@ def _serializar_citacion_patio(camion, citacion, citacion_aprobada_id=None):
             f'&citacion={citacion.id}'
             f'&tipo={tipo}'
         )
+    secuencia = citacion.SC_NID
     return {
         'id': citacion.id,
         'es_citacion_aprobada': citacion.id == citacion_aprobada_id,
@@ -1503,6 +1643,11 @@ def _serializar_citacion_patio(camion, citacion, citacion_aprobada_id=None):
         'tipo_label': 'DESPACHO' if tipo == CIT_DESPACHO else 'RECEPCION',
         'abrir_url': abrir_url,
         'planificacion': citacion.PL_NID_id,
+        'secuencia_operacional': {
+            'id': secuencia.id,
+            'codigo': secuencia.SE_CCODIGO or '',
+            'nombre': secuencia.SE_CNOMBRE or '',
+        } if secuencia else None,
         'fecha_planificacion': timezone.localtime(citacion.PL_NID.PL_FFECHAINICIO).strftime('%d/%m/%Y %H:%M') if citacion.PL_NID and citacion.PL_NID.PL_FFECHAINICIO else '',
         'cliente': citacion.SN_NID.SN_CRAZONSOCIAL if citacion.SN_NID else '',
         'proveedor': (detalle.CDO_CPRODUCTOR if detalle else '') or (citacion.PRO_NID.SN_CRAZONSOCIAL if citacion.PRO_NID else ''),
@@ -1511,6 +1656,10 @@ def _serializar_citacion_patio(camion, citacion, citacion_aprobada_id=None):
         'contrato_sap': detalle.CDO_CCONTRATO_SAP if detalle and hasattr(detalle, 'CDO_CCONTRATO_SAP') else '',
         'docentry': detalle.CDO_CDOCENTRY if detalle else '',
         'estado': citacion.CI_CESTADO,
+        'patente': patente_info.get('patente', ''),
+        'patente_normalizada': patente_info.get('patente_normalizada', ''),
+        'patente_coincide': patente_info.get('patente_coincide', False),
+        'patente_estado': patente_info.get('patente_estado', ''),
     }
 
 
@@ -1591,7 +1740,7 @@ def _citaciones_disponibles_para_patio(camion):
         CPA_CESTADO=CAMION_PATIO.ESTADO_ASOCIADO_CITACION
     ).values_list('CI_NID_id', flat=True)
     citaciones = CITACION.objects.select_related(
-        'PL_NID', 'SN_NID', 'PRO_NID', 'SC_NID'
+        'PL_NID', 'SN_NID', 'PRO_NID', 'SC_NID', 'detalle_despacho'
     ).filter(
         EP_NID=camion.EP_NID,
         CI_BHABILITADO=True
@@ -1607,7 +1756,7 @@ def _citaciones_disponibles_para_patio(camion):
 
     if citacion_aprobada_id and not any(citacion.id == citacion_aprobada_id for citacion in citaciones):
         citacion_aprobada = CITACION.objects.select_related(
-            'PL_NID', 'SN_NID', 'PRO_NID', 'SC_NID'
+            'PL_NID', 'SN_NID', 'PRO_NID', 'SC_NID', 'detalle_despacho'
         ).filter(
             pk=citacion_aprobada_id,
             EP_NID=camion.EP_NID,
@@ -1620,7 +1769,12 @@ def _citaciones_disponibles_para_patio(camion):
         _serializar_citacion_patio(camion, citacion, citacion_aprobada_id=citacion_aprobada_id)
         for citacion in citaciones
     ]
-    data.sort(key=lambda item: (item['es_citacion_aprobada'], item['score'], item['id']), reverse=True)
+    data.sort(key=lambda item: (
+        item['es_citacion_aprobada'],
+        item['tipo'] == CIT_DESPACHO and item.get('patente_coincide'),
+        item['score'],
+        item['id']
+    ), reverse=True)
     return data
 
 
@@ -1635,7 +1789,9 @@ def _serializar_camion_patio(camion):
         'transporte_a_cargo_label': camion.get_transporte_a_cargo_display(),
         'conductor': camion.CPA_CNOMBRE_CONDUCTOR,
         'rut_conductor': camion.CPA_CRUT_CONDUCTOR or '',
-        'telefono': camion.CPA_CTELEFONO_CONDUCTOR or '',
+        'telefono': split_legacy_phone(camion.CPA_CCODIGO_PAIS_TELEFONO, camion.CPA_CTELEFONO_CONDUCTOR)['local_number'],
+        'telefono_codigo_pais': split_legacy_phone(camion.CPA_CCODIGO_PAIS_TELEFONO, camion.CPA_CTELEFONO_CONDUCTOR)['country_code'],
+        'telefono_completo': split_legacy_phone(camion.CPA_CCODIGO_PAIS_TELEFONO, camion.CPA_CTELEFONO_CONDUCTOR)['full_number'],
         'transportista': camion.CPA_CTRANSPORTISTA_DECLARADO or '',
         'proveedor': camion.CPA_CPROVEEDOR_DECLARADO or '',
         'insumo_declarado_guia': camion.CPA_CINSUMO_DECLARADO_GUIA or '',
@@ -1891,7 +2047,9 @@ def _serializar_camion_control_patio(camion, indice_zona, zona, ahora=None):
         'tiempo_patio': _formatear_tiempo_patio(segundos),
         'transportista': camion.CPA_CTRANSPORTISTA_DECLARADO or 'Sin informacion',
         'conductor': camion.CPA_CNOMBRE_CONDUCTOR or 'Sin informacion',
-        'telefono': camion.CPA_CTELEFONO_CONDUCTOR or '',
+        'telefono': split_legacy_phone(camion.CPA_CCODIGO_PAIS_TELEFONO, camion.CPA_CTELEFONO_CONDUCTOR)['local_number'],
+        'telefono_codigo_pais': split_legacy_phone(camion.CPA_CCODIGO_PAIS_TELEFONO, camion.CPA_CTELEFONO_CONDUCTOR)['country_code'],
+        'telefono_completo': split_legacy_phone(camion.CPA_CCODIGO_PAIS_TELEFONO, camion.CPA_CTELEFONO_CONDUCTOR)['full_number'],
         'estado': camion.CPA_CESTADO,
         'estado_visible': _estado_visible_camion_patio(camion),
         'estado_visual': estado_visual,
@@ -2137,6 +2295,7 @@ def _render_camiones_patio_registrar(request, empresa_id, form_data=None, status
         'tipos_documento': CAMION_PATIO_ADJUNTO.TIPOS,
         'camiones_pendientes': camiones_pendientes,
         'form_data': form_data,
+        'country_calling_codes': country_options(),
     }, status=status)
 
 
@@ -2162,6 +2321,7 @@ def CAMIONES_PATIO_REGISTRAR(request):
         patente = str(request.POST.get('patente') or '').strip().upper()
         rut_conductor = str(request.POST.get('rut_conductor') or '').strip()
         telefono_conductor = str(request.POST.get('telefono_conductor') or '').strip()
+        telefono_codigo_pais = str(request.POST.get('telefono_codigo_pais') or '+56').strip()
         conductor = str(
             (request.POST.get('conductor_nombre_manual') or '')
             if conductor_manual
@@ -2170,6 +2330,7 @@ def CAMIONES_PATIO_REGISTRAR(request):
         transportista = 'CLIENTE' if transporte_cliente else str(request.POST.get('transportista') or '').strip()
         proveedor = str(request.POST.get('proveedor') or '').strip()
         cliente = str(request.POST.get('cliente') or '').strip()
+        tipo_documento = str(request.POST.get('tipo_documento') or '').strip().upper()
         numero_guia = str(request.POST.get('numero_guia') or '').strip()
         insumo_declarado_guia = str(request.POST.get('insumo_declarado_guia') or '').strip()
 
@@ -2188,6 +2349,9 @@ def CAMIONES_PATIO_REGISTRAR(request):
             errores_validacion.append('Proveedor declarado')
         if not cliente:
             errores_validacion.append('Cliente declarado')
+        if tipo_documento not in {'GD', 'FE'}:
+            messages.error(request, 'Tipo de documento inválido.')
+            return _render_camiones_patio_registrar(request, Empresa, request.POST, status=400)
         if not numero_guia:
             errores_validacion.append('Numero guia/documento')
         if not insumo_declarado_guia:
@@ -2197,7 +2361,9 @@ def CAMIONES_PATIO_REGISTRAR(request):
             return _render_camiones_patio_registrar(request, Empresa, request.POST, status=400)
         if telefono_conductor:
             try:
-                telefono_conductor = normalize_chilean_mobile(telefono_conductor)
+                telefono = normalize_international_phone(telefono_codigo_pais, telefono_conductor)
+                telefono_conductor = telefono['local_number']
+                telefono_codigo_pais = telefono['country_code']
             except ValueError as exc:
                 messages.error(request, str(exc))
                 return _render_camiones_patio_registrar(request, Empresa, request.POST, status=400)
@@ -2208,10 +2374,12 @@ def CAMIONES_PATIO_REGISTRAR(request):
             CPA_CNOMBRE_CONDUCTOR=conductor,
             CPA_CRUT_CONDUCTOR=rut_conductor,
             CPA_CTELEFONO_CONDUCTOR=telefono_conductor,
+            CPA_CCODIGO_PAIS_TELEFONO=telefono_codigo_pais,
             CPA_CTRANSPORTISTA_DECLARADO=transportista,
             CPA_CPROVEEDOR_DECLARADO=proveedor,
             CPA_CINSUMO_DECLARADO_GUIA=insumo_declarado_guia,
             CPA_CCLIENTE_DECLARADO=cliente,
+            CPA_CTIPO_DOCUMENTO=tipo_documento,
             CPA_CNUMERO_GUIA=numero_guia,
             CPA_CBL=str(request.POST.get('bl') or '').strip(),
             CPA_CLOTE_CONTENEDOR=str(request.POST.get('lote_contenedor') or '').strip(),
@@ -2398,7 +2566,7 @@ def CAMION_PATIO_NO_PLANIFICADO_SOLICITAR(request, pk):
             )
             revisar_url = reverse('camion_patio_no_planificado_revisar', args=[solicitud.id]) + f'?_empresa_id={Empresa}'
             fecha_llegada = timezone.localtime(camion.CPA_FFECHALLEGADA).strftime('%d/%m/%Y %H:%M:%S') if camion.CPA_FFECHALLEGADA else '-'
-            NOTIFICACION.objects.create(
+            crear_notificacion_interna(
                 USER_SENDER_ID=request.user,
                 USER_RECEIVER_ID=planificador,
                 EP_NID=camion.EP_NID,
@@ -2575,7 +2743,7 @@ def CAMION_PATIO_NO_PLANIFICADO_RECHAZAR(request, pk):
         camion.CPA_CESTADO = CAMION_PATIO.ESTADO_RECHAZADO
         camion.save(update_fields=['CPA_CESTADO', 'CPA_FFECHAACTUALIZACION'])
         detalle_url = reverse('camion_patio_no_planificado_revisar', args=[solicitud.id]) + f'?_empresa_id={Empresa}'
-        NOTIFICACION.objects.create(
+        crear_notificacion_interna(
             USER_SENDER_ID=request.user,
             USER_RECEIVER_ID=solicitud.US_SOLICITA_ID,
             EP_NID=solicitud.EP_NID,
@@ -2589,7 +2757,7 @@ def CAMION_PATIO_NO_PLANIFICADO_RECHAZAR(request, pk):
         )
         guardias_notificados = 0
         for guardia in _usuarios_guardia_empresa(Empresa):
-            NOTIFICACION.objects.create(
+            crear_notificacion_interna(
                 USER_SENDER_ID=request.user,
                 USER_RECEIVER_ID=guardia,
                 EP_NID=solicitud.EP_NID,
@@ -2609,6 +2777,68 @@ def CAMION_PATIO_NO_PLANIFICADO_RECHAZAR(request, pk):
     return redirect(reverse('camion_patio_no_planificado_revisar', args=[pk]) + f'?_empresa_id={Empresa}')
 
 
+def _normalizar_datos_edicion_camion_patio(post, camion):
+    def valor(nombre, campo, upper=False):
+        raw = post.get(nombre) if nombre in post else getattr(camion, campo, '')
+        texto = str(raw or '').strip()
+        return texto.upper() if upper else texto
+
+    transporte_a_cargo = valor('transporte_a_cargo', 'transporte_a_cargo', upper=True) or 'TERRAMAR'
+    if transporte_a_cargo not in {'TERRAMAR', 'CLIENTE'}:
+        raise ValueError('Debe seleccionar quien esta a cargo del transporte.')
+
+    datos = {
+        'transporte_a_cargo': transporte_a_cargo,
+        'CPA_CTRANSPORTISTA_DECLARADO': 'CLIENTE' if transporte_a_cargo == 'CLIENTE' else valor('transportista', 'CPA_CTRANSPORTISTA_DECLARADO'),
+        'CPA_CNOMBRE_CONDUCTOR': valor('conductor', 'CPA_CNOMBRE_CONDUCTOR'),
+        'CPA_CRUT_CONDUCTOR': valor('rut_conductor', 'CPA_CRUT_CONDUCTOR'),
+        'CPA_CTELEFONO_CONDUCTOR': valor('telefono_conductor', 'CPA_CTELEFONO_CONDUCTOR'),
+        'CPA_CCODIGO_PAIS_TELEFONO': valor('telefono_codigo_pais', 'CPA_CCODIGO_PAIS_TELEFONO') or '+56',
+        'CPA_CPATENTE': valor('patente', 'CPA_CPATENTE', upper=True),
+        'CPA_CPROVEEDOR_DECLARADO': valor('proveedor', 'CPA_CPROVEEDOR_DECLARADO'),
+        'CPA_CCLIENTE_DECLARADO': valor('cliente', 'CPA_CCLIENTE_DECLARADO'),
+        'CPA_CNUMERO_GUIA': valor('numero_guia', 'CPA_CNUMERO_GUIA'),
+        'CPA_CINSUMO_DECLARADO_GUIA': valor('insumo_declarado_guia', 'CPA_CINSUMO_DECLARADO_GUIA'),
+        'CPA_CBL': valor('bl', 'CPA_CBL'),
+        'CPA_CLOTE_CONTENEDOR': valor('lote_contenedor', 'CPA_CLOTE_CONTENEDOR'),
+        'CPA_COBSERVACION': valor('observacion', 'CPA_COBSERVACION'),
+    }
+    obligatorios = [
+        ('CPA_CTRANSPORTISTA_DECLARADO', 'Empresa transporte'),
+        ('CPA_CNOMBRE_CONDUCTOR', 'Nombre conductor'),
+        ('CPA_CPATENTE', 'Patente camion'),
+        ('CPA_CRUT_CONDUCTOR', 'RUT conductor'),
+        ('CPA_CTELEFONO_CONDUCTOR', 'Celular conductor'),
+        ('CPA_CPROVEEDOR_DECLARADO', 'Proveedor declarado'),
+        ('CPA_CCLIENTE_DECLARADO', 'Cliente declarado'),
+        ('CPA_CNUMERO_GUIA', 'Numero guia/documento'),
+        ('CPA_CINSUMO_DECLARADO_GUIA', 'Insumo declarado en guia'),
+    ]
+    faltantes = [label for campo, label in obligatorios if not datos[campo]]
+    if faltantes:
+        raise ValueError('Debe completar los campos obligatorios: ' + ', '.join(faltantes) + '.')
+    telefono = normalize_international_phone(datos['CPA_CCODIGO_PAIS_TELEFONO'], datos['CPA_CTELEFONO_CONDUCTOR'])
+    datos['CPA_CTELEFONO_CONDUCTOR'] = telefono['local_number']
+    datos['CPA_CCODIGO_PAIS_TELEFONO'] = telefono['country_code']
+    return datos
+
+
+def _actualizar_datos_operacionales_desde_camion_patio(camion, citacion, usuario):
+    datos_operacion = [
+        ('ING_PATENTE', camion.CPA_CPATENTE, 'Patente'),
+        ('ING_NOMBRE_CONDUCTOR', camion.CPA_CNOMBRE_CONDUCTOR, 'Nombre conductor'),
+        ('ING_RUT_CONDUCTOR', camion.CPA_CRUT_CONDUCTOR, 'RUT conductor'),
+        ('ING_CODIGO_PAIS_TELEFONO', camion.CPA_CCODIGO_PAIS_TELEFONO or '', 'Codigo pais telefono'),
+        ('ING_TELEFONO_CONDUCTOR', camion.CPA_CTELEFONO_CONDUCTOR, 'Telefono conductor'),
+        ('ING_EMPRESA_TRANSPORTE', camion.CPA_CTRANSPORTISTA_DECLARADO, 'Empresa transporte'),
+        ('ING_BL', camion.CPA_CBL, 'BL'),
+        ('ING_LOTE_CONTENEDOR', camion.CPA_CLOTE_CONTENEDOR, 'Lote/contenedor'),
+    ]
+    for codigo, valor, etiqueta in datos_operacion:
+        guardar_dato_operacion_codigo(citacion, codigo, valor or '', usuario, etiqueta=etiqueta)
+    citacion.CI_CNUMERODOCUMENTO = camion.CPA_CNUMERO_GUIA
+    citacion.save(update_fields=['CI_CNUMERODOCUMENTO'])
+
 def CAMION_PATIO_ACTUALIZAR(request, pk):
     if request.method != 'POST':
         return JsonResponse({'success': False, 'message': 'Metodo no permitido.'}, status=405)
@@ -2624,39 +2854,10 @@ def CAMION_PATIO_ACTUALIZAR(request, pk):
     if _camion_patio_bloqueado_para_edicion(camion):
         return JsonResponse({'success': False, 'message': _mensaje_camion_patio_bloqueado()}, status=409)
 
-    datos = {
-        'CPA_CTRANSPORTISTA_DECLARADO': str(request.POST.get('transportista') or '').strip(),
-        'CPA_CNOMBRE_CONDUCTOR': str(request.POST.get('conductor') or '').strip(),
-        'CPA_CRUT_CONDUCTOR': str(request.POST.get('rut_conductor') or '').strip(),
-        'CPA_CTELEFONO_CONDUCTOR': str(request.POST.get('telefono_conductor') or '').strip(),
-        'CPA_CPATENTE': str(request.POST.get('patente') or '').strip().upper(),
-        'CPA_CPROVEEDOR_DECLARADO': str(request.POST.get('proveedor') or '').strip(),
-        'CPA_CCLIENTE_DECLARADO': str(request.POST.get('cliente') or '').strip(),
-        'CPA_CNUMERO_GUIA': str(request.POST.get('numero_guia') or '').strip(),
-        'CPA_CINSUMO_DECLARADO_GUIA': str(request.POST.get('insumo_declarado_guia') or '').strip(),
-        'CPA_CBL': str(request.POST.get('bl') or '').strip(),
-        'CPA_CLOTE_CONTENEDOR': str(request.POST.get('lote_contenedor') or '').strip(),
-        'CPA_COBSERVACION': str(request.POST.get('observacion') or '').strip(),
-    }
-    obligatorios = [
-        ('CPA_CTRANSPORTISTA_DECLARADO', 'Empresa transporte'),
-        ('CPA_CNOMBRE_CONDUCTOR', 'Nombre conductor'),
-        ('CPA_CPATENTE', 'Patente camion'),
-        ('CPA_CRUT_CONDUCTOR', 'RUT conductor'),
-        ('CPA_CTELEFONO_CONDUCTOR', 'Celular conductor'),
-        ('CPA_CPROVEEDOR_DECLARADO', 'Proveedor declarado'),
-        ('CPA_CCLIENTE_DECLARADO', 'Cliente declarado'),
-        ('CPA_CNUMERO_GUIA', 'Numero guia/documento'),
-        ('CPA_CINSUMO_DECLARADO_GUIA', 'Insumo declarado en guia'),
-    ]
-    faltantes = [label for field, label in obligatorios if not datos[field]]
-    if faltantes:
-        return JsonResponse({'success': False, 'message': 'Debe completar los campos obligatorios: ' + ', '.join(faltantes) + '.'}, status=400)
     try:
-        datos['CPA_CTELEFONO_CONDUCTOR'] = normalize_chilean_mobile(datos['CPA_CTELEFONO_CONDUCTOR'])
+        datos = _normalizar_datos_edicion_camion_patio(request.POST, camion)
     except ValueError as exc:
         return JsonResponse({'success': False, 'message': str(exc)}, status=400)
-
     cambios = []
     for campo, valor in datos.items():
         anterior = getattr(camion, campo) or ''
@@ -2795,7 +2996,7 @@ def CAMIONES_PATIO_PENDIENTES_CITACION(request, pk):
     if Empresa is None:
         return JsonResponse({'success': False, 'message': 'Debe seleccionar una empresa.'}, status=400)
     try:
-        citacion = CITACION.objects.select_related('EP_NID', 'PL_NID', 'SN_NID', 'PRO_NID').get(pk=pk, EP_NID_id=Empresa, CI_BHABILITADO=True)
+        citacion = CITACION.objects.select_related('EP_NID', 'PL_NID', 'SN_NID', 'PRO_NID', 'SC_NID').get(pk=pk, EP_NID_id=Empresa, CI_BHABILITADO=True)
     except CITACION.DoesNotExist:
         return JsonResponse({'success': False, 'message': 'Citacion no encontrada.'}, status=404)
     if not citacion_disponible_para_asociar_camion_patio(citacion):
@@ -2879,13 +3080,14 @@ def _copiar_datos_camion_patio_a_citacion(camion, citacion, usuario):
                 citacion.id, 'ING_TELEFONO_CONDUCTOR_RAW', len(str(camion.CPA_CTELEFONO_CONDUCTOR))
             )
             datos_guardados.append(guardar_dato_operacion_codigo(citacion, 'ING_TELEFONO_CONDUCTOR_RAW', camion.CPA_CTELEFONO_CONDUCTOR, usuario, etiqueta='Celular conductor informado'))
-    if camion.CPA_CNUMERO_GUIA:
+    if camion.CPA_CNUMERO_GUIA or camion.CPA_CTIPO_DOCUMENTO:
         logger.info(
-            'CAMION_PATIO_ASOCIAR actualizando CITACION citacion_id=%s campo=CI_CNUMERODOCUMENTO valor_len=%s',
-            citacion.id, len(str(camion.CPA_CNUMERO_GUIA))
+            'CAMION_PATIO_ASOCIAR actualizando CITACION citacion_id=%s campos=CI_CTIPODOCUMENTO,CI_CNUMERODOCUMENTO tipo=%s numero_len=%s',
+            citacion.id, camion.CPA_CTIPO_DOCUMENTO, len(str(camion.CPA_CNUMERO_GUIA or ''))
         )
+        citacion.CI_CTIPODOCUMENTO = camion.CPA_CTIPO_DOCUMENTO
         citacion.CI_CNUMERODOCUMENTO = camion.CPA_CNUMERO_GUIA
-        citacion.save(update_fields=['CI_CNUMERODOCUMENTO'])
+        citacion.save(update_fields=['CI_CTIPODOCUMENTO', 'CI_CNUMERODOCUMENTO'])
     return datos_guardados
 
 
@@ -3153,7 +3355,6 @@ def PLANIFICACION_CITACION_INGRESO_CAMION(request, pk):
                     'cupo': citacion.CI_NCUPO,
                     'transportista': valores_ingreso.get('transportista') or '',
                     'patente': valores_ingreso.get('patente') or '',
-                    'cantidad_ejes': valores_ingreso.get('cantidad_ejes') or '',
                     'conductor': valores_ingreso.get('conductor') or '',
                     'celular_conductor': valores_ingreso.get('celular_conductor') or '',
                 },
@@ -3196,6 +3397,14 @@ def PLANIFICACION_CITACION_INGRESO_CAMION(request, pk):
         }, status=400)
 
 
+def queryset_transportistas_validos_ingreso_camion(empresa_id):
+    """Transportistas habilitados propios o respaldados por conductor/camion habilitado de la empresa."""
+    relacionados_conductor = CONDUCTOR.objects.filter(EP_NID_id=empresa_id, CON_BHABILITADO=True, SN_NID__isnull=False).values_list('SN_NID_id', flat=True)
+    relacionados_camion = CAMION.objects.filter(EP_NID_id=empresa_id, CAM_BHABILITADO=True, SN_NID__isnull=False).values_list('SN_NID_id', flat=True)
+    return SOCIONEGOCIO.objects.filter(SN_BHABILITADO=True, SN_CTIPO='S').filter(
+        Q(EP_NID_id=empresa_id) | Q(id__in=relacionados_conductor) | Q(id__in=relacionados_camion)
+    ).distinct()
+
 def AJAX_TRANSPORTISTAS_INGRESO_CAMION(request):
     if not (
         request.user.is_superuser
@@ -3206,32 +3415,12 @@ def AJAX_TRANSPORTISTAS_INGRESO_CAMION(request):
     ):
         return JsonResponse({'results': [], 'message': 'No tiene permisos.'}, status=403)
 
-    empresa_id = request.GET.get('empresa_id') or Verificar_empresa(request)
+    empresa_id = request.GET.get('empresa_id') or request.GET.get('_empresa_id') or request.session.get('empresa_id') or Verificar_empresa(request)
     if not empresa_id:
         return JsonResponse({'results': []})
 
     query = str(request.GET.get('q') or '').strip()
-    transportistas_relacionados = set(
-        CONDUCTOR.objects.filter(
-            EP_NID_id=empresa_id,
-            CON_BHABILITADO=True,
-            SN_NID__isnull=False
-        ).values_list('SN_NID_id', flat=True)
-    )
-    transportistas_relacionados.update(
-        CAMION.objects.filter(
-            EP_NID_id=empresa_id,
-            CAM_BHABILITADO=True,
-            SN_NID__isnull=False
-        ).values_list('SN_NID_id', flat=True)
-    )
-
-    transportistas = SOCIONEGOCIO.objects.filter(
-        SN_BHABILITADO=True,
-        SN_CTIPO='S'
-    ).filter(
-        Q(EP_NID_id=empresa_id) | Q(id__in=transportistas_relacionados)
-    )
+    transportistas = queryset_transportistas_validos_ingreso_camion(empresa_id)
 
     if query:
         transportistas = transportistas.filter(
@@ -3258,16 +3447,6 @@ def AJAX_TRANSPORTISTAS_INGRESO_CAMION(request):
 def rut_transportista_es_ficticio(rut):
     rut_normalizado = ''.join(ch for ch in str(rut or '') if ch.isdigit())
     return bool(rut_normalizado) and '555' in rut_normalizado
-
-
-def obtener_cantidad_ejes_desde_camion(camion):
-    if not camion:
-        return ''
-    texto = str(camion.CAM_CCARGA or '').lower()
-    for cantidad in range(2, 9):
-        if str(cantidad) in texto and 'eje' in texto:
-            return f'{cantidad} ejes'
-    return ''
 
 
 def obtener_camiones_transportista_ingreso(transportistas_ids, empresa_id=None):
@@ -3299,7 +3478,6 @@ def obtener_camiones_transportista_ingreso(transportistas_ids, empresa_id=None):
         opciones.append({
             'camion_id': camion.id,
             'patente': patente,
-            'cantidad_ejes': obtener_cantidad_ejes_desde_camion(camion),
         })
         patentes.add(patente)
 
@@ -3358,9 +3536,6 @@ def obtener_camiones_inequivocos_por_conductor(conductores_ids, transportistas_i
             camiones_por_conductor[conductor_id] = {
                 'camion_id': relacion['CA_NID_id'],
                 'patente': patente,
-                'cantidad_ejes': obtener_cantidad_ejes_desde_camion(
-                    CAMION(CAM_CCARGA=relacion['CA_NID__CAM_CCARGA'])
-                ),
             }
 
     return {
@@ -3380,7 +3555,7 @@ def AJAX_CONDUCTORES_INGRESO_CAMION(request):
     ):
         return JsonResponse({'results': [], 'message': 'No tiene permisos.'}, status=403)
 
-    empresa_id = request.GET.get('empresa_id') or Verificar_empresa(request)
+    empresa_id = request.GET.get('empresa_id') or request.GET.get('_empresa_id') or request.session.get('empresa_id') or Verificar_empresa(request)
     transportista_id = str(request.GET.get('transportista_id') or '').strip()
     transportista_nombre = str(request.GET.get('transportista') or '').strip()
     query = str(request.GET.get('q') or '').strip()
@@ -3388,20 +3563,13 @@ def AJAX_CONDUCTORES_INGRESO_CAMION(request):
     if not empresa_id or (not transportista_id and not transportista_nombre):
         return JsonResponse({'results': []})
 
+    transportistas_validos = queryset_transportistas_validos_ingreso_camion(empresa_id)
     transportista = None
     if transportista_id.isdigit():
-        transportista = SOCIONEGOCIO.objects.filter(
-            id=transportista_id,
-            SN_BHABILITADO=True
-        ).first()
+        transportista = transportistas_validos.filter(id=transportista_id).first()
     if not transportista and transportista_nombre:
         transportista_nombre_limpio = transportista_nombre.split('(')[0].strip()
-        transportista = SOCIONEGOCIO.objects.filter(
-            SN_CRAZONSOCIAL__iexact=transportista_nombre_limpio,
-            SN_BHABILITADO=True,
-            SN_CTIPO='S'
-        ).first()
-
+        transportista = transportistas_validos.filter(SN_CRAZONSOCIAL__iexact=transportista_nombre_limpio).first()
     if not transportista:
         return JsonResponse({'results': []})
 
@@ -3411,6 +3579,7 @@ def AJAX_CONDUCTORES_INGRESO_CAMION(request):
         transportistas_ids = obtener_ids_transportistas_equivalentes(transportista)
 
     conductores = CONDUCTOR.objects.filter(
+        EP_NID_id=empresa_id,
         SN_NID_id__in=transportistas_ids,
         CON_BHABILITADO=True
     )
@@ -3458,22 +3627,19 @@ def AJAX_CONDUCTORES_INGRESO_CAMION(request):
             'conductor_id': conductor.id,
             'nombre': nombre,
             'rut': rut_visual or None,
-            'telefono': normalizar_celular_conductor_visible(conductor.CON_CTELEFONO),
+            'telefono': split_legacy_phone(conductor.CON_CCODIGO_PAIS_TELEFONO, conductor.CON_CTELEFONO)['local_number'],
+            'telefono_codigo_pais': split_legacy_phone(conductor.CON_CCODIGO_PAIS_TELEFONO, conductor.CON_CTELEFONO)['country_code'],
             'camion_id': camion_conductor.get('camion_id', ''),
             'patente': patente_conductor,
-            'cantidad_ejes': camion_conductor.get('cantidad_ejes', ''),
             'patente_sugerida': patente_conductor,
-            'cantidad_ejes_sugerida': camion_conductor.get('cantidad_ejes', ''),
             'camiones': camiones_conductor,
         })
 
     return JsonResponse({
         'results': results,
         'patente_sugerida': '',
-        'cantidad_ejes_sugerida': '',
         'camion_id': '',
         'patente': '',
-        'cantidad_ejes': '',
         'camiones': [],
     })
 
@@ -3496,31 +3662,13 @@ def obtener_dato_operacion_por_codigo(citacion, etapa, codigo):
 
 
 def normalize_chilean_mobile(phone):
-    raw_phone = str(phone or '').strip()
-    if not raw_phone:
-        return ''
-
-    digits = re.sub(r'\D+', '', raw_phone)
-    if not digits:
-        return ''
-
-    if len(digits) == 9 and digits.startswith('9'):
-        return f'+56{digits}'
-
-    if len(digits) == 11 and digits.startswith('569'):
-        return f'+{digits}'
-
-    if len(digits) == 12 and digits.startswith('00569'):
-        return f'+{digits[2:]}'
-
-    raise ValueError('El telefono del conductor no tiene un formato valido. Debe ser un celular chileno, por ejemplo +56923989118.')
+    # Compatibilidad de llamadas antiguas sin selector de pais. Los flujos de
+    # patio/revision usan normalize_international_phone directamente.
+    return normalize_international_phone('+56', phone)['local_number']
 
 
 def normalizar_celular_conductor_visible(phone):
-    try:
-        return normalize_chilean_mobile(phone)
-    except ValueError:
-        return ''
+    return split_legacy_phone(None, phone)['full_number']
 
 
 def validar_ingreso_camion_minimo(citacion, etapa):
@@ -3543,11 +3691,14 @@ def validar_ingreso_camion_minimo(citacion, etapa):
     return faltantes, valores
 
 
-def obtener_usuarios_asistente_recepcion():
+def obtener_usuarios_asistente_recepcion(empresa_id):
     perfiles = PERFIL_USUARIO.objects.select_related('PR_NID', 'US_NID').filter(
         PE_BHABILITADO=True,
         PR_NID__PR_BHABILITADO=True,
-        US_NID__is_active=True
+        US_NID__is_active=True,
+        US_NID_id__in=USERS_EMPRESA.objects.filter(
+            EP_NID_id=empresa_id
+        ).values_list('US_NID_id', flat=True),
     )
 
     usuarios = []
@@ -3573,7 +3724,10 @@ def obtener_usuarios_asistente_recepcion():
             'ASISTENTE RECEPCION',
             'ASISTENTE RECEPCIÓN',
         ],
-        is_active=True
+        is_active=True,
+        id__in=USERS_EMPRESA.objects.filter(
+            EP_NID_id=empresa_id
+        ).values_list('US_NID_id', flat=True),
     )
     for usuario in usuarios_fallback:
         if usuario.id not in usuarios_ids:
@@ -3583,11 +3737,14 @@ def obtener_usuarios_asistente_recepcion():
     return usuarios
 
 
-def obtener_usuarios_asistente_cd():
+def obtener_usuarios_asistente_cd(empresa_id):
     perfiles = PERFIL_USUARIO.objects.select_related('PR_NID', 'US_NID').filter(
         PE_BHABILITADO=True,
         PR_NID__PR_BHABILITADO=True,
-        US_NID__is_active=True
+        US_NID__is_active=True,
+        US_NID_id__in=USERS_EMPRESA.objects.filter(
+            EP_NID_id=empresa_id
+        ).values_list('US_NID_id', flat=True),
     )
 
     usuarios = []
@@ -3604,7 +3761,10 @@ def obtener_usuarios_asistente_cd():
 
     usuarios_fallback = User.objects.filter(
         username__in=['Asistente_C_D', 'ASISTENTE_C_D', 'Asistente CD', 'ASISTENTE CD'],
-        is_active=True
+        is_active=True,
+        id__in=USERS_EMPRESA.objects.filter(
+            EP_NID_id=empresa_id
+        ).values_list('US_NID_id', flat=True),
     )
     for usuario in usuarios_fallback:
         if usuario.id not in usuarios_ids:
@@ -3697,7 +3857,6 @@ def AVANZAR_INGRESO_CAMION_ASISTENTE(request, pk):
             f'Nuevo camion pendiente de aprobacion/revision.\n'
             f'Citacion: {citacion.id}\n'
             f'Patente: {valores.get("ING_PATENTE", "")}\n'
-            f'Cantidad de ejes: {valores.get("ING_CANTIDAD_EJES", "")}\n'
             f'Conductor: {valores.get("ING_NOMBRE_CONDUCTOR", "")}\n'
             f'Celular conductor: {valores.get("ING_TELEFONO_CONDUCTOR", "")}\n'
             f'Empresa transporte: {valores.get("ING_EMPRESA_TRANSPORTE", "")}\n'
@@ -3705,9 +3864,9 @@ def AVANZAR_INGRESO_CAMION_ASISTENTE(request, pk):
             f'Guardia: {request.user.username}'
         )
 
-        asistentes = obtener_usuarios_asistente_recepcion()
+        asistentes = obtener_usuarios_asistente_recepcion(citacion.EP_NID_id)
         for asistente in asistentes:
-            NOTIFICACION.objects.create(
+            crear_notificacion_interna(
                 USER_SENDER_ID=request.user,
                 USER_RECEIVER_ID=asistente,
                 EP_NID=citacion.EP_NID,
@@ -3788,6 +3947,13 @@ ESTANQUES_POR_ALMACEN = {
 }
 
 
+ALMACENES_RECEPCION_OPERACIONAL = (
+    ('PROSESA', 'PROCESA'),
+    ('SBH', 'SBH'),
+    ('TRASVASIJE', 'TRASVASIJE'),
+)
+
+
 def normalizar_almacen_planificacion(valor):
     almacen = normalizar_nombre_perfil(valor)
     if 'TRASVASIJE' in almacen or 'TRASVASIJES' in almacen:
@@ -3797,6 +3963,12 @@ def normalizar_almacen_planificacion(valor):
     if almacen.startswith('SBH'):
         return 'SBH'
     return ''
+
+
+def etiqueta_almacen_operacional(almacen):
+    almacen_normalizado = normalizar_almacen_planificacion(almacen)
+    etiquetas = dict(ALMACENES_RECEPCION_OPERACIONAL)
+    return etiquetas.get(almacen_normalizado, almacen_normalizado)
 
 
 def obtener_estanques_por_almacen(almacen):
@@ -3830,6 +4002,17 @@ def obtener_almacen_planificacion(citacion):
         or comentario.get('bodega')
         or ''
     )
+
+
+def opciones_almacen_recepcion_operacional(citacion):
+    return [
+        {
+            'valor': codigo,
+            'texto': etiqueta,
+        }
+        for codigo, etiqueta in ALMACENES_RECEPCION_OPERACIONAL
+        if codigo in ESTANQUES_POR_ALMACEN
+    ]
 
 
 def obtener_campo_estanque_operacional(citacion, usuario):
@@ -4687,7 +4870,6 @@ def PLANIFICACION_CITACION_RESUMEN(request, pk):
                 {'label': 'Conductor', 'value': texto_sin_informacion(valores_ingreso.get('conductor'))},
                 {'label': 'Telefono conductor', 'value': texto_sin_informacion(valores_ingreso.get('celular_conductor'))},
                 {'label': 'Patente', 'value': texto_sin_informacion(valores_ingreso.get('patente'))},
-                {'label': 'Tipo eje', 'value': texto_sin_informacion(valores_ingreso.get('cantidad_ejes'))},
                 {'label': 'Tarifa', 'value': citacion.CI_NVALORTARIFA},
                 {'label': 'Divisa', 'value': citacion.TAR_NID.TAR_CDIVISA if citacion.TAR_NID else ''},
                 {'label': 'Sobrecupo', 'value': 'Si' if citacion.CI_BSOBRECUPO else 'No'},
@@ -4707,7 +4889,6 @@ def PLANIFICACION_CITACION_RESUMEN(request, pk):
                 {'label': 'Empresa transporte', 'value': texto_sin_informacion(valores_ingreso.get('transportista'))},
                 {'label': 'Nombre conductor', 'value': texto_sin_informacion(valores_ingreso.get('conductor'))},
                 {'label': 'Patente', 'value': texto_sin_informacion(valores_ingreso.get('patente'))},
-                {'label': 'Cantidad de ejes', 'value': texto_sin_informacion(valores_ingreso.get('cantidad_ejes'))},
                 {'label': 'Celular conductor', 'value': texto_sin_informacion(valores_ingreso.get('celular_conductor'))},
                 {'label': 'Lote / Contenedor', 'value': dato_operacion('ING_LOTE_CONTENEDOR')},
                 {'label': 'Observacion ingreso', 'value': dato_operacion('ING_OBSERVACION')},
@@ -4906,7 +5087,6 @@ def obtener_valores_ingreso_camion(citacion):
         'conductor': conductor,
         'celular_conductor': celular,
         'patente': patente,
-        'cantidad_ejes': valor('ING_CANTIDAD_EJES'),
         'bl': '' if es_citacion_despacho(citacion) else (valor('ING_BL') or obtener_bl_inicial_citacion(citacion)),
     }
 
@@ -4924,6 +5104,19 @@ def extraer_rut_transportista_ingreso(valor):
     if '(' not in texto or ')' not in texto:
         return ''
     return texto.split('(')[-1].split(')')[0].strip()
+
+
+def transportista_vigente_camion_patio(citacion):
+    # Resuelve el socio vigente del viaje desde CAMION_PATIO.
+    camion = _camion_patio_asociado_citacion(citacion)
+    if not camion or str(camion.transporte_a_cargo or 'TERRAMAR').upper() != 'TERRAMAR':
+        return None
+    nombre = limpiar_nombre_transportista_ingreso(camion.CPA_CTRANSPORTISTA_DECLARADO)
+    if not nombre:
+        return None
+    return queryset_transportistas_validos_ingreso_camion(citacion.EP_NID_id).filter(
+        SN_CRAZONSOCIAL__iexact=nombre
+    ).first()
 
 
 def obtener_transportistas_ids_revision(citacion, valores_ingreso=None):
@@ -4945,6 +5138,7 @@ def obtener_transportistas_ids_revision(citacion, valores_ingreso=None):
     if filtros:
         for socio_id in SOCIONEGOCIO.objects.filter(
             filtros,
+            EP_NID=citacion.EP_NID,
             SN_BHABILITADO=True
         ).values_list('id', flat=True):
             if socio_id not in socios_ids:
@@ -4984,40 +5178,33 @@ def serializar_tarifa_revision(tarifa, selected=False):
 
 
 def obtener_rutas_tarifa_transportista(citacion, valores_ingreso=None):
-    valores_ingreso = valores_ingreso or obtener_valores_ingreso_camion(citacion)
+    # Revision/Estanque use CAMION_PATIO as source of truth, not planificacion.
+    transportista_vigente = transportista_vigente_camion_patio(citacion)
+    if transportista_vigente:
+        tarifas = TARIFA_GLOBAL.objects.filter(
+            EP_NID_id=citacion.EP_NID_id,
+            SN_NID_id=transportista_vigente.id,
+            TAR_BHABILITADO=True,
+            RUT_NID__EP_NID_id=citacion.EP_NID_id,
+            RUT_NID__RUT_BHABILITADO=True,
+        ).select_related('RUT_NID').order_by('RUT_NID__RUT_CNOMBRE', 'id')
+    else:
+        valores_ingreso = valores_ingreso or obtener_valores_ingreso_camion(citacion)
+        transportista = str(valores_ingreso.get('transportista') or '').strip()
+        if not transportista:
+            return {'rutas_texto': '', 'tarifa_texto': '', 'opciones': []}
+        socios_ids = obtener_transportistas_ids_revision(citacion, valores_ingreso)
+        if not socios_ids:
+            return {'rutas_texto': '', 'tarifa_texto': '', 'opciones': []}
+        tarifas = TARIFA_GLOBAL.objects.filter(
+            EP_NID=citacion.EP_NID,
+            SN_NID_id__in=socios_ids,
+            TAR_BHABILITADO=True,
+            RUT_NID__EP_NID_id=citacion.EP_NID_id,
+            RUT_NID__RUT_BHABILITADO=True,
+        ).select_related('RUT_NID').order_by('RUT_NID__RUT_CNOMBRE', 'id')
 
-    if citacion.TAR_NID and citacion.TAR_NID.RUT_NID:
-        return {
-            'rutas_texto': citacion.TAR_NID.RUT_NID.RUT_CNOMBRE,
-            'tarifa_texto': citacion.TAR_NID.TAR_CNOMBRETARIFA,
-            'opciones': [serializar_tarifa_revision(citacion.TAR_NID, selected=True)],
-        }
-
-    if citacion.RUT_NID:
-        return {
-            'rutas_texto': citacion.RUT_NID.RUT_CNOMBRE,
-            'tarifa_texto': citacion.TAR_NID.TAR_CNOMBRETARIFA if citacion.TAR_NID else '',
-            'opciones': [serializar_tarifa_revision(citacion.TAR_NID, selected=True)] if citacion.TAR_NID else [],
-        }
-
-    transportista = str(valores_ingreso.get('transportista') or '').strip()
-    if not transportista:
-        return {'rutas_texto': '', 'tarifa_texto': '', 'opciones': []}
-
-    socios_ids = obtener_transportistas_ids_revision(citacion, valores_ingreso)
-
-    if not socios_ids:
-        return {'rutas_texto': '', 'tarifa_texto': '', 'opciones': []}
-
-    tarifas = TARIFA_GLOBAL.objects.filter(
-        SN_NID_id__in=socios_ids,
-        TAR_BHABILITADO=True,
-    ).select_related('RUT_NID').order_by('RUT_NID__RUT_CNOMBRE', 'id')
-
-    rutas = []
-    tarifas_nombres = []
-    opciones = []
-    rutas_opciones = set()
+    rutas, tarifas_nombres, opciones, rutas_opciones = [], [], [], set()
     for tarifa in tarifas:
         if tarifa.RUT_NID and tarifa.RUT_NID.RUT_CNOMBRE not in rutas:
             rutas.append(tarifa.RUT_NID.RUT_CNOMBRE)
@@ -5028,21 +5215,14 @@ def obtener_rutas_tarifa_transportista(citacion, valores_ingreso=None):
             rutas_opciones.add(tarifa.RUT_NID.RUT_CNOMBRE)
 
     def resumir(valores, limite=10):
-        if len(valores) <= limite:
-            return ' | '.join(valores)
-        return ' | '.join(valores[:limite]) + f' (+{len(valores) - limite} mas)'
+        return ' | '.join(valores if len(valores) <= limite else valores[:limite]) + (f' (+{len(valores) - limite} mas)' if len(valores) > limite else '')
 
-    return {
-        'rutas_texto': resumir(rutas),
-        'tarifa_texto': resumir(tarifas_nombres, limite=3),
-        'opciones': opciones,
-    }
+    return {'rutas_texto': resumir(rutas), 'tarifa_texto': resumir(tarifas_nombres, 3), 'opciones': opciones}
 
 
 def texto_camion_operacional(valores_ingreso):
     patente = texto_sin_informacion(valores_ingreso.get('patente'))
-    ejes = valores_ingreso.get('cantidad_ejes') or ''
-    return f'{patente} ({ejes})' if ejes else patente
+    return patente
 
 
 def enriquecer_citaciones_con_ingreso_camion(citaciones):
@@ -5052,7 +5232,6 @@ def enriquecer_citaciones_con_ingreso_camion(citaciones):
         citacion.operacion_conductor = texto_sin_informacion(valores_ingreso.get('conductor'))
         citacion.operacion_celular_conductor = texto_sin_informacion(valores_ingreso.get('celular_conductor'))
         citacion.operacion_patente = texto_sin_informacion(valores_ingreso.get('patente'))
-        citacion.operacion_tipo_eje = texto_sin_informacion(valores_ingreso.get('cantidad_ejes'))
     return citaciones
 
 
@@ -5070,11 +5249,15 @@ def obtener_secuencias_asignadas_usuario(user):
 def obtener_guardias_relacionados_citacion(citacion):
     guardias = []
     guardias_ids = set()
+    usuarios_empresa_ids = set(USERS_EMPRESA.objects.filter(
+        EP_NID_id=citacion.EP_NID_id
+    ).values_list('US_NID_id', flat=True))
     perfiles_guardia_operativa = {'GUARDIA', 'GUA'}
 
     for dato in DATO_OPERACION.objects.filter(CI_NID=citacion, SC_NID=citacion.SC_NID).select_related('US_NID'):
         if (
             dato.US_NID
+            and dato.US_NID_id in usuarios_empresa_ids
             and usuario_es_guardia(dato.US_NID)
             and not usuario_es_guardia_porteria(dato.US_NID)
             and dato.US_NID_id not in guardias_ids
@@ -5088,7 +5271,8 @@ def obtener_guardias_relacionados_citacion(citacion):
     perfiles = PERFIL_USUARIO.objects.select_related('PR_NID', 'US_NID').filter(
         PE_BHABILITADO=True,
         PR_NID__PR_BHABILITADO=True,
-        US_NID__is_active=True
+        US_NID__is_active=True,
+        US_NID_id__in=usuarios_empresa_ids,
     )
 
     for perfil_usuario in perfiles:
@@ -5101,7 +5285,8 @@ def obtener_guardias_relacionados_citacion(citacion):
 
     usuarios_fallback = User.objects.filter(
         username__in=['Guardia', 'GUARDIA'],
-        is_active=True
+        is_active=True,
+        id__in=usuarios_empresa_ids,
     )
     for usuario in usuarios_fallback:
         if usuario.id not in guardias_ids:
@@ -5111,11 +5296,14 @@ def obtener_guardias_relacionados_citacion(citacion):
     return guardias
 
 
-def obtener_usuarios_guardia_porteria():
+def obtener_usuarios_guardia_porteria(empresa_id):
     perfiles = PERFIL_USUARIO.objects.select_related('PR_NID', 'US_NID').filter(
         PE_BHABILITADO=True,
         PR_NID__PR_BHABILITADO=True,
-        US_NID__is_active=True
+        US_NID__is_active=True,
+        US_NID_id__in=USERS_EMPRESA.objects.filter(
+            EP_NID_id=empresa_id
+        ).values_list('US_NID_id', flat=True),
     )
 
     usuarios = []
@@ -5131,7 +5319,10 @@ def obtener_usuarios_guardia_porteria():
 
     usuarios_fallback = User.objects.filter(
         username__in=['Guardia_porteria', 'GUARDIA_PORTERIA', 'Guardia Porteria', 'GUARDIA PORTERIA'],
-        is_active=True
+        is_active=True,
+        id__in=USERS_EMPRESA.objects.filter(
+            EP_NID_id=empresa_id
+        ).values_list('US_NID_id', flat=True),
     )
     for usuario in usuarios_fallback:
         if usuario.id not in usuarios_ids:
@@ -5367,6 +5558,18 @@ def PLANIFICACION_CITACION_REVISION_ASISTENTE(request, pk):
                     'Tarifa transportista': tarifa_seleccionada_texto,
                 })
 
+        transportista_actual = None
+        conductor_actual = None
+        if contexto_ingreso['camion'] and contexto_ingreso['transporte_a_cargo'] == 'TERRAMAR':
+            transportista_actual = SOCIONEGOCIO.objects.filter(
+                EP_NID_id=Empresa, SN_BHABILITADO=True, SN_CTIPO='S',
+                SN_CRAZONSOCIAL__iexact=limpiar_nombre_transportista_ingreso(contexto_ingreso['camion'].CPA_CTRANSPORTISTA_DECLARADO),
+            ).first()
+            if transportista_actual:
+                conductor_actual = CONDUCTOR.objects.filter(
+                    EP_NID_id=Empresa, SN_NID=transportista_actual, CON_BHABILITADO=True,
+                    CON_CNOMBRE__iexact=(contexto_ingreso['camion'].CPA_CNOMBRE_CONDUCTOR or '').split(' ')[0],
+                ).first()
         payload = {
             'success': True,
             'citacion_id': citacion.id,
@@ -5380,7 +5583,26 @@ def PLANIFICACION_CITACION_REVISION_ASISTENTE(request, pk):
                 not contexto_ingreso['requiere_ruta_transportista']
                 or ruta_transportista_asistente_guardada(citacion, datos_operacion)
             ),
-            'puede_editar_revision_asistente': usuario_es_asistente_recepcion(request.user) and not aprobado_asistente,
+            'puede_editar_revision_asistente': (
+                (usuario_es_asistente_recepcion(request.user) or getattr(request.user, 'is_staff', False) or getattr(request.user, 'is_superuser', False))
+                and not aprobado_asistente
+                and bool(contexto_ingreso['camion'])
+            ),
+            'datos_edicion_asistente': {
+                'transporte_a_cargo': contexto_ingreso['transporte_a_cargo'],
+                'transportista': contexto_ingreso['camion'].CPA_CTRANSPORTISTA_DECLARADO if contexto_ingreso['camion'] else '',
+                'transportista_id': transportista_actual.id if transportista_actual else '',
+                'conductor': contexto_ingreso['camion'].CPA_CNOMBRE_CONDUCTOR if contexto_ingreso['camion'] else '',
+                'conductor_id': conductor_actual.id if conductor_actual else '',
+                'rut_conductor': contexto_ingreso['camion'].CPA_CRUT_CONDUCTOR if contexto_ingreso['camion'] else '',
+                'telefono_conductor': split_legacy_phone(contexto_ingreso['camion'].CPA_CCODIGO_PAIS_TELEFONO, contexto_ingreso['camion'].CPA_CTELEFONO_CONDUCTOR)['local_number'] if contexto_ingreso['camion'] else '',
+                'telefono_codigo_pais': split_legacy_phone(contexto_ingreso['camion'].CPA_CCODIGO_PAIS_TELEFONO, contexto_ingreso['camion'].CPA_CTELEFONO_CONDUCTOR)['country_code'] if contexto_ingreso['camion'] else '+56',
+                'paises_telefono': country_options(),
+                'patente': contexto_ingreso['camion'].CPA_CPATENTE if contexto_ingreso['camion'] else '',
+                'numero_guia': contexto_ingreso['camion'].CPA_CNUMERO_GUIA if contexto_ingreso['camion'] else '',
+                'bl': contexto_ingreso['camion'].CPA_CBL if contexto_ingreso['camion'] else '',
+                'lote_contenedor': contexto_ingreso['camion'].CPA_CLOTE_CONTENEDOR if contexto_ingreso['camion'] else '',
+            },
             'guardia_puede_enviar_porteria': usuario_es_guardia(request.user) and not usuario_es_guardia_porteria(request.user) and bool(log_envio_estanque) and not bool(log_guardia_porteria),
             'guardia_porteria_puede_autorizar': usuario_es_guardia_porteria(request.user) and bool(log_guardia_porteria) and not bool(log_autoriza_planta),
             'guardia_porteria_enviado': bool(log_guardia_porteria),
@@ -5416,7 +5638,6 @@ def PLANIFICACION_CITACION_REVISION_ASISTENTE(request, pk):
                 'Empresa transporte': texto_sin_informacion(valores_ingreso.get('transportista')),
                 'Nombre conductor': texto_sin_informacion(valores_ingreso.get('conductor')),
                 'Patente': texto_sin_informacion(valores_ingreso.get('patente')),
-                'Tipo eje': texto_sin_informacion(valores_ingreso.get('cantidad_ejes')),
                 'Telefono conductor': texto_sin_informacion(valores_ingreso.get('celular_conductor')),
                 'Lote-contenedor': dato('ING_LOTE_CONTENEDOR'),
                 'Observacion': observacion_texto_real(dato('ING_OBSERVACION'), valor_detalle('observacion'), citacion.CI_CCOMENTARIO) if es_despacho else (dato('ING_OBSERVACION') or valor_detalle('observacion') or citacion.CI_CCOMENTARIO or ''),
@@ -5512,6 +5733,121 @@ def PLANIFICACION_CITACION_REVISION_ASISTENTE(request, pk):
         return JsonResponse({'success': False, 'message': str(e)}, status=500)
 
 
+def PLANIFICACION_CITACION_EDITAR_INGRESO_ASISTENTE(request, pk):
+    if request.method != 'POST':
+        return JsonResponse({'success': False, 'message': 'Metodo no permitido.'}, status=405)
+    if not (usuario_es_asistente_recepcion(request.user) or usuario_es_asistente_cd(request.user) or getattr(request.user, 'is_staff', False) or getattr(request.user, 'is_superuser', False)):
+        return JsonResponse({'success': False, 'message': 'No tiene permisos para editar datos de ingreso.'}, status=403)
+    Empresa = Verificar_empresa(request)
+    if Empresa is None:
+        return JsonResponse({'success': False, 'message': 'Debe seleccionar una empresa.'}, status=400)
+    try:
+        with transaction.atomic():
+            citacion = CITACION.objects.select_for_update().select_related('EP_NID', 'SC_NID').get(
+                pk=pk, EP_NID_id=Empresa, CI_BHABILITADO=True
+            )
+            detalle_actual = DETALLE_SECUENCIA.objects.filter(
+                SC_NID=citacion.SC_NID, ET_NID=citacion.ETAPA_ACTUAL, SE_BHABILITADO=True
+            ).first()
+            etapa_abierta = ETAPA_LOG.objects.filter(
+                CI_NID=citacion, SC_NID=citacion.SC_NID, ET_NID=citacion.ETAPA_ACTUAL, EL_FFECHAFIN=None
+            ).exists()
+            if citacion.CI_CESTADO == CIT_TERMINADO or not etapa_abierta or (detalle_actual and detalle_actual.SE_NPASO > 2):
+                return JsonResponse({'success': False, 'message': 'Esta citacion ya fue aprobada por Asistente de recepcion.'}, status=409)
+            camion = CAMION_PATIO.objects.select_for_update().get(
+                CI_NID=citacion, EP_NID_id=Empresa, CPA_CESTADO=CAMION_PATIO.ESTADO_ASOCIADO_CITACION
+            )
+            datos = _normalizar_datos_edicion_camion_patio(request.POST, camion)
+            if datos['transporte_a_cargo'] == 'TERRAMAR':
+                transportista_id = str(request.POST.get('transportista_id') or '').strip()
+                conductor_id = str(request.POST.get('conductor_id') or '').strip()
+                conductor_manual = str(request.POST.get('conductor_manual') or '').lower() in {'1', 'true', 'on', 'yes'}
+                if not transportista_id.isdigit():
+                    raise ValueError('Debe seleccionar un transportista valido para la empresa activa.')
+                transportista = queryset_transportistas_validos_ingreso_camion(Empresa).filter(pk=transportista_id).first()
+                if not transportista:
+                    raise ValueError('El transportista seleccionado no pertenece a la empresa activa.')
+                datos['CPA_CTRANSPORTISTA_DECLARADO'] = transportista.SN_CRAZONSOCIAL
+                if not conductor_manual:
+                    if not conductor_id.isdigit():
+                        raise ValueError('Debe seleccionar un conductor o marcar Conductor no registrado.')
+                    conductor = CONDUCTOR.objects.filter(
+                        pk=conductor_id, EP_NID_id=Empresa, SN_NID=transportista, CON_BHABILITADO=True
+                    ).first()
+                    if not conductor:
+                        raise ValueError('El conductor seleccionado no pertenece al transportista indicado.')
+                    datos['CPA_CNOMBRE_CONDUCTOR'] = f'{conductor.CON_CNOMBRE or ""} {conductor.CON_CAPELLIDO or ""}'.strip()
+                    datos['CPA_CRUT_CONDUCTOR'] = str(conductor.CON_CRUT or '').strip()
+                    # Nombre y RUT provienen del maestro; telefono y patente son
+                    # datos operacionales editables del viaje y no se sobrescriben.
+            cambios = []
+            anteriores = {}
+            for campo, valor in datos.items():
+                anterior = str(getattr(camion, campo) or '')
+                if anterior != str(valor):
+                    anteriores[campo] = anterior
+                    cambios.append(campo)
+                    setattr(camion, campo, valor)
+            if not cambios:
+                return JsonResponse({'success': True, 'ok': True, 'message': 'No hay cambios para guardar.', 'requiere_ruta_transportista': datos['transporte_a_cargo'] == 'TERRAMAR'})
+            cambia_transportista = any(campo in cambios for campo in ('transporte_a_cargo', 'CPA_CTRANSPORTISTA_DECLARADO'))
+            camion.save(update_fields=cambios + ['CPA_FFECHAACTUALIZACION'])
+            camion.refresh_from_db()
+            _actualizar_datos_operacionales_desde_camion_patio(camion, citacion, request.user)
+            if cambia_transportista:
+                citacion.TAR_NID = None
+                citacion.RUT_NID = None
+                citacion.CI_NVALORTARIFA = None
+                citacion.save(update_fields=['TAR_NID', 'RUT_NID', 'CI_NVALORTARIFA'])
+                for codigo, etiqueta in [
+                    ('AR_RUTA_TRANSPORTISTA', 'Ruta transportista invalidada por edicion de ingreso'),
+                    ('AR_RUTA_ID', 'RUT_NID invalidado por edicion de ingreso'),
+                    ('AR_TARIFA_ID', 'TAR_NID invalidado por edicion de ingreso'),
+                ]:
+                    guardar_dato_operacion_codigo(citacion, codigo, '', request.user, etiqueta=etiqueta)
+            detalle_cambios = '; '.join(
+                f'{campo}: "{anteriores[campo]}" -> "{getattr(camion, campo) or ""}"'
+                for campo in cambios
+            )
+            registrar_log_camion_no_planificado(
+                request.user, citacion.EP_NID, 'EDITA_DATOS_CAMION',
+                f'Edicion datos asistente recepcion citacion #{citacion.id}, camion patio #{camion.id}. {detalle_cambios}',
+                citacion.id, camion.id, raise_on_error=True
+            )
+        rutas = obtener_rutas_tarifa_transportista(citacion) if camion.transporte_a_cargo == 'TERRAMAR' else {'opciones': []}
+        return JsonResponse({
+            'success': True,
+            'ok': True,
+            'message': 'Datos de ingreso actualizados.',
+            'requiere_ruta_transportista': camion.transporte_a_cargo == 'TERRAMAR',
+            'ruta_invalidada': cambia_transportista,
+            'rutas_transportista': rutas.get('opciones', []),
+            'datos': {
+                'transporte_a_cargo': camion.transporte_a_cargo,
+                'transportista_nombre': camion.CPA_CTRANSPORTISTA_DECLARADO or '',
+                'conductor_nombre': camion.CPA_CNOMBRE_CONDUCTOR or '',
+                'rut_conductor': camion.CPA_CRUT_CONDUCTOR or '',
+                'telefono_codigo_pais': camion.CPA_CCODIGO_PAIS_TELEFONO or '+56',
+                'telefono': camion.CPA_CTELEFONO_CONDUCTOR or '',
+                'patente': camion.CPA_CPATENTE or '',
+                'numero_documento': camion.CPA_CNUMERO_GUIA or '',
+                'bl': camion.CPA_CBL or '',
+                'lote_contenedor': camion.CPA_CLOTE_CONTENEDOR or '',
+            },
+        })
+    except CITACION.DoesNotExist:
+        return JsonResponse({'success': False, 'message': 'Citacion no encontrada.'}, status=404)
+    except CAMION_PATIO.DoesNotExist:
+        return JsonResponse({'success': False, 'message': 'No existe un camion en patio asociado a esta citacion.'}, status=404)
+    except ValueError as exc:
+        return JsonResponse({'success': False, 'message': str(exc)}, status=400)
+    except Exception:
+        logger.exception('Error actualizando datos operacionales del camion', extra={'citacion_id': pk})
+        return JsonResponse(
+            {'success': False, 'ok': False, 'error': 'No fue posible guardar los datos del camion.', 'message': 'No fue posible guardar los datos del camion.'},
+            status=500,
+        )
+
 def AJAX_RUTAS_TRANSPORTISTA_REVISION(request):
     if request.method != 'GET':
         return JsonResponse({'success': False, 'message': 'Metodo no permitido.'}, status=405)
@@ -5551,10 +5887,13 @@ def ruta_transportista_asistente_guardada(citacion, datos_operacion=None):
         return False
     if datos_operacion is None:
         datos_operacion, _ = obtener_datos_operacion_citacion(citacion)
-    return bool(
-        datos_operacion.get('AR_RUTA_TRANSPORTISTA')
-        or datos_operacion.get('AR_RUTA_ID')
-        or datos_operacion.get('AR_TARIFA_ID')
+    return any(
+        dato and str(dato.DO_CVALOR or '').strip()
+        for dato in (
+            datos_operacion.get('AR_RUTA_TRANSPORTISTA'),
+            datos_operacion.get('AR_RUTA_ID'),
+            datos_operacion.get('AR_TARIFA_ID'),
+        )
     )
 
 
@@ -5564,15 +5903,17 @@ def validar_tarifa_transportista_revision(citacion, tarifa_id, ruta_id=''):
     if not tarifa_id:
         return None, 'Debe seleccionar una ruta del transportista antes de guardar.'
 
-    valores_ingreso = obtener_valores_ingreso_camion(citacion)
-    transportistas_ids = obtener_transportistas_ids_revision(citacion, valores_ingreso)
-    if not transportistas_ids:
-        return None, 'No fue posible validar el transportista asociado a la citacion.'
+    transportista_vigente = transportista_vigente_camion_patio(citacion)
+    if not transportista_vigente:
+        return None, 'No fue posible validar el transportista vigente del camion.'
 
     tarifa = TARIFA_GLOBAL.objects.select_related('RUT_NID', 'SN_NID').filter(
         pk=tarifa_id,
-        SN_NID_id__in=transportistas_ids,
-        TAR_BHABILITADO=True
+        EP_NID_id=citacion.EP_NID_id,
+        SN_NID_id=transportista_vigente.id,
+        TAR_BHABILITADO=True,
+        RUT_NID__EP_NID_id=citacion.EP_NID_id,
+        RUT_NID__RUT_BHABILITADO=True,
     ).first()
 
     if not tarifa:
@@ -5838,9 +6179,9 @@ def APROBAR_CAMION_ASISTENTE(request, pk):
             f'Fecha/hora aprobacion: {fecha_aprobacion}\n'
             f'Asistente recepcion: {request.user.username}'
         )
-        asistentes_cd = obtener_usuarios_asistente_cd()
+        asistentes_cd = obtener_usuarios_asistente_cd(citacion.EP_NID_id)
         for asistente_cd in asistentes_cd:
-            NOTIFICACION.objects.create(
+            crear_notificacion_interna(
                 USER_SENDER_ID=request.user,
                 USER_RECEIVER_ID=asistente_cd,
                 EP_NID=citacion.EP_NID,
@@ -5910,7 +6251,7 @@ def DEVOLVER_CAMION_GUARDIA(request, pk):
         )
 
         for guardia in guardias:
-            NOTIFICACION.objects.create(
+            crear_notificacion_interna(
                 USER_SENDER_ID=request.user,
                 USER_RECEIVER_ID=guardia,
                 EP_NID=citacion.EP_NID,
@@ -5968,6 +6309,7 @@ def ENVIAR_GUARDIA_PORTERIA(request, pk):
 
             NOTIFICACION.objects.filter(
                 USER_RECEIVER_ID=request.user,
+                EP_NID=citacion.EP_NID,
                 NOT_BREAD=False,
                 NOT_BHABILITADO=True,
                 NOT_CCONTENIDO__icontains='debe ingresar a planta',
@@ -6024,6 +6366,7 @@ def ENVIAR_GUARDIA_PORTERIA(request, pk):
 
         NOTIFICACION.objects.filter(
             USER_RECEIVER_ID=request.user,
+            EP_NID=citacion.EP_NID,
             NOT_BREAD=False,
             NOT_BHABILITADO=True,
             NOT_CCONTENIDO__icontains='debe ingresar a Planta',
@@ -6034,9 +6377,9 @@ def ENVIAR_GUARDIA_PORTERIA(request, pk):
         )
 
         mensaje_porteria = f'Patente {patente} debe ingresar a planta'
-        guardias_porteria = obtener_usuarios_guardia_porteria()
+        guardias_porteria = obtener_usuarios_guardia_porteria(citacion.EP_NID_id)
         for guardia_porteria in guardias_porteria:
-            NOTIFICACION.objects.create(
+            crear_notificacion_interna(
                 USER_SENDER_ID=request.user,
                 USER_RECEIVER_ID=guardia_porteria,
                 EP_NID=citacion.EP_NID,
@@ -6110,6 +6453,24 @@ def PLANIFICACION_CITACION_ESTANQUE(request, pk):
         valores_ingreso = obtener_valores_ingreso_camion(citacion)
         patente = texto_sin_informacion(valores_ingreso.get('patente'))
 
+        if request.method == 'GET' and request.GET.get('almacen'):
+            almacen_solicitado = normalizar_almacen_planificacion(request.GET.get('almacen'))
+            if not almacen_solicitado or almacen_solicitado not in ESTANQUES_POR_ALMACEN:
+                return JsonResponse({'success': False, 'message': 'Almacen no valido para esta recepcion.'}, status=400)
+            opciones_solicitadas = ESTANQUES_POR_ALMACEN.get(almacen_solicitado, [])
+            return JsonResponse({
+                'success': True,
+                'almacen_codigo': almacen_solicitado,
+                'almacen': etiqueta_almacen_operacional(almacen_solicitado),
+                'opciones_estanque': [] if almacen_solicitado == 'TRASVASIJE' else construir_opciones_estanque_reserva(
+                    citacion,
+                    almacen_solicitado,
+                    opciones_solicitadas,
+                    ''
+                ),
+                'es_trasvasije': almacen_solicitado == 'TRASVASIJE',
+            })
+
         if request.method == 'POST':
             if enviado_siguiente:
                 return JsonResponse({'success': False, 'message': 'Esta citacion ya fue enviada a la siguiente etapa.'}, status=409)
@@ -6135,14 +6496,23 @@ def PLANIFICACION_CITACION_ESTANQUE(request, pk):
                     'sap_despacho_draft': get_sap_despacho_draft_status(citacion),
                 })
 
-            if not almacen:
-                return JsonResponse({'success': False, 'message': 'No existe almacen definido en planificacion.'}, status=400)
+            almacen_anterior = almacen
+            almacen_post = normalizar_almacen_planificacion(request.POST.get('almacen') or almacen)
+            if not almacen_post:
+                return JsonResponse({'success': False, 'message': 'Debe seleccionar un almacen valido.'}, status=400)
+            if almacen_post not in ESTANQUES_POR_ALMACEN:
+                return JsonResponse({'success': False, 'message': 'El almacen seleccionado no corresponde al proceso de recepcion.'}, status=400)
+            almacen = almacen_post
+            opciones_estanque = ESTANQUES_POR_ALMACEN.get(almacen, [])
 
             estanque = str(request.POST.get('estanque') or '').strip()
             peso_raw = str(request.POST.get('peso_informado') or '').strip()
+            documentos_revisados = str(request.POST.get('documentos_revisados') or '').lower() in ['1', 'true', 'on', 'si', 'sí', 'sí']
             if almacen == 'TRASVASIJE':
                 estanque = 'Trasvasije'
 
+            if not documentos_revisados:
+                return JsonResponse({'success': False, 'message': 'Debe confirmar que reviso los documentos y los datos de recepcion.'}, status=400)
             if not estanque:
                 return JsonResponse({'success': False, 'message': 'Debe seleccionar estanque.'}, status=400)
             if not peso_raw:
@@ -6153,10 +6523,13 @@ def PLANIFICACION_CITACION_ESTANQUE(request, pk):
                 return JsonResponse({'success': False, 'message': 'Peso informado debe ser numerico.'}, status=400)
             if peso_informado <= 0:
                 return JsonResponse({'success': False, 'message': 'Peso informado debe ser mayor a 0.'}, status=400)
+            if peso_informado > Decimal('1000000'):
+                return JsonResponse({'success': False, 'message': 'Peso informado supera el limite razonable permitido.'}, status=400)
 
             if estanque not in opciones_estanque:
                 return JsonResponse({'success': False, 'message': 'El estanque seleccionado no corresponde al almacen definido.'}, status=400)
 
+            estanque_anterior = dato_estanque.DO_CVALOR if dato_estanque else ''
             with transaction.atomic():
                 reserva_ocupada = None
                 if almacen != 'TRASVASIJE':
@@ -6173,6 +6546,46 @@ def PLANIFICACION_CITACION_ESTANQUE(request, pk):
                             request.user,
                             'Reserva propia liberada por seleccion de estanque tomado por otra citacion'
                         )
+
+                detalle_operacional, _ = CITACION_DETALLE_OPERACIONAL.objects.get_or_create(
+                    CI_NID=citacion,
+                    defaults={
+                        'EP_NID': citacion.EP_NID,
+                        'US_NID': request.user,
+                        'CDO_CORIGEN': 'correccion_recepcion',
+                    }
+                )
+                detalle_operacional.CDO_CALMACEN_DESTINO = etiqueta_almacen_operacional(almacen)
+                detalle_operacional.CDO_CESTANQUE_DESTINO = estanque
+                detalle_operacional.US_NID = request.user
+                if not detalle_operacional.CDO_CORIGEN:
+                    detalle_operacional.CDO_CORIGEN = 'correccion_recepcion'
+                detalle_operacional.save(update_fields=[
+                    'CDO_CALMACEN_DESTINO',
+                    'CDO_CESTANQUE_DESTINO',
+                    'US_NID',
+                    'CDO_CORIGEN',
+                ])
+
+                OPERACION_PLANTA_LOG.objects.create(
+                    US_NID=request.user,
+                    EP_NID=citacion.EP_NID,
+                    PL_NID=citacion.PL_NID,
+                    CI_NID=citacion,
+                    OPL_CPASO='MODIFICACION_DATOS_RECEPCION',
+                    OPL_CPERFIL_RESPONSABLE='ASISTENTE C_D',
+                    OPL_CESTADO=OPERACION_PLANTA_LOG.ESTADO_COMPLETADO,
+                    OPL_COBSERVACION=json.dumps({
+                        'almacen_anterior': etiqueta_almacen_operacional(almacen_anterior),
+                        'almacen_nuevo': etiqueta_almacen_operacional(almacen),
+                        'estanque_anterior': estanque_anterior or None,
+                        'estanque_nuevo': estanque,
+                        'peso_informado': format(peso_informado, 'f'),
+                        'usuario': request.user.username,
+                        'citacion': citacion.id,
+                        'planificacion': citacion.PL_NID_id,
+                    }, ensure_ascii=False)
+                )
 
                 campo_estanque = obtener_campo_estanque_operacional(citacion, request.user)
                 DATO_OPERACION.objects.update_or_create(
@@ -6200,11 +6613,28 @@ def PLANIFICACION_CITACION_ESTANQUE(request, pk):
             registrar_log_camion_no_planificado(
                 request.user,
                 citacion.EP_NID,
+                'MODIFICACION_DATOS_RECEPCION',
+                json.dumps({
+                    'almacen_anterior': etiqueta_almacen_operacional(almacen_anterior),
+                    'almacen_nuevo': etiqueta_almacen_operacional(almacen),
+                    'estanque_anterior': estanque_anterior or None,
+                    'estanque_nuevo': estanque,
+                    'peso_informado': format(peso_informado, 'f'),
+                    'usuario': request.user.username,
+                    'citacion': citacion.id,
+                    'planificacion': citacion.PL_NID_id,
+                }, ensure_ascii=False),
+                citacion.id,
+                etiqueta_almacen_operacional(almacen)
+            )
+            registrar_log_camion_no_planificado(
+                request.user,
+                citacion.EP_NID,
                 'ESTANQUE_CD',
                 (
                     f'Asistente_C_D confirma destino {estanque} para citacion #{citacion.id}.\n'
                     f'Patente: {patente}\n'
-                    f'Almacen: {almacen}\n'
+                    f'Almacen: {etiqueta_almacen_operacional(almacen)}\n'
                     f'Estado reserva: {"No aplica" if almacen == "TRASVASIJE" else (ESTANQUE_RESERVA.ESTADO_OCUPADO if not reserva_ocupada else "Tomado por otra citacion")}\n'
                     f'Ocupacion informada: {ocupacion_info}'
                 ),
@@ -6293,7 +6723,10 @@ def PLANIFICACION_CITACION_ESTANQUE(request, pk):
             'citacion_id': citacion.id,
             'usuario_ingreso_nombre': usuario_ingreso_nombre,
             'tipo_citacion': CIT_DESPACHO if es_despacho else (citacion.CI_CTIPO or (citacion.PL_NID.PL_CTIPOCUPO if citacion.PL_NID else '')),
-            'almacen': almacen,
+            'almacen': etiqueta_almacen_operacional(almacen),
+            'almacen_codigo': almacen,
+            'opciones_almacen': opciones_almacen_recepcion_operacional(citacion),
+            'peso_unidad': 'kg',
             'opciones_estanque': opciones_estanque_reserva,
             'opciones_estanque_origen': [{'valor': valor, 'texto': valor} for valor in opciones_estanque],
             'estanque_actual': estanque_actual,
@@ -6305,7 +6738,25 @@ def PLANIFICACION_CITACION_ESTANQUE(request, pk):
             'peso_informado_guia': peso_informado_recepcion,
             'enviado_siguiente': enviado_siguiente,
             'es_trasvasije': almacen == 'TRASVASIJE',
-            'puede_editar': (not enviado_siguiente) if es_despacho else (not enviado_siguiente and bool(almacen)),
+'puede_editar': (not enviado_siguiente) if es_despacho else (not enviado_siguiente and bool(almacen)),
+            'puede_editar_datos_camion': (
+                not enviado_siguiente
+                and bool(camion_patio_asociado)
+                and (usuario_es_asistente_cd(request.user) or usuario_es_asistente_recepcion(request.user) or getattr(request.user, 'is_staff', False) or getattr(request.user, 'is_superuser', False))
+            ),
+            'datos_edicion_asistente': {
+                'transporte_a_cargo': str(camion_patio_asociado.transporte_a_cargo or 'TERRAMAR').upper() if camion_patio_asociado else '',
+                'transportista': camion_patio_asociado.CPA_CTRANSPORTISTA_DECLARADO if camion_patio_asociado else '',
+                'conductor': camion_patio_asociado.CPA_CNOMBRE_CONDUCTOR if camion_patio_asociado else '',
+                'rut_conductor': camion_patio_asociado.CPA_CRUT_CONDUCTOR if camion_patio_asociado else '',
+                'telefono_conductor': split_legacy_phone(camion_patio_asociado.CPA_CCODIGO_PAIS_TELEFONO, camion_patio_asociado.CPA_CTELEFONO_CONDUCTOR)['local_number'] if camion_patio_asociado else '',
+                'telefono_codigo_pais': split_legacy_phone(camion_patio_asociado.CPA_CCODIGO_PAIS_TELEFONO, camion_patio_asociado.CPA_CTELEFONO_CONDUCTOR)['country_code'] if camion_patio_asociado else '+56',
+                'paises_telefono': country_options(),
+                'patente': camion_patio_asociado.CPA_CPATENTE if camion_patio_asociado else '',
+                'numero_guia': camion_patio_asociado.CPA_CNUMERO_GUIA if camion_patio_asociado else '',
+                'bl': camion_patio_asociado.CPA_CBL if camion_patio_asociado else '',
+                'lote_contenedor': camion_patio_asociado.CPA_CLOTE_CONTENEDOR if camion_patio_asociado else '',
+            },
             'mensaje_bloqueo': '' if (almacen or es_despacho) else 'No existe almacen definido en planificacion',
             'planificacion': {
                 'Planificacion': citacion.PL_NID_id,
@@ -6314,7 +6765,7 @@ def PLANIFICACION_CITACION_ESTANQUE(request, pk):
                 'Transportista': texto_sin_informacion(valores_ingreso.get('transportista')),
                 'Codigo SAP': insumo_planificado.get('codigo') or 'Sin informacion',
                 'Insumo': insumo_planificado.get('insumo') or 'Sin informacion',
-                'Almacen definido': almacen,
+                'Almacen definido': etiqueta_almacen_operacional(almacen),
                 'Tipo planificacion': citacion.PL_NID.PL_CTIPOCUPO if citacion.PL_NID else '',
                 'Fecha inicio': citacion.PL_NID.PL_FFECHAINICIO.strftime('%d/%m/%Y %H:%M') if citacion.PL_NID and citacion.PL_NID.PL_FFECHAINICIO else '',
                 'Fecha termino': citacion.PL_NID.PL_FFECHAFIN.strftime('%d/%m/%Y %H:%M') if citacion.PL_NID and citacion.PL_NID.PL_FFECHAFIN else '',
@@ -6843,7 +7294,7 @@ def AVANZAR_ESTANQUE_SIGUIENTE_ETAPA(request, pk):
         mensaje_guardia = f'Patente: {patente} debe ingresar a Planta'
         guardias = obtener_guardias_relacionados_citacion(citacion)
         for guardia in guardias:
-            NOTIFICACION.objects.create(
+            crear_notificacion_interna(
                 USER_SENDER_ID=request.user,
                 USER_RECEIVER_ID=guardia,
                 EP_NID=citacion.EP_NID,
@@ -6977,6 +7428,8 @@ PERFILES_ASISTENTE_CD = {
 USUARIOS_ASISTENTE_CD = {
     'ASISTENTE C D',
     'ASISTENTE CD',
+    'ADMIN DESARROLLO',
+    'ADMIN_DESARROLLO',
 }
 
 USUARIOS_GUARDIA_PORTERIA = {
@@ -7021,7 +7474,7 @@ FLUJOS_DESPACHO_ETAPA_0 = (
             'Despacho Programado',
             'Ingreso Planta',
             'Autorización Ingreso',
-            'Envía a Romana Inicio Ciclo',
+            'Enviará a Romana Inicio Ciclo',
             'Inicio Carga',
             'Pesaje Romana',
             'Cierre Proceso de Carga',
@@ -7037,7 +7490,7 @@ FLUJOS_DESPACHO_ETAPA_0 = (
             'Despacho Programado',
             'Ingreso Planta',
             'Autorización Ingreso',
-            'Envía a Romana Inicio Ciclo',
+            'Enviará a Romana Inicio Ciclo',
             'Inicio Carga Bodega Externa',
             'Cierre Proceso de Carga',
             'Emisión Guía / Factura',
@@ -7052,7 +7505,7 @@ FLUJOS_DESPACHO_ETAPA_0 = (
             'Despacho Programado',
             'Ingreso Planta',
             'Autorización Ingreso',
-            'Envía a Romana Inicio Ciclo',
+            'Enviará a Romana Inicio Ciclo',
             'Inicio Carga / Despacho Cisterna',
             'Pesaje Romana',
             'Cierre Proceso de Carga',
@@ -7068,7 +7521,7 @@ FLUJOS_DESPACHO_ETAPA_0 = (
             'Despacho Programado',
             'Ingreso Planta',
             'Autorización Ingreso',
-            'Envía a Romana Inicio Ciclo',
+            'Enviará a Romana Inicio Ciclo',
             'Inicio Carga Patio',
             'Pesaje Romana',
             'Cierre Proceso de Carga',
@@ -7670,6 +8123,10 @@ CAMPO_PREPARACION_DESCARGA = 'OP_PREPARACION_DESCARGA'
 CAMPO_CICLO_DESCARGA = 'OP_CICLO_DESCARGA'
 CAMPO_AUTORIZAR_SALIDA = 'OP_AUTORIZAR_SALIDA'
 CAMPO_OBSERVACION_ETAPA = 'OP_OBSERVACION_ETAPA'
+EVENTO_RECEPCION_BODEGA_EXTERNA_SALIDA = 'RECEPCION_BODEGA_EXTERNA_SALIDA_AUTORIZADA'
+EVENTO_RECEPCION_BODEGA_EXTERNA_REGRESO = 'RECEPCION_BODEGA_EXTERNA_REGRESO_REGISTRADO'
+SYSLOG_RECEPCION_BODEGA_EXTERNA_SALIDA = 'REC_BEXT_SALIDA'
+SYSLOG_RECEPCION_BODEGA_EXTERNA_REGRESO = 'REC_BEXT_REGRESO'
 TOMA_MUESTRA_ACCION_REQUIRED_MESSAGE = 'Debe registrar la accion principal antes de finalizar Toma de muestra.'
 TIPOS_CICLO_DESCARGA = (
     'Descarga Estanque',
@@ -7677,6 +8134,8 @@ TIPOS_CICLO_DESCARGA = (
     'Descarga en Cisterna',
     'Descarga Patio LF',
 )
+TIPO_DESCARGA_INICIO_TRASVASIJE = 'INICIO_TRASVASIJE'
+ETIQUETA_DESCARGA_INICIO_TRASVASIJE = 'Inicio Trasvasije'
 PUNTOS_DESPACHO_CARGA = (
     'Línea costado TK12',
     'Lado norte A',
@@ -7719,6 +8178,21 @@ PROCESOS_CICLO_CARGA_DESPACHO = (
 )
 
 
+
+def es_recepcion_bodega_externa_operacion(citacion):
+    if not citacion:
+        return False
+    tipo = str(
+        getattr(citacion, 'CI_CTIPO', '')
+        or (citacion.PL_NID.PL_CTIPOCUPO if getattr(citacion, 'PL_NID_id', None) and citacion.PL_NID else '')
+        or ''
+    ).strip().upper()
+    if tipo != CIT_RECEPCION:
+        return False
+    codigo = str(citacion.SC_NID.SE_CCODIGO if citacion.SC_NID else '').strip().upper()
+    nombre = normalizar_nombre_flujo_operacion(citacion.SC_NID.SE_CNOMBRE if citacion.SC_NID else '')
+    return codigo == 'RECEPCION_BODEGA_EXTERNA' or nombre == normalizar_nombre_flujo_operacion('RECEPCION BODEGA EXTERNA')
+
 def procesos_ciclo_carga_despacho_disponibles(citacion):
     if es_despacho_bodega_externa_operacion(citacion):
         return PROCESOS_CICLO_CARGA_DESPACHO
@@ -7749,6 +8223,30 @@ PASOS_OPERACION_PLANTA_TICKET = {
     'Pesaje Entrada': 'ENT',
     'Pesaje Salida': 'SAL',
 }
+
+
+def opciones_tipos_ciclo_descarga(nombre_flujo):
+    flujo_normalizado = normalizar_nombre_flujo_operacion(nombre_flujo)
+    es_recepcion_trasvasije = flujo_normalizado == normalizar_nombre_flujo_operacion('RECEPCION TRASVASIJE')
+    opciones = []
+    for tipo_descarga in TIPOS_CICLO_DESCARGA:
+        if es_recepcion_trasvasije and tipo_descarga == 'Envio Bodega Externa':
+            opciones.append({
+                'codigo': TIPO_DESCARGA_INICIO_TRASVASIJE,
+                'etiqueta': ETIQUETA_DESCARGA_INICIO_TRASVASIJE,
+                'etiqueta_tarjeta': 'Trasvasije',
+            })
+        else:
+            opciones.append({
+                'codigo': tipo_descarga,
+                'etiqueta': tipo_descarga,
+                'etiqueta_tarjeta': (
+                    'Trasvasije'
+                    if tipo_descarga == 'Envio Bodega Externa'
+                    else tipo_descarga
+                ),
+            })
+    return opciones
 
 
 def _normalizar_patente(valor):
@@ -8083,6 +8581,8 @@ def _observacion_cierre_ticket_pesaje(citacion, paso):
 
 def _config_accion_toma_muestra(nombre_flujo):
     flujo_normalizado = normalizar_nombre_flujo_operacion(nombre_flujo)
+    es_recepcion_trasvasije = flujo_normalizado == normalizar_nombre_flujo_operacion('RECEPCION TRASVASIJE')
+    es_recepcion_bodega_externa = flujo_normalizado == normalizar_nombre_flujo_operacion('RECEPCION BODEGA EXTERNA')
     if flujo_normalizado in {normalizar_nombre_flujo_operacion(flujo) for flujo in FLUJOS_TOMA_MUESTRA_VAPOR}:
         return {
             'tipo': 'vapor',
@@ -8092,6 +8592,18 @@ def _config_accion_toma_muestra(nombre_flujo):
             'mensaje_guardado': 'Camion enviado a vapor.',
             'log_operacion': 'TOMA_MUESTRA_ENVIA_VAPOR',
             'log_mensaje': 'Camion enviado a vapor en Toma de muestra',
+            'mide_tiempo_toma_muestra': False,
+        }
+    if es_recepcion_trasvasije:
+        return {
+            'tipo': 'analisis',
+            'accion_label': 'Toma de muestra',
+            'estado_label': 'Muestra tomada',
+            'pendiente_label': 'Pendiente de toma de muestra',
+            'mensaje_guardado': 'Muestra tomada.',
+            'log_operacion': 'MUESTRA_TOMADA',
+            'log_mensaje': 'Muestra tomada en Toma de muestra',
+            'mide_tiempo_toma_muestra': True,
         }
     return {
         'tipo': 'analisis',
@@ -8099,8 +8611,9 @@ def _config_accion_toma_muestra(nombre_flujo):
         'estado_label': 'Muestra enviada a analisis',
         'pendiente_label': 'Pendiente de envio a analisis',
         'mensaje_guardado': 'Muestra enviada a analisis.',
-        'log_operacion': 'TOMA_MUESTRA_ENVIA_ANALISIS',
+        'log_operacion': 'MUESTRA_A_ANALISIS',
         'log_mensaje': 'Muestra enviada a analisis en Toma de muestra',
+        'mide_tiempo_toma_muestra': es_recepcion_bodega_externa,
     }
 
 
@@ -8299,7 +8812,7 @@ def _guia_operacion_planta_url(citacion, documentos_operacion):
 
     for documento in documentos_operacion:
         etiqueta = f"{documento.get('label', '')} {documento.get('nombre_archivo', '')}".lower()
-        if 'guia' in etiqueta or 'guía' in etiqueta:
+        if 'guia' in etiqueta or 'Guía' in etiqueta:
             return documento.get('download_url') or ''
     return ''
 
@@ -8331,6 +8844,10 @@ def _payload_toma_muestra_accion(citacion, nombre_flujo):
 
 
 def _registrar_toma_muestra_accion(citacion, usuario, nombre_flujo, observacion=''):
+    metadata_existente = _leer_metadata_toma_muestra_accion(citacion)
+    if metadata_existente:
+        return metadata_existente
+
     config = _config_accion_toma_muestra(nombre_flujo)
     campo = _obtener_campo_toma_muestra_accion(citacion, usuario)
     fecha = timezone.localtime(timezone.now())
@@ -8345,6 +8862,11 @@ def _registrar_toma_muestra_accion(citacion, usuario, nombre_flujo, observacion=
         'usuario': usuario.username,
         'fecha': fecha.strftime('%d/%m/%Y %H:%M'),
         'fecha_iso': fecha.isoformat(),
+        'fecha_fin': '',
+        'fecha_fin_iso': '',
+        'duracion_segundos': None,
+        'duracion_legible': '',
+        'usuario_fin': '',
     }
     dato, _ = DATO_OPERACION.objects.update_or_create(
         CI_NID=citacion,
@@ -8369,6 +8891,79 @@ def _registrar_toma_muestra_accion(citacion, usuario, nombre_flujo, observacion=
         ''
     )
     return metadata
+
+
+def _payload_tiempo_toma_muestra(citacion, nombre_flujo):
+    config = _config_accion_toma_muestra(nombre_flujo)
+    metadata = _leer_metadata_toma_muestra_accion(citacion) or {}
+    inicio = _parse_iso_operacion(metadata.get('fecha_iso'))
+    if not inicio and metadata:
+        dato = _dato_toma_muestra_accion(citacion)
+        inicio = dato.DO_FFECHAREGISTRO if dato else None
+        if inicio and timezone.is_naive(inicio):
+            inicio = timezone.make_aware(inicio, timezone.get_current_timezone())
+    fin = _parse_iso_operacion(metadata.get('fecha_fin_iso'))
+
+    duracion_segundos = metadata.get('duracion_segundos')
+    duracion_legible = metadata.get('duracion_legible') or ''
+    if inicio:
+        duracion = (fin or timezone.now()) - inicio
+        if fin or duracion_segundos is None:
+            duracion_segundos = max(int(duracion.total_seconds()), 0)
+        if fin or not duracion_legible:
+            duracion_legible = formatear_duracion_operacional(duracion)
+
+    habilitado = bool(config.get('mide_tiempo_toma_muestra'))
+    return {
+        'habilitado': habilitado,
+        'iniciada': bool(habilitado and inicio),
+        'en_proceso': bool(habilitado and inicio and not fin),
+        'finalizada': bool(habilitado and inicio and fin),
+        'inicio_iso': inicio.isoformat() if inicio else '',
+        'inicio_ms': int(inicio.timestamp() * 1000) if inicio else None,
+        'inicio_legible': timezone.localtime(inicio).strftime('%d/%m/%Y %H:%M') if inicio else '',
+        'fin_iso': fin.isoformat() if fin else '',
+        'fin_legible': timezone.localtime(fin).strftime('%d/%m/%Y %H:%M') if fin else '',
+        'duracion_segundos': duracion_segundos,
+        'duracion_legible': duracion_legible,
+        'usuario_inicio': metadata.get('usuario') or '',
+        'usuario_fin': metadata.get('usuario_fin') or '',
+    }
+
+
+def _finalizar_tiempo_toma_muestra(citacion, usuario, nombre_flujo):
+    config = _config_accion_toma_muestra(nombre_flujo)
+    if not config.get('mide_tiempo_toma_muestra'):
+        return None
+
+    dato = _dato_toma_muestra_accion(citacion)
+    metadata = _leer_metadata_toma_muestra_accion(citacion)
+    if not dato or not metadata:
+        raise ValueError(TOMA_MUESTRA_ACCION_REQUIRED_MESSAGE)
+    if metadata.get('fecha_fin_iso'):
+        return _payload_tiempo_toma_muestra(citacion, nombre_flujo)
+
+    inicio = _parse_iso_operacion(metadata.get('fecha_iso'))
+    if not inicio and dato.DO_FFECHAREGISTRO:
+        inicio = dato.DO_FFECHAREGISTRO
+        if timezone.is_naive(inicio):
+            inicio = timezone.make_aware(inicio, timezone.get_current_timezone())
+    if not inicio:
+        raise ValueError('La fecha de inicio de la toma de muestra no es valida.')
+
+    fin = timezone.now()
+    duracion = fin - inicio
+    metadata.update({
+        'fecha_fin': timezone.localtime(fin).strftime('%d/%m/%Y %H:%M'),
+        'fecha_fin_iso': fin.isoformat(),
+        'duracion_segundos': max(int(duracion.total_seconds()), 0),
+        'duracion_legible': formatear_duracion_operacional(duracion),
+        'usuario_fin': usuario.username,
+        'usuario_fin_id': usuario.id,
+    })
+    dato.DO_CVALOR = json.dumps(metadata, ensure_ascii=False)
+    dato.save(update_fields=['DO_CVALOR'])
+    return _payload_tiempo_toma_muestra(citacion, nombre_flujo)
 
 
 def _obtener_campo_tiempo_vapor(citacion, usuario):
@@ -8472,7 +9067,7 @@ def _payload_tiempo_vapor(citacion):
     Construye el estado actual del tiempo de vapor para una citación.
 
     El estado se obtiene únicamente desde el registro específico del
-    cronómetro de vapor. La acción operativa de enviar a vapor no debe
+    cronómetro de vapor. La Acción operativa de enviar a vapor no debe
     considerarse como inicio automático del contador.
     """
     metadata = _leer_metadata_tiempo_vapor(citacion) or {}
@@ -8527,7 +9122,7 @@ def _iniciar_tiempo_vapor(citacion, usuario):
     Inicia el contador de vapor para la citación actual.
 
     El contador solo se considera iniciado cuando existe metadata específica
-    guardada por este proceso. La acción operativa "enviar a vapor" no debe
+    guardada por este proceso. La Acción operativa "enviar a vapor" no debe
     iniciar ni bloquear automáticamente el cronómetro.
     """
     metadata = _leer_metadata_tiempo_vapor(citacion) or {}
@@ -8579,7 +9174,7 @@ def _finalizar_tiempo_vapor(citacion, usuario):
     Finaliza el contador de vapor de la citación actual.
 
     Solo utiliza la metadata específica del cronómetro de vapor.
-    La acción operativa "enviar a vapor" no se considera como inicio
+    La Acción operativa "enviar a vapor" no se considera como inicio
     válido del contador.
     """
     metadata = _leer_metadata_tiempo_vapor(citacion)
@@ -9127,6 +9722,15 @@ def _formatear_hh_mm_ss_operacion(delta):
 
 def _payload_ciclo_descarga(citacion):
     metadata = _leer_metadata_ciclo_descarga(citacion) or {}
+    nombre_flujo, _ = obtener_pasos_operacion_citacion(citacion)
+    opciones = opciones_tipos_ciclo_descarga(nombre_flujo)
+    tipo_descarga_guardado = metadata.get('tipo_descarga') or ''
+    tipo_descarga_codigo = metadata.get('tipo_descarga_codigo') or tipo_descarga_guardado
+    opcion_guardada = next(
+        (opcion for opcion in opciones if opcion['codigo'] == tipo_descarga_codigo),
+        None,
+    )
+    tipo_descarga_label = metadata.get('tipo_descarga_label') or (opcion_guardada or {}).get('etiqueta') or tipo_descarga_guardado
     inicio = _parse_iso_operacion(metadata.get('inicio_descarga'))
     fin = _parse_iso_operacion(metadata.get('fin_descarga'))
     duracion_segundos = metadata.get('duracion_segundos')
@@ -9135,7 +9739,9 @@ def _payload_ciclo_descarga(citacion):
         duracion_legible = formatear_duracion_operacional((fin or timezone.now()) - inicio)
 
     return {
-        'tipo_descarga': metadata.get('tipo_descarga') or '',
+        'tipo_descarga': tipo_descarga_guardado,
+        'tipo_descarga_codigo': tipo_descarga_codigo,
+        'tipo_descarga_label': tipo_descarga_label,
         'inicio_descarga': metadata.get('inicio_descarga') or '',
         'inicio_descarga_legible': timezone.localtime(inicio).strftime('%d/%m/%Y %H:%M') if inicio else '',
         'fin_descarga': metadata.get('fin_descarga') or '',
@@ -9250,9 +9856,209 @@ def _guardar_metadata_ciclo_descarga(citacion, usuario, metadata):
     return metadata
 
 
+def _metadata_evento_recepcion_bodega_externa(citacion, evento, usuario, fecha, ciclo_activo, extra=None):
+    valores_ingreso = obtener_valores_ingreso_camion(citacion)
+    extra = extra or {}
+    metadata = {
+        'evento': evento,
+        'citacion': citacion.id,
+        'patente': valores_ingreso.get('patente') or '',
+        'flujo': 'RECEPCION_BODEGA_EXTERNA',
+        'etapa': 'CICLO_DESCARGA',
+        'destino': 'BODEGA EXTERNA',
+        'ciclo_externo_activo': bool(ciclo_activo),
+        'fecha_hora': timezone.localtime(fecha).strftime('%d/%m/%Y %H:%M'),
+        'fecha_hora_iso': fecha.isoformat(),
+    }
+    metadata.update(extra)
+    if usuario:
+        metadata['usuario'] = usuario.username
+        metadata['usuario_id'] = usuario.id
+    return metadata
+
+def _payload_ciclo_recepcion_bodega_externa(citacion):
+    metadata = _leer_metadata_ciclo_descarga(citacion) or {}
+    if metadata.get('tipo_ciclo') != 'RECEPCION_BODEGA_EXTERNA':
+        metadata = {}
+    inicio = _parse_iso_operacion(metadata.get('fecha_salida_iso'))
+    fin = _parse_iso_operacion(metadata.get('fecha_regreso_iso'))
+    referencia_fin = fin or timezone.now()
+    duracion = (referencia_fin - inicio) if inicio else None
+    duracion_segundos = metadata.get('duracion_segundos')
+    if inicio and fin and duracion_segundos is None:
+        duracion_segundos = max(int(duracion.total_seconds()), 0)
+    duracion_legible = metadata.get('duracion_legible') or (formatear_duracion_hms(duracion) if duracion else '00:00:00')
+    valores_ingreso = obtener_valores_ingreso_camion(citacion)
+    return {
+        'tipo_ciclo': 'RECEPCION_BODEGA_EXTERNA',
+        'iniciada': bool(inicio),
+        'en_proceso': bool(inicio and not fin),
+        'finalizada': bool(inicio and fin),
+        'estado': 'CICLO BODEGA EXTERNA FINALIZADO' if inicio and fin else ('CAMION EN BODEGA EXTERNA' if inicio else 'PENDIENTE DE AUTORIZACION'),
+        'estado_badge': 'is-done' if inicio and fin else ('is-active' if inicio else ''),
+        'patente': valores_ingreso.get('patente') or '',
+        'citacion': citacion.id,
+        'guia': citacion.CI_CNUMERODOCUMENTO or '',
+        'insumo': _insumo_operacion_planta(citacion),
+        'destino': 'Bodega Externa',
+        'inicio_iso': inicio.isoformat() if inicio else '',
+        'inicio_ms': _timestamp_ms_operacion(inicio),
+        'inicio_legible': timezone.localtime(inicio).strftime('%d/%m/%Y %H:%M') if inicio else '',
+        'fin_iso': fin.isoformat() if fin else '',
+        'fin_legible': timezone.localtime(fin).strftime('%d/%m/%Y %H:%M') if fin else '',
+        'duracion_segundos': duracion_segundos,
+        'duracion_legible': duracion_legible,
+        'usuario_inicio': metadata.get('usuario_autoriza') or '',
+        'usuario_fin': metadata.get('usuario_regreso') or '',
+        'observacion_regreso': metadata.get('observacion_regreso') or '',
+        'evento_inicio': EVENTO_RECEPCION_BODEGA_EXTERNA_SALIDA if inicio else '',
+        'evento_fin': EVENTO_RECEPCION_BODEGA_EXTERNA_REGRESO if fin else '',
+    }
+
+def _validar_etapa_ciclo_recepcion_bodega_externa(citacion):
+    if not es_recepcion_bodega_externa_operacion(citacion):
+        raise ValueError('Esta accion solo aplica a Recepcion Bodega Externa.')
+    nombre_flujo, pasos_config = obtener_pasos_operacion_citacion(citacion)
+    paso_actual, _, _ = obtener_paso_activo_operacion(citacion, pasos_config)
+    if paso_actual != PASO_CICLO_DESCARGA:
+        raise ValueError(f'Solo puede operar durante la etapa activa: {PASO_CICLO_DESCARGA}.')
+    return nombre_flujo
+
+def _iniciar_ciclo_recepcion_bodega_externa(citacion, usuario):
+    with transaction.atomic():
+        citacion = CITACION.objects.select_for_update().select_related('EP_NID', 'PL_NID', 'SC_NID').get(pk=citacion.pk)
+        _validar_etapa_ciclo_recepcion_bodega_externa(citacion)
+        metadata = _leer_metadata_ciclo_descarga(citacion) or {}
+        if metadata.get('tipo_ciclo') == 'RECEPCION_BODEGA_EXTERNA' and metadata.get('fecha_salida_iso'):
+            return _payload_ciclo_recepcion_bodega_externa(citacion), False
+        ahora = timezone.now()
+        valores_ingreso = obtener_valores_ingreso_camion(citacion)
+        metadata = {
+            'tipo_ciclo': 'RECEPCION_BODEGA_EXTERNA',
+            'evento_inicio': EVENTO_RECEPCION_BODEGA_EXTERNA_SALIDA,
+            'citacion_id': citacion.id,
+            'paso_operacion': PASO_CICLO_DESCARGA,
+            'flujo': 'RECEPCION_BODEGA_EXTERNA',
+            'destino': 'BODEGA EXTERNA',
+            'estado_camion': 'AUTORIZADO PARA SALIR',
+            'patente': valores_ingreso.get('patente') or '',
+            'fecha_salida_iso': ahora.isoformat(),
+            'fecha_salida': timezone.localtime(ahora).strftime('%d/%m/%Y %H:%M'),
+            'usuario_autoriza': usuario.username,
+            'usuario_autoriza_id': usuario.id,
+            'fecha_regreso_iso': '',
+            'fecha_regreso': '',
+            'usuario_regreso': '',
+            'usuario_regreso_id': None,
+            'duracion_segundos': None,
+            'duracion_legible': '',
+            'ciclo_externo_activo': True,
+        }
+        _guardar_metadata_ciclo_descarga(citacion, usuario, metadata)
+        evento = _metadata_evento_recepcion_bodega_externa(
+            citacion, EVENTO_RECEPCION_BODEGA_EXTERNA_SALIDA, usuario, ahora, True,
+            {
+                'estado_camion': 'AUTORIZADO PARA SALIR',
+                'usuario_autoriza': usuario.username,
+                'fecha_hora_salida': metadata['fecha_salida'],
+            }
+        )
+        OPERACION_PLANTA_LOG.objects.create(
+            US_NID=usuario,
+            EP_NID=citacion.EP_NID,
+            PL_NID=citacion.PL_NID,
+            CI_NID=citacion,
+            OPL_CPASO=EVENTO_RECEPCION_BODEGA_EXTERNA_SALIDA,
+            OPL_CPERFIL_RESPONSABLE='SALA CONTROL',
+            OPL_CESTADO=OPERACION_PLANTA_LOG.ESTADO_COMPLETADO,
+            OPL_COBSERVACION=json.dumps(evento, ensure_ascii=False),
+        )
+        _registrar_syslog_operacion_planta(
+            citacion, usuario, SYSLOG_RECEPCION_BODEGA_EXTERNA_SALIDA,
+            f"Camion autorizado para salir a Bodega Externa. Patente: {evento.get('patente')}.",
+            'BODEGA_EXTERNA',
+        )
+        return _payload_ciclo_recepcion_bodega_externa(citacion), True
+
+def _finalizar_ciclo_recepcion_bodega_externa(citacion, usuario, observacion_regreso=''):
+    observacion_regreso = str(observacion_regreso or '').strip()
+    with transaction.atomic():
+        citacion = CITACION.objects.select_for_update().select_related('EP_NID', 'PL_NID', 'SC_NID').get(pk=citacion.pk)
+        if not es_recepcion_bodega_externa_operacion(citacion):
+            raise ValueError('Esta accion solo aplica a Recepcion Bodega Externa.')
+        metadata = _leer_metadata_ciclo_descarga(citacion) or {}
+        if metadata.get('tipo_ciclo') != 'RECEPCION_BODEGA_EXTERNA' or not metadata.get('fecha_salida_iso'):
+            raise ValueError('Debe autorizar la salida a Bodega Externa antes de registrar el regreso.')
+        if metadata.get('fecha_regreso_iso'):
+            return _payload_ciclo_recepcion_bodega_externa(citacion), False
+        _validar_etapa_ciclo_recepcion_bodega_externa(citacion)
+        inicio = _parse_iso_operacion(metadata.get('fecha_salida_iso'))
+        if not inicio:
+            raise ValueError('La fecha de salida a Bodega Externa no es valida.')
+        ahora = timezone.now()
+        duracion = ahora - inicio
+        duracion_segundos = max(int(duracion.total_seconds()), 0)
+        duracion_legible = formatear_duracion_hms(duracion)
+        metadata.update({
+            'evento_fin': EVENTO_RECEPCION_BODEGA_EXTERNA_REGRESO,
+            'fecha_regreso_iso': ahora.isoformat(),
+            'fecha_regreso': timezone.localtime(ahora).strftime('%d/%m/%Y %H:%M'),
+            'usuario_regreso': usuario.username,
+            'usuario_regreso_id': usuario.id,
+            'duracion_segundos': duracion_segundos,
+            'duracion_legible': duracion_legible,
+            'observacion_regreso': observacion_regreso,
+            'ciclo_externo_activo': False,
+            'estado_camion': 'REGRESO REGISTRADO',
+        })
+        _guardar_metadata_ciclo_descarga(citacion, usuario, metadata)
+        evento = _metadata_evento_recepcion_bodega_externa(
+            citacion, EVENTO_RECEPCION_BODEGA_EXTERNA_REGRESO, usuario, ahora, False,
+            {
+                'usuario_cierre': usuario.username,
+                'fecha_hora_regreso': metadata['fecha_regreso'],
+                'duracion_total_segundos': duracion_segundos,
+                'duracion_total': duracion_legible,
+                'siguiente_etapa': 'PESAJE_SALIDA',
+                'observacion_regreso': observacion_regreso,
+            }
+        )
+        OPERACION_PLANTA_LOG.objects.create(
+            US_NID=usuario,
+            EP_NID=citacion.EP_NID,
+            PL_NID=citacion.PL_NID,
+            CI_NID=citacion,
+            OPL_CPASO=EVENTO_RECEPCION_BODEGA_EXTERNA_REGRESO,
+            OPL_CPERFIL_RESPONSABLE='GUARDIA PORTERIA',
+            OPL_CESTADO=OPERACION_PLANTA_LOG.ESTADO_COMPLETADO,
+            OPL_COBSERVACION=json.dumps(evento, ensure_ascii=False),
+        )
+        OPERACION_PLANTA_LOG.objects.create(
+            US_NID=usuario,
+            EP_NID=citacion.EP_NID,
+            PL_NID=citacion.PL_NID,
+            CI_NID=citacion,
+            OPL_CPASO=PASO_CICLO_DESCARGA,
+            OPL_CPERFIL_RESPONSABLE='GUARDIA PORTERIA',
+            OPL_CESTADO=OPERACION_PLANTA_LOG.ESTADO_COMPLETADO,
+            OPL_COBSERVACION=json.dumps(evento, ensure_ascii=False),
+        )
+        _registrar_syslog_operacion_planta(
+            citacion, usuario, SYSLOG_RECEPCION_BODEGA_EXTERNA_REGRESO,
+            f'Camion regreso desde Bodega Externa. Duracion: {duracion_legible}.',
+            'BODEGA_EXTERNA',
+        )
+        return _payload_ciclo_recepcion_bodega_externa(citacion), True
+
 def _iniciar_ciclo_descarga(citacion, usuario, tipo_descarga):
     tipo_descarga = str(tipo_descarga or '').strip()
-    if tipo_descarga not in TIPOS_CICLO_DESCARGA:
+    nombre_flujo, _ = obtener_pasos_operacion_citacion(citacion)
+    opciones = opciones_tipos_ciclo_descarga(nombre_flujo)
+    opcion_seleccionada = next(
+        (opcion for opcion in opciones if opcion['codigo'] == tipo_descarga),
+        None,
+    )
+    if not opcion_seleccionada:
         raise ValueError('Debe seleccionar un tipo de descarga valido.')
 
     metadata = _leer_metadata_ciclo_descarga(citacion) or {}
@@ -9263,7 +10069,9 @@ def _iniciar_ciclo_descarga(citacion, usuario, tipo_descarga):
 
     ahora = timezone.now()
     metadata = {
-        'tipo_descarga': tipo_descarga,
+        'tipo_descarga': opcion_seleccionada['etiqueta'],
+        'tipo_descarga_codigo': opcion_seleccionada['codigo'],
+        'tipo_descarga_label': opcion_seleccionada['etiqueta'],
         'inicio_descarga': ahora.isoformat(),
         'fin_descarga': '',
         'duracion_segundos': None,
@@ -9284,7 +10092,7 @@ def _iniciar_ciclo_descarga(citacion, usuario, tipo_descarga):
         OPL_CPASO='INICIA_DESCARGA',
         OPL_CPERFIL_RESPONSABLE='SALA CONTROL',
         OPL_CESTADO=OPERACION_PLANTA_LOG.ESTADO_COMPLETADO,
-        OPL_COBSERVACION=f'Tipo descarga: {tipo_descarga}'
+        OPL_COBSERVACION=f'Tipo descarga: {opcion_seleccionada["etiqueta"]}'
     )
     return metadata
 
@@ -9600,21 +10408,11 @@ CAMPOS_INGRESO_CAMION_DEFAULT = [
         'asignar_citacion': False,
     },
     {
-        'codigo': 'ING_CANTIDAD_EJES',
-        'etiqueta': 'Cantidad de ejes',
-        'tipo': 'LISTA',
-        'obligatorio': True,
+        'codigo': 'ING_CODIGO_PAIS_TELEFONO',
+        'etiqueta': 'Codigo pais telefono',
+        'tipo': 'TEXTO',
+        'obligatorio': False,
         'asignar_citacion': False,
-        'opciones': [
-            ('2 ejes', '2 ejes'),
-            ('3 ejes', '3 ejes'),
-            ('4 ejes', '4 ejes'),
-            ('5 ejes', '5 ejes'),
-            ('6 ejes', '6 ejes'),
-            ('7 ejes', '7 ejes'),
-            ('8 ejes', '8 ejes'),
-            ('Bitren / configuracion especial', 'Bitren / configuracion especial'),
-        ],
     },
     {
         'codigo': 'ING_TELEFONO_CONDUCTOR',
@@ -9816,7 +10614,6 @@ def asegurar_campos_ingreso_camion(citacion, etapa, usuario):
                 CA_BHABILITADO=True,
                 CA_BASIGNARVALOR=definicion['asignar_citacion'],
             )
-        elif definicion['codigo'] in ['ING_CANTIDAD_EJES', 'ING_TELEFONO_CONDUCTOR']:
             campos_actualizados = []
             if campo.CA_CTIPO != definicion['tipo']:
                 campo.CA_CTIPO = definicion['tipo']
@@ -9884,6 +10681,10 @@ def obtener_campos_operacion_etapa(citacion, etapa, usuario):
 
     for detalle in detalles:
         campo = detalle.CAMP_NID
+        # Campo historico: se conserva en BD para registros antiguos, pero ya no
+        # participa en formularios ni operaciones nuevas.
+        if campo.CA_CCODIGO == 'ING_CANTIDAD_EJES':
+            continue
         if es_citacion_despacho(citacion) and campo.CA_CCODIGO == 'ING_BL':
             continue
 
@@ -9893,11 +10694,6 @@ def obtener_campos_operacion_etapa(citacion, etapa, usuario):
                 datos = QueryParam(campo.CA_CQUERY)
             except Exception as e:
                 print(f'Error al ejecutar query de campo {campo.id}: {e}')
-        if campo.CA_CCODIGO == 'ING_CANTIDAD_EJES':
-            datos = next(
-                (definicion.get('opciones', []) for definicion in CAMPOS_INGRESO_CAMION_DEFAULT if definicion['codigo'] == 'ING_CANTIDAD_EJES'),
-                []
-            )
 
         dato_operacion = DATO_OPERACION.objects.filter(
             CI_NID=citacion,
@@ -10875,7 +11671,7 @@ def seleccionar_empresa(request):
             return redirect('/')
 
         # Caso 3: usuario multiempresa
-        # Se envía al template para que seleccione con cuál empresa trabajar
+        # Se Enviará al template para que seleccione con cuál empresa trabajar
         ctx = {
             'empresas_usuario': empresas_usuario
         }
@@ -11241,10 +12037,10 @@ def DASHBOARD_GRAFICO(request):
 ######################   CAMBIO CONTRASEÑA   #############################
 ##########################################################################
 
-class CambioContraseña(FormView):
+class CambioContrasena(FormView):
     model = User
     form_class = PasswordChangeForm
-    template_name= 'home/CONTRASEÑA/cambio_contraseña.html'
+    template_name= 'home/CONTRASE?A/cambio_contrase?a.html'
     success_url = reverse_lazy('/')
 
     def get_form(self, form_class=None):
@@ -11267,7 +12063,7 @@ class CambioContraseña(FormView):
         except Exception as e:
             messages.error(request, 'Error.')
             return redirect('home')
-        messages.success(request, 'Contraseña actualizada correctamente!.')
+        messages.success(request, 'Contrase?a actualizada correctamente!.')
         return redirect('home')
     
 ##########################################################################
@@ -12326,7 +13122,7 @@ def CAMION_ADDONE(request):
                             DCA_FFECHAREGISTRO = datetime.now()
                         )
 
-                messages.success(request, 'Camión guardado correctamente')
+                messages.success(request, 'camión guardado correctamente')
                 return redirect('/cam_listall/')
             else:
                 messages.error(request, 'Error al guardar el camión')
@@ -12402,7 +13198,7 @@ def CAMION_UPDATE(request, pk):
                             DCA_FFECHAREGISTRO = datetime.now()
                         )
                 form.save()
-                messages.success(request, 'Camión actualizado correctamente')
+                messages.success(request, 'camión actualizado correctamente')
                 return redirect(f'/cam_listone/{pk}')
 
         form = formCAMION(instance=camion)
@@ -12483,7 +13279,7 @@ def CAMION_DELETE(request, pk):
         camion.CAM_BHABILITADO = False
         camion.save()
 
-        messages.success(request, 'Camión eliminado correctamente')
+        messages.success(request, 'camión eliminado correctamente')
         return redirect('/cam_listall/')
     except Exception as e:
         print(e)
@@ -12499,7 +13295,7 @@ def CAMION_DELETE_SELECTED(request):
             camion.CAM_BHABILITADO = False
             camion.save()
 
-        messages.success(request, 'Camión eliminado correctamente')
+        messages.success(request, 'camión eliminado correctamente')
         return redirect('/cam_listall/')
     except Exception as e:
         print(e)
@@ -12529,7 +13325,7 @@ def CAMION_HABILITAR(request, pk):
         camion = CAMION.objects.get(id = pk)
         camion.CAM_BHABILITADO = True
         camion.save()
-        messages.success(request, 'Camión habilitado correctamente')
+        messages.success(request, 'camión habilitado correctamente')
         return redirect('/cam_listall/')
     except Exception as e:
         print(e)
@@ -12917,9 +13713,9 @@ def CALENDARIO_ADD_HOLIDAY(request):
             current_date = start_date
 
             while current_date <= end_date:
-                # Verificar si existe alguna planificación para ese día
+                # Verificar si existe alguna Planificación para ese día
                 if PLANIFICACION.objects.filter(PL_FFECHAINICIO__date=current_date, PL_FFECHAFIN__date=current_date).exists():
-                    messages.error(request, f'Ya existe una planificación para el día {current_date}.')
+                    messages.error(request, f'Ya existe una Planificación para el día {current_date}.')
                     return redirect('cal_listall')
 
                 CALENDARIO.objects.create(
@@ -12972,7 +13768,7 @@ def CALENDARIO_MODIFY_HOURS(request):
 
             if modify_type == 'single':
                 date = datetime.strptime(request.POST.get('date'), '%Y-%m-%d').date()
-                print(f"Modificando el día: {date}")
+                print(f"Modificando el año: {date}")
                 # Verificar si es un feriado
                 feriado = CALENDARIO.objects.filter(
                     CA_NDIA=date.day,
@@ -12990,7 +13786,7 @@ def CALENDARIO_MODIFY_HOURS(request):
                 ).first()
                 if planificacion and (planificacion.PL_FFECHAINICIO.time() < datetime.strptime(start_time, '%H:%M').time() or
                         planificacion.PL_FFECHAFIN.time() > datetime.strptime(end_time, '%H:%M').time()):
-                    messages.error(request, 'La planificación existente no está dentro del nuevo horario.')
+                    messages.error(request, 'La Planificación existente no está dentro del nuevo horario.')
                     return redirect('cal_listall')
                 CALENDARIO.objects.update_or_create(
                     US_NID=user,
@@ -13034,7 +13830,7 @@ def CALENDARIO_MODIFY_HOURS(request):
                     ).first()
                     if planificacion and (planificacion.PL_FFECHAINICIO.time() < datetime.strptime(start_time, '%H:%M').time() or
                             planificacion.PL_FFECHAFIN.time() > datetime.strptime(end_time, '%H:%M').time()):
-                        messages.error(request, f'La planificación existente no está dentro del nuevo horario para el día {current_date}.')
+                        messages.error(request, f'La Planificación existente no está dentro del nuevo horario para el día {current_date}.')
                         current_date += timedelta(days=1)
                         continue
                     CALENDARIO.objects.update_or_create(
@@ -14015,7 +14811,7 @@ def PLANIFICACION_LISTALL(request):
     try:
         if request.user.is_superuser == False:                     
             usuario = request.user.id
-            if not usuario_es_ingreso_camion(request.user) and not usuario_es_planificador(request.user) and not validar_perfiles_activos(usuario, "pla_listall"):
+            if not usuario_es_ingreso_camion(request.user) and not usuario_es_asistente_recepcion(request.user) and not usuario_es_planificador(request.user) and not validar_perfiles_activos(usuario, "pla_listall"):
                 messages.error(request, 'No tiene permisos para acceder a esta sección')
                 return redirect('/')
 
@@ -14206,7 +15002,7 @@ def PLANIFICACION_LISTONE(request, pk):
     try:
         if request.user.is_superuser == False:
             usuario = request.user.id
-            if not usuario_es_ingreso_camion(request.user) and not usuario_es_planificador(request.user) and not validar_perfiles_activos(usuario, "pla_listone"):
+            if not usuario_es_ingreso_camion(request.user) and not usuario_es_asistente_recepcion(request.user) and not usuario_es_planificador(request.user) and not validar_perfiles_activos(usuario, "pla_listone"):
                 messages.error(request, 'No tiene permisos para acceder a esta sección')
                 return redirect('/')
 
@@ -14459,7 +15255,6 @@ def PLANIFICACION_LISTONE(request, pk):
             conductor_operacional = texto_sin_informacion(datos_fila_planificacion.get('conductor'))
             celular_operacional = texto_sin_informacion(datos_fila_planificacion.get('celular'))
             patente_operacional = texto_sin_informacion(datos_fila_planificacion.get('patente'))
-            tipo_eje_operacional = texto_sin_informacion(valores_ingreso.get('cantidad_ejes'))
             transportista_operacional = texto_sin_informacion(datos_fila_planificacion.get('transportista'))
             etapa_visible_operacional = obtener_etapa_actual_operacional_citacion(row)
             numero_documento_visible = texto_o_primero(
@@ -14487,7 +15282,6 @@ def PLANIFICACION_LISTONE(request, pk):
                 'ING_NOMBRE_CONDUCTOR',
                 'ING_TELEFONO_CONDUCTOR',
                 'ING_PATENTE',
-                'ING_CANTIDAD_EJES',
                 'ING_LOTE_CONTENEDOR',
                 'ING_OBSERVACION',
             ]
@@ -14537,7 +15331,6 @@ def PLANIFICACION_LISTONE(request, pk):
                     estanque_enviado,
                     estanque_enviado_usuario,
                     estanque_enviado_fecha,
-                    tipo_eje_operacional,
                     guardia_porteria_enviado,
                     guardia_porteria_usuario,
                     guardia_porteria_fecha,
@@ -14590,7 +15383,6 @@ def PLANIFICACION_LISTONE(request, pk):
                     estanque_enviado,
                     estanque_enviado_usuario,
                     estanque_enviado_fecha,
-                    tipo_eje_operacional,
                     guardia_porteria_enviado,
                     guardia_porteria_usuario,
                     guardia_porteria_fecha,
@@ -14821,22 +15613,22 @@ def ajax_validar_nueva_planificacion(request):
             if row.PL_FFECHAINICIO.time() >= fecha_nueva_planificacion_datetime.time() and row.PL_FFECHAFIN.time() <= fecha_termino_datetime.time():
                 return JsonResponse({
                     'valid': False,
-                    'msg': f'Ya existe una planificación situada para el horario entre {str(row.PL_FFECHAINICIO.time())} - {str(row.PL_FFECHAFIN.time())}'
+                    'msg': f'Ya existe una Planificación situada para el horario entre {str(row.PL_FFECHAINICIO.time())} - {str(row.PL_FFECHAFIN.time())}'
                 })
             elif row.PL_FFECHAINICIO.time() <= fecha_nueva_planificacion_datetime.time() and row.PL_FFECHAFIN.time() >= fecha_termino_datetime.time():
                 return JsonResponse({
                     'valid': False,
-                    'msg': f'Ya existe una planificación situada para el horario entre {str(row.PL_FFECHAINICIO.time())} - {str(row.PL_FFECHAFIN.time())}'
+                    'msg': f'Ya existe una Planificación situada para el horario entre {str(row.PL_FFECHAINICIO.time())} - {str(row.PL_FFECHAFIN.time())}'
                 })
             elif row.PL_FFECHAINICIO.time() <= fecha_nueva_planificacion_datetime.time() and row.PL_FFECHAFIN.time() <= fecha_termino_datetime.time():
                 return JsonResponse({
                     'valid': False,
-                    'msg': f'Ya existe una planificación situada para el horario entre {str(row.PL_FFECHAINICIO.time())} - {str(row.PL_FFECHAFIN.time())}'
+                    'msg': f'Ya existe una Planificación situada para el horario entre {str(row.PL_FFECHAINICIO.time())} - {str(row.PL_FFECHAFIN.time())}'
                 })
             elif row.PL_FFECHAINICIO.time() == fecha_nueva_planificacion_datetime.time() and row.PL_FFECHAFIN.time() == fecha_termino_datetime.time():
                 return JsonResponse({
                     'valid': False,
-                    'msg': f'Ya existe una planificación situada para el horario entre {str(row.PL_FFECHAINICIO.time())} - {str(row.PL_FFECHAFIN.time())}'
+                    'msg': f'Ya existe una Planificación situada para el horario entre {str(row.PL_FFECHAINICIO.time())} - {str(row.PL_FFECHAFIN.time())}'
                 })
         
         return JsonResponse({
@@ -14915,7 +15707,7 @@ def download_citaciones_data(request, pk):
         data = []
         columnas = ['Número citación', 'Secuencia', 'Etapa', 'Zona', 'Campo', 'Valor', 'Estado']
         resumen_data = []
-        resumen_columnas = ['Número citación', 'Secuencia', 'Etapa', 'Zona', 'Patente', 'Tipo eje', 'Transportista', 'Celular conductor', 'Usuario', 'Fecha inicio', 'Fecha fin', 'Tiempo transcurrido', 'Tiempo maximo', 'Estado']
+        resumen_columnas = ['Número citación', 'Secuencia', 'Etapa', 'Zona', 'Patente', 'Transportista', 'Celular conductor', 'Usuario', 'Fecha inicio', 'Fecha fin', 'Tiempo transcurrido', 'Tiempo maximo', 'Estado']
 
         for citacion in citaciones:
             secuencia = citacion.SC_NID
@@ -14983,7 +15775,6 @@ def download_citaciones_data(request, pk):
                         etapa.ET_CNOMBRE,
                         zona,
                         patente_camion,
-                        texto_sin_informacion(valores_ingreso.get('cantidad_ejes')),
                         texto_sin_informacion(valores_ingreso.get('transportista')),
                         texto_sin_informacion(valores_ingreso.get('celular_conductor')),
                         nombre_usuario,
@@ -15024,7 +15815,7 @@ def download_citaciones_data(request, pk):
         return redirect('pla_listone', pk=pk)
     
     except PLANIFICACION.DoesNotExist:
-        messages.error(request, 'La planificación especificada no existe')
+        messages.error(request, 'La Planificación especificada no existe')
         return redirect('pla_listall')
     except Exception as e:
         messages.error(request, f'Error, {str(e)}')
@@ -16230,12 +17021,14 @@ def OPERACION_PLANTA_CITACION(request, pk):
     paso_pesaje_activo_alt = None
     datos_operacion, documentos_operacion = obtener_datos_operacion_citacion(citacion)
     es_despacho_bodega_externa = es_despacho_bodega_externa_operacion(citacion)
+    es_recepcion_bodega_externa = es_recepcion_bodega_externa_operacion(citacion)
     for indice, (nombre_paso, responsables) in enumerate(pasos_config, start=1):
         log_paso = ultimo_log_por_paso.get(nombre_paso)
         puede_editar = usuario_puede_paso_operacion(request.user, responsables)
         ticket_pesaje = _payload_ticket_pesaje_guardado(citacion, nombre_paso, request)
         accion_toma_muestra = _payload_toma_muestra_accion(citacion, nombre_flujo) if nombre_paso == PASO_TOMA_MUESTRA else None
         tiempo_vapor = _payload_tiempo_vapor(citacion) if nombre_paso == PASO_TOMA_MUESTRA else None
+        tiempo_toma_muestra = _payload_tiempo_toma_muestra(citacion, nombre_flujo) if nombre_paso == PASO_TOMA_MUESTRA else None
         resultado_calidad = _payload_resultado_calidad(citacion) if nombre_paso == PASO_ANALISIS_CALIDAD else None
         validacion_calidad = _payload_validacion_calidad(citacion) if nombre_paso == PASO_ANALISIS_CALIDAD else None
         observacion_toma_muestra = _observacion_toma_muestra_visible(
@@ -16245,7 +17038,8 @@ def OPERACION_PLANTA_CITACION(request, pk):
         revision_resultado_calidad = _payload_resultado_calidad(citacion) if nombre_paso in {PASO_RESULTADO_CALIDAD, PASO_CICLO_DESCARGA} else None
         preparacion_descarga = _payload_preparacion_descarga(citacion) if nombre_paso == PASO_RESULTADO_CALIDAD else None
         preparacion_descarga_ciclo = _payload_preparacion_descarga(citacion) if nombre_paso == PASO_CICLO_DESCARGA else None
-        ciclo_descarga = _payload_ciclo_descarga(citacion) if nombre_paso == PASO_CICLO_DESCARGA and not es_despacho else None
+        ciclo_descarga = _payload_ciclo_descarga(citacion) if nombre_paso == PASO_CICLO_DESCARGA and not es_despacho and not es_recepcion_bodega_externa else None
+        ciclo_bodega_externa = _payload_ciclo_recepcion_bodega_externa(citacion) if nombre_paso == PASO_CICLO_DESCARGA and es_recepcion_bodega_externa else None
         ciclo_carga_despacho = _payload_ciclo_carga_despacho(citacion) if nombre_paso == PASO_CICLO_DESCARGA and es_despacho else None
         cierre_carga_despacho = _payload_cierre_carga_despacho(citacion, datos_operacion) if nombre_paso == PASO_CIERRE_CARGA and es_despacho else None
         borrador_sap = get_goods_receipt_draft_status(citacion) if nombre_paso == PASO_BORRADOR_SAP else None
@@ -16315,6 +17109,7 @@ def OPERACION_PLANTA_CITACION(request, pk):
             'requiere_accion_toma_muestra': nombre_paso == PASO_TOMA_MUESTRA,
             'accion_toma_muestra': accion_toma_muestra,
             'tiempo_vapor': tiempo_vapor,
+            'tiempo_toma_muestra': tiempo_toma_muestra,
             'requiere_resultado_calidad': nombre_paso == PASO_ANALISIS_CALIDAD,
             'resultado_calidad': resultado_calidad,
             'validacion_calidad': validacion_calidad,
@@ -16323,9 +17118,13 @@ def OPERACION_PLANTA_CITACION(request, pk):
             'revision_resultado_calidad': revision_resultado_calidad,
             'preparacion_descarga': preparacion_descarga,
             'espera_descarga': espera_descarga,
-            'requiere_ciclo_descarga': nombre_paso == PASO_CICLO_DESCARGA,
+            'requiere_ciclo_descarga': nombre_paso == PASO_CICLO_DESCARGA and not es_recepcion_bodega_externa,
+            'requiere_ciclo_bodega_externa': nombre_paso == PASO_CICLO_DESCARGA and es_recepcion_bodega_externa,
             'preparacion_descarga_ciclo': preparacion_descarga_ciclo,
             'ciclo_descarga': ciclo_descarga,
+            'ciclo_bodega_externa': ciclo_bodega_externa,
+            'puede_iniciar_ciclo_bodega_externa': usuario_puede_paso_operacion(request.user, ['SALA CONTROL']),
+            'puede_finalizar_ciclo_bodega_externa': usuario_puede_paso_operacion(request.user, ['GUARDIA PORTERIA']),
             'ciclo_carga_despacho': ciclo_carga_despacho,
             'es_ciclo_carga_despacho': bool(ciclo_carga_despacho),
             'requiere_cierre_carga_despacho': bool(cierre_carga_despacho),
@@ -16344,7 +17143,7 @@ def OPERACION_PLANTA_CITACION(request, pk):
             'autorizacion_salida_bodega': autorizacion_salida_bodega,
             'requiere_ingreso_planta_bodega_externa': bool(ingreso_planta_bodega),
             'ingreso_planta_bodega': ingreso_planta_bodega,
-            'tipos_ciclo_descarga': TIPOS_CICLO_DESCARGA if nombre_paso == PASO_CICLO_DESCARGA else [],
+            'tipos_ciclo_descarga': opciones_tipos_ciclo_descarga(nombre_flujo) if nombre_paso == PASO_CICLO_DESCARGA and not es_recepcion_bodega_externa else [],
             'sitios_descarga': [f'Sitio {i}' for i in range(1, 7)] if nombre_paso == PASO_RESULTADO_CALIDAD else [],
             'bombas_descarga': [f'Bomba {i}' for i in range(1, 7)] if nombre_paso == PASO_RESULTADO_CALIDAD else [],
             'solo_lectura_msg': '' if puede_editar else f'Solo lectura: este paso corresponde a {" / ".join(responsables)}',
@@ -16475,7 +17274,7 @@ def OPERACION_PLANTA_GUARDAR_PASO(request, pk):
 
     paso = str(request.POST.get('paso') or '').strip()
     observacion = str(request.POST.get('observacion') or '').strip()
-    _, pasos_config = obtener_pasos_operacion_citacion(citacion)
+    nombre_flujo, pasos_config = obtener_pasos_operacion_citacion(citacion)
     responsables_paso = None
     for nombre_paso, responsables in pasos_config:
         if nombre_paso == paso:
@@ -16522,7 +17321,11 @@ def OPERACION_PLANTA_GUARDAR_PASO(request, pk):
         )
 
     if paso == PASO_CICLO_DESCARGA:
-        if es_citacion_despacho(citacion):
+        if es_recepcion_bodega_externa_operacion(citacion):
+            ciclo_bodega_externa = _payload_ciclo_recepcion_bodega_externa(citacion)
+            if not ciclo_bodega_externa.get('finalizada'):
+                return respuesta_error('Debe registrar el regreso desde Bodega Externa antes de avanzar a Pesaje Salida.', status=400, citacion_obj=citacion)
+        elif es_citacion_despacho(citacion):
             if not _ciclo_carga_despacho_completo(citacion):
                 return respuesta_error('Debe finalizar al menos un proceso de carga/despacho antes de enviar a la siguiente etapa.', status=400, citacion_obj=citacion)
         else:
@@ -16584,16 +17387,19 @@ def OPERACION_PLANTA_GUARDAR_PASO(request, pk):
     elif es_bodega_externa and paso in {PASO_AUTORIZACION_SALIDA_INICIAL, PASO_INGRESO_PLANTA_DESPACHO}:
         observacion = observacion or ''
 
-    log = OPERACION_PLANTA_LOG.objects.create(
-        US_NID=request.user,
-        EP_NID=citacion.EP_NID,
-        PL_NID=citacion.PL_NID,
-        CI_NID=citacion,
-        OPL_CPASO=paso,
-        OPL_CPERFIL_RESPONSABLE=' / '.join(responsables_paso),
-        OPL_CESTADO=OPERACION_PLANTA_LOG.ESTADO_COMPLETADO,
-        OPL_COBSERVACION=observacion
-    )
+    with transaction.atomic():
+        if paso == PASO_TOMA_MUESTRA:
+            _finalizar_tiempo_toma_muestra(citacion, request.user, nombre_flujo)
+        log = OPERACION_PLANTA_LOG.objects.create(
+            US_NID=request.user,
+            EP_NID=citacion.EP_NID,
+            PL_NID=citacion.PL_NID,
+            CI_NID=citacion,
+            OPL_CPASO=paso,
+            OPL_CPERFIL_RESPONSABLE=' / '.join(responsables_paso),
+            OPL_CESTADO=OPERACION_PLANTA_LOG.ESTADO_COMPLETADO,
+            OPL_COBSERVACION=observacion
+        )
 
     siguiente_paso = resolver_estado_operacional_visible(
         citacion,
@@ -16709,8 +17515,10 @@ def ajax_operacion_planta_registrar_accion_toma_muestra(request, pk):
             'observacion': metadata.get('observacion') or '',
             'estado_label': config['estado_label'],
             'accion_label': config['accion_label'],
+            'mide_tiempo_toma_muestra': bool(config.get('mide_tiempo_toma_muestra')),
         },
         'tiempo_vapor': _payload_tiempo_vapor(citacion) if config['tipo'] == 'vapor' else None,
+        'tiempo_toma_muestra': _payload_tiempo_toma_muestra(citacion, nombre_flujo) if config.get('mide_tiempo_toma_muestra') else None,
     })
 
 
@@ -17072,6 +17880,63 @@ def _validar_accion_ciclo_descarga(request, citacion):
     return responsables_paso, None
 
 
+def ajax_operacion_planta_iniciar_ciclo_recepcion_bodega_externa(request, pk):
+    if request.method != 'POST':
+        return JsonResponse({'success': False, 'message': 'Metodo no permitido.'}, status=405)
+    if not usuario_es_operacion_planta(request.user):
+        return JsonResponse({'success': False, 'message': 'No tiene permisos para Operacion Planta.'}, status=403)
+
+    citacion, error_response = _obtener_citacion_operacion_planta_ajax(request, pk)
+    if error_response:
+        return error_response
+    if not usuario_puede_paso_operacion(request.user, ['SALA CONTROL']):
+        return JsonResponse({'success': False, 'message': 'Solo Sala Control puede autorizar la salida a Bodega Externa.'}, status=403)
+
+    try:
+        payload, creado = _iniciar_ciclo_recepcion_bodega_externa(citacion, request.user)
+    except ValueError as e:
+        return JsonResponse({'success': False, 'message': str(e)}, status=400)
+    except Exception as e:
+        return JsonResponse({'success': False, 'message': f'No fue posible autorizar salida a Bodega Externa: {str(e)}'}, status=500)
+
+    return JsonResponse({
+        'success': True,
+        'message': 'Camion autorizado para salir a Bodega Externa.' if creado else 'La salida a Bodega Externa ya estaba autorizada.',
+        'ciclo_bodega_externa': payload,
+        'creado': creado,
+    })
+
+
+def ajax_operacion_planta_finalizar_ciclo_recepcion_bodega_externa(request, pk):
+    if request.method != 'POST':
+        return JsonResponse({'success': False, 'message': 'Metodo no permitido.'}, status=405)
+    if not usuario_es_operacion_planta(request.user):
+        return JsonResponse({'success': False, 'message': 'No tiene permisos para Operacion Planta.'}, status=403)
+
+    citacion, error_response = _obtener_citacion_operacion_planta_ajax(request, pk)
+    if error_response:
+        return error_response
+    if not usuario_puede_paso_operacion(request.user, ['GUARDIA PORTERIA']):
+        return JsonResponse({'success': False, 'message': 'Solo Guardia Porteria puede registrar el regreso desde Bodega Externa.'}, status=403)
+
+    try:
+        payload, creado = _finalizar_ciclo_recepcion_bodega_externa(citacion, request.user, request.POST.get('observacion'))
+    except ValueError as e:
+        return JsonResponse({'success': False, 'message': str(e)}, status=400)
+    except Exception as e:
+        return JsonResponse({'success': False, 'message': f'No fue posible registrar regreso desde Bodega Externa: {str(e)}'}, status=500)
+
+    return JsonResponse({
+        'success': True,
+        'message': 'Camion regreso desde Bodega Externa. La citacion avanzo a Pesaje Salida.' if creado else 'El regreso desde Bodega Externa ya estaba registrado.',
+        'ciclo_bodega_externa': payload,
+        'paso': PASO_CICLO_DESCARGA,
+        'usuario': request.user.username,
+        'fecha': payload.get('fin_legible') or '',
+        'creado': creado,
+    })
+
+
 def ajax_operacion_planta_iniciar_ciclo_descarga(request, pk):
     if request.method != 'POST':
         return JsonResponse({'success': False, 'message': 'Metodo no permitido.'}, status=405)
@@ -17081,6 +17946,8 @@ def ajax_operacion_planta_iniciar_ciclo_descarga(request, pk):
     citacion, error_response = _obtener_citacion_operacion_planta_ajax(request, pk)
     if error_response:
         return error_response
+    if es_recepcion_bodega_externa_operacion(citacion):
+        return JsonResponse({'success': False, 'message': 'El flujo Recepcion Bodega Externa utiliza un ciclo externo de salida y regreso.'}, status=400)
     _, error_response = _validar_accion_ciclo_descarga(request, citacion)
     if error_response:
         return error_response
@@ -17158,6 +18025,8 @@ def ajax_operacion_planta_finalizar_ciclo_descarga(request, pk):
     citacion, error_response = _obtener_citacion_operacion_planta_ajax(request, pk)
     if error_response:
         return error_response
+    if es_recepcion_bodega_externa_operacion(citacion):
+        return JsonResponse({'success': False, 'message': 'El flujo Recepcion Bodega Externa utiliza un ciclo externo de salida y regreso.'}, status=400)
     _, error_response = _validar_accion_ciclo_descarga(request, citacion)
     if error_response:
         return error_response
@@ -17297,11 +18166,14 @@ def usuario_puede_ver_detalle_tecnico_sap(user):
     return any(palabra in username.split() for palabra in {'SOPORTE', 'TI', 'IT'})
 
 
-def _usuarios_soporte_sap_despacho():
+def _usuarios_soporte_sap_despacho(empresa_id):
     perfiles = PERFIL_USUARIO.objects.select_related('US_NID', 'PR_NID').filter(
         US_NID__is_active=True,
         PE_BHABILITADO=True,
-        PR_NID__PR_BHABILITADO=True
+        PR_NID__PR_BHABILITADO=True,
+        US_NID_id__in=USERS_EMPRESA.objects.filter(
+            EP_NID_id=empresa_id
+        ).values_list('US_NID_id', flat=True),
     )
     usuarios = []
     usuarios_ids = set()
@@ -17317,7 +18189,11 @@ def _usuarios_soporte_sap_despacho():
 
     if usuarios:
         return usuarios
-    return list(User.objects.filter(is_superuser=True, is_active=True).order_by('id')[:10])
+    return list(User.objects.filter(
+        is_superuser=True,
+        is_active=True,
+        empresas_asignadas__EP_NID_id=empresa_id,
+    ).distinct().order_by('id')[:10])
 
 
 def _notificar_soporte_error_sap_despacho(citacion, usuario, result):
@@ -17338,16 +18214,17 @@ def _notificar_soporte_error_sap_despacho(citacion, usuario, result):
         f'Fecha/hora: {fecha_hora}\n'
         f'Usuario: {getattr(usuario, "username", "")}'
     )
-    for receptor in _usuarios_soporte_sap_despacho():
+    for receptor in _usuarios_soporte_sap_despacho(citacion.EP_NID_id):
         if NOTIFICACION.objects.filter(
             USER_RECEIVER_ID=receptor,
+            EP_NID=citacion.EP_NID,
             NOT_CURL=notificacion_url,
             NOT_CCONTENIDO__icontains=f'Error actualizacion SAP en citacion {citacion.id}',
             NOT_BHABILITADO=True,
             NOT_BREAD=False
         ).exists():
             continue
-        NOTIFICACION.objects.create(
+        crear_notificacion_interna(
             USER_SENDER_ID=usuario,
             USER_RECEIVER_ID=receptor,
             EP_NID=citacion.EP_NID,
@@ -18309,8 +19186,8 @@ def export_citaciones_despachos_excel(request):
 
         columnas = [
             'ID', 'Planificacion', 'Tipo de Documento', 'Número Documento',
-            'Número Cupo', 'Fecha Citación', 'Nombre Secuencia',
-            'Nombre Etapa', 'Cliente', 'Conductor', 'Celular Conductor', 'Patente', 'Tipo eje', 'Transportista'
+            'Número Cupo', 'Fecha citación', 'Nombre Secuencia',
+            'Nombre Etapa', 'Cliente', 'Conductor', 'Celular Conductor', 'Patente', 'Transportista'
         ]
 
         for col, header in enumerate(columnas, 1):
@@ -18330,7 +19207,6 @@ def export_citaciones_despachos_excel(request):
             worksheet.cell(row=row, column=10, value=texto_sin_informacion(valores_ingreso.get('conductor')))
             worksheet.cell(row=row, column=11, value=texto_sin_informacion(valores_ingreso.get('celular_conductor')))
             worksheet.cell(row=row, column=12, value=texto_sin_informacion(valores_ingreso.get('patente')))
-            worksheet.cell(row=row, column=13, value=texto_sin_informacion(valores_ingreso.get('cantidad_ejes')))
             worksheet.cell(row=row, column=14, value=texto_sin_informacion(valores_ingreso.get('transportista')))
 
         for column in worksheet.columns:
@@ -18404,12 +19280,12 @@ def export_citaciones_recepciones_excel(request):
         ocultar_cliente_operacion_recepcion = request.GET.get('contexto') == 'operacion_planta'
         columnas = [
             'ID', 'Planificacion', 'Tipo de Documento', 'Número Documento',
-            'Número Cupo', 'Fecha Citación', 'Nombre Secuencia',
+            'Número Cupo', 'Fecha citación', 'Nombre Secuencia',
             'Nombre Etapa'
         ]
         if not ocultar_cliente_operacion_recepcion:
             columnas.append('Cliente')
-        columnas.extend(['Conductor', 'Celular Conductor', 'Patente', 'Tipo eje', 'Transportista'])
+        columnas.extend(['Conductor', 'Celular Conductor', 'Patente', 'Transportista'])
 
         for col, header in enumerate(columnas, 1):
             worksheet.cell(row=1, column=col, value=header)
@@ -18432,7 +19308,6 @@ def export_citaciones_recepciones_excel(request):
                 texto_sin_informacion(valores_ingreso.get('conductor')),
                 texto_sin_informacion(valores_ingreso.get('celular_conductor')),
                 texto_sin_informacion(valores_ingreso.get('patente')),
-                texto_sin_informacion(valores_ingreso.get('cantidad_ejes')),
                 texto_sin_informacion(valores_ingreso.get('transportista')),
             ])
             for col, value in enumerate(fila, 1):
@@ -18461,6 +19336,7 @@ def export_citaciones_recepciones_excel(request):
 
 def CITACION_LISTONE(request, pk):
     try:
+        citacion = CITACION.objects.get(id=pk)
         if request.user.is_superuser == False:                     
             usuario = request.user.id
             if not usuario_es_planificador(request.user) and not validar_perfiles_activos(usuario, "cit_listone"):
@@ -18469,12 +19345,13 @@ def CITACION_LISTONE(request, pk):
         
         notificacion = request.GET.get('notificacion')
         if notificacion:
-            notificacion = NOTIFICACION.objects.get(id = int(notificacion))
-            if notificacion.USER_RECEIVER_ID == request.user:
-                notificacion.NOT_BREAD = True
-                notificacion.save()
-        
-        citacion = CITACION.objects.get(id = pk)
+            empresa_activa_id = Verificar_empresa(request)
+            if empresa_activa_id == citacion.EP_NID_id:
+                marcar_notificacion_interna_leida(
+                    notificacion_id=int(notificacion),
+                    receptor=request.user,
+                    empresa_id=empresa_activa_id,
+                )
         citacion_item = CITACION_ITEM.objects.get(CI_NID = citacion)
         citacion_extras = CITACION_EXTRA.objects.filter(CI_NID = citacion)
         extras = EXTRA.objects.filter(EP_NID = citacion.EP_NID, EXT_BHABILITADO = True, EXT_CTIPO_CITACION = citacion.CI_CTIPO)
@@ -19129,8 +20006,7 @@ def get_citation_data(request, pk):
             }),
             'observacion': citacion.CI_CCOMENTARIO,
             'estado': citacion.CI_CESTADO,
-
-        }
+    }
         return JsonResponse(data)
     except Exception as e:
         logger.exception("Error get_citation_data pk=%s user=%s", pk, request.user)
@@ -19170,7 +20046,7 @@ def get_proveedor_data(request, proveedor_id):
                 'selected': conductor_selected
             }),
             'camiones': render_to_string('home/partials/select_options.html', {
-                'options': [{'id': cam.id, 'name': cam.CAM_CPATENTE} for cam in camiones] + [{'id': 1, 'name': 'Camión Genérico'}],
+                'options': [{'id': cam.id, 'name': cam.CAM_CPATENTE} for cam in camiones] + [{'id': 1, 'name': 'camión Genérico'}],
                 'selected': camion_selected
             }),
             'tarifas': render_to_string('home/partials/select_options.html', {
@@ -19427,7 +20303,7 @@ def CITACION_DELETE(request, pk):
         return respuesta_eliminar_citacion(
             request,
             True,
-            'Citación eliminada correctamente.',
+            'citación eliminada correctamente.',
             redirect_path
         )
     except CITACION.DoesNotExist:
@@ -19591,25 +20467,26 @@ def CITACION_ADDSTEP(request, pk):
                 EL_FFECHAINICIO = datetime.now()
             )
 
-        # AXONINSERTPUSH(request.user, siguiente_etapa.USER_RESPONSABLE_ID, empresa, f'Citación {str(citacion.pk)} ha pasado tu etapa {siguiente_etapa.ET_NID.ET_CNOMBRE}')
+        # AXONINSERTPUSH(request.user, siguiente_etapa.USER_RESPONSABLE_ID, empresa, f'citación {str(citacion.pk)} ha pasado tu etapa {siguiente_etapa.ET_NID.ET_CNOMBRE}')
         usuarios_responsables_str = siguiente_etapa.USERS_RESPONSABLE_ID
         if usuarios_responsables_str:
             usuarios_responsables = usuarios_responsables_str.replace('[','').replace(']','').replace(' ','').replace("'","").replace('"','').split(',')
             for usuario_responsable in usuarios_responsables:
                 user = User.objects.get(id = usuario_responsable)
                 if citacion.CA_NID:
-                    contenido = f'Citación {str(citacion.pk)} - {citacion.CA_NID.CAM_CPATENTE} ha pasado a tu etapa {siguiente_etapa.ET_NID.ET_CNOMBRE}'
+                    contenido = f'citación {str(citacion.pk)} - {citacion.CA_NID.CAM_CPATENTE} ha pasado a tu etapa {siguiente_etapa.ET_NID.ET_CNOMBRE}'
                 else:
-                    contenido = f'Citación {str(citacion.pk)} ha pasado a tu etapa {siguiente_etapa.ET_NID.ET_CNOMBRE}'
+                    contenido = f'citación {str(citacion.pk)} ha pasado a tu etapa {siguiente_etapa.ET_NID.ET_CNOMBRE}'
 
-                notificacion = NOTIFICACION.objects.create(
+                notificacion = crear_notificacion_interna(
                     USER_SENDER_ID = request.user,
                     USER_RECEIVER_ID = user,
                     EP_NID = empresa,
                     NOT_CCONTENIDO = contenido
                 )
-                notificacion.NOT_CURL = f'/cit_listone/{citacion.pk}?notificacion={str(notificacion.pk)}'
-                notificacion.save()
+                if notificacion:
+                    notificacion.NOT_CURL = f'/cit_listone/{citacion.pk}?notificacion={str(notificacion.pk)}'
+                    notificacion.save(update_fields=['NOT_CURL'])
 
         messages.success(request, 'Operación existosa.')
         return redirect(f'/cit_listone/{citacion.id}')
@@ -19776,14 +20653,15 @@ def CITACION_BACKWARD(request, pk):
                 usuarios_responsables = usuarios_responsables_str.replace('[','').replace(']','').replace(' ','').replace("'","").replace('"','').split(',')
                 for usuario_responsable in usuarios_responsables:
                     user = User.objects.get(id = usuario_responsable)
-                    notificacion = NOTIFICACION.objects.create(
+                    notificacion = crear_notificacion_interna(
                         USER_SENDER_ID = request.user,
                         USER_RECEIVER_ID = user,
                         EP_NID = empresa,
-                        NOT_CCONTENIDO = f'Citación {str(citacion.pk)} ha retornado a tu etapa {detalle_etapa_anterior.ET_NID.ET_CNOMBRE}',
+                        NOT_CCONTENIDO = f'citación {str(citacion.pk)} ha retornado a tu etapa {detalle_etapa_anterior.ET_NID.ET_CNOMBRE}',
                     )
-                notificacion.NOT_CURL = f'/cit_listone/{citacion.pk}?notificacion={str(notificacion.pk)}'
-                notificacion.save()
+                    if notificacion:
+                        notificacion.NOT_CURL = f'/cit_listone/{citacion.pk}?notificacion={str(notificacion.pk)}'
+                        notificacion.save(update_fields=['NOT_CURL'])
         else:
             messages.error(request, 'No se puede volver a la etapa anterior')
             return redirect(f'/cit_listone/{citacion.id}')
@@ -19819,7 +20697,7 @@ def ajax_validar_citaciones(request):
             if hora_citacion_obj < hora_inicio_local or hora_citacion_obj > hora_fin_local:
                 return JsonResponse({
                     'valid': False, 
-                    'msg': f'La hora de citación {index + 1} no está dentro del rango de la planificación',
+                    'msg': f'La hora de citación {index + 1} no está dentro del rango de la Planificación',
                 })
 
             # VALIDAR PROVEEDOR
@@ -19893,7 +20771,7 @@ def ajax_validar_citaciones(request):
             return JsonResponse({
                 'valid': True, 
                 'continue': False,
-                'msg': f'La planificación ya posee el número máximo de citaciones, ¿quieres marcarla como sobrecupo?',
+                'msg': f'La Planificación ya posee el número máximo de citaciones, ¿quieres marcarla como sobrecupo?',
             })
             
         # Si hay advertencias, las mostramos pero permitimos continuar
@@ -20874,7 +21752,6 @@ def construir_archivo_eli(citacion, request=None):
         {'label': 'Transportista', 'value': valores_ingreso.get('transportista')},
         {'label': 'Conductor', 'value': valores_ingreso.get('conductor')},
         {'label': 'Patente', 'value': valores_ingreso.get('patente')},
-        {'label': 'Ejes', 'value': valores_ingreso.get('cantidad_ejes')},
         {'label': 'Telefono', 'value': valores_ingreso.get('celular_conductor')},
         {'label': 'Guia', 'value': citacion.CI_CNUMERODOCUMENTO},
         {'label': 'Contenedor / BL', 'value': valores_ingreso.get('bl') or detalle_dict.get('bl')},
@@ -21186,7 +22063,7 @@ def ajax_listar_archivos_tickets(request):
             
             print(f"=== BÚSQUEDA DE ARCHIVOS PDF ===")
             print(f"Directorio: {tickets_path}")
-            print(f"Citación ID buscada: '{citacion_id_str}'")
+            print(f"citación ID buscada: '{citacion_id_str}'")
             print(f"Buscando archivos cuyo primer segmento (antes del '_') sea '{citacion_id_str}'")
             print("")
             
@@ -21210,9 +22087,9 @@ def ajax_listar_archivos_tickets(request):
                             'tamaño_formateado': f"{file_size / 1024:.2f} KB" if file_size < 1024 * 1024 else f"{file_size / (1024 * 1024):.2f} MB"
                         }
                         archivos.append(archivo_info)
-                        print(f"✓ AGREGADO: {filename} (primer segmento: '{primer_segmento}')")
+                        print(f"âœ“ AGREGADO: {filename} (primer segmento: '{primer_segmento}')")
                     else:
-                        print(f"✗ IGNORADO: {filename} (primer segmento: '{primer_segmento}', buscado: '{citacion_id_str}')")
+                        print(f"âœ— IGNORADO: {filename} (primer segmento: '{primer_segmento}', buscado: '{citacion_id_str}')")
             
             print("")
             print(f"=== RESULTADO ===")
@@ -23047,10 +23924,10 @@ def PROFORMA_DELETE_CITACION(request, pk):
             LOG_CDESCRIPCION=f'Eliminación de citación {pk} de la proforma. Valor tarifa eliminado: ${valor_tarifa}',
             LOG_COPERACION='ELIMINAR_CITACION',
             LOG_CADD1=f'Proforma: {proforma.pk}',
-            LOG_CADD2=f'Citación: {pk}'
+            LOG_CADD2=f'citación: {pk}'
         )
 
-        messages.success(request, 'Citación eliminada correctamente')
+        messages.success(request, 'citación eliminada correctamente')
         return redirect('proforma_listone', pk=proforma.pk)
 
     except CITACION_PROFORMA.DoesNotExist:
@@ -23084,7 +23961,7 @@ def PROFORMA_ADD_CITACION(request, pk):
         if not id_citacion:
             return JsonResponse({
                 'valid': False,
-                'msg': 'No se recibió ID de citación'
+                'msg': 'No se recibirá ID de citación'
             }, status=400)
 
         try:
@@ -23170,12 +24047,12 @@ def PROFORMA_ADD_CITACION(request, pk):
             LOG_CDESCRIPCION=f'Agregada citación {id_citacion} a la proforma. Valor tarifa: ${citacion.CI_NVALORTARIFA or 0}, Extras agregados: {extras_count}',
             LOG_COPERACION='AGREGAR_CITACION',
             LOG_CADD1=f'Proforma: {proforma.pk}',
-            LOG_CADD2=f'Citación: {id_citacion}'
+            LOG_CADD2=f'citación: {id_citacion}'
         )
 
         return JsonResponse({
             'valid': True,
-            'msg': 'Citación agregada correctamente'
+            'msg': 'citación agregada correctamente'
         })
 
     except Exception as e:
@@ -23252,7 +24129,7 @@ def PROFORMA_AUTORIZAR(request, pk):
         if proforma.PRO_CESTADO == 'CREADO' and proforma.PRO_DOC_ENTRY is None:
             Result, Response = CREAR_OC(pk)
             if Result:
-                # Guardar valores antes de la autorización para el log
+                # Guardar valores antes de la Autorización para el log
                 estado_anterior = proforma.PRO_CESTADO
                 
                 proforma.PRO_CESTADO = 'AUTORIZADO'
@@ -23292,7 +24169,7 @@ def PROFORMA_AUTORIZAR(request, pk):
                 messages.error(request, f'Error, {Response}')
                 return redirect(f'/proforma_listone/{pk}')
         else:
-            # Crear registro de intento de autorización no válido
+            # Crear registro de intento de Autorización no válido
             SYSLOGGER.objects.create(
                 US_NID=request.user,
                 EP_NID_id=proforma.EP_NID.pk,
@@ -23606,7 +24483,7 @@ def PROFORMA_MODIFICAR_TARIFA_CITACION(request):
             LOG_CDESCRIPCION=f'Modificación de tarifa en citación {id_citacion}. Valor anterior: ${valor_anterior}, Valor nuevo: ${valor_tarifa}',
             LOG_COPERACION='MODIFICAR_TARIFA',
             LOG_CADD1=f'Proforma: {id_proforma}',
-            LOG_CADD2=f'Citación: {id_citacion}'
+            LOG_CADD2=f'citación: {id_citacion}'
         )
         
         messages.success(request, 'Tarifa modificada exitosamente')
@@ -23642,7 +24519,7 @@ def PROFORMA_ADD_EXTRA(request, pk):
         if not id_extra:
             return JsonResponse({
                 'valid': False,
-                'msg': 'No se recibió ID del extra'
+                'msg': 'No se recibirá ID del extra'
             }, status=400)
             
         try:
@@ -23874,7 +24751,7 @@ def PROFORMA_MANUAL_ADD(request):
             empresa = EMPRESA.objects.get(pk=empresa_id)
             proveedor = SOCIONEGOCIO.objects.get(pk=proveedor_id)
             
-            # Manejar fecha de emisión
+            # Manejar fecha de Emisión
             fecha_emision_input = request.POST.get('fecha_emision')
             if fecha_emision_input:
                 # Si se proporcionó una fecha personalizada
@@ -24270,7 +25147,7 @@ def AXONASK(request):
         try:
             token = get_token(usr)
         except Exception as e:
-            return JsonResponse({'message': f'ALERT!!!lo siento {usr} no encuentro tu autorización: {str(e)}'}, status=200)
+            return JsonResponse({'message': f'ALERT!!!lo siento {usr} no encuentro tu Autorización: {str(e)}'}, status=200)
         
 
         url = 'http://34.225.254.125:91/insertpush'
@@ -24325,7 +25202,7 @@ def AXONCHECKMESSAGE(request):
         try:
             tokenAPI = get_token(usr)
         except Exception as e:
-            return JsonResponse({'message': f'ALERT!!!lo siento {usr} no encuentro tu autorización: {str(e)}'}, status=200)
+            return JsonResponse({'message': f'ALERT!!!lo siento {usr} no encuentro tu Autorización: {str(e)}'}, status=200)
         
         url = f'http://34.225.254.125:91/push/{usr}/{from_user}'
         headers = {
@@ -24364,7 +25241,7 @@ def AXONGETUSERS(request):
         try:
             tokenAPI = get_token(usr)
         except Exception as e:
-            return JsonResponse({'message': f'ALERT!!!lo siento {usr} no encuentro tu autorización: {str(e)}'}, status=200)
+            return JsonResponse({'message': f'ALERT!!!lo siento {usr} no encuentro tu Autorización: {str(e)}'}, status=200)
 
         headers = {
             'Content-Type': 'application/json',
@@ -24395,7 +25272,7 @@ def AXONGETUNREADMESSAGES(request):
         try:
             tokenAPI = get_token(usr)
         except Exception as e:
-            return JsonResponse({'message': f'ALERT!!!lo siento {usr} no encuentro tu autorización: {str(e)}'}, status=200)
+            return JsonResponse({'message': f'ALERT!!!lo siento {usr} no encuentro tu Autorización: {str(e)}'}, status=200)
 
         headers = {
             'Content-Type': 'application/json',
@@ -24426,7 +25303,7 @@ def AXONGETCURRENTUSER(request):
         try:
             tokenAPI = get_token(usr)
         except Exception as e:
-            return JsonResponse({'message': f'ALERT!!!lo siento {usr} no encuentro tu autorización: {str(e)}'}, status=200)
+            return JsonResponse({'message': f'ALERT!!!lo siento {usr} no encuentro tu Autorización: {str(e)}'}, status=200)
 
         url = f'http://34.225.254.125:91/get-user-msg/{usr}'
         headers = {
@@ -24456,12 +25333,13 @@ def AXONGETCURRENTUSER(request):
 ##########################   NOTIFICACIONES   ############################
 ##########################################################################
 
-def asegurar_notificaciones_guardia_porteria_pendientes(user):
+def asegurar_notificaciones_guardia_porteria_pendientes(user, empresa_id):
     if not usuario_es_guardia_porteria(user):
         return
 
     logs_envio = SYSLOGGER.objects.filter(
-        LOG_COPERACION='ENVIA_GUARDIA_PORTERIA'
+        LOG_COPERACION='ENVIA_GUARDIA_PORTERIA',
+        EP_NID_id=empresa_id,
     ).exclude(
         LOG_CADD1__isnull=True
     ).order_by('-LOG_FFECHAREGISTRO')[:50]
@@ -24473,14 +25351,16 @@ def asegurar_notificaciones_guardia_porteria_pendientes(user):
 
         if SYSLOGGER.objects.filter(
             LOG_COPERACION='AUTORIZA_INGRESO_PLANTA',
-            LOG_CADD1=citacion_id
+            LOG_CADD1=citacion_id,
+            EP_NID_id=empresa_id,
         ).exists():
             continue
 
         try:
             citacion = CITACION.objects.select_related('EP_NID', 'PL_NID').get(
                 pk=int(citacion_id),
-                CI_BHABILITADO=True
+                CI_BHABILITADO=True,
+                EP_NID_id=empresa_id,
             )
         except CITACION.DoesNotExist:
             continue
@@ -24488,6 +25368,7 @@ def asegurar_notificaciones_guardia_porteria_pendientes(user):
         notificacion_url = f'/pla_listone/{citacion.PL_NID_id}?citacion={citacion.id}'
         if NOTIFICACION.objects.filter(
             USER_RECEIVER_ID=user,
+            EP_NID_id=empresa_id,
             NOT_CURL=notificacion_url,
             NOT_CCONTENIDO__icontains='debe ingresar a planta',
             NOT_BHABILITADO=True
@@ -24496,7 +25377,7 @@ def asegurar_notificaciones_guardia_porteria_pendientes(user):
 
         valores_ingreso = obtener_valores_ingreso_camion(citacion)
         patente = texto_sin_informacion(valores_ingreso.get('patente'))
-        NOTIFICACION.objects.create(
+        crear_notificacion_interna(
             USER_SENDER_ID=log_envio.US_NID,
             USER_RECEIVER_ID=user,
             EP_NID=citacion.EP_NID,
@@ -24505,12 +25386,13 @@ def asegurar_notificaciones_guardia_porteria_pendientes(user):
         )
 
 
-def cerrar_notificaciones_guardia_porteria_incorrectas(user):
+def cerrar_notificaciones_guardia_porteria_incorrectas(user, empresa_id):
     if not usuario_es_guardia_porteria(user):
         return
 
     NOTIFICACION.objects.filter(
         USER_RECEIVER_ID=user,
+        EP_NID_id=empresa_id,
         NOT_BREAD=False,
         NOT_BHABILITADO=True,
         NOT_CCONTENIDO__icontains='autorizado ingreso a planta'
@@ -24520,7 +25402,7 @@ def cerrar_notificaciones_guardia_porteria_incorrectas(user):
     )
 
 
-def asegurar_notificaciones_asistente_recepcion_pendientes(user):
+def asegurar_notificaciones_asistente_recepcion_pendientes(user, empresa_id):
     if not usuario_es_asistente_recepcion(user):
         return
 
@@ -24533,6 +25415,7 @@ def asegurar_notificaciones_asistente_recepcion_pendientes(user):
         'US_INICIO_ID'
     ).filter(
         EL_CACCION='ENVIA_ASISTENTE',
+        EP_NID_id=empresa_id,
         EL_FFECHAFIN=None,
         CI_NID__CI_CESTADO=CIT_EN_PROCESO,
         CI_NID__CI_BHABILITADO=True,
@@ -24555,6 +25438,7 @@ def asegurar_notificaciones_asistente_recepcion_pendientes(user):
         notificacion_url = f'/pla_listone/{citacion.PL_NID_id}'
         if NOTIFICACION.objects.filter(
             USER_RECEIVER_ID=user,
+            EP_NID_id=empresa_id,
             NOT_CURL=notificacion_url,
             NOT_CCONTENIDO__icontains=f'Citacion: {citacion.id}',
             NOT_BHABILITADO=True
@@ -24571,14 +25455,13 @@ def asegurar_notificaciones_asistente_recepcion_pendientes(user):
             'Nuevo camion pendiente de aprobacion/revision.\n'
             f'Citacion: {citacion.id}\n'
             f'Patente: {texto_sin_informacion(valores_ingreso.get("patente"))}\n'
-            f'Cantidad de ejes: {texto_sin_informacion(valores_ingreso.get("cantidad_ejes"))}\n'
             f'Conductor: {texto_sin_informacion(valores_ingreso.get("conductor"))}\n'
             f'Celular conductor: {texto_sin_informacion(valores_ingreso.get("celular_conductor"))}\n'
             f'Empresa transporte: {texto_sin_informacion(valores_ingreso.get("transportista"))}\n'
             f'Fecha/hora envio: {fecha_envio}\n'
             f'Guardia: {guardia.username}'
         )
-        NOTIFICACION.objects.create(
+        crear_notificacion_interna(
             USER_SENDER_ID=guardia,
             USER_RECEIVER_ID=user,
             EP_NID=citacion.EP_NID,
@@ -24589,13 +25472,20 @@ def asegurar_notificaciones_asistente_recepcion_pendientes(user):
 
 def CHECK_NOTIFICATIONS(request):
     try:
-        cerrar_notificaciones_guardia_porteria_incorrectas(request.user)
-        asegurar_notificaciones_asistente_recepcion_pendientes(request.user)
-        asegurar_notificaciones_guardia_porteria_pendientes(request.user)
-        notificaciones = get_notificaciones(request.user.id)
+        empresa_id = Verificar_empresa(request)
+        if empresa_id is None:
+            return JsonResponse({
+                'notificaciones': [],
+                'message': 'Empresa no autorizada o no seleccionada.',
+            }, status=403)
+        cerrar_notificaciones_guardia_porteria_incorrectas(request.user, empresa_id)
+        asegurar_notificaciones_asistente_recepcion_pendientes(request.user, empresa_id)
+        asegurar_notificaciones_guardia_porteria_pendientes(request.user, empresa_id)
+        notificaciones = get_notificaciones(request.user.id, empresa_id)
         return JsonResponse({
             'notificaciones': notificaciones,
-            'user_id': request.user.id
+            'user_id': request.user.id,
+            'empresa_id': empresa_id,
         }, status=200)
     except Exception as e:
         print(e)
@@ -24609,8 +25499,17 @@ def LIMPIAR_NOTIFICACIONES(request):
                 'message': 'Metodo no permitido.'
             }, status=405)
 
+        empresa_id = Verificar_empresa(request)
+        if empresa_id is None:
+            return JsonResponse({
+                'success': False,
+                'message': 'Empresa no autorizada o no seleccionada.',
+                'cantidad': 0,
+            }, status=403)
+
         notificaciones = NOTIFICACION.objects.filter(
             USER_RECEIVER_ID=request.user,
+            EP_NID_id=empresa_id,
             NOT_BREAD=False,
             NOT_BHABILITADO=True
         )
@@ -25108,7 +26007,7 @@ def CITACION_EDITAR_ETAPA_TERMINADA(request):
                     
                     # Para campos no archivo
                     if dato_operacion:
-                        # Para checkboxes: Django envía una lista si hay múltiples valores con el mismo nombre
+                        # Para checkboxes: Django Enviará una lista si hay múltiples valores con el mismo nombre
                         # Si el checkbox está marcado, se enviará ['off', 'on'], si no está marcado solo ['off']
                         valores = request.POST.getlist(key)
                         if len(valores) > 1 and 'on' in valores:
@@ -25177,7 +26076,7 @@ def CREAR_OC(pk):
         for linea in proforma_lineas:
             item_code, account_number = linea.GET_ITEM_CODE()
             opor.Lines.ItemCode = item_code
-            opor.Lines.ItemDescription = f"Servicio de transporte - Citación {str(linea.CI_NID_id)}"
+            opor.Lines.ItemDescription = f"Servicio de transporte - citación {str(linea.CI_NID_id)}"
             opor.Lines.Quantity = 1
             opor.Lines.Price = linea.CIP_NSUBTOTAL
             opor.Lines.AccountCode = account_number
@@ -25187,7 +26086,7 @@ def CREAR_OC(pk):
         extras_proforma = EXTRA_PROFORMA.objects.filter(PRO_NID = proforma)
         for extra in extras_proforma:
             opor.Lines.ItemCode = extra.CIE_NID.EXT_NID.EXT_CARTICULOSAP
-            opor.Lines.ItemDescription = f'Extra {extra.CIE_NID.EXT_NID.EXT_CNOMBRE} - Citación {str(extra.CIE_NID.CI_NID_id)}'
+            opor.Lines.ItemDescription = f'Extra {extra.CIE_NID.EXT_NID.EXT_CNOMBRE} - citación {str(extra.CIE_NID.CI_NID_id)}'
             opor.Lines.Quantity = 1
             if extra.CIE_NID.CIE_BINGRESO:
                 opor.Lines.Price = extra.EPR_NVALOR
@@ -25417,7 +26316,7 @@ def guardar_posicion_zona(request):
         if not request.user.is_superuser:
             return JsonResponse({
                 'success': False,
-                'error': 'No puedes realizar esta acción'
+                'error': 'No puedes realizar esta Acción'
             })
         
         if request.method != 'POST':
@@ -25605,7 +26504,7 @@ def actualizar_coordenadas_zona(request):
         if not request.user.is_superuser:
             return JsonResponse({
                 'success': False,
-                'error': 'No puedes realizar esta acción'
+                'error': 'No puedes realizar esta Acción'
             })
         # Obtener datos del request
         id_zona = request.POST.get('id_zona')
@@ -25775,7 +26674,7 @@ def eliminar_zona(request):
         if not request.user.is_superuser:
             return JsonResponse({
                 'success': False,
-                'error': 'No puedes realizar esta acción'
+                'error': 'No puedes realizar esta Acción'
             })
         # Obtener datos del request
         id_zona = request.POST.get('id_zona')
@@ -25808,7 +26707,7 @@ def eliminar_zona(request):
         zona.ZON_BHABILITADO = False
         zona.save()
         
-        # Log de la acción (opcional)
+        # Log de la Acción (opcional)
         print(f"Zona eliminada (soft delete): ID={id_zona}, Nombre={zona_nombre}")
         
         return JsonResponse({
@@ -26630,11 +27529,17 @@ def _seleccionar_citacion_estado_camion(queryset):
 
 
 def _mensaje_estado_camion(citacion, paso_actual, salida_vigente, ingreso_autorizado):
+    if es_recepcion_bodega_externa_operacion(citacion):
+        ciclo_bodega = _payload_ciclo_recepcion_bodega_externa(citacion)
+        if ciclo_bodega.get('en_proceso'):
+            return 'AUTORIZADO PARA SALIR. Destino: Bodega Externa. Ciclo externo en curso.'
+        if ciclo_bodega.get('finalizada'):
+            return 'Camion regreso desde Bodega Externa. Proxima etapa: Pesaje Salida.'
     calidad = RESULTADO_CALIDAD_OPERACION.objects.filter(CI_NID=citacion).only(
         'RCO_CESTADO', 'RCO_BAUTORIZA_SALIDA'
     ).first()
     if calidad and calidad.RCO_CESTADO == RESULTADO_CALIDAD_OPERACION.Estado.RECHAZADO and calidad.RCO_BAUTORIZA_SALIDA:
-        return 'Camión autorizado para salir de planta por rechazo de calidad'
+        return 'camión autorizado para salir de planta por rechazo de calidad'
     if salida_vigente:
         return 'Camion autorizado para salir de planta. Pendiente ingreso/reingreso por Guardia Porteria.'
     if paso_actual == PASO_INGRESO_PLANTA_DESPACHO:
@@ -26687,13 +27592,16 @@ def _estado_camion_payload(citacion):
     resumen = _resumen_sap_despacho_bodega_externa(citacion) if es_citacion_despacho(citacion) else {'datos': {}}
     datos_sap = resumen.get('datos', {})
     valores_ingreso = obtener_valores_ingreso_camion(citacion)
-    tramo = _payload_tramo_salida_ingreso_bodega_externa(citacion)
-    salida_vigente = bool(tramo.get('iniciada') and not tramo.get('finalizada'))
+    ciclo_bodega_recepcion = _payload_ciclo_recepcion_bodega_externa(citacion) if es_recepcion_bodega_externa_operacion(citacion) else None
+    tramo = ciclo_bodega_recepcion or _payload_tramo_salida_ingreso_bodega_externa(citacion)
+    salida_vigente = bool((tramo.get('iniciada') and not tramo.get('finalizada')) or tramo.get('en_proceso'))
     ingreso_autorizado = bool(tramo.get('finalizada'))
     sap_update_status = get_sap_despacho_update_status(citacion) if es_despacho_bodega_externa_operacion(citacion) else {}
     paso_accion = paso_actual
 
-    if paso_actual == PASO_AUTORIZACION_SALIDA_INICIAL:
+    if ciclo_bodega_recepcion and ciclo_bodega_recepcion.get('en_proceso'):
+        proxima_accion = 'Registrar regreso desde Bodega Externa'
+    elif paso_actual == PASO_AUTORIZACION_SALIDA_INICIAL:
         proxima_accion = 'Autorizar salida camion de planta'
     elif paso_actual == PASO_INGRESO_PLANTA_DESPACHO:
         proxima_accion = 'Autorizar ingreso a planta'
@@ -26749,10 +27657,16 @@ def _estado_camion_payload(citacion):
         'resultado_calidad': calidad.RCO_CESTADO if calidad else '',
         'ingreso_reingreso': ingreso_autorizado,
         'ingreso_reingreso_texto': 'Si' if ingreso_autorizado else 'No',
-        'timer_activo': bool(tramo.get('activa')),
+        'timer_activo': bool(tramo.get('activa') or tramo.get('en_proceso')),
         'timer_inicio_iso': tramo.get('inicio_iso') or '',
         'timer_inicio_ms': tramo.get('inicio_ms') or '',
         'timer_duracion': tramo.get('duracion_legible') or '00:00:00',
+        'destino': 'Bodega Externa' if ciclo_bodega_recepcion and ciclo_bodega_recepcion.get('iniciada') else '',
+        'motivo': 'Carga/operacion externa' if ciclo_bodega_recepcion and ciclo_bodega_recepcion.get('iniciada') else '',
+        'autorizado_por': ciclo_bodega_recepcion.get('usuario_inicio') if ciclo_bodega_recepcion else '',
+        'fecha_salida_bodega_externa': ciclo_bodega_recepcion.get('inicio_legible') if ciclo_bodega_recepcion else '',
+        'fecha_regreso_bodega_externa': ciclo_bodega_recepcion.get('fin_legible') if ciclo_bodega_recepcion else '',
+        'estado_ciclo_externo': ('FINALIZADO' if ciclo_bodega_recepcion and ciclo_bodega_recepcion.get('finalizada') else ('EN CURSO' if ciclo_bodega_recepcion and ciclo_bodega_recepcion.get('en_proceso') else '')),
         'producto': texto_sin_informacion(datos_sap.get('sap_nombre_producto')),
         'codigo_producto': texto_sin_informacion(datos_sap.get('sap_codigo_producto')),
         'cliente': texto_sin_informacion(datos_sap.get('cliente_nombre')),
@@ -26973,5 +27887,13 @@ def ajax_actualizar_peso_dato_operacion(request):
         import traceback
         traceback.print_exc()
         return JsonResponse({'valid': False, 'msg': f'Error al actualizar el peso: {str(e)}'})
+
+
+
+
+
+
+
+
 
 

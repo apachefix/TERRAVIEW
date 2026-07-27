@@ -147,9 +147,15 @@
                             <input type="text" name="rut_conductor" id="patio_rut_conductor" class="form-control" required value="{{ form_data.rut_conductor|default:'' }}">
                         </div>
                         <div class="form-group">
-                            <label>Celular conductor *</label>
+                            <label for="patio_telefono_codigo_pais">Codigo de pais *</label>
+                            <select name="telefono_codigo_pais" id="patio_telefono_codigo_pais" class="form-control" required>
+                                {% for pais in country_calling_codes %}<option value="{{ pais.codigo_telefonico }}" {% if form_data.telefono_codigo_pais|default:'+56' == pais.codigo_telefonico %}selected{% endif %}>{{ pais.nombre }} ({{ pais.codigo_telefonico }})</option>{% endfor %}
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label>Telefono conductor *</label>
                             <input type="text" name="telefono_conductor" id="patio_telefono_conductor" class="form-control" required value="{{ form_data.telefono_conductor|default:'' }}">
-                            <small class="form-text text-muted">Formato chileno: +569XXXXXXXX o 9XXXXXXXX.</small>
+                            <small class="form-text text-muted">Ingrese solo el numero local; tambien puede pegar el numero internacional completo.</small>
                         </div>
                         <div class="form-group">
                             <label>Proveedor declarado *</label>
@@ -158,6 +164,14 @@
                         <div class="form-group">
                             <label>Cliente declarado *</label>
                             <input type="text" name="cliente" class="form-control" required value="{{ form_data.cliente|default:'' }}">
+                        </div>
+                        <div class="form-group">
+                            <label>Tipo de documento *</label>
+                            <select name="tipo_documento" class="form-control" required>
+                                <option value="">Seleccione</option>
+                                <option value="GD" {% if form_data.tipo_documento == 'GD' %}selected{% endif %}>Guía de despacho</option>
+                                <option value="FE" {% if form_data.tipo_documento == 'FE' %}selected{% endif %}>Factura electrónica</option>
+                            </select>
                         </div>
                         <div class="form-group">
                             <label>Numero guia/documento *</label>
@@ -308,6 +322,7 @@
         $('#patio_conductor_manual').val('');
         $('#patio_rut_conductor').val('');
         $('#patio_telefono_conductor').val('');
+        $('#patio_telefono_codigo_pais').val('+56');
         $('#patio_patente').val('');
         $('#patio_patentes_sugeridas').empty();
     }
@@ -416,6 +431,7 @@
             $('#patio_conductor_id').val('');
             $('#patio_rut_conductor').val('');
             $('#patio_telefono_conductor').val('');
+        $('#patio_telefono_codigo_pais').val('+56');
             $('#patio_patente').val('');
             $('#patio_patentes_sugeridas').empty();
             $('#patio_conductor_id').val(item.conductor_id || '');
@@ -433,6 +449,7 @@
     }
 
     $(document).ready(function () {
+    if ($.fn.select2) { $('#patio_telefono_codigo_pais').select2({ width: '100%' }); }
         initPatioSelect2();
         $('#archivos_documentos').on('change', function () {
             const clavesExistentes = new Set(

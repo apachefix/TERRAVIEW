@@ -1817,7 +1817,7 @@ def get_citacion_xtipo(id_empresa):
         print(e)
         return None
 
-def get_notificaciones(id_usuario):
+def get_notificaciones(id_usuario, empresa_id):
     try:
         with connection.cursor() as cursor:
             query = f'''
@@ -1831,7 +1831,8 @@ def get_notificaciones(id_usuario):
                     INNER JOIN
                         "auth_user" AS au ON n."USER_SENDER_ID_id" = au."id"
                     WHERE 
-                        n."USER_RECEIVER_ID_id" = {id_usuario} AND 
+                        n."USER_RECEIVER_ID_id" = %s AND
+                        n."EP_NID_id" = %s AND
                         n."NOT_BREAD" = False AND
                         n."NOT_BHABILITADO" = True AND
                         n."NOT_CURL" IS NOT NULL
@@ -1839,7 +1840,7 @@ def get_notificaciones(id_usuario):
                     LIMIT 10;
                     '''
             # print(query)
-            cursor.execute(query)
+            cursor.execute(query, [id_usuario, empresa_id])
             result = cursor.fetchall()
             return result
     except Exception as e:

@@ -22,7 +22,7 @@ from apps.integrations.sap_b1.service_layer_probe import (
     load_config,
 )
 
-from .models import CITACION_DESPACHO_DETALLE, DATO_OPERACION, OPERACION_PLANTA_LOG
+from .models import CAMION_PATIO, CITACION_DESPACHO_DETALLE, DATO_OPERACION, OPERACION_PLANTA_LOG
 from .sap_di_api import HANA_IDENTIFIER_RE, SapDiApiError, _load_config, _rows, consultar_acuerdos_despacho_sap
 
 
@@ -313,6 +313,19 @@ def construir_payload_draft_despacho(citacion):
     warnings = []
     detalle = _detalle_despacho(citacion)
     detalle_resumen = detalle_despacho_resumen_dict(citacion)
+    camion_patio = (
+        CAMION_PATIO.objects
+        .filter(CI_NID=citacion)
+        .order_by('-CPA_FFECHAASOCIACION', '-id')
+        .first()
+    )
+    tipo_documento = texto_o_primero(
+        getattr(camion_patio, 'CPA_CTIPO_DOCUMENTO', '') if camion_patio else ''
+    ).upper()
+    numero_documento = texto_o_primero(
+        getattr(camion_patio, 'CPA_CNUMERO_GUIA', '') if camion_patio else ''
+    )
+    folio_number = int(numero_documento) if numero_documento.isdigit() else None
 
     item_code = texto_o_primero(
         _dato_valor(citacion, "ACD_CODIGO_SAP"),
@@ -343,6 +356,9 @@ def construir_payload_draft_despacho(citacion):
         "series": _draft_series(),
         "doc_object_code": _draft_object_code(),
         "card_code": card_code,
+        "tipo_documento": tipo_documento,
+        "numero_documento": numero_documento,
+        "folio_number": folio_number,
         "item_code": item_code,
         "agreement_no": agreement_no,
         "sap_abs_id": sap_abs_id,
@@ -352,6 +368,13 @@ def construir_payload_draft_despacho(citacion):
         "batch_number": batch_number,
         "doc_date": doc_date,
     }
+
+    if tipo_documento not in dict(CAMION_PATIO.TIPOS_DOCUMENTO):
+        errors.append('No se puede crear borrador SAP: falta un tipo de documento valido (GD o FE).')
+    if not numero_documento:
+        errors.append('No se puede crear borrador SAP: falta numero de guia/documento.')
+    elif folio_number is None:
+        errors.append('No se puede crear borrador SAP: el numero de guia/documento debe ser numerico.')
 
     if not sap_abs_id:
         errors.append("No se puede crear borrador SAP: falta SAP AbsID del acuerdo global.")
@@ -381,6 +404,8 @@ def construir_payload_draft_despacho(citacion):
             "Series": _draft_series(),
             "DocObjectCode": _draft_object_code(),
             "CardCode": card_code,
+            "FolioPrefixString": tipo_documento,
+            "FolioNumber": folio_number,
             "DocDate": doc_date,
             "Comments": comment,
             "JournalMemo": comment,

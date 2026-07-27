@@ -24,7 +24,7 @@ urlpatterns = [
     # The home page
     path('dashboard_grafico/', login_required(views.DASHBOARD_GRAFICO), name="dashboard_grafico"),
     path('', login_required(views.inicio), name='home'),
-    path('cambio_contraseña/', login_required(views.CambioContraseña.as_view()), name="cambio_contraseña"),
+    path('cambio_contraseña/', login_required(views.CambioContrasena.as_view()), name="cambio_contraseña"),
     #########################################
     ########         INICIO         ########
     #########################################
@@ -77,6 +77,7 @@ urlpatterns = [
     path('pla-citacion-ingreso-camion/<int:pk>/', login_required(views.PLANIFICACION_CITACION_INGRESO_CAMION), name='pla_citacion_ingreso_camion'),
     path('pla-citacion-avanzar-asistente/<int:pk>/', login_required(views.AVANZAR_INGRESO_CAMION_ASISTENTE), name='pla_citacion_avanzar_asistente'),
     path('pla-citacion-revision-asistente/<int:pk>/', login_required(views.PLANIFICACION_CITACION_REVISION_ASISTENTE), name='pla_citacion_revision_asistente'),
+    path('pla-citacion-editar-ingreso-asistente/<int:pk>/', login_required(views.PLANIFICACION_CITACION_EDITAR_INGRESO_ASISTENTE), name='pla_citacion_editar_ingreso_asistente'),
     path('pla-citacion-guardar-ruta-asistente/<int:pk>/', login_required(views.GUARDAR_RUTA_CAMION_ASISTENTE), name='pla_citacion_guardar_ruta_asistente'),
     path('pla-citacion-aprobar-asistente/<int:pk>/', login_required(views.APROBAR_CAMION_ASISTENTE), name='pla_citacion_aprobar_asistente'),
     path('pla-citacion-devolver-guardia/<int:pk>/', login_required(views.DEVOLVER_CAMION_GUARDIA), name='pla_citacion_devolver_guardia'),
@@ -315,6 +316,8 @@ urlpatterns = [
     path('operacion-planta/<int:pk>/registrar-resultado-calidad/', login_required(views.ajax_operacion_planta_registrar_resultado_calidad), name='ajax_operacion_planta_registrar_resultado_calidad'),
     path('operacion-planta/<int:pk>/guardar-observacion/', login_required(views.ajax_operacion_planta_guardar_observacion), name='ajax_operacion_planta_guardar_observacion'),
     path('operacion-planta/<int:pk>/guardar-preparacion-descarga/', login_required(views.ajax_operacion_planta_guardar_preparacion_descarga), name='ajax_operacion_planta_guardar_preparacion_descarga'),
+    path('operacion-planta/<int:pk>/autorizar-salida-bodega-externa/', login_required(views.ajax_operacion_planta_iniciar_ciclo_recepcion_bodega_externa), name='ajax_operacion_planta_iniciar_ciclo_recepcion_bodega_externa'),
+    path('operacion-planta/<int:pk>/registrar-regreso-bodega-externa/', login_required(views.ajax_operacion_planta_finalizar_ciclo_recepcion_bodega_externa), name='ajax_operacion_planta_finalizar_ciclo_recepcion_bodega_externa'),
     path('operacion-planta/<int:pk>/iniciar-ciclo-descarga/', login_required(views.ajax_operacion_planta_iniciar_ciclo_descarga), name='ajax_operacion_planta_iniciar_ciclo_descarga'),
     path('operacion-planta/<int:pk>/finalizar-proceso-despacho/', login_required(views.ajax_operacion_planta_finalizar_proceso_despacho), name='ajax_operacion_planta_finalizar_proceso_despacho'),
     path('operacion-planta/<int:pk>/finalizar-ciclo-descarga/', login_required(views.ajax_operacion_planta_finalizar_ciclo_descarga), name='ajax_operacion_planta_finalizar_ciclo_descarga'),

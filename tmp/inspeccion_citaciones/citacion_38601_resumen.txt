@@ -1,0 +1,14 @@
+INSPECCION TEMPORAL SOLO LECTURA - CITACION 38601
+
+[
+  {
+    "tablas_relacionadas": 17,
+    "registros_totales": 5,
+    "documentos": 0,
+    "etapas_log": 0,
+    "logs_operacion": 0,
+    "campos_con_informacion": 86,
+    "duplicados_o_contradicciones": 10,
+    "relaciones_no_confirmadas": 0
+  }
+]

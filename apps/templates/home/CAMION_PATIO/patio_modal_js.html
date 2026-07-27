@@ -212,6 +212,23 @@
                 : '';
             const aprobadaClass = cit.es_citacion_aprobada ? ' is-approved-citation' : '';
             const aprobadaBadge = cit.es_citacion_aprobada ? '<span class="badge badge-success">Citacion aprobada</span>' : '';
+            const esDespacho = tipoNormalizado === 'DESPACHO';
+            const secuencia = cit.secuencia_operacional || {};
+            const secuenciaNombre = secuencia.nombre || 'No informada';
+            let patenteBloque = '';
+            if (esDespacho) {
+                let patenteEstado = '<span class="text-muted">Patente pendiente</span>';
+                if (cit.patente) {
+                    patenteEstado = '<strong>' + patioEscape(cit.patente) + '</strong>';
+                    if (cit.patente_coincide) {
+                        patenteEstado += ' <span class="badge badge-success">Patente coincide</span>';
+                    } else {
+                        patenteEstado += ' <span class="badge badge-light border">Patente no coincide</span>' +
+                            '<div class="patio-muted">Camion en patio: ' + patioEscape(camion.patente || '-') + '<br>Citacion: ' + patioEscape(cit.patente || '-') + '</div>';
+                    }
+                }
+                patenteBloque = '<div><span class="patio-muted">Patente</span><br>' + patenteEstado + '</div>';
+            }
             return '<div class="patio-citation-option citacion-sugerida-card' + aprobadaClass + '" data-citacion-id="' + patioEscape(cit.id) + '" data-tipo-citacion="' + patioEscape(tipoNormalizado) + '">' +
                 '<div class="d-flex justify-content-between align-items-start flex-wrap" style="gap:8px;">' +
                 '<div class="patio-citation-heading"><strong>Citacion #' + patioEscape(cit.id) + '</strong><span class="badge ' + tipoClass + '">' + patioEscape(tipo) + '</span>' + aprobadaBadge + '</div>' +
@@ -223,6 +240,8 @@
                 '<div><span class="patio-muted">Cliente</span><br>' + patioEscape(cit.cliente || '-') + '</div>' +
                 '<div><span class="patio-muted">Pedido SAP</span><br>' + patioEscape(cit.pedido_sap || '-') + '</div>' +
                 '<div><span class="patio-muted">Planificacion</span><br>' + patioEscape(cit.planificacion || '-') + '</div>' +
+                '<div><span class="patio-muted">Secuencia operacional</span><br><strong class="patio-sequence-value">' + patioEscape(secuenciaNombre) + '</strong></div>' +
+                patenteBloque +
                 '<div><span class="patio-muted">Fecha</span><br>' + patioEscape(cit.fecha_planificacion || '-') + '</div>' +
                 '</div><div class="patio-muted mt-2">' + patioEscape((cit.razones || []).join(', ') || 'Sin coincidencias fuertes') + '</div></div>';
         }).join('') : '<div class="alert alert-warning">No hay citaciones abiertas disponibles.</div>');
@@ -464,3 +483,4 @@
     window.abrirCamionPatio = abrirCamionPatio;
 })();
 </script>
+

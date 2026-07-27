@@ -6,7 +6,7 @@ existentes siguen viviendo en views.py por compatibilidad de URLs, pero deben
 delegar aqui para evitar mezclar Recepcion con Despacho.
 """
 
-from apps.integrations.sap_b1.goods_receipt_draft_preview import (
+from apps.integrations.sap_b1.sap_recepcion import (
     CAMPO_LOTE_RECEPCION_SAP,
     CAMPO_PESO_INFORMADO_GUIA,
     LOG_BORRADOR_SAP_ENVIADO,

@@ -1377,27 +1377,41 @@
 
                         <div class="col-lg-4 col-md-6">
                             <div class="form-group">
-                                <label class="required-label">Empresa Transporte</label>
+                                <label class="required-label">Condici&oacute;n de entrega</label>
+                                <select class="form-control" id="despacho_transportado_por" name="condicion_entrega" required>
+                                    <option value="">Seleccione</option>
+                                    <option value="Terramar">Terramar</option>
+                                    <option value="Cliente">Cliente</option>
+                                </select>
+                                <small class="form-help-text" id="despacho_transporte_ayuda">
+                                    Seleccione la condici&oacute;n de entrega para definir c&oacute;mo se ingresar&aacute;n los datos de transporte.
+                                </small>
+                            </div>
+                        </div>
+
+                        <div class="col-lg-4 col-md-6">
+                            <div class="form-group">
+                                <label class="required-label" id="despacho_empresa_transporte_label">Empresa Transporte</label>
                                 <select class="form-control" id="despacho_empresa_transporte" name="empresa_transporte" required></select>
                                 <input type="hidden" id="despacho_empresa_transporte_id" name="empresa_transporte_id">
                                 <input type="text"
                                        class="form-control d-none mt-2"
                                        id="despacho_empresa_transporte_manual"
                                        name="empresa_transporte_manual"
-                                       placeholder="Ingrese empresa transporte">
+                                       placeholder="Empresa Transporte">
                             </div>
                         </div>
 
                         <div class="col-lg-4 col-md-6">
                             <div class="form-group">
-                                <label class="required-label">Conductor</label>
+                                <label class="required-label" id="despacho_conductor_label">Conductor</label>
                                 <select class="form-control" id="despacho_conductor" name="conductor" required></select>
                                 <input type="hidden" id="despacho_conductor_id" name="conductor_id">
                                 <input type="text"
                                        class="form-control d-none mt-2"
                                        id="despacho_conductor_manual"
                                        name="conductor_manual"
-                                       placeholder="Ingrese nombre conductor">
+                                       placeholder="Conductor">
                                 <small class="form-help-text d-none" id="despacho_conductor_mensaje">
                                     No hay conductores registrados para esta empresa transporte. Puede ingresarlo manualmente.
                                 </small>
@@ -1406,23 +1420,9 @@
 
                         <div class="col-lg-4 col-md-6">
                             <div class="form-group">
-                                <label class="required-label">Patente</label>
+                                <label class="required-label" id="despacho_patente_label">Patente</label>
                                 <input type="text" class="form-control text-uppercase" id="despacho_patente" name="patente" required>
-                                <label class="d-inline-flex align-items-center mt-2 mb-0" style="gap: 6px; font-size: 12px; color: #6c757d;">
-                                    <input type="checkbox" id="despacho_ingreso_manual" value="1">
-                                    <span>Ingreso manual</span>
-                                </label>
-                            </div>
-                        </div>
-
-                        <div class="col-lg-4 col-md-6">
-                            <div class="form-group">
-                                <label class="required-label">Condici&oacute;n de entrega</label>
-                                <select class="form-control" id="despacho_transportado_por" name="transportado_por" required>
-                                    <option value="">Seleccione</option>
-                                    <option value="Terramar">Terramar</option>
-                                    <option value="Cliente">Cliente</option>
-                                </select>
+                                <input type="checkbox" class="d-none" id="despacho_ingreso_manual" value="1" tabindex="-1" aria-hidden="true">
                             </div>
                         </div>
 
@@ -1636,6 +1636,12 @@
         });
 
         initDespachoTransporteSelect2();
+        $('#despacho_transportado_por').on('change', function () {
+            actualizarModoDespachoTransporte();
+        });
+        $('#despacho_patente').on('input blur', function () {
+            this.value = normalizarTextoDespachoManual(this.value).toUpperCase();
+        });
         actualizarModoDespachoTransporte();
 
         if ($('#despacho_sap_busqueda').length) {
@@ -1907,20 +1913,32 @@
         $('#ModalCrearDespacho').modal('show');
     }
 
+    function normalizarTextoDespachoManual(valor) {
+        return String(valor || '').replace(/\s+/g, ' ').trim();
+    }
+
+    function condicionEntregaDespacho() {
+        return String($('#despacho_transportado_por').val() || '').trim();
+    }
+
     function despachoIngresoManualActivo() {
-        return $('#despacho_ingreso_manual').is(':checked');
+        return condicionEntregaDespacho() === 'Cliente';
+    }
+
+    function despachoTransporteTerramarActivo() {
+        return condicionEntregaDespacho() === 'Terramar';
     }
 
     function empresaTransporteDespachoValor() {
         return despachoIngresoManualActivo()
-            ? getValue('despacho_empresa_transporte_manual').trim()
-            : ($('#despacho_empresa_transporte').val() || '').trim();
+            ? normalizarTextoDespachoManual(getValue('despacho_empresa_transporte_manual'))
+            : normalizarTextoDespachoManual($('#despacho_empresa_transporte').val() || '');
     }
 
     function conductorDespachoValor() {
         return despachoIngresoManualActivo()
-            ? getValue('despacho_conductor_manual').trim()
-            : ($('#despacho_conductor').val() || '').trim();
+            ? normalizarTextoDespachoManual(getValue('despacho_conductor_manual'))
+            : normalizarTextoDespachoManual($('#despacho_conductor').val() || '');
     }
 
     function limpiarConductorDespacho() {
@@ -1931,24 +1949,69 @@
         setValue('despacho_patente', '');
     }
 
-    function actualizarModoDespachoTransporte() {
-        const manual = despachoIngresoManualActivo();
+    function limpiarTransporteDespachoCompleto() {
+        $('#despacho_empresa_transporte').val(null).trigger('change');
+        $('#despacho_conductor').val(null).trigger('change');
+        $('#despacho_empresa_transporte_id').val('');
+        $('#despacho_conductor_id').val('');
+        setValue('despacho_empresa_transporte_manual', '');
+        setValue('despacho_conductor_manual', '');
+        setValue('despacho_patente', '');
+        $('#despacho_conductor_mensaje').data('visible-auto', false).addClass('d-none');
+    }
 
-        $('#despacho_empresa_transporte').prop('disabled', manual).prop('required', !manual);
-        $('#despacho_conductor').prop('disabled', manual).prop('required', !manual);
-        $('#despacho_empresa_transporte_manual').toggleClass('d-none', !manual).prop('disabled', !manual).prop('required', manual);
-        $('#despacho_conductor_manual').toggleClass('d-none', !manual).prop('disabled', !manual).prop('required', manual);
-        $('#despacho_conductor_mensaje').toggleClass('d-none', manual || !$('#despacho_conductor_mensaje').data('visible-auto'));
+    function actualizarModoDespachoTransporte() {
+        const condicion = condicionEntregaDespacho();
+        const manual = condicion === 'Cliente';
+        const terramar = condicion === 'Terramar';
+        const sinCondicion = !condicion;
+
+        $('#despacho_ingreso_manual').prop('checked', manual);
+        $('#despacho_empresa_transporte_id, #despacho_conductor_id')
+            .prop('disabled', manual || sinCondicion);
+        $('#despacho_empresa_transporte_label, #despacho_conductor_label, #despacho_patente_label')
+            .toggleClass('required-label', terramar);
+
+        $('#despacho_empresa_transporte')
+            .prop('disabled', manual || sinCondicion)
+            .prop('required', terramar);
+        $('#despacho_conductor')
+            .prop('disabled', manual || sinCondicion)
+            .prop('required', terramar);
+        $('#despacho_empresa_transporte_manual')
+            .toggleClass('d-none', !manual)
+            .prop('disabled', !manual)
+            .prop('required', false);
+        $('#despacho_conductor_manual')
+            .toggleClass('d-none', !manual)
+            .prop('disabled', !manual)
+            .prop('required', false);
+        $('#despacho_patente')
+            .prop('disabled', sinCondicion)
+            .prop('required', terramar);
+        $('#despacho_conductor_mensaje')
+            .toggleClass('d-none', manual || sinCondicion || !$('#despacho_conductor_mensaje').data('visible-auto'));
+
+        if (manual) {
+            $('#despacho_transporte_ayuda').text('Transporte coordinado por el cliente. Los datos pueden ingresarse manualmente y son opcionales durante la planificacion.');
+        } else if (terramar) {
+            $('#despacho_transporte_ayuda').text('Transporte coordinado por Terramar. Seleccione la empresa transportista y el conductor.');
+        } else {
+            $('#despacho_transporte_ayuda').text('Seleccione la condicion de entrega para definir como se ingresaran los datos de transporte.');
+        }
 
         if (manual) {
             $('#despacho_empresa_transporte').val(null).trigger('change');
             $('#despacho_conductor').val(null).trigger('change');
             $('#despacho_empresa_transporte_id').val('');
             $('#despacho_conductor_id').val('');
+            setValue('despacho_patente', '');
             $('#despacho_empresa_transporte_manual').trigger('focus');
-        } else {
+        } else if (terramar) {
             setValue('despacho_empresa_transporte_manual', '');
             setValue('despacho_conductor_manual', '');
+        } else {
+            limpiarTransporteDespachoCompleto();
         }
     }
 
@@ -2026,7 +2089,7 @@
                 }
             }
         }).on('select2:opening', function (event) {
-            if (!despachoIngresoManualActivo() && !$('#despacho_empresa_transporte').val()) {
+            if (!despachoTransporteTerramarActivo() || !$('#despacho_empresa_transporte').val()) {
                 event.preventDefault();
                 swalFront({
                     title: 'Atención',
@@ -2729,7 +2792,7 @@
         const salidaDocumentoSelect = $('#despacho_salida_documento');
         const empresaTransporte = empresaTransporteDespachoValor();
         const conductor = conductorDespachoValor();
-        const patente = getValue('despacho_patente').trim().toUpperCase();
+        const patente = normalizarTextoDespachoManual(getValue('despacho_patente')).toUpperCase();
         const ingresoManualTransporte = despachoIngresoManualActivo();
 
         const citacion = {
@@ -3092,8 +3155,8 @@
 
         if (normalizarDecimalDespacho(getValue('despacho_cantidad_intentada')) === null) {
             swalFront({
-                title: 'AtenciÃ³n',
-                text: 'Debe ingresar una cantidad intentada a despachar vÃ¡lida.',
+                title: 'Atención',
+                text: 'Debe ingresar una cantidad intentada a despachar válida.',
                 icon: 'warning'
             });
             return false;
@@ -3126,25 +3189,37 @@
             return false;
         }
 
-        if (!empresaTransporteDespachoValor()) {
+        const condicionEntrega = condicionEntregaDespacho();
+        const transporteTerramar = despachoTransporteTerramarActivo();
+
+        if (!condicionEntrega) {
             swalFront({
                 title: 'Atencion',
-                text: 'Debe ingresar o seleccionar una empresa transporte.',
+                text: 'Debe seleccionar Condicion de entrega.',
                 icon: 'warning'
             });
             return false;
         }
 
-        if (!conductorDespachoValor()) {
+        if (transporteTerramar && !empresaTransporteDespachoValor()) {
             swalFront({
                 title: 'Atencion',
-                text: 'Debe ingresar o seleccionar un conductor.',
+                text: 'Debe seleccionar una empresa transporte.',
                 icon: 'warning'
             });
             return false;
         }
 
-        if (!getValue('despacho_patente').trim()) {
+        if (transporteTerramar && !conductorDespachoValor()) {
+            swalFront({
+                title: 'Atencion',
+                text: 'Debe seleccionar un conductor.',
+                icon: 'warning'
+            });
+            return false;
+        }
+
+        if (transporteTerramar && !getValue('despacho_patente').trim()) {
             swalFront({
                 title: 'Atencion',
                 text: 'Debe ingresar una patente.',

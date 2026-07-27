@@ -306,8 +306,6 @@
                                             {% endif %}
                                             <th>CONDUCTOR</th>
                                             <th>PATENTE</th>
-                                            <th>TIPO EJE</th>
-                                           
                                             <th>TRANSPORTISTA</th>
                                             {% if request.user.is_superuser == True %}
                                                 <th>TARIFA</th>
@@ -365,7 +363,6 @@
                                                 {% endif %}
                                                 <td>{{ object.operacion_conductor|default:'Sin información' }}</td>
                                                 <td>{{ object.operacion_patente|default:'Sin información' }}</td>
-                                                <td>{{ object.operacion_tipo_eje|default:'Sin información' }}</td>
                                                
                                                 <td>{{ object.operacion_transportista|default:'Sin información' }}</td>
                                                 {% if request.user.is_superuser == True %}

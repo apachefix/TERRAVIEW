@@ -2777,6 +2777,34 @@
                                                 Registre esta accion antes de finalizar Toma de muestra.
                                             {% endif %}
                                         </div>
+                                        {% if paso.tiempo_toma_muestra.iniciada %}
+                                            <div class="op-cycle-runtime op-toma-muestra-runtime">
+                                                <div class="op-hourglass {% if paso.tiempo_toma_muestra.finalizada %}descarga-finalizada{% else %}descarga-activa{% endif %}">
+                                                    <div class="op-hourglass-inner">
+                                                        <span class="op-hourglass-neck"></span>
+                                                        <span class="op-hourglass-glass-shine"></span>
+                                                        <span class="op-hourglass-sand-layer">
+                                                            <span class="op-hourglass-sand-top"></span>
+                                                            <span class="op-hourglass-flow"></span>
+                                                            <span class="op-hourglass-sand-bottom"></span>
+                                                        </span>
+                                                    </div>
+                                                </div>
+                                                <div>
+                                                    <div class="op-dashboard-card-title">
+                                                        {% if paso.tiempo_toma_muestra.finalizada %}Toma de muestra finalizada{% else %}Toma de muestra en proceso{% endif %}
+                                                    </div>
+                                                    <div class="op-dashboard-muted">Duracion toma de muestra</div>
+                                                    <div class="op-wait-clock-time op-toma-muestra-live-time"
+                                                         {% if paso.tiempo_toma_muestra.en_proceso %}data-wait-start="{{ paso.tiempo_toma_muestra.inicio_iso }}" data-wait-start-ms="{{ paso.tiempo_toma_muestra.inicio_ms }}"{% endif %}>
+                                                        {{ paso.tiempo_toma_muestra.duracion_legible|default:'00:00:00' }}
+                                                    </div>
+                                                    <div class="op-dashboard-muted">
+                                                        Inicio: {{ paso.tiempo_toma_muestra.inicio_legible|default:'Sin inicio' }}{% if paso.tiempo_toma_muestra.usuario_inicio %} | Inicio por: {{ paso.tiempo_toma_muestra.usuario_inicio }}{% endif %}{% if paso.tiempo_toma_muestra.finalizada %} | Fin: {{ paso.tiempo_toma_muestra.fin_legible|default:'Sin fin' }}{% if paso.tiempo_toma_muestra.usuario_fin %} | Finalizo: {{ paso.tiempo_toma_muestra.usuario_fin }}{% endif %}{% endif %}
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        {% endif %}
                                         {% if paso.accion_toma_muestra.tipo == 'vapor' and paso.tiempo_vapor.iniciada %}
                                             <div class="op-cycle-runtime op-vapor-runtime">
                                                 <div class="op-hourglass {% if paso.tiempo_vapor.finalizada %}descarga-finalizada{% else %}descarga-activa{% endif %}">
@@ -3116,6 +3144,119 @@
                                     </div>
                                     {% endif %}
 
+                                    {% if paso.requiere_ciclo_bodega_externa %}
+                                    <div class="op-cycle-panel operacion-ciclo-bodega-externa-box"
+                                         data-paso="{{ paso.nombre }}"
+                                         data-iniciada="{% if paso.ciclo_bodega_externa.iniciada %}true{% else %}false{% endif %}"
+                                         data-finalizada="{% if paso.ciclo_bodega_externa.finalizada %}true{% else %}false{% endif %}">
+                                        <div class="op-cycle-header">
+                                            <div>
+                                                <div class="op-cycle-title">
+                                                    <span class="op-cycle-title-icon"><i class="fas fa-route"></i></span>
+                                                    SALIDA A BODEGA EXTERNA
+                                                </div>
+                                                <div class="op-cycle-subtitle">
+                                                    Responsable inicio: Sala_Control | Responsable cierre: Guardia Porteria
+                                                </div>
+                                            </div>
+                                            <span class="op-cycle-state-badge {{ paso.ciclo_bodega_externa.estado_badge }}">
+                                                <i class="fas {% if paso.ciclo_bodega_externa.finalizada %}fa-check-circle{% elif paso.ciclo_bodega_externa.en_proceso %}fa-hourglass-half{% else %}fa-circle{% endif %}"></i>
+                                                {{ paso.ciclo_bodega_externa.estado }}
+                                            </span>
+                                        </div>
+
+                                        <div class="op-cycle-summary-grid">
+                                            <div class="op-field-summary-card">
+                                                <div class="op-field-summary-label">Patente</div>
+                                                <div class="op-field-summary-value">{{ paso.ciclo_bodega_externa.patente|default:patente }}</div>
+                                            </div>
+                                            <div class="op-field-summary-card">
+                                                <div class="op-field-summary-label">Citacion</div>
+                                                <div class="op-field-summary-value">{{ paso.ciclo_bodega_externa.citacion }}</div>
+                                            </div>
+                                            <div class="op-field-summary-card">
+                                                <div class="op-field-summary-label">Guia</div>
+                                                <div class="op-field-summary-value {% if not paso.ciclo_bodega_externa.guia %}is-muted{% endif %}">{{ paso.ciclo_bodega_externa.guia|default:"Sin guia" }}</div>
+                                            </div>
+                                            <div class="op-field-summary-card">
+                                                <div class="op-field-summary-label">Insumo</div>
+                                                <div class="op-field-summary-value {% if not paso.ciclo_bodega_externa.insumo %}is-muted{% endif %}">{{ paso.ciclo_bodega_externa.insumo|default:"Sin insumo" }}</div>
+                                            </div>
+                                            <div class="op-field-summary-card">
+                                                <div class="op-field-summary-label">Destino</div>
+                                                <div class="op-field-summary-value">{{ paso.ciclo_bodega_externa.destino }}</div>
+                                            </div>
+                                        </div>
+
+                                        <div class="alert alert-info mt-3 mb-0">
+                                            Sala Control debe autorizar la salida del camion hacia Bodega Externa. El proceso permanecera activo hasta que Guardia Porteria registre el regreso del camion.
+                                        </div>
+
+                                        {% if paso.ciclo_bodega_externa.iniciada %}
+                                            <div class="op-cycle-runtime mt-3">
+                                                <div class="op-hourglass {% if paso.ciclo_bodega_externa.finalizada %}descarga-finalizada{% else %}descarga-activa{% endif %}">
+                                                    <div class="op-hourglass-inner">
+                                                        <span class="op-hourglass-neck"></span>
+                                                        <span class="op-hourglass-glass-shine"></span>
+                                                        <span class="op-hourglass-sand-layer">
+                                                            <span class="op-hourglass-sand-top"></span>
+                                                            <span class="op-hourglass-flow"></span>
+                                                            <span class="op-hourglass-sand-bottom"></span>
+                                                        </span>
+                                                    </div>
+                                                </div>
+                                                <div>
+                                                    <div class="op-dashboard-card-title">
+                                                        {% if paso.ciclo_bodega_externa.finalizada %}Ciclo Bodega Externa finalizado{% else %}Camion en Bodega Externa{% endif %}
+                                                    </div>
+                                                    <div class="op-dashboard-muted">Tiempo transcurrido desde salida hacia Bodega Externa</div>
+                                                    <div class="op-wait-clock-time op-bodega-externa-live-time"
+                                                         {% if paso.ciclo_bodega_externa.en_proceso %}data-wait-start="{{ paso.ciclo_bodega_externa.inicio_iso }}" data-wait-start-ms="{{ paso.ciclo_bodega_externa.inicio_ms }}"{% endif %}>
+                                                        {{ paso.ciclo_bodega_externa.duracion_legible|default:"00:00:00" }}
+                                                    </div>
+                                                    <div class="op-dashboard-muted">
+                                                        Salida: {{ paso.ciclo_bodega_externa.inicio_legible|default:"Sin salida" }}{% if paso.ciclo_bodega_externa.usuario_inicio %} | Autorizo: {{ paso.ciclo_bodega_externa.usuario_inicio }}{% endif %}{% if paso.ciclo_bodega_externa.finalizada %} | Regreso: {{ paso.ciclo_bodega_externa.fin_legible|default:"Sin regreso" }}{% if paso.ciclo_bodega_externa.usuario_fin %} | Registro: {{ paso.ciclo_bodega_externa.usuario_fin }}{% endif %}{% endif %}
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        {% endif %}
+
+                                        {% if paso.ciclo_bodega_externa.finalizada %}
+                                            <div class="op-update-strip mt-3">
+                                                <i class="fas fa-check-circle"></i>
+                                                Ciclo finalizado. Salida: {{ paso.ciclo_bodega_externa.inicio_legible }} | Regreso: {{ paso.ciclo_bodega_externa.fin_legible }} | Duracion: {{ paso.ciclo_bodega_externa.duracion_legible }} | Cierre: {{ paso.ciclo_bodega_externa.usuario_fin }}
+                                            </div>
+                                        {% endif %}
+
+                                        {% if paso.activo and not paso.ciclo_bodega_externa.finalizada %}
+                                            <div class="op-discharge-actions mt-3">
+                                                {% if not paso.ciclo_bodega_externa.iniciada and paso.puede_iniciar_ciclo_bodega_externa %}
+                                                    <button type="button" class="op-glass-button is-success btn-iniciar-ciclo-bodega-externa" data-paso="{{ paso.nombre }}">
+                                                        <i class="op-glass-icon fas fa-route"></i>
+                                                        AUTORIZAR SALIDA A BODEGA EXTERNA
+                                                    </button>
+                                                {% elif paso.ciclo_bodega_externa.en_proceso and paso.puede_finalizar_ciclo_bodega_externa %}
+                                                    <div class="w-100">
+                                                        <label>Observacion del regreso</label>
+                                                        <textarea class="form-control observacion-regreso-bodega-externa" rows="2" placeholder="Camion regreso sin novedades."></textarea>
+                                                        <div class="d-flex justify-content-end mt-2">
+                                                            <button type="button" class="op-glass-button is-success btn-finalizar-ciclo-bodega-externa" data-paso="{{ paso.nombre }}">
+                                                                <i class="op-glass-icon fas fa-check-circle"></i>
+                                                                REGISTRAR REGRESO DESDE BODEGA EXTERNA
+                                                            </button>
+                                                        </div>
+                                                    </div>
+                                                {% elif paso.ciclo_bodega_externa.en_proceso %}
+                                                    <div class="alert alert-light border mb-0">Ciclo externo en curso. Guardia Porteria debe registrar el regreso del camion.</div>
+                                                {% else %}
+                                                    <div class="alert alert-light border mb-0">Solo Sala Control puede autorizar la salida a Bodega Externa.</div>
+                                                {% endif %}
+                                            </div>
+                                        {% endif %}
+                                    </div>
+                                    {% endif %}
+
+
                                     {% if paso.requiere_ciclo_descarga %}
                                     <div class="op-cycle-panel operacion-ciclo-descarga-box"
                                          data-paso="{{ paso.nombre }}"
@@ -3300,15 +3441,15 @@
 
                                         <div class="op-lab-title"><i class="fas fa-tasks"></i> Tipo de descarga</div>
                                         <div class="op-cycle-options">
-                                            {% for tipo_descarga in paso.tipos_ciclo_descarga %}
+                                            {% for opcion_descarga in paso.tipos_ciclo_descarga %}
                                                 <button type="button"
-                                                        class="op-cycle-option {% if paso.ciclo_descarga.tipo_descarga == tipo_descarga %}is-selected{% endif %}"
-                                                        data-tipo-descarga="{{ tipo_descarga }}"
+                                                        class="op-cycle-option {% if paso.ciclo_descarga.tipo_descarga_codigo == opcion_descarga.codigo %}is-selected{% endif %}"
+                                                        data-tipo-descarga="{{ opcion_descarga.codigo }}"
                                                         {% if not paso.activo or not paso.puede_editar or paso.ciclo_descarga.iniciada %}disabled{% endif %}>
                                                     <span class="op-cycle-option-icon">
-                                                        <i class="fas {% if 'Bodega' in tipo_descarga %}fa-warehouse{% elif 'Cisterna' in tipo_descarga %}fa-truck-moving{% elif 'Patio' in tipo_descarga %}fa-map-marked-alt{% else %}fa-oil-can{% endif %}"></i>
+                                                        <i class="fas {% if 'Trasvasije' in opcion_descarga.etiqueta_tarjeta %}fa-exchange-alt{% elif 'Cisterna' in opcion_descarga.etiqueta_tarjeta %}fa-truck-moving{% elif 'Patio' in opcion_descarga.etiqueta_tarjeta %}fa-map-marked-alt{% else %}fa-oil-can{% endif %}"></i>
                                                     </span>
-                                                    <span class="op-cycle-option-title">{{ tipo_descarga }}</span>
+                                                    <span class="op-cycle-option-title">{{ opcion_descarga.etiqueta_tarjeta }}</span>
                                                 </button>
                                             {% endfor %}
                                         </div>
@@ -3336,7 +3477,7 @@
                                                         {{ paso.ciclo_descarga.duracion_legible|default:'00:00:00' }}
                                                     </div>
                                                     <div class="op-dashboard-muted">
-                                                        Tipo: {{ paso.ciclo_descarga.tipo_descarga }} |
+                                                        Tipo: {{ paso.ciclo_descarga.tipo_descarga_label }} |
                                                         Inicio: {{ paso.ciclo_descarga.inicio_descarga_legible|default:'Sin inicio' }}
                                                         {% if paso.ciclo_descarga.finalizada %}
                                                             | Fin: {{ paso.ciclo_descarga.fin_descarga_legible|default:'Sin fin' }}
@@ -3349,7 +3490,7 @@
                                         {% if paso.ciclo_descarga.finalizada %}
                                             <div class="op-update-strip">
                                                 <i class="fas fa-check-circle"></i>
-                                                Tipo: {{ paso.ciclo_descarga.tipo_descarga }} | Inicio: {{ paso.ciclo_descarga.inicio_descarga_legible }} | Fin: {{ paso.ciclo_descarga.fin_descarga_legible }} | Duracion: {{ paso.ciclo_descarga.duracion_legible }} | Finalizo: {{ paso.ciclo_descarga.usuario_fin }}
+                                                Tipo: {{ paso.ciclo_descarga.tipo_descarga_label }} | Inicio: {{ paso.ciclo_descarga.inicio_descarga_legible }} | Fin: {{ paso.ciclo_descarga.fin_descarga_legible }} | Duracion: {{ paso.ciclo_descarga.duracion_legible }} | Finalizo: {{ paso.ciclo_descarga.usuario_fin }}
                                             </div>
                                         {% endif %}
 
@@ -3504,7 +3645,7 @@
                                                     <div class="col-12 col-md-6 col-xl-4 mb-2">
                                                         <div class="sap-info-card">
                                                             <div class="sap-info-label">{{ campo.label }}</div>
-                                                            <div class="sap-info-value {% if campo.value == 'Sin informaciÃƒÂ³n' %}is-muted{% endif %}">
+                                                            <div class="sap-info-value {% if campo.value == 'Sin información' %}is-muted{% endif %}">
                                                                 {{ campo.value }}
                                                             </div>
                                                         </div>
@@ -3519,7 +3660,7 @@
                                             {% for campo in paso.autorizacion_salida_bodega.campos %}
                                             <div class="op-field-summary-card">
                                                 <div class="op-field-summary-label">{{ campo.label }}</div>
-                                                <div class="op-field-summary-value {% if campo.value == 'Sin informaciÃ³n' %}is-muted{% endif %}">
+                                                <div class="op-field-summary-value {% if campo.value == 'Sin información' %}is-muted{% endif %}">
                                                     {{ campo.value }}
                                                 </div>
                                             </div>
@@ -3618,7 +3759,7 @@
                                             {% for campo in paso.ingreso_planta_bodega.campos %}
                                             <div class="op-field-summary-card">
                                                 <div class="op-field-summary-label">{{ campo.label }}</div>
-                                                <div class="op-field-summary-value {% if campo.value == 'Sin informaciÃ³n' %}is-muted{% endif %}">
+                                                <div class="op-field-summary-value {% if campo.value == 'Sin información' %}is-muted{% endif %}">
                                                     {{ campo.value }}
                                                 </div>
                                             </div>
@@ -3728,7 +3869,12 @@
                                                             <i class="fas fa-sync-alt"></i> Actualizaci&oacute;n Borrador SAP Recepci&oacute;n
                                                         </div>
                                                         <div class="op-dashboard-muted">
-                                                            Genera lote SAP y actualiza el Draft con el peso real de Pesaje Salida antes de autorizar.
+                                                            Actualiza el Draft SAP con el peso real del Pesaje de Salida.
+                                                            {% if paso.sap_update_recepcion.lote_manual %}
+                                                                El lote ser&aacute; ingresado manualmente en SAP durante la marcha blanca.
+                                                            {% else %}
+                                                                TERRAVIEW generar&aacute; y enviar&aacute; el lote SAP.
+                                                            {% endif %}
                                                         </div>
                                                     </div>
                                                     <span class="op-sap-draft-status {% if paso.sap_update_recepcion.updated %}is-done{% elif paso.sap_update_recepcion.estado == 'ERROR' %}is-error{% elif paso.activo %}is-active{% endif %}">
@@ -3749,8 +3895,13 @@
                                                         | ItemCode: <strong>{{ paso.sap_update_recepcion.item_code|default:'-' }}</strong>
                                                     </div>
                                                     <div class="sap-update-result-line">
-                                                        Lote: <strong>{{ paso.sap_update_recepcion.lote|default:'-' }}</strong>
-                                                        | Peso salida: <strong>{{ paso.sap_update_recepcion.peso_salida|default:'-' }}</strong>
+                                                        {% if paso.sap_update_recepcion.lote_manual %}
+                                                            Lote: <strong>Pendiente de ingreso manual en SAP</strong>
+                                                        {% else %}
+                                                            Lote: <strong>{{ paso.sap_update_recepcion.lote|default:'-' }}</strong>
+                                                        {% endif %}
+                                                        | Peso salida: <strong>{{ paso.sap_update_recepcion.peso_salida_kg|default:'-' }} kg</strong>
+                                                        | Cantidad SAP: <strong>{{ paso.sap_update_recepcion.cantidad_sap|default:'-' }} {{ paso.sap_update_recepcion.unidad_sap|default:'MT' }}</strong>
                                                     </div>
                                                     <div class="sap-update-result-line">
                                                         {% if paso.sap_update_recepcion.usuario or paso.sap_update_recepcion.fecha_hora %}
@@ -4656,6 +4807,82 @@
     setInterval(actualizarRelojesEsperaDescarga, 1000);
     activarEtapaOperacionDesdeQuery();
 
+    $(document).on('click', '.btn-iniciar-ciclo-bodega-externa', function () {
+        const boton = $(this);
+        const textoOriginal = boton.html();
+        $.ajax({
+            url: "{% url 'ajax_operacion_planta_iniciar_ciclo_recepcion_bodega_externa' citacion.id %}",
+            type: 'POST',
+            data: {
+                _empresa_id: OPERACION_PLANTA_EMPRESA_ID,
+                empresa_id: OPERACION_PLANTA_EMPRESA_ID
+            },
+            headers: { 'X-CSRFToken': getCookie('csrftoken') },
+            beforeSend: function () {
+                boton.prop('disabled', true).html('<i class="fas fa-spinner fa-spin"></i> Autorizando...');
+            },
+            success: function (response) {
+                if (!response.success) {
+                    boton.prop('disabled', false).html(textoOriginal);
+                    Swal.fire({ icon: 'error', title: 'No fue posible autorizar', text: response.message || 'No fue posible autorizar la salida.' });
+                    return;
+                }
+                Swal.fire({ icon: 'success', title: 'Salida autorizada', text: response.message || 'Camion autorizado para salir a Bodega Externa.' }).then(function () { location.reload(); });
+            },
+            error: function (xhr) {
+                boton.prop('disabled', false).html(textoOriginal);
+                const response = xhr.responseJSON || {};
+                Swal.fire({ icon: 'error', title: 'No fue posible autorizar', text: response.message || ('Error HTTP ' + xhr.status + ' al autorizar salida.') });
+            }
+        });
+    });
+
+    $(document).on('click', '.btn-finalizar-ciclo-bodega-externa', function () {
+        const boton = $(this);
+        const box = boton.closest('.operacion-ciclo-bodega-externa-box');
+        const salida = box.find('.op-dashboard-muted').last().text().trim();
+        const tiempo = box.find('.op-bodega-externa-live-time').text().trim() || '00:00:00';
+        const observacion = box.find('.observacion-regreso-bodega-externa').val() || '';
+        const textoOriginal = boton.html();
+        Swal.fire({
+            icon: 'question',
+            title: 'Confirmar regreso',
+            html: '<div class="text-left"><p>Confirma el regreso del camion desde Bodega Externa?</p><p><strong>Patente:</strong> ' + $('<div>').text('{{ patente }}').html() + '</p><p><strong>' + $('<div>').text(salida).html() + '</strong></p><p><strong>Tiempo transcurrido:</strong> ' + $('<div>').text(tiempo).html() + '</p><p>Esta accion cerrara el ciclo externo y enviara el proceso a Pesaje Salida.</p></div>',
+            showCancelButton: true,
+            confirmButtonText: 'Registrar regreso',
+            cancelButtonText: 'Cancelar'
+        }).then(function (result) {
+            if (!result.isConfirmed) { return; }
+            $.ajax({
+                url: "{% url 'ajax_operacion_planta_finalizar_ciclo_recepcion_bodega_externa' citacion.id %}",
+                type: 'POST',
+                data: {
+                    observacion: observacion,
+                    _empresa_id: OPERACION_PLANTA_EMPRESA_ID,
+                    empresa_id: OPERACION_PLANTA_EMPRESA_ID
+                },
+                headers: { 'X-CSRFToken': getCookie('csrftoken') },
+                beforeSend: function () {
+                    boton.prop('disabled', true).html('<i class="fas fa-spinner fa-spin"></i> Registrando...');
+                },
+                success: function (response) {
+                    if (!response.success) {
+                        boton.prop('disabled', false).html(textoOriginal);
+                        Swal.fire({ icon: 'error', title: 'No fue posible registrar', text: response.message || 'No fue posible registrar el regreso.' });
+                        return;
+                    }
+                    Swal.fire({ icon: 'success', title: 'Regreso registrado', text: response.message || 'Camion regreso desde Bodega Externa.' }).then(function () { location.reload(); });
+                },
+                error: function (xhr) {
+                    boton.prop('disabled', false).html(textoOriginal);
+                    const response = xhr.responseJSON || {};
+                    Swal.fire({ icon: 'error', title: 'No fue posible registrar', text: response.message || ('Error HTTP ' + xhr.status + ' al registrar regreso.') });
+                }
+            });
+        });
+    });
+
+
     $(document).on('click', '.op-cycle-option', function () {
         const boton = $(this);
         const box = boton.closest('.operacion-ciclo-descarga-box');
@@ -5315,7 +5542,7 @@
                     (accion.observacion ? '<br>' + $('<div>').text(accion.observacion).html() : '')
                 );
                 Swal.fire({ icon: 'success', title: accion.estado_label || 'Accion registrada', text: response.message || 'Accion registrada.' }).then(function () {
-                    if ((accion.tipo || '') === 'vapor') {
+                    if ((accion.tipo || '') === 'vapor' || accion.mide_tiempo_toma_muestra) {
                         location.reload();
                     }
                 });

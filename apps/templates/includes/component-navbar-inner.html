@@ -51,14 +51,10 @@
             {% if request.user|es_asistente_recepcion or request.user.is_superuser == 1 %}
                 <li><a href="{% url 'camiones_patio_list' %}{% if request.session.empresa_id %}?_empresa_id={{ request.session.empresa_id }}{% endif %}">Camiones en Patio</a></li>
             {% endif %}
-            {% if request.user|es_ingreso_camion or request.user.is_superuser == 1 %}
-                <li class="nav-item pcoded-hasmenu menu-ingreso-camion-nodo">
-                    <a href="#" class="nav-link">Ingreso de cami&oacute;n</a>
-                    <ul class="pcoded-submenu">
-                        <li><a href="{% url 'pla_listall' %}?tipo=RECEPCION{% if request.session.empresa_id %}&_empresa_id={{ request.session.empresa_id }}{% endif %}">Recepci&oacute;n</a></li>
-                        <li><a href="{% url 'pla_listall' %}?tipo=DESPACHO{% if request.session.empresa_id %}&_empresa_id={{ request.session.empresa_id }}{% endif %}">Despacho</a></li>
-                    </ul>
-                </li>
+            {% if request.user|es_ingreso_camion or request.user|es_asistente_recepcion or request.user|es_planificador or request.user.is_superuser == 1 %}
+                <li class="menu-ingreso-camion-nodo"><a href="#">Ingreso de cami&oacute;n</a></li>
+                <li class="{% if request.GET.tipo == 'RECEPCION' %}active{% endif %}"><a href="{% url 'pla_listall' %}?tipo=RECEPCION{% if request.session.empresa_id %}&_empresa_id={{ request.session.empresa_id }}{% endif %}">Recepci&oacute;n</a></li>
+                <li class="{% if request.GET.tipo == 'DESPACHO' %}active{% endif %}"><a href="{% url 'pla_listall' %}?tipo=DESPACHO{% if request.session.empresa_id %}&_empresa_id={{ request.session.empresa_id }}{% endif %}">Despacho</a></li>
             {% endif %}
             {% if not request.user|es_ingreso_camion %}
                 <li class="nav-item pcoded-hasmenu">
