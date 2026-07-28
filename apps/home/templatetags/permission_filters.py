@@ -1,5 +1,6 @@
 from django import template
-from apps.home.models import PERFIL_USUARIO, PERMISO, VISTA
+from apps.home.models import PERFIL_USUARIO, PERMISO, USERS_EMPRESA, VISTA
+from apps.home.services.proforma_service import usuario_tiene_permiso_pro_cit
 import unicodedata
 
 register = template.Library()
@@ -131,6 +132,14 @@ def has_vista(user, vista_codigo):
         VI_NID=vista.id,
         PE_BHABILITADO=True  # Aseguramos que el permiso esté habilitado
     ).exists()
+
+
+@register.filter(name='tiene_permiso_pro_cit')
+def tiene_permiso_pro_cit(user, permiso_codigo):
+    return (
+        usuario_tiene_permiso_pro_cit(user, permiso_codigo)
+        and USERS_EMPRESA.objects.filter(US_NID=user).exists()
+    )
 
 
 @register.filter(name='has_perfil')

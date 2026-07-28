@@ -161,15 +161,19 @@
     {% include 'includes/sidebar-searches.html' %}
     
     {% if not request.user|es_usuario_maesc %}
-    {% if request.user|has_vista:'PROFORMAS' or request.user.is_superuser == 1 %}
+    {% if request.user|tiene_permiso_pro_cit:'proforma_citaciones' or request.user|has_vista:'PROFORMAS' or request.user.is_superuser == 1 %}
     <li class="nav-item pcoded-hasmenu">
         <a href="#" class="nav-link "><span class="pcoded-micon"><i class="fas fa-file-invoice-dollar"></i></span><span class="pcoded-mtext">Proformas</span></a>
         <ul class="pcoded-submenu">
+            {% if request.user|tiene_permiso_pro_cit:'proforma_citaciones' or request.user|has_vista:'PROFORMAS' or request.user.is_superuser == 1 %}
             <li><a href="{% url 'prof_listall' %}">Citaciones</a></li>
+            {% endif %}
+            {% if request.user|has_vista:'PROFORMAS' or request.user.is_superuser == 1 %}
             <li><a href="{% url 'proforma_extras_listall' %}">Extras</a></li>
             <li><a href="{% url 'proforma_manual_add' %}">Manual</a></li>
             <li><a href="{% url 'proforma_listall_borrador' %}">Borradores</a></li>
             <li><a href="{% url 'proforma_listall' %}">Proformas</a></li>
+            {% endif %}
         </ul>
     </li>
     {% endif %}

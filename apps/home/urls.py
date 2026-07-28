@@ -359,6 +359,7 @@ urlpatterns = [
     path('export_citaciones_despachos_excel/', views.export_citaciones_despachos_excel, name='export_citaciones_despachos_excel'),
     path('export_citaciones_recepciones_excel/', views.export_citaciones_recepciones_excel, name='export_citaciones_recepciones_excel'),
     path('cit_entrega_conforme/<int:pk>', login_required(views.CIT_CONFORME), name="cit_entrega_conforme"),
+    path('citaciones/<int:pk>/iniciar-proforma/', views.CITACION_INICIAR_PROFORMA, name='citacion_iniciar_proforma'),
     #########################################
     ########     PERFILAMIENTO       ########
     #########################################

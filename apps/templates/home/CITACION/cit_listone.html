@@ -126,12 +126,22 @@
                     <!-- FIN ESTADO DE VIAJE -->
                      <div class="d-flex justify-content-end" >
                         <div class="card-body ">
-                            {% if citacion.CI_CESTADO == 'TERMINADO' and not citacion.CI_BCONFORME %}
-                                {% if request.user.is_superuser or has_permiso %}
-                                    <a class="btn btn-primary float-right entrega-conforme mr-2" data-href="{% url 'cit_entrega_conforme' citacion.pk %}">
-                                        Conforme
+                            {% if proforma_iniciada %}
+                                <span class="btn btn-success float-right mr-2 disabled" aria-disabled="true">
+                                    PROFORMA INICIADA
+                                </span>
+                                {% if puede_consultar_proforma_citaciones %}
+                                    <a class="btn btn-outline-primary float-right mr-2" href="{% url 'prof_listall' %}?_empresa_id={{ citacion.EP_NID_id }}">
+                                        Proformas &gt; Citaciones
                                     </a>
                                 {% endif %}
+                            {% elif puede_iniciar_proforma %}
+                                <form method="POST" action="{% url 'citacion_iniciar_proforma' citacion.pk %}" class="float-right mr-2">
+                                    {% csrf_token %}
+                                    <button type="submit" class="btn btn-primary">
+                                        INICIAR PROFORMA
+                                    </button>
+                                </form>
                             {% endif %}
                             {% if citacion.GET_STATUS_PROFORMA and request.user.is_superuser %}
                                     <button class="btn btn-warning float-right mr-2" data-toggle="modal" data-target="#ModalEditarFlete">

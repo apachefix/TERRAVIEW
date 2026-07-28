@@ -1070,12 +1070,9 @@ def tiene_perfil_usuario(vista, perfil):
 ###################################################
 
 def get_list_citaciones_proforma(proveedor, fecha_desde, fecha_hasta, tipo_citacion, empresa):
-    from django.db import connection, transaction
+    from django.db import connection
     
     try:
-        # Asegurarse de que estamos viendo datos confirmados
-        transaction.set_autocommit(True)
-        
         with connection.cursor() as cursor:
             query = '''
                     SELECT
@@ -1108,11 +1105,22 @@ def get_list_citaciones_proforma(proveedor, fecha_desde, fecha_hasta, tipo_citac
                     LEFT JOIN "SOCIONEGOCIO" AS pro ON "CITACION"."PRO_NID_id" = pro."id"
                     LEFT JOIN "TARIFA_GLOBAL" AS tg ON "CITACION"."TAR_NID_id" = tg."id"
                     LEFT JOIN "DATO_OPERACION" ON "CITACION"."id" = "DATO_OPERACION"."CI_NID_id" AND "DATO_OPERACION"."CAMP_NID_id" = 38
+                    INNER JOIN (
+                        SELECT
+                            "CI_NID_id",
+                            MIN("EP_NID_id") AS "EP_NID_id"
+                        FROM "CAMION_PATIO"
+                        WHERE "CPA_CESTADO" = 'ASOCIADO_CITACION'
+                        GROUP BY "CI_NID_id"
+                        HAVING
+                            COUNT(*) = 1
+                            AND MAX(UPPER(TRIM(COALESCE("transporte_a_cargo", '')))) = 'TERRAMAR'
+                    ) AS cp ON cp."CI_NID_id" = "CITACION"."id"
+                        AND cp."EP_NID_id" = "CITACION"."EP_NID_id"
                     WHERE
                         "CITACION"."CI_CESTADO" = 'TERMINADO' AND
                         "CITACION"."CI_BHABILITADO" = True AND
-                        "CITACION"."id" NOT IN (SELECT "CI_NID_id" FROM "CITACION_PROFORMA") AND
-                        "CITACION"."CI_CTIPO_FLETE" <> 'Flete Cliente'
+                        "CITACION"."id" NOT IN (SELECT "CI_NID_id" FROM "CITACION_PROFORMA")
                     '''
             
             params = []
@@ -1186,12 +1194,6 @@ def get_list_citaciones_proforma(proveedor, fecha_desde, fecha_hasta, tipo_citac
         import traceback
         traceback.print_exc()
         return None
-    finally:
-        # Restaurar autocommit si es necesario
-        try:
-            transaction.set_autocommit(False)
-        except:
-            pass
 
 def get_list_citaciones_xproveedor(id_proveedor, empresa):
     try:

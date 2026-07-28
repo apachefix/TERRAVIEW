@@ -1,5 +1,6 @@
 from django import template
 from django.http import HttpResponse, HttpResponseRedirect, JsonResponse, FileResponse
+from django.views.decorators.http import require_POST
 from django.template import loader
 from django.urls import reverse, reverse_lazy
 from django.shortcuts import render, redirect, get_object_or_404
@@ -11,6 +12,7 @@ from django.utils.dateparse import parse_date, parse_datetime
 from django.utils.text import get_valid_filename
 from django.views.generic import FormView
 from django.contrib.auth import update_session_auth_hash, authenticate, logout
+from django.contrib.auth.decorators import login_required
 from django.conf import settings
 from django.template.loader import render_to_string
 from django.db.models import Q, Subquery, OuterRef, Count
@@ -27,6 +29,14 @@ from .general_postgres import *
 from .general_hana import *
 from .general_sql_server import *
 from .general_postgres import QueryParam
+from .services.proforma_service import (
+    PERMISO_INICIAR_PROFORMA,
+    PERMISO_PROFORMA_CITACIONES,
+    evaluar_inicio_proforma,
+    iniciar_proforma,
+    usuario_tiene_empresa as usuario_pro_cit_tiene_empresa,
+    usuario_tiene_permiso_pro_cit,
+)
 from .sap_despacho import (
     actualizar_borrador_sap_despacho as sap_despacho_actualizar_borrador,
     construir_payload_draft_despacho as sap_despacho_construir_payload_draft,
@@ -11531,13 +11541,21 @@ def BUSCAR_OPOR_POR_PEDIDO(request):
 
 def validar_perfiles_activos(id_user, template):
     perfiles_activos = list(PERFIL.objects.filter(PR_BHABILITADO = True).values_list('id', flat=True))
-    perfiles_usuario = list(PERFIL_USUARIO.objects.filter(US_NID = id_user, PR_NID__in=perfiles_activos).values_list('PR_NID', flat=True))
+    perfiles_usuario = list(PERFIL_USUARIO.objects.filter(
+        US_NID=id_user,
+        PR_NID__in=perfiles_activos,
+        PE_BHABILITADO=True,
+    ).values_list('PR_NID', flat=True))
     # Si el usuario no tiene perfiles asignados, retornar False
     if not perfiles_usuario:
         return False
     try:
         vista = VISTA.objects.get(VI_CNOMBRE = template, VI_BHABILITADO = True)
-        permisos = PERMISO.objects.filter(PR_NID__in=perfiles_usuario, VI_NID = vista).exists()
+        permisos = PERMISO.objects.filter(
+            PR_NID__in=perfiles_usuario,
+            VI_NID=vista,
+            PE_BHABILITADO=True,
+        ).exists()
         return permisos
     except VISTA.DoesNotExist:
         return False
@@ -19339,7 +19357,15 @@ def CITACION_LISTONE(request, pk):
         citacion = CITACION.objects.get(id=pk)
         if request.user.is_superuser == False:                     
             usuario = request.user.id
-            if not usuario_es_planificador(request.user) and not validar_perfiles_activos(usuario, "cit_listone"):
+            acceso_pro_cit = (
+                usuario_tiene_permiso_pro_cit(request.user, PERMISO_INICIAR_PROFORMA)
+                and usuario_pro_cit_tiene_empresa(request.user, citacion.EP_NID_id)
+            )
+            if (
+                not usuario_es_planificador(request.user)
+                and not validar_perfiles_activos(usuario, "cit_listone")
+                and not acceso_pro_cit
+            ):
                 messages.error(request, 'No tiene permisos para acceder a esta sección')
                 return redirect('/')
         
@@ -19536,12 +19562,12 @@ def CITACION_LISTONE(request, pk):
         
         cupos_proveedor = CUPO_PROVEEDOR.objects.filter(PLA_NID = citacion.PL_NID)
 
-        has_permiso = False
-        if request.user.is_superuser == False:
-            if validar_perfiles_activos(usuario, "marcar_conforme"):
-                has_permiso = True
-        else:
-            has_permiso = True
+        evaluacion_inicio_proforma = evaluar_inicio_proforma(citacion, request.user)
+        puede_iniciar_proforma = evaluacion_inicio_proforma['elegible']
+        puede_consultar_proforma_citaciones = (
+            usuario_tiene_permiso_pro_cit(request.user, PERMISO_PROFORMA_CITACIONES)
+            and usuario_pro_cit_tiene_empresa(request.user, citacion.EP_NID_id)
+        )
         
         proforma = CITACION_PROFORMA.objects.filter().first()
         if not proforma:
@@ -19573,7 +19599,10 @@ def CITACION_LISTONE(request, pk):
             'ltsProveedores': ltsProveedores,
             'responsables': responsables,
             'cupos_proveedor': cupos_proveedor,
-            'has_permiso': has_permiso,
+            'puede_iniciar_proforma': puede_iniciar_proforma,
+            'motivo_no_iniciar_proforma': evaluacion_inicio_proforma.get('mensaje', ''),
+            'proforma_iniciada': bool(citacion.CI_BCONFORME),
+            'puede_consultar_proforma_citaciones': puede_consultar_proforma_citaciones,
             'rutas': rutas,
             'ltsFlete': fletes,
             'pesos_dato_operacion': pesos_dato_operacion  # Diccionario con pesos por campo_id
@@ -22571,22 +22600,31 @@ def CITACION_UPDATE_DATA(request, pk):
         return redirect(f'/cit_listone/{pk}')
 
 def CIT_CONFORME(request, pk):
+    return HttpResponse(
+        'La ruta legacy Conforme fue retirada. '
+        'Utilice Iniciar Proforma desde el detalle de la citación.',
+        status=410,
+    )
+
+@login_required
+@require_POST
+def CITACION_INICIAR_PROFORMA(request, pk):
     try:
-        if request.user.is_superuser == False:
-            if not validar_perfiles_activos(request.user.id, "marcar_conforme"):
-                messages.error(request, "No puedes marcarlo como conforme esta citacion")
-                return redirect(f'/cit_listone/{pk}')
+        citacion, resultado = iniciar_proforma(pk, request.user)
+        if not resultado['ok']:
+            status = 403 if resultado['codigo'] in {'SIN_PERMISO', 'SIN_EMPRESA'} else 400
+            return HttpResponse(resultado['mensaje'], status=status)
 
-        citacion = CITACION.objects.get(id = pk)
-        citacion.CI_BCONFORME = True
-        citacion.save()
-
-        messages.success(request, "Citacion marcada como conforme")
-        return redirect(f'/cit_listone/{pk}')
+        if resultado['codigo'] == 'INICIADA':
+            messages.success(request, 'Citación habilitada correctamente para iniciar su proforma.')
+        else:
+            messages.info(request, resultado['mensaje'])
+        return redirect(f'/cit_listone/{citacion.pk}')
+    except CITACION.DoesNotExist:
+        return HttpResponse('La citación no existe.', status=404)
     except Exception as e:
         print(e)
-        messages.error(request, f"Error, {str(e)}")
-        return redirect(f'/cit_listone/{pk}')
+        return HttpResponse(f'No fue posible iniciar la proforma: {str(e)}', status=500)
 
 ##########################################################################
 #######################  PROVINCIAS Y COMUNAS  ###########################
@@ -23123,19 +23161,26 @@ def PROFORMA_DELETE(request, pk):
 
 def PROFORMA_CITACION_LISTALL(request):
     try:
+        if not usuario_tiene_permiso_pro_cit(request.user, PERMISO_PROFORMA_CITACIONES):
+            return HttpResponse('No tiene permiso para consultar las citaciones de proforma.', status=403)
+
         tipo_citacion = 'RECEPCION'
         proveedor = None
         fecha_desde = None
         fecha_hasta = None
         filtrado = False
-        empresa = ID_TERRAMAR
+        empresa = Verificar_empresa(request)
 
         if request.method == 'POST':
             proveedor = request.POST.get('proveedor', '')
             fecha_desde = request.POST.get('fecha_desde', '')
             fecha_hasta = request.POST.get('fecha_hasta', '')
             tipo_citacion = request.POST.get('tipo_citacion', '')
-            empresa = request.POST.get('empresa', '')
+            empresa = request.POST.get('empresa') or empresa
+
+        if not empresa or not usuario_pro_cit_tiene_empresa(request.user, empresa):
+            return HttpResponse('No tiene acceso a la empresa seleccionada.', status=403)
+
             
         if proveedor or fecha_desde or fecha_hasta or tipo_citacion or empresa:
             filtrado = True
@@ -23149,12 +23194,19 @@ def PROFORMA_CITACION_LISTALL(request):
         )
 
         # Configurar paginación
-        paginator = Paginator(citaciones, 500)  # 50 registros por página
+        citaciones = citaciones or []
+        paginator = Paginator(citaciones, 500)
         page_number = request.GET.get('page', 1)
         page_obj = paginator.get_page(page_number)
 
-        lstProveedores = SOCIONEGOCIO.objects.filter(SN_CTIPO = 'S').values_list('id', 'SN_CRAZONSOCIAL')
-        ltsEmpresas = EMPRESA.objects.all()
+        lstProveedores = SOCIONEGOCIO.objects.filter(
+            SN_CTIPO='S',
+            EP_NID_id=empresa,
+        ).values_list('id', 'SN_CRAZONSOCIAL')
+        empresas_ids = USERS_EMPRESA.objects.filter(
+            US_NID=request.user,
+        ).values_list('EP_NID_id', flat=True)
+        ltsEmpresas = EMPRESA.objects.filter(id__in=empresas_ids)
                 
         ctx = {
             'object_list': page_obj.object_list,
