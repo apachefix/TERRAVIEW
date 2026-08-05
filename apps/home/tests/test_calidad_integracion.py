@@ -1,4 +1,4 @@
-from datetime import time
+from datetime import time, timedelta
 from io import StringIO
 import json
 from unittest.mock import patch
@@ -379,3 +379,49 @@ class CalidadIntegracionApiTestCase(TestCase):
         self.assertNotIn('interna.example', evento.EIC_CPAYLOAD_SANITIZADO)
         self.assertIn('[DATO_REDACTADO]', evento.EIC_CPAYLOAD_SANITIZADO)
         self.assertIn('[URL_REDACTADA]', evento.EIC_CPAYLOAD_SANITIZADO)
+
+    def test_43_bot_aprobado_despues_cierre_operacional_no_reabre(self):
+        citacion, _ = self.crear_proceso()
+        fecha_termino = timezone.now() - timedelta(minutes=30)
+        citacion.CI_CESTADO = 'TERMINADO'
+        citacion.CI_FFECHATERMINO = fecha_termino
+        citacion.save(update_fields=['CI_CESTADO', 'CI_FFECHATERMINO'])
+        OPERACION_PLANTA_LOG.objects.create(
+            US_NID=self.user, EP_NID=self.empresa, PL_NID=self.planificacion,
+            CI_NID=citacion, OPL_CPASO='Confirmar Salida',
+            OPL_CPERFIL_RESPONSABLE='GUARDIA PORTERIA', OPL_CESTADO='COMPLETADO',
+        )
+
+        response = self.post(self.body(id_evento='aprobado-despues-cierre'))
+
+        citacion.refresh_from_db()
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(citacion.CI_CESTADO, 'TERMINADO')
+        self.assertEqual(citacion.CI_FFECHATERMINO, fecha_termino)
+        self.assertEqual(RESULTADO_CALIDAD_OPERACION.objects.get(CI_NID=citacion).RCO_CESTADO, 'APROBADO')
+        self.assertEqual(OPERACION_PLANTA_LOG.objects.filter(CI_NID=citacion, OPL_CPASO='Confirmar Salida').count(), 1)
+
+    def test_44_bot_rechazado_despues_cierre_operacional_conserva_citacion(self):
+        citacion, _ = self.crear_proceso()
+        fecha_termino = timezone.now() - timedelta(minutes=30)
+        citacion.CI_CESTADO = 'TERMINADO'
+        citacion.CI_FFECHATERMINO = fecha_termino
+        citacion.save(update_fields=['CI_CESTADO', 'CI_FFECHATERMINO'])
+        OPERACION_PLANTA_LOG.objects.create(
+            US_NID=self.user, EP_NID=self.empresa, PL_NID=self.planificacion,
+            CI_NID=citacion, OPL_CPASO='Confirmar Salida',
+            OPL_CPERFIL_RESPONSABLE='GUARDIA PORTERIA', OPL_CESTADO='COMPLETADO',
+        )
+
+        response = self.post(self.body(
+            estado='RECHAZADO', id_evento='rechazado-despues-cierre',
+        ))
+
+        citacion.refresh_from_db()
+        resultado = RESULTADO_CALIDAD_OPERACION.objects.get(CI_NID=citacion)
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(resultado.RCO_CESTADO, 'RECHAZADO')
+        self.assertEqual(citacion.CI_CESTADO, 'TERMINADO')
+        self.assertEqual(citacion.CI_FFECHATERMINO, fecha_termino)
+        self.assertEqual(resultado.historial.filter(RCH_CESTADO_NUEVO='RECHAZADO').count(), 1)
+        self.assertEqual(OPERACION_PLANTA_LOG.objects.filter(CI_NID=citacion, OPL_CPASO='Confirmar Salida').count(), 1)

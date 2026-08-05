@@ -59,15 +59,14 @@
                                 <i class="fas fa-filter"></i> Ocultar/Mostrar Filtros
                             </button>
                             {% if filtrado %}
-                                <a class="btn btn-danger m-t-5 ml-3" href="{% url 'prof_listall' %}">
+                                <a class="btn btn-danger m-t-5 ml-3" href="{% url 'prof_listall' %}?_empresa_id={{ selectedempresa }}">
                                     <i class="fas fa-times"></i> Borrar Filtros
                                 </a>
                             {% endif %}
                         </div>
                     </div>
                     <div class="collapse {% if filtrado %} show {% endif %}" id="collapseExample">
-                        <form method="POST">
-                            {% csrf_token %}
+                        <form method="GET">
                             <div class="form-row mr-5">
                                 <div class="col-md-6">
                                     <label class="form-label" for="fecha_desde">Fecha desde:</label>
@@ -80,11 +79,11 @@
                             </div>
                             <div class="form-row mr-5">
                                 <div class="form-group col-md-6 mb-2">
-                                    <label class="form-label" for="cliente">Proveedor:</label>
-                                    <select class="form-control js-example-placeholder-multiple" name="proveedor" id="proveedor" style="width: 100%;">
-                                        <option value="" selected>Todos los proveedores</option>
-                                        {% for proveedor in lstProveedores %}
-                                            <option value="{{ proveedor.0 }}" {% if selectedproveedor == proveedor.0 %}selected{% endif %} >{{ proveedor.1 }}</option>
+                                    <label class="form-label" for="transportista_id">Transportista:</label>
+                                    <select class="form-control js-example-placeholder-multiple" name="transportista_id" id="transportista_id" style="width: 100%;">
+                                        <option value="">Todos los transportistas elegibles</option>
+                                        {% for transportista in lstTransportistas %}
+                                            <option value="{{ transportista.0 }}" {% if selectedtransportista == transportista.0 %}selected{% endif %}>{{ transportista.1 }}</option>
                                         {% endfor %}
                                     </select>
                                 </div>
@@ -99,7 +98,7 @@
                             <div class="form-row mr-5">
                                 <div class="form-group col-md-6 mb-2">
                                     <label class="form-label" for="cliente">Empresa:</label>
-                                    <select class="form-control js-example-placeholder-multiple" name="empresa" id="empresa" style="width: 100%;">
+                                    <select class="form-control js-example-placeholder-multiple" name="_empresa_id" id="empresa" style="width: 100%;">
                                         {% for empresa in ltsEmpresas %}
                                             <option value="{{ empresa.pk }}" {% if selectedempresa == empresa.pk %}selected{% endif %} >{{ empresa.EP_CRAZONSOCIAL }}</option>
                                         {% endfor %}
@@ -127,18 +126,7 @@
                                     ({{ object_list|length }} registros en esta página)
                                 </span>
                             </div>
-                            <div>
-                                <button class="btn btn-primary mr-2" id="btn_Fconsolidada" onclick="proforma_consolidad(false)" 
-                                        data-toggle="tooltip" data-placement="bottom" 
-                                        title="Liquidar las citaciones seleccionados en UNA liquidacion.">
-                                    Proforma con extras
-                                </button>
-                                <button class="btn btn-primary mr-2" id="btn_Fconsolidada" onclick="proforma_consolidad(true)" 
-                                        data-toggle="tooltip" data-placement="bottom" 
-                                        title="Liquidar las citaciones seleccionados en UNA liquidacion.">
-                                    Proforma sin extras
-                                </button>
-                            </div>
+                            <div><span class="badge badge-secondary">{{ total_carpetas }} carpetas</span></div>
                         </div>
 
                         <div class="card-body">
@@ -148,12 +136,12 @@
                                     <ul class="pagination justify-content-center">
                                         {% if page_obj.has_previous %}
                                             <li class="page-item">
-                                                <a class="page-link" href="?page=1">
+                                                <a class="page-link" href="?page=1{% if pagination_query %}&amp;{{ pagination_query }}{% endif %}">
                                                     <i class="fas fa-angle-double-left"></i> Primera
                                                 </a>
                                             </li>
                                             <li class="page-item">
-                                                <a class="page-link" href="?page={{ page_obj.previous_page_number }}">
+                                                <a class="page-link" href="?page={{ page_obj.previous_page_number }}{% if pagination_query %}&amp;{{ pagination_query }}{% endif %}">
                                                     <i class="fas fa-angle-left"></i> Anterior
                                                 </a>
                                             </li>
@@ -167,19 +155,19 @@
                                                 </li>
                                             {% elif num > page_obj.number|add:'-3' and num < page_obj.number|add:'3' %}
                                                 <li class="page-item">
-                                                    <a class="page-link" href="?page={{ num }}">{{ num }}</a>
+                                                    <a class="page-link" href="?page={{ num }}{% if pagination_query %}&amp;{{ pagination_query }}{% endif %}">{{ num }}</a>
                                                 </li>
                                             {% endif %}
                                         {% endfor %}
 
                                         {% if page_obj.has_next %}
                                             <li class="page-item">
-                                                <a class="page-link" href="?page={{ page_obj.next_page_number }}">
+                                                <a class="page-link" href="?page={{ page_obj.next_page_number }}{% if pagination_query %}&amp;{{ pagination_query }}{% endif %}">
                                                     Siguiente <i class="fas fa-angle-right"></i>
                                                 </a>
                                             </li>
                                             <li class="page-item">
-                                                <a class="page-link" href="?page={{ paginator.num_pages }}">
+                                                <a class="page-link" href="?page={{ paginator.num_pages }}{% if pagination_query %}&amp;{{ pagination_query }}{% endif %}">
                                                     Última <i class="fas fa-angle-double-right"></i>
                                                 </a>
                                             </li>
@@ -192,45 +180,36 @@
                                 <table id="basic-btn" class="table table-striped table-bordered nowrap">
                                     <thead>
                                         <tr>
-                                            <th>
-                                                <input type="checkbox" id="select-all" class="form-control">
-                                            </th>
-                                            <th>NÚMERO CITACIÓN</th>
-                                            <th>NÚMERO PLANIFICACIÓN</th>
-                                            <th>FECHA CITACIÓN</th>
-                                            <th>TIPO DOCUMENTO</th>
-                                            <th>NÚMERO DOCUMENTO</th>
-                                            <th>SECUENCIA</th>
-                                            <th>CLIENTE</th>
-                                            <th>CONDUCTOR</th>
-                                            <th>CAMIÓN</th>
-                                            <th>PROVEEDOR</th>
-                                            <th>TARIFA</th>
-                                            <th>EXTRAS INGRESO</th>
-                                            <th>EXTRAS DESCUENTO</th>
+                                            <th>TRANSPORTISTA</th><th>TOTAL DE CITACIONES</th><th>TIPO</th><th>EMPRESA</th><th>FECHA MÁS ANTIGUA</th><th>FECHA MÁS RECIENTE</th><th>ACCIÓN</th>
                                         </tr>
                                     </thead>
                                     <tbody>
-                                        {% for object in object_list %}
+                                        {% for carpeta in object_list %}
                                             <tr>
-                                                <td>
-                                                    <input type="checkbox" class="form-control citacion-checkbox" value="{{ object.0 }}">
-                                                </td>
-                                                <td><span class="fw-normal"><a href="{% url 'cit_listone' object.0 %}">{{ object.0 }}</a></span></td>
-                                                <td><span class="fw-normal"><a href="{% url 'pla_listone' object.1 %}">{{ object.1 }}</a></span></td>
-                                                <td><span class="fw-normal">{{ object.2 }}</span></td>
-                                                <td><span class="fw-normal">{{ object.13|default:"" }}</span></td>
-                                                <td><span class="fw-normal">{{ object.14|default:"" }}</span></td>
-                                                <td><span class="fw-normal">{{ object.3 }}</span></td>
-                                                <td><span class="fw-normal">{{ object.4 }}</span></td>
-                                                <td><span class="fw-normal">{{ object.5 }}</span></td>
-                                                <td><span class="fw-normal">{{ object.6 }}</span></td>
-                                                <td><span class="fw-normal">{{ object.7}}</span></td>
-                                                <td><span class="fw-normal">$ {{ object.9|custom_number_format }}</span></td>
-                                                <td><span class="fw-normal">$ {{ object.10|custom_number_format }}</span></td>
-                                                <td><span class="fw-normal">$ {{ object.11|custom_number_format }}</span></td>
+                                                <td>{{ carpeta.transportista|default:"Sin transportista" }}</td><td>{{ carpeta.citaciones|length }}</td><td>{{ carpeta.tipo }}</td><td>{{ carpeta.empresa }}</td><td>{{ carpeta.fecha_antigua|date:"d/m/Y H:i" }}</td><td>{{ carpeta.fecha_reciente|date:"d/m/Y H:i" }}</td>
+                                                <td><button type="button" class="btn btn-outline-primary btn-sm ver-carpeta" data-carpeta="{{ forloop.counter0 }}"><i class="fas fa-folder-open"></i> Ver carpeta</button></td>
                                             </tr>
-                                        {% endfor %}
+                                            <tr id="carpeta-{{ forloop.counter0 }}" class="detalle-carpeta" style="display: none;"><td colspan="7">
+                                                <div class="d-flex justify-content-between align-items-center mb-2">
+                                                    <strong>Citaciones disponibles para generar proforma</strong>
+                                                    <div>
+                                                        <button type="button" id="crear-proforma-{{ forloop.counter0 }}" class="btn btn-primary btn-sm" onclick="crearProforma({{ forloop.counter0 }})" disabled>Proforma con extras</button>
+                                                        <button type="button" id="borrador-proforma-{{ forloop.counter0 }}" class="btn btn-info btn-sm" data-proforma-id="" onclick="descargarBorrador({{ forloop.counter0 }})" title="Descarga un PDF preliminar sin crear una orden de compra" disabled>Borrador proforma</button>
+                                                        <button type="button" id="aprobar-proforma-{{ forloop.counter0 }}" class="btn btn-success btn-sm" data-proforma-id="" onclick="aprobarProforma({{ forloop.counter0 }})" title="Autoriza la proforma y crea la orden de compra en SAP" disabled>Aprobar proforma</button>
+                                                    </div>
+                                                </div>
+                                                <div id="estado-proforma-{{ forloop.counter0 }}" class="alert alert-light border py-2 mb-2" style="display: none;">
+                                                    Proforma: <a id="proforma-id-{{ forloop.counter0 }}" href="#"></a> |
+                                                    Estado: <strong id="proforma-estado-{{ forloop.counter0 }}">-</strong> |
+                                                    Total: <strong id="proforma-total-{{ forloop.counter0 }}">$ 0</strong> |
+                                                    DocEntry: <span id="proforma-docentry-{{ forloop.counter0 }}">-</span> |
+                                                    DocNum: <span id="proforma-docnum-{{ forloop.counter0 }}">-</span>
+                                                </div>
+                                                <div class="table-responsive"><table class="table table-sm table-bordered mb-0"><thead><tr><th>NÚMERO CITACIÓN</th><th>NÚMERO PLANIFICACIÓN</th><th>FECHA</th><th>TIPO DE DOCUMENTO</th><th>NÚMERO DE DOCUMENTO</th><th>SECUENCIA</th><th>CLIENTE</th><th>COSTO TRANSPORTE</th><th>COSTO EXTRA</th><th>TOTAL CITACIÓN</th><th>ACCIÓN <input type="checkbox" class="select-folder ml-1" data-carpeta="{{ forloop.counter0 }}" title="Seleccionar carpeta"></th></tr></thead><tbody>
+                                                    {% for citacion in carpeta.citaciones %}<tr><td><a href="{% url 'cit_listone' citacion.0 %}">{{ citacion.0 }}</a></td><td><a href="{% url 'pla_listone' citacion.1 %}">{{ citacion.1 }}</a></td><td>{{ citacion.2 }}</td><td>{{ citacion.13|default:"" }}</td><td>{{ citacion.14|default:"" }}</td><td>{{ citacion.3 }}</td><td>{{ citacion.4 }}</td><td class="text-right">$ {{ citacion.9|custom_number_format }}</td><td class="text-right">$ {{ citacion.21|custom_number_format }}</td><td class="text-right">$ {{ citacion.22|custom_number_format }}</td><td><input type="checkbox" class="citacion-checkbox carpeta-{{ forloop.parentloop.counter0 }}" value="{{ citacion.0 }}" data-transportista-id="{{ carpeta.transportista_id }}" data-empresa-id="{{ carpeta.empresa_id }}" data-tipo="{{ carpeta.tipo }}" data-proveedor-id="{{ citacion.20 }}" title="Seleccionar citación"></td></tr>{% endfor %}
+                                                </tbody></table></div>
+                                            </td></tr>
+                                        {% empty %}<tr><td colspan="7" class="text-center">No hay citaciones disponibles para generar proforma.</td></tr>{% endfor %}
                                     </tbody>
                                 </table>
                             </div>
@@ -241,12 +220,12 @@
                                     <ul class="pagination justify-content-center">
                                         {% if page_obj.has_previous %}
                                             <li class="page-item">
-                                                <a class="page-link" href="?page=1">
+                                                <a class="page-link" href="?page=1{% if pagination_query %}&amp;{{ pagination_query }}{% endif %}">
                                                     <i class="fas fa-angle-double-left"></i> Primera
                                                 </a>
                                             </li>
                                             <li class="page-item">
-                                                <a class="page-link" href="?page={{ page_obj.previous_page_number }}">
+                                                <a class="page-link" href="?page={{ page_obj.previous_page_number }}{% if pagination_query %}&amp;{{ pagination_query }}{% endif %}">
                                                     <i class="fas fa-angle-left"></i> Anterior
                                                 </a>
                                             </li>
@@ -266,12 +245,12 @@
 
                                         {% if page_obj.has_next %}
                                             <li class="page-item">
-                                                <a class="page-link" href="?page={{ page_obj.next_page_number }}">
+                                                <a class="page-link" href="?page={{ page_obj.next_page_number }}{% if pagination_query %}&amp;{{ pagination_query }}{% endif %}">
                                                     Siguiente <i class="fas fa-angle-right"></i>
                                                 </a>
                                             </li>
                                             <li class="page-item">
-                                                <a class="page-link" href="?page={{ paginator.num_pages }}">
+                                                <a class="page-link" href="?page={{ paginator.num_pages }}{% if pagination_query %}&amp;{{ pagination_query }}{% endif %}">
                                                     Última <i class="fas fa-angle-double-right"></i>
                                                 </a>
                                             </li>
@@ -288,293 +267,225 @@
 {% endblock content %}
 
 {% block javascripts %}
-    <!-- datatable Js -->
-    <script src="/static/assets/js/plugins/jquery.dataTables.min.js"></script>
-    <script src="/static/assets/js/plugins/dataTables.bootstrap4.min.js"></script>
-    <script src="/static/assets/js/plugins/dataTables.buttons.min.js"></script>
-    <script src="/static/assets/js/plugins/pdfmake.min.js"></script>
-    <script src="/static/assets/js/plugins/jszip.min.js"></script>
-    <script src="/static/assets/js/plugins/buttons.html5.min.js"></script>
-    <script src="/static/assets/js/plugins/buttons.bootstrap4.min.js"></script>
-    <script src="/static/assets/js/plugins/buttons.print.min.js"></script>  <!-- AGREGAR ESTA -->
-    <script>
-        const tipo_citacion = "{{ tipo_citacion }}";
+<script>
+    const csrfToken = '{{ csrf_token }}';
+    const urlAutorizarBase = "{% url 'proforma_autorizar_ajax' 0 %}";
+    const operacionesSap = {};
 
-        $(document).ready(function() {
-            // Inicializar DataTable solo para funciones básicas (sin paginación)
-            setTimeout(function() {
-                // DIAGNÓSTICO COMPLETO
-                console.log("=== DIAGNÓSTICO DATATABLES ===");
-                
-                const table = document.getElementById('basic-btn');
-                const thead = table.querySelector('thead tr');
-                const tbody = table.querySelector('tbody');
-                const bodyRows = tbody.querySelectorAll('tr');
-                
-                console.log("Columnas en THEAD:", thead.children.length);
-                
-                // Analizar cada fila del body
-                bodyRows.forEach((row, i) => {
-                    console.log(`BODY fila ${i}:`, row.children.length, "columnas");
-                    if (row.children.length !== thead.children.length) {
-                        console.error(`❌ FILA ${i} DESBALANCEADA: ${row.children.length} vs ${thead.children.length}`);
-                        console.log("Contenido de fila:", row.innerHTML);
+    function checkboxesCarpeta(carpetaId) {
+        return $('.carpeta-' + carpetaId);
+    }
+
+    function seleccionCarpeta(carpetaId) {
+        return checkboxesCarpeta(carpetaId).filter(':checked');
+    }
+
+    function seleccionCompatible(carpetaId) {
+        const seleccionadas = seleccionCarpeta(carpetaId);
+        if (!seleccionadas.length) return false;
+        const primera = seleccionadas.first().data();
+        return seleccionadas.toArray().every(function(elemento) {
+            const actual = $(elemento).data();
+            return String(actual.transportistaId) === String(primera.transportistaId)
+                && String(actual.empresaId) === String(primera.empresaId)
+                && String(actual.tipo) === String(primera.tipo)
+                && String(actual.proveedorId) === String(primera.proveedorId);
+        });
+    }
+
+    function actualizarAcciones(carpetaId) {
+        const checkboxes = checkboxesCarpeta(carpetaId);
+        const seleccionadas = seleccionCarpeta(carpetaId);
+        const compatible = seleccionCompatible(carpetaId);
+        const proformaCreada = Boolean($('#aprobar-proforma-' + carpetaId).data('proforma-id'));
+        $('#crear-proforma-' + carpetaId).prop(
+            'disabled', !seleccionadas.length || !compatible || proformaCreada
+        );
+        $('#borrador-proforma-' + carpetaId).prop(
+            'disabled', !seleccionadas.length || !compatible
+        );
+        $('.select-folder[data-carpeta="' + carpetaId + '"]').prop(
+            'checked', checkboxes.length > 0 && seleccionadas.length === checkboxes.length
+        );
+    }
+
+    $(document).ready(function() {
+        $('.ver-carpeta').on('click', function() {
+            $('#carpeta-' + $(this).data('carpeta')).toggle();
+        });
+        $('.select-folder').on('change', function() {
+            const carpetaId = $(this).data('carpeta');
+            checkboxesCarpeta(carpetaId).prop('checked', this.checked);
+            actualizarAcciones(carpetaId);
+        });
+        $(document).on('change', '.citacion-checkbox', function() {
+            const carpetaClase = Array.from(this.classList).find(
+                clase => clase.indexOf('carpeta-') === 0
+            );
+            if (carpetaClase) actualizarAcciones(carpetaClase.replace('carpeta-', ''));
+        });
+        $('.select-folder').each(function() {
+            actualizarAcciones($(this).data('carpeta'));
+        });
+    });
+
+    function gotoPage() {
+        const pageNumber = document.getElementById('goto-page').value;
+        const maxPages = {{ paginator.num_pages }};
+        if (pageNumber >= 1 && pageNumber <= maxPages) {
+            window.location.href = '?page=' + pageNumber + {% if pagination_query %}'&{{ pagination_query|escapejs }}'{% else %}''{% endif %};
+        } else {
+            alert('Ingrese una página válida (1-' + maxPages + ')');
+        }
+    }
+
+    const gotoPageInput = document.getElementById('goto-page');
+    if (gotoPageInput) {
+        gotoPageInput.addEventListener('keypress', function(event) {
+            if (event.key === 'Enter') gotoPage();
+        });
+    }
+
+    function mostrarProformaCreada(carpetaId, data) {
+        $('#estado-proforma-' + carpetaId).show();
+        $('#proforma-id-' + carpetaId)
+            .text(data.proforma)
+            .attr('href', '/proforma_listone/' + data.proforma);
+        $('#proforma-estado-' + carpetaId).text(data.estado || 'CREADO');
+        $('#proforma-total-' + carpetaId).text(
+            '$ ' + Number(data.total || 0).toLocaleString('es-CL', {maximumFractionDigits: 0})
+        );
+        $('#proforma-docentry-' + carpetaId).text(data.doc_entry || '-');
+        $('#proforma-docnum-' + carpetaId).text(data.doc_num || '-');
+        const botonAprobar = $('#aprobar-proforma-' + carpetaId);
+        botonAprobar.data('proforma-id', data.proforma).prop('disabled', false);
+        $('#borrador-proforma-' + carpetaId).data('proforma-id', data.proforma).prop('disabled', false);
+        $('#crear-proforma-' + carpetaId).prop('disabled', true).text('Proforma creada');
+        checkboxesCarpeta(carpetaId).prop('disabled', true);
+        $('.select-folder[data-carpeta="' + carpetaId + '"]').prop('disabled', true);
+    }
+
+    function crearProforma(carpetaId) {
+        const seleccionadas = seleccionCarpeta(carpetaId);
+        if (!seleccionadas.length) {
+            Swal.fire('Error', 'Debe seleccionar al menos una citación.', 'error');
+            return;
+        }
+        if (!seleccionCompatible(carpetaId)) {
+            Swal.fire('Error', 'Las citaciones seleccionadas son incompatibles.', 'error');
+            return;
+        }
+        const citaciones = seleccionadas.map(function() { return $(this).val(); }).get();
+        Swal.fire({
+            title: 'Proforma con extras',
+            text: 'Ingrese un comentario opcional',
+            input: 'text',
+            showCancelButton: true,
+            confirmButtonText: 'Crear proforma',
+            icon: 'info'
+        }).then(function(resultado) {
+            if (!resultado.isConfirmed) return;
+            const boton = $('#crear-proforma-' + carpetaId).prop('disabled', true);
+            $.ajax({
+                url: "{% url 'proforma_todo' %}",
+                method: 'POST',
+                data: {
+                    citaciones: JSON.stringify(citaciones),
+                    comentario: resultado.value || '',
+                    tipo: seleccionadas.first().data('tipo'),
+                    sin_extras: false,
+                    csrfmiddlewaretoken: csrfToken
+                },
+                success: function(data) {
+                    if (data.valid) {
+                        mostrarProformaCreada(carpetaId, data);
+                        Swal.fire('Proforma creada', 'La proforma interna quedó en estado CREADO.', 'success');
+                    } else {
+                        boton.prop('disabled', false);
+                        Swal.fire('Error', data.msg || 'No fue posible crear la proforma.', 'error');
                     }
-                });
-                
-                // Verificar si hay celdas undefined/null
-                let hasUndefinedCells = false;
-                bodyRows.forEach((row, i) => {
-                    Array.from(row.children).forEach((cell, j) => {
-                        if (!cell || cell.textContent === undefined) {
-                            console.error(`❌ Celda undefined en fila ${i}, columna ${j}`);
-                            hasUndefinedCells = true;
-                        }
-                    });
-                });
-                
-                if (!hasUndefinedCells) {
-                    console.log("✅ Todas las celdas están definidas");
-                }
-                
-                // Solo inicializar si todo está bien
-                try {
-                    $('#basic-btn').DataTable({
-                        dom: 'Bfrtip',
-                        buttons: ['copy', 'csv', 'excel', 'print'],
-                        paging: false,
-                        info: false,
-                        destroy: true,
-                        columnDefs: [
-                            { targets: '_all', defaultContent: '-' }
-                        ]
-                    });
-                    console.log("✅ DataTable inicializado correctamente");
-                } catch (error) {
-                    console.error("❌ Error al inicializar DataTable:", error);
-                }
-                
-    }, 100);
-            // Funcionalidad para seleccionar todos los checkboxes
-            $('#select-all').on('click', function() {
-                $('.citacion-checkbox').prop('checked', this.checked);
-            });
-
-            // Deseleccionar "seleccionar todo" si algún checkbox individual se deselecciona
-            $('.citacion-checkbox').on('click', function() {
-                if (!this.checked) {
-                    $('#select-all').prop('checked', false);
-                } else {
-                    // Verificar si todos están seleccionados
-                    const totalCheckboxes = $('.citacion-checkbox').length;
-                    const checkedCheckboxes = $('.citacion-checkbox:checked').length;
-                    $('#select-all').prop('checked', totalCheckboxes === checkedCheckboxes);
+                },
+                error: function(xhr) {
+                    boton.prop('disabled', false);
+                    Swal.fire('Error', xhr.responseJSON?.msg || xhr.responseText || 'No fue posible crear la proforma.', 'error');
                 }
             });
         });
+    }
 
-        // Función para ir a página específica
-        function gotoPage() {
-            const pageNumber = document.getElementById('goto-page').value;
-            const maxPages = {{ paginator.num_pages }};
-            
-            if (pageNumber >= 1 && pageNumber <= maxPages) {
-                window.location.href = '?page=' + pageNumber;
-            } else {
-                alert('Por favor ingrese un número de página válido (1-' + maxPages + ')');
-            }
+    function descargarBorrador(carpetaId) {
+        const seleccionadas = seleccionCarpeta(carpetaId);
+        if (!seleccionadas.length) {
+            Swal.fire('Error', 'Debe seleccionar al menos una citación.', 'error');
+            return;
+        }
+        if (!seleccionCompatible(carpetaId)) {
+            Swal.fire('Error', 'Las citaciones seleccionadas son incompatibles.', 'error');
+            return;
         }
 
-        // Permitir Enter en el input de página
-        document.getElementById('goto-page').addEventListener('keypress', function(e) {
-            if (e.key === 'Enter') {
-                gotoPage();
-            }
+        const formulario = $('<form>', {
+            method: 'POST',
+            action: "{% url 'proforma_borrador_pdf' %}",
+            target: '_blank'
         });
-
-        function proforma_consolidad(sin_extras){
-            const citaciones = [];
-            let comentario = '';
-
-            // Obtener citaciones seleccionadas de la página actual
-            $('.citacion-checkbox:checked').each(function() {
-                citaciones.push($(this).val());
-            });
-
-            if(citaciones.length == 0){
-                Swal.fire({
-                    title: 'Error',
-                    text: 'No hay citaciones seleccionadas',
-                    icon: 'error',
-                });
-                return;
-            }
-
-            Swal.fire({
-                title: 'Proforma consolidada',
-                text: 'Ingresar un comentario(opcional)',
-                input: 'text',
-                showCancelButton: true,
-                inputPlaceholder: "Ingrese comentario",
-                icon: 'info'
-            }).then(result => {
-                if (result.value) {
-                    comentario = result.value;
-                }
-                if (result.isConfirmed) {
-                    $.ajax({
-                        url: "{% url 'proforma_todo' %}",
-                        method: 'POST',
-                        data: {
-                            citaciones: JSON.stringify(citaciones),
-                            comentario: comentario,
-                            tipo: tipo_citacion,
-                            sin_extras: sin_extras,
-                            'csrfmiddlewaretoken': '{{ csrf_token }}',
-                        },
-                        success: function(data){
-                            if(data.valid == true){
-                                Swal.fire({
-                                    title: 'Proforma consolidada',
-                                    text: 'Liquidación creada correctamente',
-                                    icon: 'success',
-                                }).then(result => {
-                                    if(result.isConfirmed){
-                                        window.location.href = `/proforma_listone/${data.proforma}`;
-                                    }
-                                });
-                            } else {
-                                Swal.fire({
-                                    title: 'Error',
-                                    text: data.msg,
-                                    icon: 'error',
-                                }).then(result => {
-                                    if(result.isConfirmed){
-                                        window.location.reload();
-                                    }
-                                });
-                            }
-                        }
-                    });
-                }
-            });
+        formulario.append($('<input>', {type: 'hidden', name: 'csrfmiddlewaretoken', value: csrfToken}));
+        formulario.append($('<input>', {
+            type: 'hidden',
+            name: '_empresa_id',
+            value: seleccionadas.first().data('empresa-id')
+        }));
+        const proformaId = $('#borrador-proforma-' + carpetaId).data('proforma-id');
+        if (proformaId) {
+            formulario.append($('<input>', {type: 'hidden', name: 'proforma_id', value: proformaId}));
         }
-        
-        {% comment %} function proforma_unitaria(){
-            const citaciones = [];
-            let comentario = '';
+        seleccionadas.each(function() {
+            formulario.append($('<input>', {type: 'hidden', name: 'citacion_ids[]', value: $(this).val()}));
+        });
+        formulario.appendTo('body').trigger('submit').remove();
+    }
+    function aprobarProforma(carpetaId) {
+        const boton = $('#aprobar-proforma-' + carpetaId);
+        const proformaId = boton.data('proforma-id');
+        if (!proformaId || operacionesSap[carpetaId] || boton.prop('disabled')) return;
 
-            $('.citacion-checkbox:checked').each(function() {
-                citaciones.push($(this).val());
-            });
-
-            if(citaciones.length == 0){
-                Swal.fire({
-                    title: 'Error',
-                    text: 'No hay citaciones seleccionadas',
-                    icon: 'error',
-                });
-                return;
-            }
-
-            Swal.fire({
-                title: 'Proforma unitaria',
-                text: 'Ingresar un comentario(opcional)',
-                input: 'text',
-                showCancelButton: true,
-                inputPlaceholder: "Ingrese comentario",
-                icon: 'info'
-            }).then(result => {
-                if (result.value) {
-                    comentario = result.value;
-                }
-                if (result.isConfirmed) {
-                    $.ajax({
-                        url: "{% url 'proforma_unitaria' %}",
-                        method: 'POST',
-                        data: {
-                            citaciones: JSON.stringify(citaciones),
-                            comentario: comentario,
-                            'csrfmiddlewaretoken': '{{ csrf_token }}',
-                        },
-                        success: function(data){
-                            if(data.valid == true){
-                                Swal.fire({
-                                    title: 'Listo',
-                                    text: 'Proformas creadas correctamente',
-                                    icon: 'success',
-                                }).then(result => {
-                                    if(result.isConfirmed){
-                                        window.location.href = `/proforma_listall_borrador`;
-                                    }
-                                });
-                            } else {
-                                Swal.fire({
-                                    title: 'Error',
-                                    text: data.msg,
-                                    icon: 'error',
-                                });
-                            }
-                        }
-                    });
+        Swal.fire({
+            title: 'Aprobar proforma',
+            text: 'Esta acción autoriza la proforma y crea directamente una orden de compra OPOR en SAP. ¿Desea continuar?',
+            icon: 'warning',
+            showCancelButton: true,
+            confirmButtonText: 'Autorizar y crear OPOR',
+            cancelButtonText: 'Cancelar'
+        }).then(function(resultado) {
+            if (!resultado.isConfirmed) return;
+            operacionesSap[carpetaId] = true;
+            boton.prop('disabled', true).text('Autorizando...');
+            $.ajax({
+                url: urlAutorizarBase.replace('/0/', '/' + proformaId + '/'),
+                method: 'POST',
+                data: {csrfmiddlewaretoken: csrfToken},
+                success: function(data) {
+                    if (data.success) {
+                        $('#proforma-estado-' + carpetaId).text('AUTORIZADO');
+                        $('#proforma-docentry-' + carpetaId).text(data.doc_entry || '-');
+                        $('#proforma-docnum-' + carpetaId).text(data.doc_num || '-');
+                        boton.text('Proforma aprobada').prop('disabled', true);
+                        Swal.fire('Proforma autorizada', 'La orden de compra OPOR fue creada en SAP.', 'success');
+                    } else {
+                        boton.text('Aprobar proforma').prop('disabled', false);
+                        Swal.fire('Error SAP', data.error || 'No fue posible autorizar la proforma.', 'error');
+                    }
+                },
+                error: function(xhr) {
+                    boton.text('Aprobar proforma').prop('disabled', false);
+                    const mensaje = xhr.responseJSON?.error || xhr.responseText || 'No fue posible autorizar la proforma.';
+                    Swal.fire('Error SAP', mensaje, 'error');
+                },
+                complete: function() {
+                    operacionesSap[carpetaId] = false;
                 }
             });
-        } {% endcomment %}
-    
-        function proforma_todo(){
-            Swal.fire({
-                title: 'Liquidar Todo',
-                text: '¿Está seguro de liquidar TODAS las citaciones disponibles? Esta acción procesará los {{ total_records }} registros totales.',
-                icon: 'warning',
-                showCancelButton: true,
-                confirmButtonText: 'Sí, liquidar todo',
-                cancelButtonText: 'Cancelar'
-            }).then(result => {
-                if (result.isConfirmed) {
-                    Swal.fire({
-                        title: 'Liquidar Todo',
-                        text: 'Ingresar un comentario(opcional)',
-                        input: 'text',
-                        showCancelButton: true,
-                        inputPlaceholder: "Ingrese comentario",
-                        icon: 'info'
-                    }).then(result2 => {
-                        if (result2.isConfirmed) {
-                            const comentario = result2.value || '';
-                            
-                            $.ajax({
-                                url: "{% url 'proforma_todo' %}",
-                                method: 'POST',
-                                data: {
-                                    liquidar_todo: true,  // Flag especial para liquidar todo
-                                    comentario: comentario,
-                                    tipo: tipo_citacion,
-                                    'csrfmiddlewaretoken': '{{ csrf_token }}',
-                                },
-                                success: function(data){
-                                    if(data.valid == true){
-                                        Swal.fire({
-                                            title: 'Listo',
-                                            text: 'Todas las proformas fueron creadas correctamente',
-                                            icon: 'success',
-                                        }).then(result => {
-                                            if(result.isConfirmed){
-                                                window.location.href = `/proforma_listone/${data.proforma}`;
-                                            }
-                                        });
-                                    } else {
-                                        Swal.fire({
-                                            title: 'Error',
-                                            text: data.msg,
-                                            icon: 'error',
-                                        });
-                                    }
-                                }
-                            });
-                        }
-                    });
-                }
-            });
-        }
-    </script>
+        });
+    }
+</script>
 {% endblock javascripts %}

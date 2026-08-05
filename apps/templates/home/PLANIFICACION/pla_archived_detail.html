@@ -1,0 +1,297 @@
+{% extends 'layouts/base.html' %}
+
+{% block title %}Resumen histórico de planificación{% endblock title %}
+
+{% block stylesheets %}
+<style>
+    .archived-detail-content,
+    .archived-detail-content .row,
+    .archived-detail-content [class*="col-"],
+    .archived-detail-content .card,
+    .archived-detail-content .card-body {
+        min-width: 0;
+        max-width: 100%;
+    }
+
+    .history-summary-card {
+        height: 100%;
+        border-left: 4px solid #04a9f5;
+    }
+
+    .history-summary-card .card-body {
+        padding: 1.25rem;
+    }
+
+    .history-summary-label {
+        display: block;
+        min-height: 2.5rem;
+        color: #6c757d;
+        font-size: .875rem;
+        line-height: 1.25rem;
+    }
+
+    .history-summary-value {
+        margin: .35rem 0 0;
+        font-size: 1.75rem;
+        font-weight: 600;
+        color: #343a40;
+    }
+
+    .history-meta {
+        margin-bottom: 0;
+    }
+
+    .history-meta dt,
+    .history-meta dd {
+        margin-bottom: .5rem;
+    }
+
+    .table-scroll-wrapper {
+        width: 100%;
+        max-width: 100%;
+        min-width: 0;
+        overflow-x: auto;
+        overflow-y: visible;
+        -webkit-overflow-scrolling: touch;
+    }
+
+    .history-client-table {
+        min-width: 1250px;
+    }
+
+    .history-citations-table {
+        min-width: 1050px;
+    }
+
+    .history-unplanned-table {
+        min-width: 1150px;
+    }
+
+    .table-scroll-wrapper table {
+        margin-bottom: 0;
+    }
+
+    .table-scroll-wrapper th {
+        white-space: nowrap;
+    }
+
+    .table-scroll-wrapper th,
+    .table-scroll-wrapper td {
+        vertical-align: middle;
+    }
+
+    .history-client-name {
+        min-width: 230px;
+        white-space: normal;
+    }
+
+    .history-number-cell {
+        text-align: center;
+        white-space: nowrap;
+    }
+</style>
+{% endblock stylesheets %}
+
+{% block content %}
+<section class="pcoded-main-container">
+    <div class="pcoded-content">
+        <div class="container-fluid archived-detail-content">
+            <div class="page-header">
+                <div class="page-block">
+                    <div class="row align-items-center">
+                        <div class="col-md-12">
+                            <div class="page-header-title">
+                                <h5 class="m-b-10">Resumen histórico de planificación</h5>
+                            </div>
+                            <ul class="breadcrumb">
+                                <li class="breadcrumb-item"><a href="/"><i class="feather icon-home"></i></a></li>
+                                <li class="breadcrumb-item"><a href="{% url 'pla_filedlistall' %}?_empresa_id={{ planificacion.EP_NID_id }}">Planificaciones archivadas</a></li>
+                                <li class="breadcrumb-item">Planificación #{{ planificacion.id }}</li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="row">
+                <div class="col-12">
+                    <div class="card">
+                        <div class="card-header d-flex flex-wrap justify-content-between align-items-center">
+                            <h5 class="mb-2 mb-md-0">Resumen histórico de planificación</h5>
+                            <a class="btn btn-secondary btn-sm" href="{% url 'pla_filedlistall' %}?_empresa_id={{ planificacion.EP_NID_id }}">
+                                <i class="feather icon-arrow-left"></i> Volver a planificaciones archivadas
+                            </a>
+                        </div>
+                        <div class="card-body">
+                            <dl class="row history-meta">
+                                <dt class="col-sm-3 col-lg-2">Tipo</dt>
+                                <dd class="col-sm-9 col-lg-4">{{ planificacion.PL_CTIPOCUPO }}</dd>
+                                <dt class="col-sm-3 col-lg-2">Fecha</dt>
+                                <dd class="col-sm-9 col-lg-4">{{ planificacion.PL_FFECHAINICIO|date:'d/m/Y' }}</dd>
+                                <dt class="col-sm-3 col-lg-2">Empresa</dt>
+                                <dd class="col-sm-9 col-lg-4">{{ planificacion.EP_NID|default:'-' }}</dd>
+                                <dt class="col-sm-3 col-lg-2">Archivado por</dt>
+                                <dd class="col-sm-9 col-lg-4">{{ planificacion.US_ARCHIVADOR_ID|default:'-' }}</dd>
+                                <dt class="col-sm-3 col-lg-2">Fecha de archivado</dt>
+                                <dd class="col-sm-9 col-lg-4">{{ planificacion.PL_FFECHAARCHIVADO|date:'d/m/Y'|default:'-' }}</dd>
+                            </dl>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="row">
+                <div class="col-xl-3 col-md-6 col-sm-12 mb-3">
+                    <div class="card history-summary-card"><div class="card-body"><span class="history-summary-label">Cupos planificados</span><p class="history-summary-value">{{ summary.cupos_planificados }}</p></div></div>
+                </div>
+                <div class="col-xl-3 col-md-6 col-sm-12 mb-3">
+                    <div class="card history-summary-card"><div class="card-body"><span class="history-summary-label">Citaciones creadas</span><p class="history-summary-value">{{ summary.citaciones_creadas }}</p></div></div>
+                </div>
+                <div class="col-xl-3 col-md-6 col-sm-12 mb-3">
+                    <div class="card history-summary-card"><div class="card-body"><span class="history-summary-label">Camiones asociados</span><p class="history-summary-value">{{ summary.camiones_asociados }}</p></div></div>
+                </div>
+                <div class="col-xl-3 col-md-6 col-sm-12 mb-3">
+                    <div class="card history-summary-card"><div class="card-body"><span class="history-summary-label">Citaciones cerradas</span><p class="history-summary-value">{{ summary.citaciones_cerradas }}</p></div></div>
+                </div>
+                <div class="col-xl-3 col-md-6 col-sm-12 mb-3">
+                    <div class="card history-summary-card"><div class="card-body"><span class="history-summary-label">Citaciones abiertas</span><p class="history-summary-value">{{ summary.citaciones_abiertas_con_camion }}</p></div></div>
+                </div>
+                <div class="col-xl-3 col-md-6 col-sm-12 mb-3">
+                    <div class="card history-summary-card"><div class="card-body"><span class="history-summary-label">Citaciones sin camión</span><p class="history-summary-value">{{ summary.citaciones_sin_camion }}</p></div></div>
+                </div>
+                <div class="col-xl-3 col-md-6 col-sm-12 mb-3">
+                    <div class="card history-summary-card"><div class="card-body"><span class="history-summary-label">Cupos no utilizados</span><p class="history-summary-value">{{ summary.cupos_no_utilizados }}</p></div></div>
+                </div>
+                <div class="col-xl-3 col-md-6 col-sm-12 mb-3">
+                    <div class="card history-summary-card"><div class="card-body"><span class="history-summary-label">Camiones no planificados</span><p class="history-summary-value">{{ summary.camiones_no_planificados }}</p></div></div>
+                </div>
+                <div class="col-xl-3 col-md-6 col-sm-12 mb-3">
+                    <div class="card history-summary-card"><div class="card-body"><span class="history-summary-label">Total de camiones recibidos</span><p class="history-summary-value">{{ summary.total_camiones_recibidos }}</p></div></div>
+                </div>
+                <div class="col-xl-3 col-md-6 col-sm-12 mb-3">
+                    <div class="card history-summary-card"><div class="card-body"><span class="history-summary-label">Clientes</span><p class="history-summary-value">{{ summary.clientes }}</p></div></div>
+                </div>
+            </div>
+
+            <div class="row">
+                <div class="col-12">
+                    <div class="card" aria-label="Resultado por cliente">
+                        <div class="card-header"><h5>Resumen por cliente</h5></div>
+                        <div class="card-body">
+                            <div class="table-responsive table-scroll-wrapper" tabindex="0" aria-label="Resumen por cliente">
+                                <table class="table table-striped table-bordered table-sm history-client-table">
+                                    <thead>
+                                        <tr>
+                                            <th>Cliente</th><th>Código</th><th>Citaciones</th><th>Camiones</th><th>Cerradas</th><th>Abiertas</th><th>Sin camión</th><th>No planificados</th><th>Total recibido</th><th>Porcentaje de llegada</th><th>Estado</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {% for cliente in client_summaries %}
+                                        <tr>
+                                            <td class="history-client-name">{{ cliente.nombre|default:'Cliente no identificado' }}</td>
+                                            <td>{{ cliente.codigo|default:'-' }}</td>
+                                            <td class="history-number-cell">{{ cliente.citaciones_creadas }}</td>
+                                            <td class="history-number-cell">{{ cliente.camiones_asociados }}</td>
+                                            <td class="history-number-cell">{{ cliente.citaciones_cerradas }}</td>
+                                            <td class="history-number-cell">{{ cliente.citaciones_abiertas_con_camion }}</td>
+                                            <td class="history-number-cell">{{ cliente.citaciones_sin_camion }}</td>
+                                            <td class="history-number-cell">{{ cliente.camiones_no_planificados }}</td>
+                                            <td class="history-number-cell">{{ cliente.total_camiones_recibidos }}</td>
+                                            <td class="history-number-cell">{{ cliente.porcentaje_llegada }}%</td>
+                                            <td>{{ cliente.estado }}</td>
+                                        </tr>
+                                        <tr><td colspan="11"><small>{{ cliente.mensaje_cumplimiento }}</small></td></tr>
+                                        {% empty %}
+                                        <tr><td colspan="11" class="text-center">No hay clientes asociados.</td></tr>
+                                        {% endfor %}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="row">
+                <div class="col-12">
+                    <div class="card">
+                        <div class="card-header"><h5>Citaciones cerradas</h5></div>
+                        <div class="card-body">
+                            <div class="table-responsive table-scroll-wrapper" tabindex="0" aria-label="Citaciones cerradas">
+                                <table class="table table-striped table-bordered table-sm history-citations-table">
+                                    <thead><tr><th>Número</th><th>Cliente</th><th>Fecha</th><th>Cupo</th><th>Artículo</th><th>Proveedor</th><th>Patente</th><th>Fecha de cierre</th><th>Estado</th></tr></thead>
+                                    <tbody>
+                                        {% for fila in closed_citations %}
+                                        <tr><td>{{ fila.numero }}</td><td class="history-client-name">{{ fila.cliente.nombre|default:'Cliente no identificado' }}</td><td>{{ fila.fecha|date:'d/m/Y' }}</td><td>{{ fila.cupo }}</td><td>{{ fila.articulo|default:'-' }}</td><td>{{ fila.proveedor|default:'-' }}</td><td>{{ fila.patente|default:'-' }}</td><td>{{ fila.fecha_cierre|date:'d/m/Y H:i'|default:'-' }}</td><td>{{ fila.estado }}</td></tr>
+                                        {% empty %}<tr><td colspan="9" class="text-center">No hay citaciones cerradas.</td></tr>{% endfor %}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="row">
+                <div class="col-12">
+                    <div class="card">
+                        <div class="card-header"><h5>Citaciones abiertas con camión</h5></div>
+                        <div class="card-body">
+                            <div class="table-responsive table-scroll-wrapper" tabindex="0" aria-label="Citaciones abiertas con camión">
+                                <table class="table table-striped table-bordered table-sm history-citations-table">
+                                    <thead><tr><th>Número</th><th>Cliente</th><th>Fecha</th><th>Cupo</th><th>Artículo</th><th>Proveedor</th><th>Patente</th><th>Estado</th></tr></thead>
+                                    <tbody>
+                                        {% for fila in open_citations %}
+                                        <tr><td>{{ fila.numero }}</td><td class="history-client-name">{{ fila.cliente.nombre|default:'Cliente no identificado' }}</td><td>{{ fila.fecha|date:'d/m/Y' }}</td><td>{{ fila.cupo }}</td><td>{{ fila.articulo|default:'-' }}</td><td>{{ fila.proveedor|default:'-' }}</td><td>{{ fila.patente|default:'-' }}</td><td>{{ fila.estado }}</td></tr>
+                                        {% empty %}<tr><td colspan="8" class="text-center">No hay citaciones abiertas con camión.</td></tr>{% endfor %}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="row">
+                <div class="col-12">
+                    <div class="card">
+                        <div class="card-header"><h5>Citaciones sin camión asociado</h5></div>
+                        <div class="card-body">
+                            <div class="table-responsive table-scroll-wrapper" tabindex="0" aria-label="Citaciones sin camión asociado">
+                                <table class="table table-striped table-bordered table-sm history-citations-table">
+                                    <thead><tr><th>Número</th><th>Cliente</th><th>Fecha</th><th>Cupo</th><th>Artículo</th><th>Proveedor</th><th>Estado</th></tr></thead>
+                                    <tbody>
+                                        {% for fila in citations_without_truck %}
+                                        <tr><td>{{ fila.numero }}</td><td class="history-client-name">{{ fila.cliente.nombre|default:'Cliente no identificado' }}</td><td>{{ fila.fecha|date:'d/m/Y' }}</td><td>{{ fila.cupo }}</td><td>{{ fila.articulo|default:'-' }}</td><td>{{ fila.proveedor|default:'-' }}</td><td>{{ fila.estado }} — <strong>Sin camión asociado</strong></td></tr>
+                                        {% empty %}<tr><td colspan="7" class="text-center">No hay citaciones sin camión.</td></tr>{% endfor %}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="row">
+                <div class="col-12">
+                    <div class="card">
+                        <div class="card-header"><h5>Camiones no planificados</h5></div>
+                        <div class="card-body">
+                            <div class="table-responsive table-scroll-wrapper" tabindex="0" aria-label="Camiones no planificados">
+                                <table class="table table-striped table-bordered table-sm history-unplanned-table">
+                                    <thead><tr><th>Patente</th><th>Cliente</th><th>Conductor</th><th>Transportista</th><th>Fecha de llegada</th><th>Tipo</th><th>Citación</th><th>Estado</th><th>Registrado por</th></tr></thead>
+                                    <tbody>
+                                        {% for fila in unplanned_trucks %}
+                                        <tr><td>{{ fila.patente|default:'-' }}</td><td class="history-client-name">{{ fila.cliente.nombre|default:'Cliente no identificado' }}</td><td>{{ fila.conductor|default:'-' }}</td><td>{{ fila.transportista|default:'-' }}</td><td>{{ fila.fecha_llegada|date:'d/m/Y H:i'|default:'-' }}</td><td>{{ fila.tipo }}</td><td>{{ fila.citacion_id|default:'-' }}</td><td>{{ fila.estado }}</td><td>{{ fila.usuario|default:'-' }}</td></tr>
+                                        {% empty %}<tr><td colspan="9" class="text-center">No hay camiones no planificados.</td></tr>{% endfor %}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</section>
+{% endblock content %}

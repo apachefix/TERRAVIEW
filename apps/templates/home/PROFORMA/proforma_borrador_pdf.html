@@ -1,0 +1,108 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <title>Borrador de proforma</title>
+    {% load formats %}
+    <style>
+        @page {
+            size: A4 landscape;
+            margin: 14mm 10mm 18mm;
+            @bottom-left {
+                content: "Documento preliminar para revisión del transportista. No constituye una orden de compra ni una aprobación definitiva";
+                font-size: 7pt;
+                color: #555;
+            }
+            @bottom-center {
+                content: "{{ generado|date:'d/m/Y H:i' }}";
+                font-size: 7pt;
+                color: #555;
+            }
+            @bottom-right {
+                content: "Página " counter(page) " de " counter(pages);
+                font-size: 7pt;
+                color: #555;
+            }
+        }
+        body { font-family: Arial, sans-serif; font-size: 9pt; color: #222; }
+        h1 { margin: 0 0 10px; font-size: 18pt; color: #1f4e78; }
+        .meta { width: 100%; border-collapse: collapse; margin-bottom: 12px; }
+        .meta td { border: 1px solid #cbd3da; padding: 5px 7px; }
+        .meta strong { color: #34495e; }
+        .detalle { width: 100%; border-collapse: collapse; table-layout: fixed; }
+        .detalle thead { display: table-header-group; }
+        .detalle th { background: #1f4e78; color: white; padding: 5px 3px; font-size: 7.5pt; }
+        .detalle td { border: 1px solid #ccd2d8; padding: 4px 3px; overflow-wrap: anywhere; }
+        .detalle tr:nth-child(even) { background: #f5f7f9; }
+        .numero { text-align: right; white-space: nowrap; }
+        .totales { width: 42%; margin-left: auto; margin-top: 12px; border-collapse: collapse; }
+        .totales th, .totales td { border: 1px solid #bcc5ce; padding: 6px; }
+        .totales th { text-align: left; background: #eef2f5; }
+        .advertencia { margin-top: 14px; padding: 8px; border: 1px solid #d6a700; background: #fff8d8; font-weight: bold; }
+    </style>
+</head>
+<body>
+    <h1>Borrador de proforma</h1>
+    <table class="meta">
+        <tr>
+            <td><strong>ID de proforma:</strong> {% if proforma %}{{ proforma.pk }}{% else %}Sin proforma creada{% endif %}</td>
+            <td><strong>Estado:</strong> {{ estado }}</td>
+            <td><strong>Tipo:</strong> {{ tipo }}</td>
+        </tr>
+        <tr>
+            <td><strong>Empresa:</strong> {{ empresa }}</td>
+            <td colspan="2"><strong>Transportista:</strong> {{ transportista }}</td>
+        </tr>
+        <tr>
+            <td><strong>Generado:</strong> {{ generado|date:"d/m/Y H:i" }}</td>
+            <td colspan="2"><strong>Usuario:</strong> {{ usuario }}</td>
+        </tr>
+    </table>
+
+    <table class="detalle">
+        <thead>
+            <tr>
+                <th style="width:5%">Citación</th>
+                <th style="width:6%">Planificación</th>
+                <th style="width:9%">Fecha</th>
+                <th style="width:8%">Guía / documento</th>
+                <th style="width:6%">Tipo doc.</th>
+                <th style="width:6%">Patente</th>
+                <th style="width:12%">Cliente / proveedor</th>
+                <th style="width:15%">Secuencia</th>
+                <th style="width:10%">Costo transporte</th>
+                <th style="width:9%">Costo extra</th>
+                <th style="width:10%">Total citación</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for fila in detalle %}
+            <tr>
+                <td>{{ fila.citacion_id }}</td>
+                <td>{{ fila.planificacion_id }}</td>
+                <td>{{ fila.fecha }}</td>
+                <td>{{ fila.numero_documento|default:"-" }}</td>
+                <td>{{ fila.tipo_documento|default:"-" }}</td>
+                <td>{{ fila.patente|default:"-" }}</td>
+                <td>{{ fila.cliente|default:"-" }}</td>
+                <td>{{ fila.secuencia|default:"-" }}</td>
+                <td class="numero">$ {{ fila.costo_transporte|custom_number_format }}</td>
+                <td class="numero">$ {{ fila.costo_extra|custom_number_format }}</td>
+                <td class="numero">$ {{ fila.total|custom_number_format }}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+
+    <table class="totales">
+        <tr><th>Cantidad de citaciones</th><td class="numero">{{ totales.cantidad }}</td></tr>
+        <tr><th>Subtotal transporte</th><td class="numero">$ {{ totales.subtotal_transporte|custom_number_format }}</td></tr>
+        <tr><th>Total extras</th><td class="numero">$ {{ totales.total_extras|custom_number_format }}</td></tr>
+        <tr><th>Total general</th><td class="numero"><strong>$ {{ totales.total_general|custom_number_format }}</strong></td></tr>
+    </table>
+
+    <div class="advertencia">
+        Documento preliminar para revisión del transportista. No constituye una orden de compra ni una aprobación definitiva.
+    </div>
+</body>
+</html>

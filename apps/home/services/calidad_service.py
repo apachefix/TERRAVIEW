@@ -97,6 +97,16 @@ def _numero_guia(citacion):
     return str(citacion.CI_CNUMERODOCUMENTO or '').strip()
 
 
+def es_recepcion_bodega_externa_calidad(citacion):
+    tipo = str(
+        citacion.CI_CTIPO
+        or (citacion.PL_NID.PL_CTIPOCUPO if citacion.PL_NID else '')
+        or ''
+    ).strip().upper()
+    codigo = str(citacion.SC_NID.SE_CCODIGO if citacion.SC_NID else '').strip().upper()
+    return tipo == 'RECEPCION' and codigo == 'RECEPCION_BODEGA_EXTERNA'
+
+
 def _usuario_responsable(citacion, usuario):
     if usuario is not None and getattr(usuario, 'pk', None):
         return usuario
@@ -314,9 +324,10 @@ def procesar_resultado_calidad(proceso_operacion, estado_solicitado, origen, obs
         else:
             salida_detalle = dict(detalle, observacion=MENSAJE_SALIDA_RECHAZO)
             _crear_log(registro, usuario, 'CALIDAD_SALIDA_AUTORIZADA', salida_detalle)
-            citacion.CI_CESTADO = 'RECHAZADO'
-            citacion.CI_FFECHATERMINO = fecha
-            citacion.save(update_fields=['CI_CESTADO', 'CI_FFECHATERMINO'])
+            if not es_recepcion_bodega_externa_calidad(citacion):
+                citacion.CI_CESTADO = 'RECHAZADO'
+                citacion.CI_FFECHATERMINO = fecha
+                citacion.save(update_fields=['CI_CESTADO', 'CI_FFECHATERMINO'])
 
     _sincronizar_metadata_legacy(registro, usuario, fecha)
     return registro, True

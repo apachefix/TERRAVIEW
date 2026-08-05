@@ -92,12 +92,12 @@
 
         <form method="post" enctype="multipart/form-data" class="patio-form-band">
             {% csrf_token %}
-            <input type="hidden" name="_empresa_id" value="{{ empresa_activa_id }}">
+            <input type="hidden" name="_empresa_id" value="{{ empresa_activa_id }}">            {% if empresa_activa_id == 1 %}<input type="hidden" name="carga_desde_planificacion" id="patio_carga_planificacion"><input type="hidden" name="citacion_planificada_id" id="patio_citacion_planificada_id"><input type="hidden" name="planificacion_planificada_id" id="patio_planificacion_planificada_id"><input type="hidden" name="patente_consultada" id="patio_patente_consultada"><input type="hidden" name="guia_esperada" id="patio_guia_esperada"><input type="hidden" name="acepta_diferencia_guia" id="patio_acepta_diferencia_guia"><input type="hidden" name="observacion_diferencia_guia" id="patio_observacion_diferencia_guia"><div id="patio_guia_validacion" class="alert alert-info d-none"></div>{% endif %}
             <div class="card">
                 <div class="card-header">
                     <h5>Llegada fisica del camion</h5>
                 </div>
-                <div class="card-body">
+                {% if empresa_activa_id == 1 %}<div class="card-body border-bottom pb-3"><div class="alert alert-light border mb-0"><label for="patio_patente_consulta"><strong>Consultar patente</strong></label><div class="input-group"><input id="patio_patente_consulta" class="form-control text-uppercase" placeholder="Ej.: JW-RS-50"><div class="input-group-append"><button type="button" class="btn btn-primary" id="patio_buscar_citacion">Buscar citación</button></div></div><div id="patio_resultado_citacion" class="mt-3 d-none"></div></div></div>{% endif %}                <div class="card-body">
                     <div class="patio-form-grid">
                         <div class="form-group patio-form-full">
                             <label for="patio_transporte_a_cargo">Transporte a cargo de *</label>
@@ -182,7 +182,7 @@
                             <input type="text" name="bl" class="form-control" value="{{ form_data.bl|default:'' }}">
                         </div>
                         <div class="form-group">
-                            <label>Lote/contenedor</label>
+                            <label>Contenedor / CRT</label>
                             <input type="text" name="lote_contenedor" class="form-control" value="{{ form_data.lote_contenedor|default:'' }}">
                         </div>
                         <div class="form-group">
@@ -192,6 +192,7 @@
                                    oninvalid="this.setCustomValidity('Debe ingresar el insumo declarado en guia.')"
                                    oninput="this.setCustomValidity('')">
                         </div>
+                        {% if empresa_activa_id == 1 %}<div class="form-group"><label>Citación</label><input type="text" id="patio_numero_citacion" class="form-control" readonly></div>{% endif %}
                     </div>
                     <div class="form-group">
                         <label>Observacion</label>
@@ -483,7 +484,13 @@
         $('#patio_conductor_manual_check').on('change', function () {
             actualizarModoConductorPatio(true);
         });
-        actualizarTransporteCargoPatio(false);
+        {% if empresa_activa_id == 1 %}
+        let patioMatches=[]; const patioNorm=v=>String(v||'').toUpperCase().replace(/[^A-Z0-9]/g,'');
+        function patioUsar(m){$('#patio_carga_planificacion').val('1');$('#patio_citacion_planificada_id').val(m.citacion_id);$('#patio_planificacion_planificada_id').val(m.planificacion_id);$('#patio_patente_consultada').val($('#patio_patente_consulta').val());$('#patio_transporte_a_cargo').val(String(m.transporte_a_cargo||'').toUpperCase()==='CLIENTE'?'CLIENTE':'TERRAMAR').trigger('change');if(m.empresa_transporte_id){$('#patio_transportista').append(new Option(m.empresa_transporte_nombre,m.empresa_transporte_nombre,true,true)).trigger('change');$('#patio_transportista_id').val(m.empresa_transporte_id);}if(m.conductor_registrado&&m.conductor_id){$('#patio_conductor_manual_check').prop('checked',false).trigger('change');$('#patio_conductor').append(new Option(m.conductor_nombre,m.conductor_nombre,true,true)).trigger('change');$('#patio_conductor_id').val(m.conductor_id);}else{$('#patio_conductor_manual_check').prop('checked',true).trigger('change');$('#patio_conductor_manual').val(m.conductor_nombre||'');}$('#patio_patente').val(m.patente||'');$('#patio_rut_conductor').val(m.conductor_rut||'');$('#patio_telefono_codigo_pais').val(m.codigo_pais||'+56').trigger('change');$('#patio_telefono_conductor').val(m.conductor_telefono||'');$('[name="proveedor"]').val(m.proveedor||'');$('[name="cliente"]').val(m.cliente||'');if(['GD','FE'].includes(m.tipo_documento))$('[name="tipo_documento"]').val(m.tipo_documento);$('[name="insumo_declarado_guia"]').val(m.insumo||'');$('[name="numero_guia"]').val(m.guia_esperada||'');$('#patio_guia_esperada').val(m.guia_esperada||'');$('#patio_numero_citacion').val(m.numero_citacion||m.citacion_numero||'');$('[name="bl"]').val(m.bl||'');$('[name="lote_contenedor"]').val(m.contenedor_crt||m.lote_contenedor||'');patioValidarGuia();}
+        function patioValidarGuia(){const m=patioMatches.find(x=>String(x.citacion_id)===$('#patio_citacion_planificada_id').val()),g=m&&m.guia_esperada,r=$('[name="numero_guia"]').val()||'',b=$('#patio_guia_validacion');if(!m){b.addClass('d-none');return true;}if(!g){b.removeClass('d-none alert-warning').addClass('alert-info').text('La planificación no contiene un número de guía para comparar. Validación del número ingresado.');return true;}if(patioNorm(g)===patioNorm(r)){$('#patio_acepta_diferencia_guia,#patio_observacion_diferencia_guia').val('');b.removeClass('d-none alert-warning').addClass('alert-success').text('Guía validada: coincide con la registrada en planificación.');return true;}b.removeClass('d-none alert-success alert-info').addClass('alert-warning').html('La guía ingresada no coincide con la registrada en planificación. Esperada: '+$('<div>').text(g).html()+'<br><label><input type="checkbox" id="patio_confirmar_diferencia"> Continuar con diferencia</label><textarea id="patio_motivo_diferencia" class="form-control" placeholder="Observación obligatoria"></textarea>');return false;}
+        $('#patio_buscar_citacion').on('click',function(){$.get('{% url "camiones_patio_consultar_citacion_patente" %}',{patente:$('#patio_patente_consulta').val(),_empresa_id:PATIO_EMPRESA_ID}).done(d=>{patioMatches=d.matches||[];const box=$('#patio_resultado_citacion').removeClass('d-none');if(d.status==='NO_MATCH'){box.html('<div class="alert alert-info">No existe una coincidencia de patente en citaciones de Terramar dentro de la ventana de 24 horas. Continúe el proceso manual.</div>');return;}box.html((d.matches||[]).map((x,i)=>'<div class="alert alert-success">Citación '+x.citacion_numero+' · '+x.fecha_citacion+' · '+x.empresa_transporte_nombre+' · '+x.conductor_nombre+' · Guía esperada: '+(x.guia_esperada||'sin guía')+' <button type="button" class="btn btn-sm btn-outline-primary patio-usar" data-i="'+i+'">Traer datos de planificación</button></div>').join(''));}).fail(x=>$('#patio_resultado_citacion').removeClass('d-none').html('<div class="alert alert-warning">'+((x.responseJSON||{}).status||'No fue posible consultar')+'</div>'));});
+        $('#patio_resultado_citacion').on('click','.patio-usar',function(){patioUsar(patioMatches[$(this).data('i')]);}).on('click','.patio-manual',function(){$('#patio_carga_planificacion,#patio_citacion_planificada_id,#patio_planificacion_planificada_id,#patio_patente_consultada,#patio_guia_esperada,#patio_numero_citacion').val('');$('#patio_resultado_citacion').addClass('d-none').empty();});$('[name="numero_guia"]').on('input blur',patioValidarGuia);$('#archivos_documentos').closest('form').on('submit.terramar',function(e){if(!$('#patio_carga_planificacion').val())return;if(!patioValidarGuia()){let ok=$('#patio_confirmar_diferencia').is(':checked'),o=$('#patio_motivo_diferencia').val()||'';if(!ok||!o.trim()){e.preventDefault();return;}$('#patio_acepta_diferencia_guia').val('1');$('#patio_observacion_diferencia_guia').val(o.trim());}});
+        {% endif %}        actualizarTransporteCargoPatio(false);
         renderArchivosDocumentos();
     });
 </script>

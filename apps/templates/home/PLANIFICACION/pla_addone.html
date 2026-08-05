@@ -459,6 +459,31 @@
     white-space: nowrap;
 }
 
+.tabla-recepcion-terramar th.col-acciones,
+.tabla-recepcion-terramar td.col-acciones {
+    position: sticky;
+    left: 0;
+    z-index: 2;
+    min-width: 92px;
+    background: #ffffff;
+}
+
+.tabla-recepcion-terramar thead th.col-acciones {
+    z-index: 3;
+    background: #f8f9fa;
+}
+
+.tabla-recepcion-terramar .td-insumo {
+    min-width: 180px;
+    white-space: normal;
+}
+
+.tabla-recepcion-terramar .td-bodega,
+.tabla-recepcion-terramar .td-empresa-transporte {
+    min-width: 145px;
+    white-space: normal;
+}
+
 .table-citaciones-temporales .td-insumo {
     min-width: 180px;
     white-space: normal;
@@ -739,7 +764,7 @@
                             {% if tipo_planificacion == 'RECEPCION' %}
                             <button class="btn btn-primary"
                                     type="button"
-                                    onclick="abrirModalRecepcion()">
+                                    onclick="{% if es_recepcion_terramar %}abrirModalRecepcionTerramar(){% else %}abrirModalRecepcion(){% endif %}">
                                 Planificación
                             </button>
                             {% elif tipo_planificacion == 'DESPACHO' %}
@@ -792,8 +817,28 @@
                         </div>
 
                         <div class="table-responsive">
-                            <table class="table table-bordered table-hover table-citaciones-temporales" id="tabla_citaciones_temporales">
+                            <table class="table table-bordered table-hover table-citaciones-temporales{% if es_recepcion_terramar %} tabla-recepcion-terramar{% endif %}" id="tabla_citaciones_temporales">
                                 <thead>
+                                    {% if es_recepcion_terramar %}
+                                    <tr>
+                                        <th class="col-acciones">Acciones</th>
+                                        <th>Fecha llegada</th>
+                                        <th>Operación</th>
+                                        <th>Secuencia</th>
+                                        <th>Código SAP</th>
+                                        <th>Insumo</th>
+                                        <th>Bodega</th>
+                                        <th>N° guía despacho</th>
+                                        <th>Transporte a cargo de</th>
+                                        <th>Empresa transporte</th>
+                                        <th>Conductor</th>
+                                        <th>Código país</th>
+                                        <th>Celular conductor</th>
+                                        <th>Patente camión</th>
+                                        <th>Hora citación</th>
+                                        <th>Contenedor / CRT</th>
+                                    </tr>
+                                    {% else %}
                                     <tr>
                                         <th>Acciones</th>
                                         <th>Cliente</th>
@@ -812,10 +857,11 @@
                                         <th>Cantidad disponible</th>
                                         <th>Estanque destino</th>
                                     </tr>
+                                    {% endif %}
                                 </thead>
                                 <tbody id="tbody_citaciones_temporales">
                                     <tr id="fila_sin_citaciones">
-                                        <td colspan="{% if tipo_planificacion == 'DESPACHO' %}13{% else %}14{% endif %}" class="text-center text-muted">
+                                        <td colspan="{% if es_recepcion_terramar %}16{% elif tipo_planificacion == 'DESPACHO' %}13{% else %}14{% endif %}" class="text-center text-muted">
                                             Aún no existen citaciones agregadas.
                                         </td>
                                     </tr>
@@ -871,6 +917,26 @@
     </div>
 </section>
 
+{% if es_recepcion_terramar %}
+<div class="modal fade" id="ModalCrearRecepcionTerramar" tabindex="-1" role="dialog"><div class="modal-dialog modal-dialog-scrollable modal-xl" role="document"><div class="modal-content">
+<div class="modal-header"><div><h5 class="modal-title">Crear recepción – Etapa 0</h5><small class="modal-subtitle">Datos operacionales de recepción Terramar.</small></div><button type="button" class="close" data-dismiss="modal"><span>&times;</span></button></div>
+<form id="form_recepcion_terramar"><div class="modal-body"><div class="row">
+<div class="col-lg-4 col-md-6"><div class="form-group"><label class="required-label">Fecha llegada</label><input class="form-control" type="date" id="rt_fecha_llegada" required></div></div>
+<div class="col-lg-4 col-md-6"><div class="form-group"><label>Contenedor / CRT</label><input class="form-control" id="rt_contenedor_crt"></div></div>
+<div class="col-lg-4 col-md-6"><div class="form-group"><label class="required-label">Insumo</label><select class="form-control" id="rt_insumo" required><option value="">Seleccione insumo</option>{% for insumo in insumos_recepcion_terramar %}<option value="{{ insumo.id }}" data-codigo="{{ insumo.IT_CCODIGO }}" data-nombre="{{ insumo.IT_CNOMBRE }}">{{ insumo.IT_CCODIGO }} — {{ insumo.IT_CNOMBRE }}</option>{% endfor %}</select></div></div>
+<div class="col-lg-4 col-md-6"><div class="form-group"><label class="required-label">Bodega</label><input class="form-control" id="rt_bodega" required></div></div>
+<div class="col-lg-4 col-md-6"><div class="form-group"><label class="required-label">N° guía despacho</label><input class="form-control" id="rt_numero_guia" required></div></div>
+<div class="col-lg-4 col-md-6"><div class="form-group"><label class="required-label">Transporte a cargo de</label><select class="form-control" id="rt_transporte_a_cargo" required><option value="">Seleccione</option><option value="Terramar">Terramar</option><option value="Cliente">Cliente</option></select></div></div>
+<div class="col-lg-4 col-md-6 rt-maestro"><div class="form-group"><label id="rt_empresa_label">Empresa transporte</label><select class="form-control" id="rt_empresa_transporte"></select><input type="hidden" id="rt_empresa_transporte_id"></div></div><div class="col-lg-4 col-md-6 rt-maestro" id="rt_ruta_transportista_contenedor"><div class="form-group"><label id="rt_ruta_label">Ruta del transportista</label><select class="form-control" id="rt_ruta_transportista" disabled><option value="">Seleccione primero empresa transporte</option></select><input type="hidden" id="rt_ruta_id"><input type="hidden" id="rt_tarifa_id"><small class="text-muted" id="rt_ruta_ayuda"></small></div></div>
+<div class="col-lg-4 col-md-6"><div class="form-group"><label id="rt_conductor_label">Conductor</label><select class="form-control rt-maestro" id="rt_conductor"></select><input class="form-control d-none rt-manual" id="rt_conductor_manual" placeholder="Conductor"><input type="hidden" id="rt_conductor_id"></div></div>
+<div class="col-lg-4 col-md-6"><div class="form-group"><label id="rt_codigo_pais_label">Código país</label><select class="form-control" id="rt_codigo_pais"><option value="">Seleccione</option>{% for pais in paises_telefono %}<option value="{{ pais.codigo_telefonico }}" {% if pais.codigo_telefonico == '+56' %}selected{% endif %}>{{ pais.nombre }} ({{ pais.codigo_telefonico }})</option>{% endfor %}</select></div></div>
+<div class="col-lg-4 col-md-6"><div class="form-group"><label id="rt_telefono_label">Celular conductor</label><input class="form-control" id="rt_telefono" inputmode="tel"></div></div>
+<div class="col-lg-4 col-md-6"><div class="form-group"><label id="rt_patente_label">Patente camión</label><input class="form-control text-uppercase" id="rt_patente"></div></div>
+<div class="col-lg-4 col-md-6"><div class="form-group"><label class="required-label">Hora citación</label><input class="form-control" type="time" id="rt_hora_citacion" required></div></div>
+<div class="col-lg-4 col-md-6"><div class="form-group"><label class="required-label">Flujo operacional</label><select class="form-control" id="rt_secuencia" required><option value="">Seleccione flujo</option>{% for secuencia in secuencias_recepcion_terramar %}<option value="{{ secuencia.id }}">{{ secuencia.SE_CNOMBRE }}</option>{% endfor %}</select></div></div>
+</div></div><div class="modal-footer modal-footer-custom"><button type="button" class="btn btn-secondary" data-dismiss="modal">Cancelar</button><button type="button" class="btn btn-success" onclick="agregarRecepcionTerramarTemporal()">Crear</button></div></form>
+</div></div></div>
+{% endif %}
 <div class="modal fade" id="ModalCrearCitacion" tabindex="-1" role="dialog" aria-labelledby="ModalCrearCitacionLabel" aria-hidden="true">
     <div class="modal-dialog modal-dialog-scrollable modal-xl" role="document">
         <div class="modal-content">
@@ -1474,6 +1540,7 @@
     const SOLICITUD_NO_PLANIFICADO_ID = '{{ solicitud_no_planificado_id|default:"" }}';
     const CAMION_PATIO_INICIAL = JSON.parse(document.getElementById('camion-patio-inicial-data').textContent || '{}');
     const MOSTRAR_BL_PLANIFICACION = TIPO_PLANIFICACION_BLOQUEADO !== 'DESPACHO';
+    const ES_RECEPCION_TERRAMAR = {% if es_recepcion_terramar %}true{% else %}false{% endif %};
     const FORMATOS_DESPACHO_PERMITIDOS = ['Cisterna', 'Contenedor', 'Isotank', 'IBC'];
 
     let citacionesTemporales = [];
@@ -1744,6 +1811,99 @@
         }
     });
 
+    function abrirModalRecepcionTerramar() {
+        inicializarRecepcionTerramar();
+        $('#ModalCrearRecepcionTerramar').modal('show');
+    }
+
+    function inicializarRecepcionTerramar() {
+        if ($('#rt_empresa_transporte').data('rt-inicializado')) return;
+        $('#rt_empresa_transporte').data('rt-inicializado', true).select2({placeholder:'Seleccione empresa transporte',allowClear:true,width:'100%',dropdownParent:$('#ModalCrearRecepcionTerramar'),ajax:{url:'{% url "ajax_transportistas_ingreso_camion" %}',dataType:'json',delay:250,data:function(params){return {q:params.term||'',empresa_id:$('#empresa_id').val(),estricto_empresa:'1'};},processResults:function(data){return {results:data.results||[]};}}}).on('select2:select',function(e){$('#rt_empresa_transporte_id').val(e.params.data.socionegocio_id||''); $('#rt_conductor').val(null).trigger('change'); $('#rt_conductor_id').val(''); cargarRutasTransportistaRecepcionTerramar();}).on('select2:clear',function(){$('#rt_empresa_transporte_id,#rt_conductor_id').val('');$('#rt_conductor').val(null).trigger('change'); cargarRutasTransportistaRecepcionTerramar();});
+        $('#rt_conductor').select2({placeholder:'Seleccione conductor',allowClear:true,width:'100%',dropdownParent:$('#ModalCrearRecepcionTerramar'),ajax:{url:'{% url "ajax_conductores_ingreso_camion" %}',dataType:'json',delay:250,data:function(params){return {q:params.term||'',empresa_id:$('#empresa_id').val(),transportista_id:$('#rt_empresa_transporte_id').val(),transportista:$('#rt_empresa_transporte').val()||'',estricto_empresa:'1'};},processResults:function(data){return {results:data.results||[]};}}}).on('select2:select',function(e){const d=e.params.data||{};$('#rt_conductor_id').val(d.conductor_id||'');$('#rt_patente').val((d.patente_sugerida||'').toUpperCase());$('#rt_telefono').val(d.telefono||'');$('#rt_codigo_pais').val(d.telefono_codigo_pais||'+56');}).on('select2:clear',function(){$('#rt_conductor_id,#rt_patente,#rt_telefono').val('');});
+        $('#rt_transporte_a_cargo').on('change',actualizarModoRecepcionTerramarTransporte);
+        $('#rt_patente').on('input blur',function(){this.value=String(this.value||'').replace(/\s+/g,' ').trim().toUpperCase();});
+    }
+
+    function limpiarRutaTransportistaRecepcionTerramar(mensaje) {
+        $('#rt_ruta_id,#rt_tarifa_id').val('');
+        $('#rt_ruta_transportista').prop('disabled', true).empty().append(new Option('Seleccione primero empresa transporte', ''));
+        $('#rt_ruta_ayuda').text(mensaje || '');
+    }
+
+    function cargarRutasTransportistaRecepcionTerramar() {
+        const transportistaId = $('#rt_empresa_transporte_id').val();
+        limpiarRutaTransportistaRecepcionTerramar();
+        if (!transportistaId || $('#rt_transporte_a_cargo').val() !== 'Terramar') return;
+        const selector = $('#rt_ruta_transportista');
+        selector.empty().append(new Option('Cargando rutas...', '')).prop('disabled', true);
+        $('#rt_ruta_ayuda').text('');
+        $.ajax({
+            url: '{% url "ajax_rutas_transportista_planificacion" %}', type: 'GET',
+            data: {transportista_id: transportistaId, tipo: 'RECEPCION'},
+            success: function(response) {
+                const rutas = response.rutas || [];
+                selector.empty().append(new Option(rutas.length ? 'Seleccione ruta' : 'No existen rutas vigentes para este transportista.', ''));
+                rutas.forEach(function(ruta) {
+                    const texto = ruta.text || '';
+                    const option = new Option(texto, ruta.tarifa_id || ruta.id);
+                    $(option).attr({'data-ruta-id': ruta.ruta_id || '', 'data-tarifa-id': ruta.tarifa_id || ruta.id, 'data-valor-tarifa': ruta.costo || ''});
+
+
+                    selector.append(option);
+                });
+                selector.prop('disabled', !rutas.length);
+                $('#rt_ruta_ayuda').text(response.message || '');
+            },
+            error: function(xhr) {
+                selector.empty().append(new Option('No fue posible cargar rutas', '')).prop('disabled', true);
+                $('#rt_ruta_ayuda').text((xhr.responseJSON && xhr.responseJSON.message) || 'No fue posible cargar rutas del transportista.');
+            }
+        });
+    }
+
+    $('#rt_ruta_transportista').on('change', function() {
+        const opcion = $(this).find('option:selected');
+        $('#rt_tarifa_id').val($(this).val() || '');
+        $('#rt_ruta_id').val(opcion.data('ruta-id') || '');
+        this.setCustomValidity('');
+        this.classList.remove('is-invalid');
+    });
+    function actualizarModoRecepcionTerramarTransporte() {
+        const terramar=$('#rt_transporte_a_cargo').val()==='Terramar';
+        $('.rt-maestro').toggleClass('d-none',!terramar).prop('disabled',!terramar);
+        $('.rt-manual').toggleClass('d-none',terramar).prop('disabled',terramar);
+        $('#rt_empresa_label,#rt_conductor_label,#rt_codigo_pais_label,#rt_telefono_label,#rt_patente_label').toggleClass('required-label',terramar);
+        if (!terramar) { $('#rt_empresa_transporte,#rt_conductor').val(null).trigger('change'); $('#rt_empresa_transporte_id,#rt_conductor_id,#rt_patente,#rt_telefono').val(''); }
+        cargarRutasTransportistaRecepcionTerramar();
+
+    }
+
+    function agregarRecepcionTerramarTemporal() {
+        const form=document.getElementById('form_recepcion_terramar'); if(!form.checkValidity()){form.reportValidity();return;}
+        const secuenciaId=$('#rt_secuencia').val();
+        const itemId=$('#rt_insumo').val();
+        if(!/^\d+$/.test(String(itemId||''))) { swalFront({title:'Atencion',text:'Debe seleccionar un insumo valido.',icon:'warning'}); return; }
+        const itemOption=$('#rt_insumo option:selected');
+        if(!/^\d+$/.test(String(secuenciaId||''))) { swalFront({title:'Atención',text:'Debe seleccionar un flujo operacional válido.',icon:'warning'}); return; }
+        const terramar=$('#rt_transporte_a_cargo').val()==='Terramar';
+        if(terramar && (!$('#rt_empresa_transporte_id').val()||!$('#rt_conductor_id').val()||!$('#rt_patente').val().trim()||!$('#rt_codigo_pais').val()||!$('#rt_telefono').val().trim())) { swalFront({title:'Atención',text:'Para transporte Terramar debe completar empresa, conductor, código país, celular y patente.',icon:'warning'});return; }
+        const rutaId=String($('#rt_ruta_id').val()||'').trim();
+        const tarifaId=String($('#rt_tarifa_id').val()||'').trim();
+        const rutaSelector=document.getElementById('rt_ruta_transportista');
+        if(terramar && (!rutaId || !tarifaId)) {
+            if (rutaSelector) {
+                rutaSelector.setCustomValidity(!rutaId ? 'Debe seleccionar una ruta del transportista.' : 'La ruta seleccionada no tiene una tarifa válida.');
+                rutaSelector.classList.add('is-invalid');
+                rutaSelector.focus();
+            }
+            swalFront({title:'Atención',text:!rutaId?'Debe seleccionar una ruta del transportista.':'La ruta seleccionada no tiene una tarifa válida.',icon:'warning'});
+            return;
+        }
+        if (rutaSelector) { rutaSelector.setCustomValidity(''); rutaSelector.classList.remove('is-invalid'); }
+        const conductor=terramar?$('#rt_conductor').val()||'':$('#rt_conductor_manual').val()||'';
+        citacionesTemporales.push({recepcion_terramar:true,tipo_operacion:'RECEPCION',tipo_operacion_texto:'Recepción',fecha_llegada:$('#rt_fecha_llegada').val(),hora_citacion:$('#rt_hora_citacion').val(),secuencia_id:$('#rt_secuencia').val(),secuencia_nombre:$('#rt_secuencia option:selected').text(),item_id:itemId,codigo_sap:itemOption.data('codigo')||'',insumo:itemOption.data('nombre')||'',bodega:$('#rt_bodega').val().trim(),estanque_destino:$('#rt_bodega').val().trim(),estanque_destino_texto:$('#rt_bodega').val().trim(),numero_guia:$('#rt_numero_guia').val().trim(),contenedor_crt:$('#rt_contenedor_crt').val().trim(),transporte_a_cargo:$('#rt_transporte_a_cargo').val(),empresa_transporte:terramar?$('#rt_empresa_transporte').val()||'':'',empresa_transporte_id:terramar?$('#rt_empresa_transporte_id').val():'',ruta_id:terramar?rutaId:'',tarifa_id:terramar?tarifaId:'',conductor:conductor,conductor_id:terramar?$('#rt_conductor_id').val():'',telefono_codigo_pais:$('#rt_codigo_pais').val()||'',telefono_conductor:$('#rt_telefono').val().trim(),patente:$('#rt_patente').val().trim().toUpperCase(),cliente:'',cliente_nombre:'',cliente_codigo:'',inf_24hrs:'',tipo_carga:'',tipo_carga_texto:'',codigo:itemOption.data('codigo')||'',pedido:'',proveedor:'',proveedor_nombre:'',cantidad_disponible:'',observacion:''});
+        renderizarCitacionesTemporales(); $('#ModalCrearRecepcionTerramar').modal('hide'); form.reset(); $('#rt_codigo_pais').val('+56'); actualizarModoRecepcionTerramarTransporte();
+    }
     function abrirModalRecepcion() {
         if (TIPO_PLANIFICACION_BLOQUEADO && TIPO_PLANIFICACION_BLOQUEADO !== 'RECEPCION') {
             swalFront({
@@ -2887,60 +3047,76 @@
         limpiarFormularioDespacho();
     }
 
+    function renderizarFilaRecepcionTerramar(item, index) {
+        return `
+            <td class="col-acciones">
+                <button type="button" class="btn btn-sm btn-danger" onclick="eliminarCitacionTemporal(${index})">Eliminar</button>
+            </td>
+            <td>${formatearFechaTabla(item.fecha_llegada)}</td>
+            <td>${escapeHtml(item.tipo_operacion_texto || 'Recepción')}</td>
+            <td>${escapeHtml(item.secuencia_nombre)}</td>
+            <td>${escapeHtml(item.codigo_sap || item.codigo)}</td>
+            <td class="td-insumo">${escapeHtml(item.insumo)}</td>
+            <td class="td-bodega">${escapeHtml(item.bodega)}</td>
+            <td>${escapeHtml(item.numero_guia)}</td>
+            <td>${escapeHtml(item.transporte_a_cargo)}</td>
+            <td class="td-empresa-transporte">${escapeHtml(item.empresa_transporte)}</td>
+            <td>${escapeHtml(item.conductor)}</td>
+            <td>${escapeHtml(item.telefono_codigo_pais)}</td>
+            <td>${escapeHtml(item.telefono_conductor)}</td>
+            <td>${escapeHtml(item.patente)}</td>
+            <td>${escapeHtml(item.hora_citacion)}</td>
+            <td>${escapeHtml(item.contenedor_crt)}</td>
+        `;
+    }
+
+    function renderizarFilaLegacy(item, index) {
+        return `
+            <td>
+                <button type="button"
+                        class="btn btn-sm btn-danger"
+                        onclick="eliminarCitacionTemporal(${index})">
+                    Eliminar
+                </button>
+            </td>
+            <td>${escapeHtml(item.cliente_nombre)}</td>
+            <td>${escapeHtml(item.inf_24hrs)}</td>
+            <td>${formatearFechaTabla(item.fecha_llegada)}</td>
+            <td>${escapeHtml(item.tipo_operacion_texto)}</td>
+            <td>${escapeHtml(item.secuencia_nombre)}</td>
+            <td>${escapeHtml(item.tipo_carga_texto)}</td>
+            <td>${escapeHtml(item.codigo)}</td>
+            <td>${escapeHtml(item.insumo)}</td>
+            <td>${escapeHtml(item.pedido)}</td>
+            <td>${escapeHtml(item.proveedor_nombre)}</td>
+            ${MOSTRAR_BL_PLANIFICACION ? `<td>${escapeHtml(item.bl || '')}</td>` : ''}
+            <td>${escapeHtml(item.cantidad_disponible)}</td>
+            <td>${escapeHtml(item.estanque_destino_texto)}</td>
+        `;
+    }
+
     function renderizarCitacionesTemporales() {
         const tbody = document.getElementById('tbody_citaciones_temporales');
         const contador = document.getElementById('contador_citaciones_temporales');
         const resumen = document.getElementById('resumen_citaciones_agregadas');
+        const columnas = ES_RECEPCION_TERRAMAR ? 16 : (MOSTRAR_BL_PLANIFICACION ? 14 : 13);
 
         if (!tbody) return;
-
         tbody.innerHTML = '';
 
-        if (contador) {
-            contador.innerText = citacionesTemporales.length;
-        }
-
-        if (resumen) {
-            resumen.innerText = citacionesTemporales.length;
-        }
+        if (contador) contador.innerText = citacionesTemporales.length;
+        if (resumen) resumen.innerText = citacionesTemporales.length;
 
         if (citacionesTemporales.length === 0) {
-            tbody.innerHTML = `
-                <tr id="fila_sin_citaciones">
-                    <td colspan="${MOSTRAR_BL_PLANIFICACION ? 14 : 13}" class="text-center text-muted">
-                        Aún no existen citaciones agregadas.
-                    </td>
-                </tr>
-            `;
+            tbody.innerHTML = `<tr id="fila_sin_citaciones"><td colspan="${columnas}" class="text-center text-muted">Aún no existen citaciones agregadas.</td></tr>`;
             return;
         }
 
         citacionesTemporales.forEach(function (item, index) {
             const tr = document.createElement('tr');
-
-            tr.innerHTML = `
-                <td>
-                    <button type="button"
-                            class="btn btn-sm btn-danger"
-                            onclick="eliminarCitacionTemporal(${index})">
-                        Eliminar
-                    </button>
-                </td>
-                <td>${escapeHtml(item.cliente_nombre)}</td>
-                <td>${escapeHtml(item.inf_24hrs)}</td>
-                <td>${formatearFechaTabla(item.fecha_llegada)}</td>
-                <td>${escapeHtml(item.tipo_operacion_texto)}</td>
-                <td>${escapeHtml(item.secuencia_nombre)}</td>
-                <td>${escapeHtml(item.tipo_carga_texto)}</td>
-                <td>${escapeHtml(item.codigo)}</td>
-                <td>${escapeHtml(item.insumo)}</td>
-                <td>${escapeHtml(item.pedido)}</td>
-                <td>${escapeHtml(item.proveedor_nombre)}</td>
-                ${MOSTRAR_BL_PLANIFICACION ? `<td>${escapeHtml(item.bl || '')}</td>` : ''}
-                <td>${escapeHtml(item.cantidad_disponible)}</td>
-                <td>${escapeHtml(item.estanque_destino_texto)}</td>
-            `;
-
+            tr.innerHTML = ES_RECEPCION_TERRAMAR
+                ? renderizarFilaRecepcionTerramar(item, index)
+                : renderizarFilaLegacy(item, index);
             tbody.appendChild(tr);
         });
     }

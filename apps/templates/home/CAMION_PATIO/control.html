@@ -651,6 +651,7 @@
             </div>
             <div class="modal-footer">
                 <button type="button" class="btn btn-secondary" data-dismiss="modal">Cerrar</button>
+                {% if puede_retirar_camion_patio %}<button type="button" class="btn btn-outline-danger" id="btnRetirarControlCamion"><i class="fas fa-sign-out-alt mr-1"></i>Retirar del patio</button>{% endif %}
             </div>
         </div>
     </div>
@@ -673,6 +674,12 @@
         var updatedLabel = document.getElementById('controlActualizado');
         var dataUrl = "{% url 'camiones_patio_control_data' %}?_empresa_id={{ empresa_activa_id }}";
 
+        function getCookie(name) {
+            var value = '; ' + document.cookie;
+            var parts = value.split('; ' + name + '=');
+            if (parts.length === 2) return parts.pop().split(';').shift();
+            return '';
+        }
         function escapeHtml(value) {
             return String(value || '').replace(/[&<>"']/g, function (char) {
                 return {'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'}[char];
@@ -712,6 +719,7 @@
                 '<div class="control-tooltip-row"><span>Tiempo</span><div>' + escapeHtml(camion.tiempo_patio) + '</div></div>',
                 '<div class="control-tooltip-row"><span>Transporte</span><div>' + escapeHtml(camion.transportista) + '</div></div>',
                 '<div class="control-tooltip-row"><span>Conductor</span><div>' + escapeHtml(camion.conductor) + '</div></div>',
+                camion.numero_citacion ? '<div class="control-tooltip-row"><span>Citación</span><div>' + escapeHtml(camion.numero_citacion) + '</div></div>' : '',
                 '<div class="control-tooltip-row"><span>Estado</span><div>' + escapeHtml(camion.estado_visible) + '</div></div>'
             ].join('');
         }
@@ -867,11 +875,53 @@
                 detailItem('Hora llegada', camion.hora_llegada),
                 detailItem('Tiempo en patio', camion.tiempo_patio),
                 detailItem('Estado', camion.estado_visible),
-                detailItem('Citacion', camion.citacion_id ? '#' + camion.citacion_id : 'Sin asociar')
+                camion.numero_citacion ? detailItem('Citación', camion.numero_citacion) : ''
             ].join('');
             $('#controlCamionModal').modal('show');
+            var retirar = document.getElementById('btnRetirarControlCamion');
+            if (retirar) { retirar.onclick = function () { retirarControlCamion(camion); }; }
         }
 
+        function retirarControlCamion(camion) {
+            Swal.fire({
+                icon: 'warning',
+                title: 'Retirar del patio',
+                html: '<div class="text-left"><strong>Patente:</strong> ' + escapeHtml(camion.patente) + '<br><strong>Conductor:</strong> ' + escapeHtml(camion.conductor) + '<br><strong>Citacion:</strong> ' + escapeHtml(camion.numero_citacion || 'Sin citacion') + '<br><strong>Ingreso:</strong> ' + escapeHtml(camion.hora_llegada) + '</div>',
+                showCancelButton: true,
+                confirmButtonText: 'Continuar',
+                cancelButtonText: 'Cancelar'
+            }).then(function (first) {
+                if (!first.isConfirmed) return;
+                return Swal.fire({
+                    icon: 'question',
+                    title: 'Confirmacion final',
+                    text: 'Se retirara el registro CAMION_PATIO y sus dependencias operacionales.',
+                    showCancelButton: true,
+                    confirmButtonText: 'Retirar definitivamente',
+                    cancelButtonText: 'Cancelar'
+                });
+            }).then(function (second) {
+                if (!second || !second.isConfirmed) return;
+                return fetch('{% url "camion_patio_retirar" 0 %}'.replace('/0/', '/' + camion.id + '/') + '?_empresa_id={{ empresa_activa_id }}', {
+                    method: 'POST',
+                    headers: {'X-CSRFToken': getCookie('csrftoken'), 'X-Requested-With': 'XMLHttpRequest'}
+                });
+            }).then(function (response) {
+                if (!response) return null;
+                return response.json().then(function (data) {
+                    if (!response.ok || !data.success) throw new Error(data.message || 'No fue posible retirar el camion.');
+                    return data;
+                });
+            }).then(function (data) {
+                if (!data) return;
+                camiones = camiones.filter(function (item) { return String(item.id) !== String(camion.id); });
+                $('#controlCamionModal').modal('hide');
+                renderCamiones();
+                Swal.fire({icon: 'success', title: 'Retirado', text: data.message || 'Camion retirado del patio.', timer: 1800, showConfirmButton: false});
+            }).catch(function (error) {
+                if (error && error.message) Swal.fire({icon: 'error', title: 'No fue posible retirar', text: error.message});
+            });
+        }
         function fetchCamiones() {
             fetch(dataUrl, {headers: {'X-Requested-With': 'XMLHttpRequest'}})
                 .then(function (response) { return response.json(); })

@@ -1,0 +1,414 @@
+{% extends "layouts/base.html" %}
+
+{% block title %} Citaciones terminadas {% endblock %}
+
+{% block stylesheets %}
+<link rel="stylesheet" href="/static/assets/css/plugins/dataTables.bootstrap4.min.css">
+<style>
+    .proforma-action-bar {
+        position: sticky;
+        top: 70px;
+        z-index: 20;
+        background: #fff;
+        border: 1px solid #dee2e6;
+        border-radius: .25rem;
+        padding: .75rem;
+        margin-bottom: 1rem;
+        box-shadow: 0 2px 5px rgba(0, 0, 0, .08);
+    }
+    .proforma-table-scroll,
+    .proforma-table-scroll-top {
+        overflow-x: auto;
+        width: 100%;
+    }
+    .proforma-table-scroll-top {
+        height: 14px;
+        margin-bottom: 4px;
+    }
+    .proforma-table-scroll-top-inner {
+        height: 1px;
+    }
+    #citaciones-terminadas {
+        width: 100%;
+        min-width: 860px;
+        table-layout: fixed;
+    }
+    #citaciones-terminadas td,
+    #citaciones-terminadas th {
+        vertical-align: middle;
+        text-align: center;
+        white-space: normal;
+    }
+    #citaciones-terminadas thead th {
+        position: sticky;
+        top: 0;
+        z-index: 10;
+        background: #f4f6f9;
+    }
+    #citaciones-terminadas .col-seleccionar {
+        position: sticky;
+        left: 0;
+        z-index: 12;
+        width: 72px;
+        background: #fff;
+    }
+    #citaciones-terminadas thead .col-seleccionar {
+        background: #f4f6f9;
+    }
+    #citaciones-terminadas .col-transportista {
+        width: 220px;
+        overflow-wrap: anywhere;
+    }
+</style>
+{% endblock stylesheets %}
+
+{% block content %}
+<section class="pcoded-main-container">
+    <div class="pcoded-content">
+        <div class="page-header">
+            <div class="page-block">
+                <div class="row align-items-center">
+                    <div class="col-md-12">
+                        <div class="page-header-title">
+                            <h5 class="m-b-10">Citaciones terminadas</h5>
+                        </div>
+                        <ul class="breadcrumb">
+                            <li class="breadcrumb-item"><a href="/"><i class="feather icon-home"></i></a></li>
+                            <li class="breadcrumb-item">Proformas</li>
+                            <li class="breadcrumb-item">Citaciones terminadas</li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="card">
+            <div class="card-body">
+                <div class="d-flex justify-content-between align-items-center mb-3">
+                    <h5 class="mb-0">Filtros</h5>
+                    {% if filtrado %}
+                    <a class="btn btn-danger" href="{% url 'proforma_citaciones_terminadas' %}">
+                        <i class="fas fa-times"></i> Borrar filtros
+                    </a>
+                    {% endif %}
+                </div>
+                <form method="POST">
+                    {% csrf_token %}
+                    <div class="form-row">
+                        <div class="form-group col-md-3">
+                            <label for="fecha_desde">Fecha desde</label>
+                            <input type="date" class="form-control" id="fecha_desde" name="fecha_desde" value="{{ fecha_desde|default:'' }}">
+                        </div>
+                        <div class="form-group col-md-3">
+                            <label for="fecha_hasta">Fecha hasta</label>
+                            <input type="date" class="form-control" id="fecha_hasta" name="fecha_hasta" value="{{ fecha_hasta|default:'' }}">
+                        </div>
+                        <div class="form-group col-md-3">
+                            <label for="tipo_citacion">Tipo</label>
+                            <select class="form-control" id="tipo_citacion" name="tipo_citacion">
+                                <option value="">Todos</option>
+                                <option value="RECEPCION" {% if tipo_citacion == 'RECEPCION' %}selected{% endif %}>Recepci&oacute;n</option>
+                                <option value="DESPACHO" {% if tipo_citacion == 'DESPACHO' %}selected{% endif %}>Despacho</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group col-md-5">
+                            <label for="transportista">Transportista</label>
+                            <select class="form-control js-example-placeholder-multiple"
+                                    id="transportista" name="transportista" style="width: 100%;">
+                                <option value="">Todos los transportistas elegibles</option>
+                                {% for transportista in lstTransportistas %}
+                                <option value="{{ transportista.0 }}" {% if selectedtransportista == transportista.0 %}selected{% endif %}>{{ transportista.1 }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div class="form-group col-md-4">
+                            <label for="empresa">Empresa</label>
+                            <select class="form-control" id="empresa" name="empresa">
+                                {% for empresa in ltsEmpresas %}
+                                <option value="{{ empresa.pk }}" {% if selectedempresa == empresa.pk %}selected{% endif %}>{{ empresa.EP_CRAZONSOCIAL }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div class="form-group col-md-3 d-flex align-items-end justify-content-end">
+                            <button type="submit" class="btn btn-primary">
+                                <i class="fas fa-filter"></i> Aplicar filtros
+                            </button>
+                        </div>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        <div class="card">
+            <div class="card-header">
+                <span class="badge badge-info">
+                    Total: {{ total_records }} registros |
+                    P&aacute;gina {{ current_page }} de {{ total_pages }}
+                </span>
+                <span class="badge badge-success ml-2">Estado: TERMINADO</span>
+                <span class="badge badge-primary ml-2">Transporte: TERRAMAR</span>
+            </div>
+            <div class="card-body">
+                <form method="POST"
+                      action="{% url 'proforma_citaciones_terminadas_iniciar_lote' %}"
+                      id="form-iniciar-lote">
+                    {% csrf_token %}
+                    <input type="hidden" name="empresa_id" id="lote-empresa-id"
+                           value="{{ selectedempresa }}">
+                    <input type="hidden" name="transportista_normalizado"
+                           id="lote-transportista-normalizado"
+                           value="{{ selectedtransportista|default:'' }}">
+                    <div class="proforma-action-bar">
+                        <div class="d-flex flex-wrap align-items-center justify-content-between">
+                            <div class="mb-2 mb-md-0">
+                                <strong id="contador-seleccionadas">0 seleccionadas</strong>
+                                <span class="ml-3">Transportista:
+                                    <strong id="resumen-transportista">-</strong>
+                                </span>
+                                <span class="ml-3">Empresa:
+                                    <strong id="resumen-empresa">-</strong>
+                                </span>
+                                <span class="ml-3">IDs:
+                                    <span id="resumen-ids">-</span>
+                                </span>
+                            </div>
+                            <div>
+                                <button type="button" class="btn btn-outline-primary btn-sm"
+                                        id="seleccionar-visibles">Seleccionar todas</button>
+                                <button type="button" class="btn btn-outline-secondary btn-sm"
+                                        id="limpiar-seleccion">Limpiar selecci&oacute;n</button>
+                                <button type="submit" class="btn btn-primary"
+                                        id="continuar-borrador" disabled>
+                                    CONTINUAR CON BORRADOR
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="proforma-table-scroll-top" id="scroll-tabla-superior">
+                        <div class="proforma-table-scroll-top-inner"></div>
+                    </div>
+                    <div class="proforma-table-scroll" id="scroll-tabla-principal">
+                    <table id="citaciones-terminadas" class="table table-striped table-bordered nowrap">
+                        <thead>
+                            <tr>
+                                <th class="col-seleccionar">
+                                    <input type="checkbox" id="seleccionar-todas-visibles"
+                                           aria-label="Seleccionar todas las visibles">
+                                </th>
+                                <th>Citaci&oacute;n</th>
+                                <th>Fecha</th>
+                                <th>Tipo</th>
+                                <th>Gu&iacute;a</th>
+                                <th>Patente</th>
+                                <th class="col-transportista">Transportista</th>
+                                <th>Empresa</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for object in object_list %}
+                            <tr>
+                                <td class="col-seleccionar">
+                                    <input type="checkbox" class="citacion-lote-checkbox"
+                                           name="citacion_ids[]" value="{{ object.0 }}"
+                                           data-empresa-id="{{ selectedempresa }}"
+                                           data-empresa="{{ object.5 }}"
+                                           data-transportista="{{ object.6 }}"
+                                           data-transportista-normalizado="{{ object.7 }}">
+                                </td>
+                                <td><a href="{% url 'cit_listone' object.0 %}">{{ object.0 }}</a></td>
+                                <td>{{ object.1 }}</td>
+                                <td>{{ object.2 }}</td>
+                                <td>{{ object.3 }}</td>
+                                <td>{{ object.4 }}</td>
+                                <td class="col-transportista">{{ object.6 }}</td>
+                                <td>{{ object.5 }}</td>
+                            </tr>
+                            {% empty %}
+                            <tr>
+                                <td colspan="8">No hay citaciones terminadas elegibles.</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                </form>
+
+                {% if paginator.num_pages > 1 %}
+                <nav aria-label="Paginaci&oacute;n">
+                    <ul class="pagination justify-content-center mt-3">
+                        {% if page_obj.has_previous %}
+                        <li class="page-item">
+                            <a class="page-link" href="?page={{ page_obj.previous_page_number }}">Anterior</a>
+                        </li>
+                        {% endif %}
+                        <li class="page-item active">
+                            <span class="page-link">{{ page_obj.number }}</span>
+                        </li>
+                        {% if page_obj.has_next %}
+                        <li class="page-item">
+                            <a class="page-link" href="?page={{ page_obj.next_page_number }}">Siguiente</a>
+                        </li>
+                        {% endif %}
+                    </ul>
+                </nav>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</section>
+{% endblock content %}
+
+{% block javascripts %}
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+    const checkboxes = Array.from(
+        document.querySelectorAll('.citacion-lote-checkbox')
+    );
+    const seleccionarTodas = document.getElementById(
+        'seleccionar-todas-visibles'
+    );
+    const seleccionarVisibles = document.getElementById(
+        'seleccionar-visibles'
+    );
+    const limpiarSeleccion = document.getElementById('limpiar-seleccion');
+    const botonContinuar = document.getElementById('continuar-borrador');
+    const contador = document.getElementById('contador-seleccionadas');
+    const resumenTransportista = document.getElementById(
+        'resumen-transportista'
+    );
+    const resumenEmpresa = document.getElementById('resumen-empresa');
+    const resumenIds = document.getElementById('resumen-ids');
+    const empresaInput = document.getElementById('lote-empresa-id');
+    const transportistaInput = document.getElementById(
+        'lote-transportista-normalizado'
+    );
+    const formulario = document.getElementById('form-iniciar-lote');
+
+    function seleccionadas() {
+        return checkboxes.filter(function (checkbox) {
+            return checkbox.checked;
+        });
+    }
+
+    function mismoGrupo(items) {
+        if (!items.length) {
+            return true;
+        }
+        const primera = items[0].dataset;
+        return items.every(function (checkbox) {
+            return (
+                checkbox.dataset.empresaId === primera.empresaId
+                && checkbox.dataset.transportistaNormalizado
+                    === primera.transportistaNormalizado
+            );
+        });
+    }
+
+    function actualizarResumen() {
+        const items = seleccionadas();
+        const cantidad = items.length;
+        contador.textContent = cantidad + (
+            cantidad === 1 ? ' seleccionada' : ' seleccionadas'
+        );
+        botonContinuar.disabled = cantidad === 0 || !mismoGrupo(items);
+        seleccionarTodas.checked = (
+            checkboxes.length > 0 && cantidad === checkboxes.length
+        );
+        seleccionarTodas.indeterminate = (
+            cantidad > 0 && cantidad < checkboxes.length
+        );
+
+        if (!cantidad) {
+            resumenTransportista.textContent = '-';
+            resumenEmpresa.textContent = '-';
+            resumenIds.textContent = '-';
+            return;
+        }
+        resumenTransportista.textContent = items[0].dataset.transportista;
+        resumenEmpresa.textContent = items[0].dataset.empresa;
+        resumenIds.textContent = items.map(function (checkbox) {
+            return checkbox.value;
+        }).join(', ');
+        empresaInput.value = items[0].dataset.empresaId;
+        transportistaInput.value = (
+            items[0].dataset.transportistaNormalizado
+        );
+    }
+
+    function seleccionarTodoVisible() {
+        if (!mismoGrupo(checkboxes)) {
+            window.alert(
+                'Filtre por un único transportista y empresa antes de '
+                + 'seleccionar todas las citaciones visibles.'
+            );
+            seleccionarTodas.checked = false;
+            return;
+        }
+        checkboxes.forEach(function (checkbox) {
+            checkbox.checked = true;
+        });
+        actualizarResumen();
+    }
+
+    checkboxes.forEach(function (checkbox) {
+        checkbox.addEventListener('change', function () {
+            if (checkbox.checked && !mismoGrupo(seleccionadas())) {
+                checkbox.checked = false;
+                window.alert(
+                    'No se pueden mezclar transportistas o empresas.'
+                );
+            }
+            actualizarResumen();
+        });
+    });
+    seleccionarTodas.addEventListener('change', function () {
+        if (seleccionarTodas.checked) {
+            seleccionarTodoVisible();
+        } else {
+            checkboxes.forEach(function (checkbox) {
+                checkbox.checked = false;
+            });
+            actualizarResumen();
+        }
+    });
+    seleccionarVisibles.addEventListener('click', seleccionarTodoVisible);
+    limpiarSeleccion.addEventListener('click', function () {
+        checkboxes.forEach(function (checkbox) {
+            checkbox.checked = false;
+        });
+        actualizarResumen();
+    });
+    formulario.addEventListener('submit', function (event) {
+        const items = seleccionadas();
+        if (!items.length || !mismoGrupo(items)) {
+            event.preventDefault();
+            window.alert('La selección del lote no es válida.');
+        }
+    });
+
+    const scrollSuperior = document.getElementById('scroll-tabla-superior');
+    const scrollPrincipal = document.getElementById('scroll-tabla-principal');
+    const scrollInterior = scrollSuperior.querySelector(
+        '.proforma-table-scroll-top-inner'
+    );
+    const tabla = document.getElementById('citaciones-terminadas');
+    scrollInterior.style.width = tabla.scrollWidth + 'px';
+    scrollSuperior.addEventListener('scroll', function () {
+        scrollPrincipal.scrollLeft = scrollSuperior.scrollLeft;
+    });
+    scrollPrincipal.addEventListener('scroll', function () {
+        scrollSuperior.scrollLeft = scrollPrincipal.scrollLeft;
+    });
+
+    if (window.jQuery && window.jQuery.fn.select2) {
+        window.jQuery('#transportista').select2({
+            allowClear: true,
+            placeholder: 'Buscar transportista'
+        });
+    }
+    actualizarResumen();
+});
+</script>
+{% endblock javascripts %}

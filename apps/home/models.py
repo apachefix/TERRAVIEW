@@ -923,6 +923,27 @@ class CITACION_DESPACHO_DETALLE(models.Model):
             models.Index(fields=['CDD_CSAP_NUMERO_ACUERDO'], name='CIT_DESP_SAP_ACUERDO_IDX'),
         ]
 
+
+class CITACION_RECEPCION_TERRAMAR_DETALLE(models.Model):
+    """Datos operacionales propios de la recepción Etapa 0 de Terramar."""
+    CI_NID = models.OneToOneField(CITACION, verbose_name='Id citacion', on_delete=models.CASCADE, related_name='detalle_recepcion_terramar')
+    EP_NID = models.ForeignKey(EMPRESA, verbose_name='Id empresa', on_delete=models.PROTECT)
+    US_NID = models.ForeignKey(User, verbose_name='Usuario creacion', on_delete=models.PROTECT, null=True, blank=True)
+    RTD_CCONTENEDOR_CRT = models.CharField('Contenedor / CRT', max_length=128, null=True, blank=True)
+    RTD_CBODEGA = models.CharField('Bodega destino', max_length=128)
+    RTD_CTRANSPORTE_A_CARGO = models.CharField('Transporte a cargo de', max_length=16)
+    SN_NID_TRANSPORTISTA = models.ForeignKey(SOCIONEGOCIO, verbose_name='Transportista maestro', on_delete=models.PROTECT, null=True, blank=True)
+    RTD_CEMPRESA_TRANSPORTE = models.CharField('Empresa transporte declarada', max_length=256, null=True, blank=True)
+    CON_NID = models.ForeignKey(CONDUCTOR, verbose_name='Conductor maestro', on_delete=models.PROTECT, null=True, blank=True)
+    RTD_CCONDUCTOR = models.CharField('Conductor declarado', max_length=256, null=True, blank=True)
+    RTD_CCODIGO_PAIS_TELEFONO = models.CharField('Codigo pais telefono', max_length=5, null=True, blank=True)
+    RTD_CTELEFONO_CONDUCTOR = models.CharField('Telefono conductor', max_length=64, null=True, blank=True)
+    RTD_CPATENTE = models.CharField('Patente camion', max_length=32, null=True, blank=True)
+    RTD_FFECHACREACION = models.DateTimeField('Fecha creacion', auto_now_add=True)
+
+    class Meta:
+        db_table = 'CITACION_RECEPCION_TERRAMAR_DETALLE'
+
     
 class ITEM(models.Model):
     EP_NID = models.ForeignKey(EMPRESA, verbose_name='Id emrpesa', on_delete=models.PROTECT)
@@ -1748,6 +1769,29 @@ class CAMION_PATIO(models.Model):
     def __str__(self):
         return f'{self.CPA_CPATENTE} - {self.CPA_CESTADO}'
 
+
+class CAMION_PATIO_TRAZABILIDAD_PLANIFICACION(models.Model):
+    """Auditoría de la carga voluntaria de datos de planificación en Patio."""
+    CPA_NID = models.OneToOneField(CAMION_PATIO, on_delete=models.CASCADE, related_name='trazabilidad_planificacion')
+    CI_NID = models.ForeignKey(CITACION, on_delete=models.PROTECT, null=True, blank=True)
+    PL_NID = models.ForeignKey(PLANIFICACION, on_delete=models.PROTECT, null=True, blank=True)
+    EP_NID = models.ForeignKey(EMPRESA, on_delete=models.PROTECT)
+    CPTR_CPATENTE_CONSULTADA = models.CharField(max_length=32)
+    CPTR_CRESULTADO_BUSQUEDA = models.CharField(max_length=32)
+    CPTR_BCARGADO_DESDE_PLANIFICACION = models.BooleanField(default=False)
+    CPTR_CPATENTE_PLANIFICADA = models.CharField(max_length=32, blank=True)
+    CPTR_CPATENTE_LLEGADA = models.CharField(max_length=32, blank=True)
+    CPTR_CGUIA_ESPERADA = models.CharField(max_length=128, blank=True)
+    CPTR_CGUIA_RECIBIDA = models.CharField(max_length=128, blank=True)
+    CPTR_CRESULTADO_GUIA = models.CharField(max_length=24, blank=True)
+    CPTR_BDIFERENCIA_ACEPTADA = models.BooleanField(default=False)
+    CPTR_COBSERVACION_DIFERENCIA = models.TextField(blank=True)
+    US_NID = models.ForeignKey(User, on_delete=models.PROTECT)
+    CPTR_FFECHACONSULTA = models.DateTimeField(null=True, blank=True)
+    CPTR_FFECHAREGISTRO = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = 'CAMION_PATIO_TRAZABILIDAD_PLANIFICACION'
 
 class CAMION_PATIO_ADJUNTO(models.Model):
     TIPO_GUIA = 'GUIA'

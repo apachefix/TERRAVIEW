@@ -269,7 +269,56 @@
         card.find('.patio-card-title span:first, .patio-truck-plate').first().text(camion.patente || '');
     }
 
+    function retirarCamionPatio(id, datos) {
+        const patente = datos.patente || 'Sin patente';
+        const conductor = datos.conductor || 'Sin informacion';
+        const citacion = datos.citacion || 'Sin citacion';
+        const llegada = datos.llegada || 'Sin informacion';
+        Swal.fire({
+            icon: 'warning',
+            title: 'Retirar del patio',
+            html: '<p>Se retirara el registro de patio, sin eliminar el camion maestro ni la citacion historica.</p><div class="text-left"><strong>Patente:</strong> ' + patioEscape(patente) + '<br><strong>Conductor:</strong> ' + patioEscape(conductor) + '<br><strong>Citacion:</strong> ' + patioEscape(citacion) + '<br><strong>Ingreso:</strong> ' + patioEscape(llegada) + '</div>',
+            showCancelButton: true,
+            confirmButtonText: 'Continuar',
+            cancelButtonText: 'Cancelar'
+        }).then(function (first) {
+            if (!first.isConfirmed) return;
+            return Swal.fire({
+                icon: 'question',
+                title: 'Confirmacion final',
+                text: 'Esta accion retirara el CAMION_PATIO y sus datos operacionales dependientes. ¿Desea continuar?',
+                showCancelButton: true,
+                confirmButtonText: 'Retirar definitivamente',
+                cancelButtonText: 'Cancelar'
+            });
+        }).then(function (second) {
+            if (!second || !second.isConfirmed) return;
+            return $.ajax({
+                url: '/camiones-patio/' + id + '/retirar/',
+                type: 'POST',
+                headers: {'X-CSRFToken': patioCookie('csrftoken')},
+                data: {_empresa_id: PATIO_EMPRESA_ID}
+            });
+        }).done(function (response) {
+            $('.patio-card[data-camion-id="' + id + '"]').remove();
+            if (patioCamionActual && String(patioCamionActual.id) === String(id)) {
+                patioCamionActual = null;
+                $('#camionPatioModal').modal('hide');
+            }
+            patioAlert(response.message || 'Camion retirado del patio.', 'success');
+        }).fail(function (xhr) {
+            const response = xhr.responseJSON || {};
+            if (xhr.status) patioAlert(response.message || 'No fue posible retirar el camion.', 'danger');
+        });
+    }
     $(document).off('click', '.patio-card');
+    $(document).off('click', '.btn-retirar-patio');
+    $(document).on('click', '.btn-retirar-patio', function (event) {
+        event.stopPropagation();
+        const boton = $(this);
+        retirarCamionPatio(boton.data('camion-id'), {patente: boton.data('patente'), conductor: boton.data('conductor'), citacion: boton.data('citacion'), llegada: boton.data('llegada')});
+    });
+
     $(document).on('click', '.patio-card', function () {
         abrirCamionPatio($(this).data('camion-id'));
     });

@@ -336,6 +336,18 @@
         }
 
         function mostrarModalEstadoCamion(datos) {
+            if (datos.tipo_resultado === 'CITACION_VIGENTE') {
+                var camposVigentes = [
+                    ['Patente', datos.patente], ['Citación', datos.citacion_id], ['Empresa', datos.empresa],
+                    ['Tipo', datos.tipo], ['Flujo / secuencia', datos.secuencia], ['Fecha citación', datos.fecha_citacion],
+                    ['Estado', datos.estado], ['Responsable', datos.responsable]
+                ];
+                var contenidoVigente = '<div class="text-left"><div class="alert alert-info mb-3">' + escapeHtmlEstadoCamion(datos.mensaje) + '</div><div class="table-responsive"><table class="table table-bordered table-striped mb-0">';
+                camposVigentes.forEach(function(campo) { contenidoVigente += '<tr><th style="width: 34%;">' + escapeHtmlEstadoCamion(campo[0]) + '</th><td>' + escapeHtmlEstadoCamion(campo[1]) + '</td></tr>'; });
+                contenidoVigente += '</table></div></div>';
+                Swal.fire({title: 'Estado camión', html: contenidoVigente, width: '80%', confirmButtonText: 'Cerrar'});
+                return;
+            }
             var campos = [
                 ['Patente', datos.patente],
                 ['Citacion', datos.citacion],

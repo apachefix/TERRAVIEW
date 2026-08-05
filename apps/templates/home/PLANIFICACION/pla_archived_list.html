@@ -1,0 +1,271 @@
+{% extends 'layouts/base.html' %}
+
+{% block title %}Planificaciones archivadas{% endblock title %}
+
+{% block stylesheets %}
+<style>
+    .archived-content,
+    .archived-content .row,
+    .archived-content [class*="col-"],
+    .archived-plans-card,
+    .archived-plans-card .card-body {
+        min-width: 0;
+        max-width: 100%;
+    }
+
+    .archived-plans-table-wrap {
+        width: 100%;
+        max-width: 100%;
+        min-width: 0;
+        max-height: calc(100vh - 260px);
+        overflow: auto;
+        scrollbar-gutter: stable;
+        -webkit-overflow-scrolling: touch;
+    }
+
+    .table-scroll-top {
+        display: none;
+        width: 100%;
+        max-width: 100%;
+        min-width: 0;
+        height: 18px;
+        margin-bottom: .5rem;
+        overflow-x: auto;
+        overflow-y: hidden;
+    }
+
+    .table-scroll-top.is-visible {
+        display: block;
+    }
+
+    .table-scroll-top-content {
+        height: 1px;
+    }
+
+    .archived-plans-table {
+        min-width: 1450px;
+        margin-bottom: 0;
+    }
+
+    .archived-plans-table thead th {
+        position: sticky;
+        top: 0;
+        z-index: 2;
+        background-color: #f4f7fa;
+        box-shadow: inset 0 -1px 0 #dee2e6;
+    }
+
+    .archived-plans-table th,
+    .archived-plans-table .number-cell,
+    .archived-plans-table .action-cell,
+    .archived-plans-table .date-cell {
+        white-space: nowrap;
+    }
+
+    .archived-plans-table th,
+    .archived-plans-table td {
+        vertical-align: middle;
+    }
+
+    .archived-plans-table .number-cell {
+        text-align: center;
+    }
+
+    .archived-plans-table .action-cell {
+        width: 180px;
+        min-width: 180px;
+    }
+
+    .archived-plans-table .sticky-actions {
+        position: sticky;
+        right: 0;
+        z-index: 3;
+        background-color: #fff;
+        box-shadow: -5px 0 7px -6px rgba(0, 0, 0, .65);
+        border-left: 1px solid #dee2e6;
+    }
+
+    .archived-plans-table thead .sticky-actions {
+        z-index: 4;
+        background-color: #f4f7fa;
+    }
+
+    .archived-plans-table tbody tr:nth-of-type(odd) > .sticky-actions {
+        background-color: #f7f7f7;
+    }
+
+    .archived-plans-table tbody tr:nth-of-type(even) > .sticky-actions {
+        background-color: #fff;
+    }
+
+    .archived-plans-table tbody tr:hover > .sticky-actions {
+        background-color: #f1f3f5;
+    }
+
+    @media (max-width: 767.98px) {
+        .archived-plans-table-wrap {
+            max-height: calc(100vh - 220px);
+        }
+    }
+</style>
+{% endblock stylesheets %}
+
+{% block content %}
+<section class="pcoded-main-container">
+    <div class="pcoded-content">
+        <div class="container-fluid archived-content">
+            <div class="page-header">
+                <div class="page-block">
+                    <div class="row align-items-center">
+                        <div class="col-md-12">
+                            <div class="page-header-title">
+                                <h5 class="m-b-10">Planificaciones archivadas</h5>
+                            </div>
+                            <ul class="breadcrumb">
+                                <li class="breadcrumb-item"><a href="/"><i class="feather icon-home"></i></a></li>
+                                <li class="breadcrumb-item"><a href="{% url 'pla_listall' %}">Planificaciones</a></li>
+                                <li class="breadcrumb-item">Archivadas</li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="row">
+                <div class="col-sm-12">
+                    <div class="card archived-plans-card">
+                        <div class="card-header">
+                            <h5>Planificaciones archivadas</h5>
+                        </div>
+                        <div class="card-body">
+                            <div class="table-scroll-top" id="archived-table-scroll-top" aria-hidden="true">
+                                <div class="table-scroll-top-content" id="archived-table-scroll-top-content"></div>
+                            </div>
+                            <div class="dt-responsive table-responsive archived-plans-table-wrap" id="archived-table-scroll-main" tabindex="0" aria-label="Tabla de planificaciones archivadas">
+                                <table class="table table-striped table-bordered table-sm archived-plans-table">
+                                    <thead>
+                                        <tr>
+                                            <th>Tipo</th>
+                                            <th>Fecha</th>
+                                            <th>Cupos</th>
+                                            <th>Citaciones</th>
+                                            <th>Asociados</th>
+                                            <th>Cerradas</th>
+                                            <th>Abiertas</th>
+                                            <th>Sin camión</th>
+                                            <th>Cupos no usados</th>
+                                            <th>No planificados</th>
+                                            <th>Clientes</th>
+                                            <th>Archivador</th>
+                                            <th>Fecha archivado</th>
+                                            <th class="sticky-actions">Acciones</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {% for row in resumenes %}
+                                        <tr>
+                                            <td>{{ row.planificacion.PL_CTIPOCUPO }}</td>
+                                            <td class="date-cell">{{ row.planificacion.PL_FFECHAINICIO|date:'d/m/Y' }}</td>
+                                            <td class="number-cell">{{ row.cupos_planificados }}</td>
+                                            <td class="number-cell">{{ row.citaciones_creadas }}</td>
+                                            <td class="number-cell">{{ row.camiones_asociados }}</td>
+                                            <td class="number-cell">{{ row.citaciones_cerradas }}</td>
+                                            <td class="number-cell">{{ row.citaciones_abiertas_con_camion }}</td>
+                                            <td class="number-cell">{{ row.citaciones_sin_camion }}</td>
+                                            <td class="number-cell">{{ row.cupos_no_utilizados }}</td>
+                                            <td class="number-cell">{{ row.camiones_no_planificados }}</td>
+                                            <td>{{ row.clientes }}</td>
+                                            <td>{{ row.planificacion.US_ARCHIVADOR_ID|default:'-' }}</td>
+                                            <td class="date-cell">{{ row.planificacion.PL_FFECHAARCHIVADO|date:'d/m/Y' }}</td>
+                                            <td class="action-cell sticky-actions">
+                                                <a class="btn btn-primary btn-sm" href="{% url 'pla_archivada_resumen' row.planificacion.id %}?_empresa_id={{ empresa_id }}">Ver resumen histórico</a>
+                                            </td>
+                                        </tr>
+                                        {% empty %}
+                                        <tr>
+                                            <td colspan="14" class="text-center">No hay planificaciones archivadas.</td>
+                                        </tr>
+                                        {% endfor %}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</section>
+{% endblock content %}
+
+{% block javascripts %}
+<script>
+(function () {
+    'use strict';
+
+    var topScroll = document.getElementById('archived-table-scroll-top');
+    var topScrollContent = document.getElementById('archived-table-scroll-top-content');
+    var mainScroll = document.getElementById('archived-table-scroll-main');
+
+    if (!topScroll || !topScrollContent || !mainScroll) {
+        return;
+    }
+
+    var synchronizing = false;
+    var resizeFrame = null;
+
+    function synchronize(source, target) {
+        if (synchronizing) {
+            return;
+        }
+        synchronizing = true;
+        target.scrollLeft = source.scrollLeft;
+        window.requestAnimationFrame(function () {
+            synchronizing = false;
+        });
+    }
+
+    function updateTopScrollbar() {
+        if (resizeFrame) {
+            window.cancelAnimationFrame(resizeFrame);
+        }
+        resizeFrame = window.requestAnimationFrame(function () {
+            var hasHorizontalOverflow = mainScroll.scrollWidth > mainScroll.clientWidth + 1;
+            topScrollContent.style.width = mainScroll.scrollWidth + 'px';
+            topScroll.classList.toggle('is-visible', hasHorizontalOverflow);
+            topScroll.setAttribute('aria-hidden', hasHorizontalOverflow ? 'false' : 'true');
+            topScroll.scrollLeft = mainScroll.scrollLeft;
+            resizeFrame = null;
+        });
+    }
+
+    topScroll.addEventListener('scroll', function () {
+        synchronize(topScroll, mainScroll);
+    }, { passive: true });
+
+    mainScroll.addEventListener('scroll', function () {
+        synchronize(mainScroll, topScroll);
+    }, { passive: true });
+
+    mainScroll.addEventListener('wheel', function (event) {
+        if (!event.shiftKey || Math.abs(event.deltaY) <= Math.abs(event.deltaX)) {
+            return;
+        }
+        var previousScrollLeft = mainScroll.scrollLeft;
+        mainScroll.scrollLeft += event.deltaY;
+        if (mainScroll.scrollLeft !== previousScrollLeft) {
+            event.preventDefault();
+        }
+    }, { passive: false });
+
+    window.addEventListener('resize', updateTopScrollbar);
+    window.addEventListener('load', updateTopScrollbar);
+
+    if (window.ResizeObserver) {
+        new ResizeObserver(updateTopScrollbar).observe(mainScroll);
+    }
+
+    updateTopScrollbar();
+}());
+</script>
+{% endblock javascripts %}

@@ -9,6 +9,7 @@ from django.utils import timezone
 from apps.home.models import (
     CALENDARIO,
     CITACION,
+    DETALLE_SECUENCIA,
     EMPRESA,
     ETAPA,
     ETAPA_LOG,
@@ -106,18 +107,40 @@ class CalidadServiceTestCase(TestCase):
         self.assertEqual(OPERACION_PLANTA_LOG.objects.filter(CI_NID=citacion, OPL_CPASO='CALIDAD_AVANCE_AUTOMATICO').count(), 1)
         self.assertEqual(registro.pk, repetido.pk)
 
-    def test_rechazado_cierra_no_avanza_y_autoriza_salida(self):
+    def test_rechazado_bodega_externa_no_cierra_operacion_y_autoriza_salida(self):
         citacion = self.crear_citacion()
         registro, _ = procesar_resultado_calidad(
             citacion, 'RECHAZADO', RESULTADO_CALIDAD_OPERACION.Origen.MANUAL_PRUEBA, usuario=self.user,
         )
         citacion.refresh_from_db()
 
-        self.assertEqual(citacion.CI_CESTADO, 'RECHAZADO')
+        self.assertEqual(citacion.CI_CESTADO, 'PENDIENTE')
         self.assertTrue(registro.RCO_BAUTORIZA_SALIDA)
         self.assertIsNotNone(registro.RCO_FDETENCION_TEMPORIZADOR)
         self.assertFalse(OPERACION_PLANTA_LOG.objects.filter(CI_NID=citacion, OPL_CPASO='CALIDAD_AVANCE_AUTOMATICO').exists())
         self.assertTrue(OPERACION_PLANTA_LOG.objects.filter(CI_NID=citacion, OPL_CPASO='CALIDAD_SALIDA_AUTORIZADA').exists())
+
+    def test_rechazado_mantiene_regla_actual_en_recepcion_normal(self):
+        secuencia_normal = SECUENCIA.objects.create(
+            US_NID=self.user, EP_NID=self.empresa, SE_CTIPO='RECEPCION',
+            SE_CCODIGO='RECEPCION_ESTANQUE_SBH', SE_CNOMBRE='RECEPCION ESTANQUE SBH',
+            SE_BHABILITADO=True,
+        )
+        DETALLE_SECUENCIA.objects.create(
+            US_NID=self.user, EP_NID=self.empresa, SC_NID=secuencia_normal,
+            ET_NID=self.etapa, SE_NPASO=1, SE_BHABILITADO=True, SE_BOBLIGATORIO=True,
+        )
+        citacion = self.crear_citacion('GUIA-RECEPCION-NORMAL')
+        citacion.SC_NID = secuencia_normal
+        citacion.save(update_fields=['SC_NID'])
+
+        procesar_resultado_calidad(
+            citacion, 'RECHAZADO', RESULTADO_CALIDAD_OPERACION.Origen.MANUAL_PRUEBA,
+            usuario=self.user,
+        )
+        citacion.refresh_from_db()
+
+        self.assertEqual(citacion.CI_CESTADO, 'RECHAZADO')
 
     def test_aprueba_cliente_detiene_y_mantiene_abierta_hasta_aprobacion(self):
         citacion = self.crear_citacion()

@@ -113,9 +113,7 @@
                                                     </a>
                                                     {% if request.user|puede_gestionar_planificaciones %}
                                                         {% if not archivados %}
-                                                            <a class="btn btn-warning pla_filedone" data-href="{% url 'pla_filedone' object.pk %}" title="Archivar" data-toggle="tooltip">
-                                                                <i class="fas fa-folder-minus"></i>
-                                                            </a>
+                                                            <form method="post" action="{% url 'pla_filedone' object.pk %}" class="d-inline pla_filedone_form">{% csrf_token %}<button type="submit" class="btn btn-warning pla_filedone" title="Archivar" data-toggle="tooltip"><i class="fas fa-folder-minus"></i></button></form>
                                                         {% else %}
                                                             <a class="btn btn-success pla_filedone" data-href="{% url 'pla_filedone' object.pk %}" title="Restaurar" data-toggle="tooltip">
                                                                 <i class="fas fa-folder-plus"></i>
@@ -188,72 +186,26 @@
             table.draw(false);
         });
 
-        $('.pla_filedone').on('click', function(e) {
+        $('.pla_filedone_form').on('submit', function(e) {
             e.preventDefault();
-            Swal.fire({
-                title: 'Atención',
-                text: '¿Estás seguro de continuar?',
-                icon: 'warning',
-                showCancelButton: true,
-                confirmButtonText: 'Sí, continuar'
-            }).then((result) => {
-                if (result.isConfirmed) {
-                    var href = $(this).data('href');
-                    window.location.href = href;
-                }
-            });
+            const form = this;
+            Swal.fire({title: 'Atención', text: '¿Está seguro de archivar esta planificación?', icon: 'warning', showCancelButton: true, confirmButtonText: 'Sí, archivar'}).then((result) => { if (result.isConfirmed) form.submit(); });
         });
 
         $('#pla_filed').on('click', function(e) {
             e.preventDefault();
-            var selectedIds = [];
-            const dataTable = $('#basic-btn').DataTable();
-            dataTable.rows().every(function () {
-                let data = this.node();
-                let $checkbox = $(data).find('input[type=checkbox]:checked');
-                if ($checkbox.length > 0 && $checkbox.val() != 'on') {
-                    selectedIds.push($checkbox.val());
-                }
+            const button = $(this);
+            if (button.data('processing')) return;
+            const selectedIds = $('#basic-btn').DataTable().rows().nodes().to$().find('.row-checkbox:checked').map(function(){ return this.value; }).get();
+            if (!selectedIds.length) { Swal.fire({title: 'Atención', icon: 'warning', text: 'Debe seleccionar al menos una planificación.'}); return; }
+            Swal.fire({title: 'Confirmar archivado', text: `Se archivarán ${selectedIds.length} planificaciones. ¿Desea continuar?`, icon: 'warning', showCancelButton: true, confirmButtonText: 'Sí, archivar'}).then(function(result) {
+                if (!result.isConfirmed) return;
+                button.data('processing', true).prop('disabled', true);
+                $.ajax({url: '{% url "ajax_archivar_planificaciones" %}', type: 'POST', data: {planificaciones: JSON.stringify(selectedIds), csrfmiddlewaretoken: '{{ csrf_token }}'}}).done(function(response) {
+                    if (!response.success) { Swal.fire({title:'Atención', icon:'warning', text:response.msg}); return; }
+                    Swal.fire({title:'Listo', icon:'success', text:`${response.cantidad_archivada} planificación(es) archivada(s).`}).then(function(){ window.location.reload(); });
+                }).fail(function(){ Swal.fire({title:'Error', icon:'error', text:'No fue posible archivar las planificaciones.'}); }).always(function(){ button.data('processing', false).prop('disabled', false); });
             });
-
-            if (selectedIds.length > 0) {
-                $.ajax({
-                    url: '{% url "ajax_archivar_planificaciones" %}',
-                    type: 'POST',
-                    data: {
-                        'planificaciones': JSON.stringify(selectedIds),
-                        'csrfmiddlewaretoken': '{{ csrf_token }}'
-                    },
-                    success: function(response) {
-                        if(response.success == true){
-                            Swal.fire({
-                                title: 'Listo',
-                                icon: 'success',
-                                text: 'Planificaciones seleccionadas archivadas correctamente!'
-                            }).then((result) => {
-                                if (result.value){
-                                    window.location.href = "{% url 'pla_filedlistall' %}";
-                                }
-                            });
-                        } else {
-                            Swal.fire({
-                                title: "Atención",
-                                icon: "warning",
-                                text: response.msg
-                            });
-                        }
-                    },
-                    error: function() {
-                        alert('Error al archivar elementos');
-                    }
-                });
-            } else {
-                Swal.fire({
-                    title: "Alerta",
-                    icon: "warning",
-                    text: "No ha seleccionado ninguna planificación"
-                });
-            }
         });
     </script>
 {% endblock javascripts %}

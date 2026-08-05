@@ -194,6 +194,8 @@
                     <div class="patio-muted">Llegada: {{ camion.CPA_FFECHALLEGADA|date:'d/m/Y H:i' }}</div>
                     {% if camion.CI_NID_id %}
                         <div class="mt-2"><span class="badge badge-success">Citacion #{{ camion.CI_NID_id }}</span></div>
+                    {% endif %}                    {% if puede_retirar_camion_patio %}
+                        <button type="button" class="btn btn-sm btn-outline-danger mt-2 btn-retirar-patio" data-camion-id="{{ camion.id }}" data-patente="{{ camion.CPA_CPATENTE }}" data-conductor="{{ camion.CPA_CNOMBRE_CONDUCTOR }}" data-citacion="{{ camion.CI_NID_id|default:'' }}" data-llegada="{{ camion.CPA_FFECHALLEGADA|date:'d/m/Y H:i' }}"><i class="fas fa-sign-out-alt mr-1"></i>Retirar del patio</button>
                     {% endif %}
                 </div>
             {% empty %}

@@ -105,6 +105,55 @@
     }
 
     /* ============================================================
+       MODAL EDITAR RECEPCIÓN TERRAMAR
+       El formulario intermedio debe participar del layout flex para
+       que solo modal-body se desplace y el footer permanezca visible.
+       ============================================================ */
+    #editReceptionTerramarModal .modal-dialog {
+        max-height: calc(100vh - 2rem);
+        margin: 1rem auto;
+    }
+
+    #editReceptionTerramarModal .modal-content {
+        max-height: calc(100vh - 2rem);
+        display: flex;
+        flex-direction: column;
+        overflow: hidden;
+    }
+
+    #editReceptionTerramarModal #editReceptionTerramarForm {
+        display: flex;
+        flex: 1 1 auto;
+        flex-direction: column;
+        min-height: 0;
+        overflow: hidden;
+    }
+
+    #editReceptionTerramarModal .modal-body {
+        flex: 1 1 auto;
+        min-height: 0;
+        overflow-x: hidden;
+        overflow-y: auto;
+        overscroll-behavior: contain;
+        -webkit-overflow-scrolling: touch;
+    }
+
+    #editReceptionTerramarModal .modal-header,
+    #editReceptionTerramarModal .modal-footer {
+        flex: 0 0 auto;
+    }
+
+    @media (max-width: 576px) {
+        #editReceptionTerramarModal .modal-dialog {
+            max-height: calc(100vh - 1rem);
+            margin: .5rem;
+        }
+
+        #editReceptionTerramarModal .modal-content {
+            max-height: calc(100vh - 1rem);
+        }
+    }
+    /* ============================================================
        MODAL INGRESO CAMIÓN
        Se usa scroll del modal completo, NO scroll interno en modal-body.
        Esto evita bloqueo al seleccionar transportista con Select2.
@@ -918,14 +967,9 @@
                                 <div class="dropdown-menu dropdown-menu-right profile-notification" aria-labelledby="dropdownMenuButton" style="max-height: 300px; overflow-y: auto;">
                                     <div class="pro-body">
                                         {% if request.user.is_superuser == 1 %}
-                                            <a href="#" data-href="{% url 'pla_filedone' planificacion.pk %}" class="dropdown-item btn btn-warning" id="pla_filed">
-                                                <i class="fas fa-folder-open"></i> &nbsp;&nbsp;&nbsp;
-                                                {% if not planificacion.PL_BARCHIVADO %}
-                                                    Archivar
-                                                {% else %}
-                                                    Restaurar
-                                                {% endif %}
-                                            </a>
+                                            {% if not planificacion.PL_BARCHIVADO %}
+                                            <form method="post" action="{% url 'pla_filedone' planificacion.pk %}">{% csrf_token %}<button type="submit" class="dropdown-item btn btn-warning"><i class="fas fa-folder-open"></i>&nbsp;&nbsp;&nbsp;Archivar</button></form>
+                                            {% endif %}
                                         {% endif %}
                                         {% if not planificacion.PL_BARCHIVADO %}
                                             {% if planificacion.PL_CTIPOCUPO == 'DESPACHO' %}
@@ -1253,6 +1297,11 @@
                                     <div class="dt-responsive table-responsive">
                                         <table id="basic-btn1" class="table table-striped table-bordered nowrap">
                                             <thead>
+                                                {% if es_recepcion_terramar %}
+                                                <tr>
+                                                    <th>ACCIONES</th><th>NUMERO CITACIÓN</th><th>FECHA CITACIÓN</th><th>SECUENCIA</th><th>ETAPA ACTUAL</th><th>CÓDIGO SAP</th><th>INSUMO</th><th>BODEGA</th><th>N° GUÍA DESPACHO</th><th>TRANSPORTE A CARGO DE</th><th>EMPRESA TRANSPORTE</th><th>CONDUCTOR</th><th>CÓDIGO PAÍS</th><th>CELULAR CONDUCTOR</th><th>PATENTE</th><th>CONTENEDOR / CRT</th>
+                                                </tr>
+                                                {% else %}
                                                 <tr>
                                                     <th>ACCIONES</th>
                                                     <th>NUMERO CITACIÓN</th>
@@ -1267,20 +1316,19 @@
                                                     <th>PATENTE</th>
                                                     <th>TRANSPORTISTA</th>
                                                     <th>PRODUCTO</th>
-                                                    {% if request.user.is_superuser == True %}
-                                                        <th>TARIFA</th>
-                                                    {% endif %}
+                                                    {% if request.user.is_superuser == True %}<th>TARIFA</th>{% endif %}
                                                 </tr>
+                                                {% endif %}
                                             </thead>
                                             <tbody>
                                                 {% for object in recepciones %}
-                                                    <tr id="citacion-row-{{ object.0 }}" data-citacion-id="{{ object.0 }}" class="{% if object.37 %}fila-devuelta-guardia{% elif object.34 %}fila-pendiente-envio{% elif object.31 %}citacion-enviada-siguiente{% elif object.28 %}citacion-enviada-siguiente{% elif object.24 %}citacion-enviada-siguiente{% elif object.21 %}citacion-estanque-asignado{% elif object.18 %}citacion-aprobada-asistente{% elif object.15 %}citacion-enviada-asistente{% endif %}{% if object.48.mostrar_alerta_sugerida %} citacion-sugerida-activa citacion-sugerida-pulse{% endif %}">
+                                                    <tr id="citacion-row-{{ object.0 }}" data-citacion-id="{{ object.0 }}" class="{% if object.37 %}fila-devuelta-guardia{% elif object.34 %}fila-pendiente-envio{% elif object.31 %}citacion-enviada-siguiente{% elif object.28 %}citacion-enviada-siguiente{% elif object.24 %}citacion-enviada-siguiente{% elif object.21 %}citacion-estanque-asignado{% elif object.18 %}citacion-aprobada-asistente{% elif object.15 %}citacion-enviada-asistente{% endif %}{% if object.47.mostrar_alerta_sugerida %} citacion-sugerida-activa citacion-sugerida-pulse{% endif %}">
                                                         <td>
                                                             <div class="pulse-button-container {% if object.46 and request.user.is_superuser and object.18 %}acciones-sap{% elif object.46 and request.user|es_asistente_cd and not object.24 %}acciones-sap{% elif request.user|es_guardia and object.37 %}acciones-enviada acciones-devolucion-guardia{% elif request.user|es_guardia and object.34 %}acciones-enviada acciones-pendiente-envio{% elif request.user|es_guardia and object.28 %}acciones-enviada{% elif request.user|es_guardia and object.15 %}acciones-enviada{% elif request.user|es_asistente_recepcion and object.18 %}acciones-enviada{% elif request.user|es_asistente_recepcion and object.15 %}acciones-enviada{% elif request.user.is_superuser and object.18 %}acciones-enviada{% elif request.user.is_superuser and object.15 %}acciones-enviada{% elif request.user|es_asistente_cd and object.24 %}acciones-enviada{% elif request.user|es_asistente_cd %}acciones-enviada{% endif %}">
-                                                                {% if object.48.mostrar_alerta_sugerida %}
+                                                                {% if object.47.mostrar_alerta_sugerida %}
                                                                     <span class="badge badge-warning citacion-sugerida-row-badge">Citacion sugerida seleccionada</span>
                                                                     <div class="small text-muted">Seleccione esta citacion para asociar el camion.</div>
-                                                                    {% if object.48.datos_camion_patio %}
+                                                                    {% if object.47.datos_camion_patio %}
                                                                         <span class="badge badge-light border datos-camion-patio-badge" title="Datos obtenidos desde el camion seleccionado para asociacion">Datos camion en patio</span>
                                                                     {% endif %}
                                                                 {% endif %}
@@ -1309,6 +1357,25 @@
                                                                         <div>Devuelto por Asistente_Recepción</div>
                                                                         <div><strong>Motivo:</strong> {{ object.38|default:'Sin motivo registrado' }}</div>
                                                                         <div>Fecha: {% if object.40 %}{{ object.40|date:'d/m/Y H:i' }}{% else %}No registrada{% endif %}</div>
+                                                                    </div>
+                                                                {% elif request.user|es_guardia and object.57 and object.28 %}
+                                                                    <button type="button" class="btn btn-outline-primary btn-sm" onclick="openCitationSummaryModal({{ object.0 }})" title="Ver resumen enviado a Guardia Portería">
+                                                                        <i class="fas fa-eye"></i>
+                                                                    </button>
+                                                                    <div class="estado-envio-asistente">
+                                                                        <span class="badge badge-primary">Enviado a Guardia Portería</span>
+                                                                        <div>Fecha: {% if object.30 %}{{ object.30|date:'d/m/Y H:i' }}{% else %}No registrada{% endif %}</div>
+                                                                        <div>Usuario: {{ object.29|default:'No registrado' }}</div>
+                                                                        <div>Etapa: {{ object.5 }}</div>
+                                                                    </div>
+                                                                {% elif request.user|es_guardia and object.57 and object.24 %}
+                                                                    <button type="button" class="btn btn-primary btn-sm" onclick="openRevisionAsistenteModal({{ object.0 }})" title="Enviar a Guardia Portería">
+                                                                        <i class="fas fa-arrow-right"></i>
+                                                                    </button>
+                                                                    <div class="estado-envio-asistente estado-pendiente-envio">
+                                                                        <span class="badge badge-warning">Enviar a Guardia Portería</span>
+                                                                        <div>Patente: {{ object.8|default:'No registrada' }}</div>
+                                                                        <div>Fecha: {% if object.26 %}{{ object.26|date:'d/m/Y H:i' }}{% else %}No registrada{% endif %}</div>
                                                                     </div>
                                                                 {% elif request.user|es_guardia and object.34 %}
                                                                     <button type="button" class="btn btn-primary btn-sm" onclick="openCitationSummaryModal({{ object.0 }})" title="Ver ingreso guardado">
@@ -1348,7 +1415,7 @@
                                                                         <i class="fas fa-eye"></i>
                                                                     </button>
                                                                     <div class="estado-envio-asistente">
-                                                                        <span class="badge badge-success">Enviado a Asistente_C_D</span>
+                                                                        <span class="badge badge-success">{% if es_recepcion_terramar %}Enviado a Asistente_bodega{% else %}Enviado a Asistente_C_D{% endif %}</span>
                                                                         <div>Fecha: {% if object.20 %}{{ object.20|date:'d/m/Y H:i' }}{% else %}No registrada{% endif %}</div>
                                                                         <div>Usuario: {{ object.19|default:'No registrado' }}</div>
                                                                         <div>Etapa: {{ object.5 }}</div>
@@ -1366,7 +1433,7 @@
                                                                     </button>
                                                                     {% endif %}
                                                                     <div class="estado-envio-asistente">
-                                                                        <span class="badge badge-success">Enviado a Asistente_C_D</span>
+                                                                        <span class="badge badge-success">{% if es_recepcion_terramar %}Enviado a Asistente_bodega{% else %}Enviado a Asistente_C_D{% endif %}</span>
                                                                         <div>Fecha: {% if object.20 %}{{ object.20|date:'d/m/Y H:i' }}{% else %}No registrada{% endif %}</div>
                                                                         <div>Usuario: {{ object.19|default:'No registrado' }}</div>
                                                                         <div>Etapa: {{ object.5 }}</div>
@@ -1433,12 +1500,12 @@
                                                                         <div>{% if object.21 %}<span class="badge badge-warning">Estanque: {{ object.21 }}</span>{% else %}Estanque pendiente{% endif %}</div>
                                                                     </div>
                                                                 {% elif object.0 in citaciones_responsable and object.12 == 'EN PROCESO' %}
-                                                                    {% if request.user|es_asistente_recepcion and object.41 %}
-                                                                    <button type="button" class="btn btn-info btn-sm{% if object.48.mostrar_alerta_sugerida %} citacion-sugerida-action{% endif %}" onclick="openAsociarCamionPatioModal({{ object.0 }})" title="Asociar camion en patio">
+                                                                    {% if request.user|es_asistente_recepcion and object.40 %}
+                                                                    <button type="button" class="btn btn-info btn-sm{% if object.47.mostrar_alerta_sugerida %} citacion-sugerida-action{% endif %}" onclick="openAsociarCamionPatioModal({{ object.0 }})" title="Asociar camion en patio">
                                                                         <i class="fas fa-link"></i> Asociar camion en patio
                                                                     </button>
-                                                                    {% elif request.user.is_superuser and object.41 %}
-                                                                    <button type="button" class="btn btn-info btn-sm{% if object.48.mostrar_alerta_sugerida %} citacion-sugerida-action{% endif %}" onclick="openAsociarCamionPatioModal({{ object.0 }})" title="Asociar camion en patio">
+                                                                    {% elif request.user.is_superuser and object.40 %}
+                                                                    <button type="button" class="btn btn-info btn-sm{% if object.47.mostrar_alerta_sugerida %} citacion-sugerida-action{% endif %}" onclick="openAsociarCamionPatioModal({{ object.0 }})" title="Asociar camion en patio">
                                                                         <i class="fas fa-link"></i> Asociar camion en patio
                                                                     </button>
                                                                     {% elif request.user|es_ingreso_camion %}
@@ -1455,12 +1522,12 @@
                                                                     </a>
                                                                     {% endif %}
                                                                 {% else %}
-                                                                    {% if request.user|es_asistente_recepcion and object.41 %}
-                                                                    <button type="button" class="btn btn-info btn-sm{% if object.48.mostrar_alerta_sugerida %} citacion-sugerida-action{% endif %}" onclick="openAsociarCamionPatioModal({{ object.0 }})" title="Asociar camion en patio">
+                                                                    {% if request.user|es_asistente_recepcion and object.40 %}
+                                                                    <button type="button" class="btn btn-info btn-sm{% if object.47.mostrar_alerta_sugerida %} citacion-sugerida-action{% endif %}" onclick="openAsociarCamionPatioModal({{ object.0 }})" title="Asociar camion en patio">
                                                                         <i class="fas fa-link"></i> Asociar camion en patio
                                                                     </button>
-                                                                    {% elif request.user.is_superuser and object.41 %}
-                                                                    <button type="button" class="btn btn-info btn-sm{% if object.48.mostrar_alerta_sugerida %} citacion-sugerida-action{% endif %}" onclick="openAsociarCamionPatioModal({{ object.0 }})" title="Asociar camion en patio">
+                                                                    {% elif request.user.is_superuser and object.40 %}
+                                                                    <button type="button" class="btn btn-info btn-sm{% if object.47.mostrar_alerta_sugerida %} citacion-sugerida-action{% endif %}" onclick="openAsociarCamionPatioModal({{ object.0 }})" title="Asociar camion en patio">
                                                                         <i class="fas fa-link"></i> Asociar camion en patio
                                                                     </button>
                                                                     {% elif request.user|es_ingreso_camion %}
@@ -1490,6 +1557,9 @@
                                                                 {% endif %}
                                                             </div>
                                                         </td>
+                                                        {% if es_recepcion_terramar %}
+                                                        <td>{{ object.0 }}</td><td>{{ object.1|date:'d/m/Y' }}</td><td>{{ object.4 }}</td><td>{{ object.5 }}</td><td>{{ object.48 }}</td><td>{{ object.49 }}</td><td>{{ object.50 }}</td><td>{{ object.3|default:"No informado" }}</td><td>{{ object.51 }}</td><td>{{ object.52 }}</td><td>{{ object.53 }}</td><td>{{ object.54 }}</td><td>{{ object.55 }}</td><td>{{ object.56 }}</td><td>{{ object.57 }}</td>
+                                                        {% else %}
                                                         <td>{{ object.0 }}</td>
                                                         <td>{{ object.1|date:'d/m/Y' }}</td>
                                                         <td>{{ object.2 }}</td>
@@ -1502,8 +1572,7 @@
                                                         <td>{{ object.8|default:"Sin información" }}</td>
                                                         <td>{{ object.7|default:"Sin información" }}</td>
                                                         <td>{{ object.6 }}</td>
-                                                        {% if request.user.is_superuser == True %}
-                                                            <td>$ {{ object.11|custom_number_format}}</td>
+                                                        {% if request.user.is_superuser == True %}<td>$ {{ object.11|custom_number_format}}</td>{% endif %}
                                                         {% endif %}
                                                     </tr>
                                                 {% endfor %}
@@ -2107,7 +2176,8 @@
     </div>
 </div>
 
-   <!-- Add this modal at the end of your template -->
+   <div class="modal fade" id="editReceptionTerramarModal" tabindex="-1" role="dialog" aria-hidden="true"><div class="modal-dialog modal-xl modal-dialog-scrollable" role="document"><div class="modal-content"><div class="modal-header"><h5 class="modal-title">Editar recepción – Etapa 0</h5><button type="button" class="close" data-dismiss="modal"><span>&times;</span></button></div><form id="editReceptionTerramarForm">{% csrf_token %}<input type="hidden" id="ert_citation_id"><div class="modal-body"><div class="form-row"><div class="form-group col-md-4"><label class="required-label">Fecha llegada</label><input class="form-control" type="date" id="ert_fecha_llegada" name="fecha_llegada" required></div><div class="form-group col-md-4"><label>Contenedor / CRT</label><input class="form-control" id="ert_contenedor_crt" name="contenedor_crt"></div><div class="form-group col-md-4"><label class="required-label">Insumo</label><select class="form-control" id="ert_item_id" name="item_id" required></select></div><div class="form-group col-md-4"><label class="required-label">Bodega</label><input class="form-control" id="ert_bodega" name="bodega" required></div><div class="form-group col-md-4"><label class="required-label">N° guía despacho</label><input class="form-control" id="ert_numero_guia" name="numero_guia" required></div><div class="form-group col-md-4"><label class="required-label">Transporte a cargo de</label><select class="form-control" id="ert_transporte_a_cargo" name="transporte_a_cargo" required><option value="">Seleccione</option><option value="Terramar">Terramar</option><option value="Cliente">Cliente</option></select></div><div class="form-group col-md-4 ert-maestro"><label class="ert-required">Empresa transporte</label><select class="form-control" id="ert_empresa_transporte"></select><input type="hidden" id="ert_empresa_transporte_id" name="empresa_transporte_id"><input type="hidden" id="ert_empresa_transporte" name="empresa_transporte"><div class="form-group col-md-4 ert-maestro" id="ert_ruta_transportista_contenedor"><label class="ert-required">Ruta del transportista</label><select class="form-control" id="ert_ruta_transportista" name="ruta_visible" disabled><option value="">Seleccione primero empresa transporte</option></select><input type="hidden" id="ert_ruta_id" name="ruta_id"><input type="hidden" id="ert_tarifa_id" name="tarifa_id"><small class="text-muted" id="ert_ruta_ayuda"></small></div></div><div class="form-group col-md-4"><label class="ert-required">Conductor</label><select class="form-control ert-maestro" id="ert_conductor"></select><input class="form-control d-none ert-manual" id="ert_conductor_manual" name="conductor" placeholder="Conductor"><input type="hidden" id="ert_conductor_id" name="conductor_id"></div><div class="form-group col-md-4"><label class="ert-required">Código país</label><select class="form-control" id="ert_codigo_pais" name="codigo_pais">{% for pais in paises_telefono %}<option value="{{ pais.codigo_telefonico }}" {% if pais.codigo_telefonico == "+56" %}selected{% endif %}>{{ pais.nombre }} ({{ pais.codigo_telefonico }})</option>{% endfor %}</select></div><div class="form-group col-md-4"><label class="ert-required">Celular conductor</label><input class="form-control" id="ert_telefono" name="telefono" inputmode="tel"></div><div class="form-group col-md-4"><label class="ert-required">Patente camión</label><input class="form-control text-uppercase" id="ert_patente" name="patente"></div><div class="form-group col-md-4"><label class="required-label">Hora citación</label><input class="form-control" type="time" id="ert_hora_citacion" name="hora_citacion" required></div><div class="form-group col-md-4"><label class="required-label">Flujo operacional</label><select class="form-control" id="ert_secuencia_id" name="secuencia_id" required></select><small id="ert_flujo_bloqueado" class="text-muted d-none">El flujo no puede cambiarse porque existe avance operacional.</small></div></div></div><div class="modal-footer"><button type="button" class="btn btn-secondary" data-dismiss="modal">Cancelar</button><button type="submit" class="btn btn-success">Guardar cambios</button></div></form></div></div></div>
+<!-- Add this modal at the end of your template -->
 <div class="modal fade" id="editCitationModal" tabindex="-1" role="dialog" aria-labelledby="editCitationModalLabel" aria-hidden="true">
     <div class="modal-dialog modal-xl modal-dialog-scrollable" role="document">
         <div class="modal-content">
@@ -2510,11 +2580,15 @@
     let estanqueCamionAlmacenOriginal = '';
     let estanqueCamionAlmacenOriginalTexto = '';
     let estanqueCamionPuedeEditar = false;
+    let estanqueCamionEsRecepcionTerramar = false;
     let borradorSapGuiaCitacionId = null;
     let revisionRutasTransportista = [];
     let revisionGuardiaAutorizaPlanta = false;
     let revisionRutaGuardada = false;
     let revisionRequiereRutaTransportista = true;
+    let revisionRequiereConfirmacionDatos = false;
+    let revisionAprobadoAsistente = false;
+    let revisionPuedeEditar = false;
     let revisionDatosEdicionActiva = false;
     let revisionDatosOrigen = 'revision';
     let ingresoCamionCamposPorCodigo = {};
@@ -4040,6 +4114,61 @@
     }
 
     function openEditModal(citacionId) {
+        $.ajax({url: `/editar-citacion-recepcion-terramar/${citacionId}/`, type: 'GET', success: function(data) { abrirEdicionRecepcionTerramar(citacionId, data); }, error: function(xhr) { if (xhr.status === 404 && xhr.responseJSON && xhr.responseJSON.not_terramar) { openEditModalLegacy(citacionId); return; } Swal.fire('No editable', (xhr.responseJSON && xhr.responseJSON.error) || 'No fue posible cargar la citación para edición.', 'warning'); }});
+    }
+    function limpiarRutasEdicionTerramar(mensaje) {
+        document.getElementById('ert_ruta_id').value = '';
+        document.getElementById('ert_tarifa_id').value = '';
+        const selector = document.getElementById('ert_ruta_transportista');
+        selector.disabled = true;
+        selector.innerHTML = '<option value="">Seleccione primero empresa transporte</option>';
+        document.getElementById('ert_ruta_ayuda').textContent = mensaje || '';
+    }
+
+    function cargarRutasEdicionTerramar(rutaInicialId, tarifaInicialId) {
+        const transportistaId = document.getElementById('ert_empresa_transporte_id').value;
+        limpiarRutasEdicionTerramar();
+        if (!transportistaId || document.getElementById('ert_transporte_a_cargo').value !== 'Terramar') return;
+        const selector = document.getElementById('ert_ruta_transportista');
+        selector.innerHTML = '<option value="">Cargando rutas...</option>';
+        selector.disabled = true;
+        $.ajax({
+            url: '{% url "ajax_rutas_transportista_planificacion" %}', type: 'GET',
+            data: {transportista_id: transportistaId, tipo: 'RECEPCION'},
+            success: function(response) {
+                const rutas = response.rutas || [];
+                selector.innerHTML = '';
+                selector.appendChild(new Option(rutas.length ? 'Seleccione ruta' : 'No existen rutas habilitadas para este transportista.', ''));
+                let encontrada = false;
+                rutas.forEach(function(ruta) {
+                    const option = new Option(ruta.text || '', ruta.tarifa_id || ruta.id);
+                    option.dataset.rutaId = ruta.ruta_id || '';
+                    option.dataset.tarifaId = ruta.tarifa_id || ruta.id || '';
+                    option.dataset.valorTarifa = ruta.costo || '';
+                    if (String(ruta.ruta_id || '') === String(rutaInicialId || '') && String(ruta.tarifa_id || ruta.id || '') === String(tarifaInicialId || '')) { option.selected = true; encontrada = true; }
+                    selector.appendChild(option);
+                });
+                selector.disabled = !rutas.length;
+                if (encontrada) $(selector).trigger('change');
+                else if (rutaInicialId || tarifaInicialId) document.getElementById('ert_ruta_ayuda').textContent = 'La ruta guardada ya no está vigente; seleccione una ruta válida.';
+            },
+            error: function(xhr) {
+                selector.innerHTML = '<option value="">No fue posible cargar rutas</option>';
+                selector.disabled = true;
+                document.getElementById('ert_ruta_ayuda').textContent = (xhr.responseJSON && xhr.responseJSON.error) || 'No fue posible cargar rutas del transportista.';
+            }
+        });
+    }
+
+    $('#ert_ruta_transportista').on('change.ert', function() {
+        const option = this.options[this.selectedIndex];
+        document.getElementById('ert_ruta_id').value = option ? (option.dataset.rutaId || '') : '';
+        document.getElementById('ert_tarifa_id').value = option ? (option.dataset.tarifaId || this.value || '') : '';
+    });
+    function actualizarModoEdicionTerramar() { const terramar=$('#ert_transporte_a_cargo').val()==='Terramar'; $('.ert-maestro').toggleClass('d-none',!terramar).prop('disabled',!terramar); $('.ert-manual').toggleClass('d-none',terramar).prop('disabled',terramar); $('.ert-required').toggleClass('required-label',terramar); if(!terramar){$('#ert_empresa_transporte_id,#ert_conductor_id').val('');$('#ert_empresa_transporte,#ert_conductor').val(null).trigger('change');} }
+    function abrirEdicionRecepcionTerramar(citacionId,data) { const d=data.detalle||{},m=$('#editReceptionTerramarModal'); $('#editReceptionTerramarForm')[0].reset(); $('#ert_citation_id').val(citacionId); $('#ert_item_id').html('<option value="">Seleccione insumo</option>'+(data.insumos||[]).map(x=>`<option value="${x.id}">${x.codigo} — ${x.nombre}</option>`).join('')).val(String(data.item_id||'')); $('#ert_secuencia_id').html((data.secuencias||[]).map(x=>`<option value="${x.id}">${x.nombre}</option>`).join('')).val(String(data.secuencia_id||'')).prop('disabled',!data.puede_cambiar_secuencia); $('#ert_flujo_bloqueado').toggleClass('d-none',!!data.puede_cambiar_secuencia); $('#ert_fecha_llegada').val(data.fecha_llegada||'');$('#ert_hora_citacion').val(data.hora_citacion||'');$('#ert_numero_guia').val(data.numero_guia||'');$('#ert_contenedor_crt').val(d.contenedor_crt||'');$('#ert_bodega').val(d.bodega||'');$('#ert_transporte_a_cargo').val(d.transporte_a_cargo||'Cliente');$('#ert_codigo_pais').val(d.codigo_pais||'+56');$('#ert_telefono').val(d.telefono||'');$('#ert_patente').val(d.patente||'');$('#ert_conductor_manual').val(d.conductor||''); ['#ert_empresa_transporte','#ert_conductor'].forEach(s=>{if($(s).data('select2'))$(s).select2('destroy');}); $('#ert_empresa_transporte').select2({placeholder:'Seleccione empresa transporte',allowClear:true,width:'100%',dropdownParent:m,ajax:{url:'{% url "ajax_transportistas_ingreso_camion" %}',dataType:'json',delay:250,data:p=>({q:p.term||'',empresa_id:empresaIdActiva(),estricto_empresa:'1'}),processResults:x=>({results:x.results||[]})}}); $('#ert_conductor').select2({placeholder:'Seleccione conductor',allowClear:true,width:'100%',dropdownParent:m,ajax:{url:'{% url "ajax_conductores_ingreso_camion" %}',dataType:'json',delay:250,data:p=>({q:p.term||'',empresa_id:empresaIdActiva(),transportista_id:$('#ert_empresa_transporte_id').val(),transportista:$('#ert_empresa_transporte').val()||'',estricto_empresa:'1'}),processResults:x=>({results:x.results||[]})}}); if(d.empresa_transporte_id)$('#ert_empresa_transporte').append(new Option(d.empresa_transporte_texto||d.empresa_transporte,d.empresa_transporte_id,true,true));if(d.conductor_id)$('#ert_conductor').append(new Option(d.conductor_texto||d.conductor,d.conductor_id,true,true));$('#ert_empresa_transporte_id').val(d.empresa_transporte_id||'');$('#ert_conductor_id').val(d.conductor_id||''); $('#ert_empresa_transporte').off('.ert').on('select2:select.ert',e=>{$('#ert_empresa_transporte_id').val(e.params.data.socionegocio_id||e.params.data.id||'');$('#ert_empresa_transporte').val(e.params.data.text||'');cargarRutasEdicionTerramar();}).on('select2:clear.ert',()=>{$('#ert_empresa_transporte_id').val(''); limpiarRutasEdicionTerramar(); }); $('#ert_conductor').off('.ert').on('select2:select.ert',e=>{const x=e.params.data||{};$('#ert_conductor_id').val(x.conductor_id||x.id||'');$('#ert_patente').val((x.patente_sugerida||$('#ert_patente').val()).toUpperCase());$('#ert_telefono').val(x.telefono||$('#ert_telefono').val());}); $('#ert_transporte_a_cargo').off('.ert').on('change.ert',function(){actualizarModoEdicionTerramar();cargarRutasEdicionTerramar();});$('#ert_patente').off('.ert').on('input.ert blur.ert',function(){this.value=String(this.value||'').trim().toUpperCase();});actualizarModoEdicionTerramar();cargarRutasEdicionTerramar(d.ruta_id,d.tarifa_id);m.modal('show'); }
+    $('#editReceptionTerramarForm').on('submit',function(e){e.preventDefault();if(!this.checkValidity()){this.reportValidity();return;}const terramar=$('#ert_transporte_a_cargo').val()==='Terramar';if(terramar&&(!$('#ert_ruta_id').val()||!$('#ert_tarifa_id').val())){Swal.fire('Ruta requerida','Debe seleccionar una ruta válida del transportista.','warning');return;}const id=$('#ert_citation_id').val(),data=$(this).serializeArray().filter(x=>x.name!=='secuencia_id');data.push({name:'secuencia_id',value:$('#ert_secuencia_id').val()});$.post(`/editar-citacion-recepcion-terramar/${id}/`,$.param(data)).done(r=>{$('#editReceptionTerramarModal').modal('hide');Swal.fire('Actualizada',r.message,'success').then(()=>window.location.reload());}).fail(xhr=>Swal.fire('No fue posible actualizar',(xhr.responseJSON&&xhr.responseJSON.error)||'Revise los datos ingresados.','warning'));});
+    function openEditModalLegacy(citacionId) {
         $('#updateCitationForm')[0].reset();
         $('#citation_id').val(citacionId);
         actualizarVisibilidadBlEdicion(PLANIFICACION_ES_DESPACHO ? 'DESPACHO' : '');
@@ -4455,36 +4584,30 @@
         `;
     }
 
-    function renderRevisionDocuments(documentos) {
+    function renderRevisionDocuments(documentos, mostrarVacio) {
         const items = documentos || [];
         if (!items.length) {
-            return '';
+            return mostrarVacio ? '<div class="revision-section"><h6>Documentos ingresados</h6><div class="text-muted">No hay documentos ingresados para esta citación.</div></div>' : '';
         }
-
         return `
             <div class="revision-section">
-                <h6>Documentos</h6>
+                <h6>Documentos ingresados</h6>
                 <div class="list-group">
                     ${items.map(function (doc) {
-                        const nombre = doc.nombre_archivo || doc.valor || 'Documento';
-                        const link = doc.download_url
-                            ? `<a class="btn btn-sm btn-outline-primary" href="${escapeHtml(doc.download_url)}" target="_blank" rel="noopener">Ver</a>`
-                            : '';
-                        return `
-                            <div class="list-group-item d-flex justify-content-between align-items-center">
-                                <div>
-                                    <div>${escapeHtml(doc.label || doc.tipo || 'Documento')}</div>
-                                    <small class="text-muted">${escapeHtml(nombre)}</small>
-                                </div>
-                                ${link}
-                            </div>
-                        `;
+                        const nombre = doc.nombre_archivo || doc.nombre || doc.valor || 'Documento';
+                        const url = doc.download_url || doc.url || '';
+                        const link = url ? `<a class="btn btn-sm btn-outline-primary" href="${escapeHtml(url)}" target="_blank" rel="noopener">Ver</a>` : '';
+                        const detalle = [doc.fecha_carga, doc.usuario, doc.estado].filter(Boolean).join(' · ');
+                        return `<div class="list-group-item d-flex justify-content-between align-items-center"><div><div>${escapeHtml(doc.label || doc.tipo || 'Documento')}</div><small class="text-muted d-block">${escapeHtml(nombre)}</small>${detalle ? `<small class="text-muted">${escapeHtml(detalle)}</small>` : ''}</div>${link}</div>`;
                     }).join('')}
                 </div>
             </div>
         `;
     }
 
+    function renderRevisionConfirmacionDatos() {
+        return `<div class="revision-section" id="revision_confirmacion_datos_section"><div class="custom-control custom-checkbox"><input type="checkbox" class="custom-control-input" name="datos_validados" id="revisionDatosValidados" value="true"><label class="custom-control-label" for="revisionDatosValidados">He validado que los datos son correctos.</label></div></div>`;
+    }
     function renderRevisionRutaTransportistaCampo(options, message) {
         const rutas = options || [];
         const selected = rutas.find(function (ruta) { return ruta.selected; }) || null;
@@ -4551,28 +4674,28 @@
         actualizarEstadoRutaRevision();
     }
 
+    function actualizarEstadoAprobacionRevision() {
+        const confirmado = !revisionRequiereConfirmacionDatos || $('#revisionDatosValidados').is(':checked');
+        const rutaPendiente = revisionPuedeEditar && revisionRequiereRutaTransportista && !revisionRutaGuardada;
+        $('#btn_revision_aprobar').prop('disabled', revisionAprobadoAsistente || rutaPendiente || !confirmado);
+    }
+
     function actualizarEstadoRutaRevision(mensaje) {
         if (!revisionRequiereRutaTransportista) {
             $('#bloqueRutaTransportista').hide();
-            $('#btn_revision_aprobar').prop('disabled', false);
+            actualizarEstadoAprobacionRevision();
             return;
         }
         $('#bloqueRutaTransportista').show();
-        const texto = revisionRutaGuardada
-            ? (mensaje || 'Ruta guardada correctamente')
-            : (mensaje || 'Pendiente de guardar');
+        const texto = revisionRutaGuardada ? (mensaje || 'Ruta guardada correctamente') : (mensaje || 'Pendiente de guardar');
         const clase = revisionRutaGuardada ? 'text-success' : 'text-warning';
         const icono = revisionRutaGuardada ? 'fa-check-circle' : 'fa-exclamation-triangle';
-        $('#revision_ruta_estado')
-            .removeClass('text-success text-warning text-danger')
-            .addClass(clase)
-            .html('<i class="fas ' + icono + '"></i> ' + escapeHtml(texto));
-        $('#btn_revision_aprobar').prop('disabled', !revisionRutaGuardada);
+        $('#revision_ruta_estado').removeClass('text-success text-warning text-danger').addClass(clase).html('<i class="fas ' + icono + '"></i> ' + escapeHtml(texto));
+        actualizarEstadoAprobacionRevision();
         if (revisionRutaGuardada) {
             $('#btn_guardar_ruta_transportista').prop('disabled', true).text('Ruta guardada');
         }
     }
-
     function invalidarRutaRevision() {
         if (!revisionRequiereRutaTransportista) {
             return;
@@ -4819,6 +4942,9 @@ $(document).on('click', '#btn_revision_guardar_datos', guardarDatosRevisionAsist
         revisionGuardiaAutorizaPlanta = false;
         revisionRutaGuardada = false;
         revisionRequiereRutaTransportista = true;
+        revisionRequiereConfirmacionDatos = false;
+        revisionAprobadoAsistente = false;
+        revisionPuedeEditar = false;
         revisionRutasTransportista = [];
         $('#revision_asistente_subtitulo').text(`Citación #${citacionId}`);
         $('#revision_asistente_alert').hide().text('');
@@ -4838,7 +4964,10 @@ $(document).on('click', '#btn_revision_guardar_datos', guardarDatosRevisionAsist
                 }
 
                 const puedeEditarRevision = !!response.puede_editar_revision_asistente;
-                revisionRequiereRutaTransportista = !!response.requiere_ruta_transportista;
+                revisionPuedeEditar = puedeEditarRevision;
+                revisionAprobadoAsistente = !!response.aprobado_asistente;
+                revisionRequiereConfirmacionDatos = !!response.requiere_confirmacion_datos;
+                revisionRequiereRutaTransportista = !!response.requiere_ruta_transportista && !response.es_flujo_terramar;
                 revisionRutaGuardada = !!response.ruta_transportista_guardada;
                 const esDespachoRevision = String(response.tipo_citacion || '').toUpperCase() === 'DESPACHO';
                 const html = [
@@ -4850,12 +4979,14 @@ $(document).on('click', '#btn_revision_guardar_datos', guardarDatosRevisionAsist
                         response.datos_edicion_asistente || {},
                         puedeEditarRevision
                     ),
-                    renderRevisionSection('Validación Asistente Recepción', response.validacion_asistente),
                     esDespachoRevision ? '' : renderRevisionSection('Datos operacionales', response.datos_operacionales),
+                    response.es_flujo_terramar ? renderRevisionSection('Ruta del transportista', { Ruta: (response.ruta_transportista || {}).Ruta || '' }) : '',
                     renderRevisionSection('Asistente C_D', response.asistente_cd),
                     renderRevisionSection('Guardia Portería', response.guardia_porteria),
-                    renderRevisionDocuments(response.documentos),
-                    puedeEditarRevision ? renderRevisionValidacion(response, esDespachoRevision) : ''
+                    renderRevisionDocuments(response.documentos, !!response.es_flujo_terramar),
+                    response.requiere_confirmacion_datos ? renderRevisionConfirmacionDatos() : '',
+                    response.mostrar_validacion_asistente_recepcion && puedeEditarRevision ? renderRevisionValidacion(response, esDespachoRevision) : '',
+                    response.mostrar_validacion_asistente_recepcion ? renderRevisionSection('Validación Asistente Recepción', response.validacion_asistente) : ''
                 ].join('');
 
                 $('#revision_asistente_contenido').html(html || '<div class="text-muted">Sin información registrada.</div>');                inicializarSelectoresRevisionIngreso();
@@ -4867,11 +4998,8 @@ $(document).on('click', '#btn_revision_guardar_datos', guardarDatosRevisionAsist
                         response.rutas_transportista ? response.rutas_transportista.message : ''
                     );
                 }
-                $('#btn_revision_aprobar').prop(
-                    'disabled',
-                    !!response.aprobado_asistente
-                        || (puedeEditarRevision && revisionRequiereRutaTransportista && !revisionRutaGuardada)
-                );
+                actualizarEstadoAprobacionRevision();
+
                 if (response.aprobado_asistente) {
                     $('#revision_asistente_alert').show().text('Esta citación ya fue aprobada por Asistente Recepción.');
                 }
@@ -4893,22 +5021,26 @@ $(document).on('click', '#btn_revision_guardar_datos', guardarDatosRevisionAsist
         });
     }
 
+    $(document).on('change', '#revisionDatosValidados', actualizarEstadoAprobacionRevision);
+
     function aprobarRevisionAsistente() {
         if (!revisionAsistenteCitacionId) {
             return;
         }
-
+        if (revisionRequiereConfirmacionDatos && !$('#revisionDatosValidados').is(':checked')) {
+            Swal.fire({ icon: 'warning', title: 'Confirmación requerida', text: 'Debes confirmar que validaste los datos antes de aprobar.' });
+            return;
+        }
         if (revisionRequiereRutaTransportista && !revisionRutaGuardada) {
-            Swal.fire({
-                icon: 'warning',
-                title: 'Ruta pendiente',
-                text: 'Debe guardar la ruta del transportista antes de aprobar.'
-            });
+            Swal.fire({ icon: 'warning', title: 'Ruta pendiente', text: 'Debe guardar la ruta del transportista antes de aprobar.' });
             return;
         }
 
+        const boton = $('#btn_revision_aprobar');
+        boton.prop('disabled', true).text('Procesando...');
         const dataAprobacion = {
-            lote_contenedor: $('#revision_lote_contenedor').val()
+            lote_contenedor: $('#revision_lote_contenedor').val(),
+            datos_validados: revisionRequiereConfirmacionDatos ? 'true' : ''
         };
         if ($('#revision_bl').length) {
             dataAprobacion.bl = $('#revision_bl').val();
@@ -4917,27 +5049,20 @@ $(document).on('click', '#btn_revision_guardar_datos', guardarDatosRevisionAsist
             url: `/pla-citacion-aprobar-asistente/${revisionAsistenteCitacionId}/`,
             type: 'POST',
             data: dataAprobacion,
-            headers: {
-                'X-CSRFToken': '{{ csrf_token }}'
-            },
+            headers: { 'X-CSRFToken': '{{ csrf_token }}' },
             success: function (response) {
-                Swal.fire({
-                    icon: 'success',
-                    title: 'Aprobado',
-                    text: response.message || 'Camión aprobado correctamente.'
-                }).then(function () {
-                    location.reload();
-                });
+                Swal.fire({ icon: 'success', title: 'Aprobado', text: response.message || 'Camión aprobado correctamente.' }).then(function () { location.reload(); });
             },
             error: function (xhr) {
-                const message = xhr.responseJSON && xhr.responseJSON.message
-                    ? xhr.responseJSON.message
-                    : 'No fue posible aprobar la citación.';
+                const message = xhr.responseJSON && xhr.responseJSON.message ? xhr.responseJSON.message : 'No fue posible aprobar la citación.';
                 Swal.fire({ icon: 'warning', title: 'No se pudo aprobar', text: message });
+            },
+            complete: function () {
+                boton.text('Aprobar');
+                actualizarEstadoAprobacionRevision();
             }
         });
     }
-
     function enviarRevisionGuardiaPorteria() {
         if (!revisionAsistenteCitacionId) {
             return;
@@ -6345,10 +6470,24 @@ function inicializarConductoresIngresoCamion(limpiarActual) {
         `;
     }
 
+    function renderFormularioSolicitudIngresoDescarga(puedeEditar) {
+        const disabled = puedeEditar ? '' : 'disabled';
+        return `
+            <div class="custom-control custom-checkbox mb-0">
+                <input type="checkbox" class="custom-control-input" id="solicitud_ingreso_descarga" ${disabled}>
+                <label class="custom-control-label" for="solicitud_ingreso_descarga">
+                    Solicitud de ingreso a descarga
+                </label>
+                <small class="form-text text-muted">Confirmo que la citaci?n est? lista para solicitar el ingreso a descarga.</small>
+            </div>
+        `;
+    }
+
     function openEstanqueCamionModal(citacionId) {
         revisionDatosOrigen = 'estanque';
         revisionAsistenteCitacionId = citacionId;
         estanqueCamionCitacionId = citacionId;
+        estanqueCamionEsRecepcionTerramar = false;
         estanqueCamionTipo = '';
         estanqueCamionAlmacenOriginal = '';
         estanqueCamionAlmacenOriginalTexto = '';
@@ -6406,6 +6545,36 @@ function inicializarConductoresIngresoCamion(limpiarActual) {
                 ].join('');
 
                 $('#estanque_camion_contenido').html(html || '<div class="text-muted">Sin información registrada.</div>');                inicializarSelectoresRevisionIngreso();
+
+                if (response.es_recepcion_terramar) {
+                    estanqueCamionEsRecepcionTerramar = true;
+                    $('#ModalEstanqueCamionLabel').text('Ingreso de camión');
+                    $('#estanque_camion_form_section').show();
+                    $('#estanque_camion_form_section h6').text('Solicitud de ingreso a descarga');
+                    $('#estanque_camion_form_campos').html(renderFormularioSolicitudIngresoDescarga(puedeEditar));
+                    $('#estanque_camion_bloqueo').hide().text('');
+                    $('#btn_guardar_estanque, #btn_crear_borrador_sap_recepcion, #btn_crear_borrador_sap_despacho').hide().prop('disabled', true);
+                    $('#btn_enviar_estanque')
+                        .show()
+                        .text('Confirmar y enviar a Guardia')
+                        .prop('disabled', !puedeEditar);
+                    const terramarHtml = [
+                        renderRevisionSection('Datos planificación', response.planificacion),
+                        renderRevisionSection('Datos citación', response.citacion),
+                        renderRevisionSection('Datos ingresados por Asistente recepción', response.guardia),
+                        renderRevisionSection('Ruta y transportista', response.ruta_transportista || {}),
+                        renderRevisionSection('Aprobación Asistente recepción', response.aprobacion),
+                        renderRevisionDocuments(response.documentos)
+                    ].join('');
+                    $('#estanque_camion_contenido').html(terramarHtml || '<div class="text-muted">Sin informaci?n registrada.</div>');
+                    $('#solicitud_ingreso_descarga').off('change.terramar').on('change.terramar', function () {
+                        $('#btn_enviar_estanque').prop('disabled', !puedeEditar || !this.checked);
+                    });
+                    if (response.enviado_siguiente) {
+                        $('#estanque_camion_alert').show().text('Esta citaci?n ya fue enviada a Guardia.');
+                    }
+                    return;
+                }
 
                 if (esDespacho) {
                     $('#estanque_camion_contenido').append(renderRevisionSection('Datos despacho / SAP', response.datos_despacho));
@@ -7320,6 +7489,64 @@ function inicializarConductoresIngresoCamion(limpiarActual) {
             return;
         }
 
+        if (estanqueCamionEsRecepcionTerramar) {
+            if (!$('#solicitud_ingreso_descarga').is(':checked')) {
+                Swal.fire({
+                    icon: 'warning',
+                    title: 'Confirmaci?n requerida',
+                    text: 'Debe confirmar la solicitud de ingreso a descarga.'
+                });
+                return;
+            }
+            Swal.fire({
+                icon: 'question',
+                title: 'Enviar a Guardia',
+                text: 'Se enviar? la solicitud de ingreso a descarga a Guardia.',
+                showCancelButton: true,
+                confirmButtonText: 'Confirmar y enviar',
+                cancelButtonText: 'Cancelar'
+            }).then(function (result) {
+                if (!result.isConfirmed) {
+                    return;
+                }
+                $('#btn_enviar_estanque').prop('disabled', true);
+                $.ajax({
+                    url: `/pla-citacion-estanque-avanzar/${estanqueCamionCitacionId}/`,
+                    type: 'POST',
+                    data: { solicitud_ingreso_descarga: '1' },
+                    headers: {
+                        'X-CSRFToken': '{{ csrf_token }}'
+                    },
+                    success: function (response) {
+                        if (!response.success) {
+                            $('#btn_enviar_estanque').prop('disabled', false);
+                            Swal.fire({
+                                icon: 'error',
+                                title: 'No se pudo enviar',
+                                text: response.message || 'No fue posible enviar la citaci?n a Guardia.'
+                            });
+                            return;
+                        }
+                        Swal.fire({
+                            icon: 'success',
+                            title: 'Enviado a Guardia',
+                            text: response.message || 'Citaci?n enviada a Guardia.'
+                        }).then(function () {
+                            location.reload();
+                        });
+                    },
+                    error: function (xhr) {
+                        $('#btn_enviar_estanque').prop('disabled', false);
+                        const message = xhr.responseJSON && xhr.responseJSON.message
+                            ? xhr.responseJSON.message
+                            : 'No fue posible enviar la citaci?n a Guardia.';
+                        Swal.fire({ icon: 'error', title: 'No se pudo enviar', text: message });
+                    }
+                });
+            });
+            return;
+        }
+
         Swal.fire({
             icon: 'question',
             title: 'Enviar siguiente etapa',
@@ -7755,5 +7982,3 @@ function inicializarConductoresIngresoCamion(limpiarActual) {
 </script>
 {% endblock javascripts %}
  
-
-

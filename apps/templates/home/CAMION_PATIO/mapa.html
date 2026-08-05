@@ -183,7 +183,7 @@
                                 <div class="patio-truck-plate">{{ camion.CPA_CPATENTE }}</div>
                                 <div>{{ camion.CPA_CNOMBRE_CONDUCTOR }}</div>
                                 <div class="patio-muted">{{ camion.CPA_CESTADO }}</div>
-                                {% if camion.CI_NID_id %}<span class="badge badge-success">#{{ camion.CI_NID_id }}</span>{% endif %}
+                                {% if camion.CI_NID_id %}<span class="badge badge-success">#{{ camion.CI_NID_id }}</span>{% endif %}                                {% if puede_retirar_camion_patio %}<button type="button" class="btn btn-sm btn-outline-danger mt-1 btn-retirar-patio" data-camion-id="{{ camion.id }}" data-patente="{{ camion.CPA_CPATENTE }}" data-conductor="{{ camion.CPA_CNOMBRE_CONDUCTOR }}" data-citacion="{{ camion.CI_NID_id|default:'' }}" data-llegada="{{ camion.CPA_FFECHALLEGADA|date:'d/m/Y H:i' }}"><i class="fas fa-sign-out-alt"></i> Retirar</button>{% endif %}
                             </div>
                         {% empty %}
                             <div class="alert alert-info">No hay camiones visibles en patio.</div>

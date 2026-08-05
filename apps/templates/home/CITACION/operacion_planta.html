@@ -2593,20 +2593,23 @@
                     <div class="card-body">
                         <ul class="nav nav-pills mb-3" id="operacion-tabs" role="tablist">
                             {% for paso in pasos %}
+                            {% if not paso.oculto_visual %}
                             <li class="nav-item">
-                                <a class="nav-link op-etapa-btn {% if paso.activo %}active{% elif paso.estado == 'COMPLETADO' %}etapa-completada{% else %}etapa-pendiente{% endif %}" id="tab-{{ forloop.counter }}" data-toggle="pill" href="#paso-{{ forloop.counter }}" role="tab" data-etapa-codigo="{{ paso.etapa_codigo }}" data-etapa-nombre="{{ paso.nombre }}">
+                                <a class="nav-link op-etapa-btn {% if paso.seleccionado %}active{% elif paso.estado == 'COMPLETADO' %}etapa-completada{% else %}etapa-pendiente{% endif %}" id="tab-{{ forloop.counter }}" data-toggle="pill" href="#paso-{{ forloop.counter }}" role="tab" data-etapa-codigo="{{ paso.etapa_codigo }}" data-etapa-nombre="{{ paso.nombre }}">
                                     <span class="op-etapa-indicador" aria-hidden="true"></span>
                                     <span class="op-etapa-contenido">
                                         <span class="op-etapa-nombre">{{ paso.nombre_visible|default:paso.nombre }}</span>
                                     </span>
                                 </a>
                             </li>
+                            {% endif %}
                             {% endfor %}
                         </ul>
 
                         <div class="tab-content">
                             {% for paso in pasos %}
-                            <div class="tab-pane fade {% if paso.activo %}show active{% endif %}" id="paso-{{ forloop.counter }}" role="tabpanel" data-etapa-codigo="{{ paso.etapa_codigo }}" data-etapa-nombre="{{ paso.nombre }}">
+                            {% if not paso.oculto_visual %}
+                            <div class="tab-pane fade {% if paso.seleccionado %}show active{% endif %}" id="paso-{{ forloop.counter }}" role="tabpanel" data-etapa-codigo="{{ paso.etapa_codigo }}" data-etapa-nombre="{{ paso.nombre }}">
                                 <div class="border rounded p-3">
                                     <div class="d-flex flex-wrap justify-content-between align-items-center mb-2">
                                         <div>
@@ -2859,7 +2862,7 @@
                                     <div class="op-lab-panel operacion-calidad-box" data-paso="{{ paso.nombre }}">
                                         <div class="op-quality-overview">
                                             <div class="op-lab-title"><i class="fas fa-flask"></i> Analisis y Calidad</div>
-                                            <div class="op-lab-subtitle">Proceso interno automatico de TERRAVIEW</div>
+                                            <div class="op-lab-subtitle">{% if paso.calidad_paralela %}Proceso paralelo al avance operacional del camion{% else %}Proceso interno automatico de TERRAVIEW{% endif %}</div>
                                             <div class="op-result-dashboard-grid mt-3">
                                                 <div class="op-dashboard-card"><div class="op-dashboard-card-title">Citacion</div><strong>#{{ citacion.id }}</strong></div>
                                                 <div class="op-dashboard-card"><div class="op-dashboard-card-title">Numero de guia</div><strong>{{ numero_guia_operacion|default:'Sin registrar' }}</strong></div>
@@ -2875,7 +2878,7 @@
                                             {% elif paso.resultado_calidad.estado == 'APRUEBA_CLIENTE' %}
                                                 <div class="alert alert-warning mt-3 mb-0"><i class="fas fa-user-clock mr-2"></i>En espera de aprobaci&oacute;n del cliente</div>
                                             {% elif paso.resultado_calidad.estado == 'APROBADO' %}
-                                                <div class="alert alert-success mt-3 mb-0"><i class="fas fa-check-circle mr-2"></i>Etapa cerrada autom&aacute;ticamente y avance a Resultado Calidad</div>
+                                                <div class="alert alert-success mt-3 mb-0"><i class="fas fa-check-circle mr-2"></i>{% if paso.calidad_paralela %}Calidad completada; el avance operacional permanece independiente{% else %}Etapa cerrada autom&aacute;ticamente y avance a Resultado Calidad{% endif %}</div>
                                             {% endif %}
                                         </div>
                                         <div class="op-lab-result-card op-quality-clock-panel">
@@ -3156,7 +3159,7 @@
                                                     SALIDA A BODEGA EXTERNA
                                                 </div>
                                                 <div class="op-cycle-subtitle">
-                                                    Responsable inicio: Sala_Control | Responsable cierre: Guardia Porteria
+                                                    Responsable inicio: Asistente_C_D | Responsable cierre: Guardia Porteria
                                                 </div>
                                             </div>
                                             <span class="op-cycle-state-badge {{ paso.ciclo_bodega_externa.estado_badge }}">
@@ -3228,7 +3231,7 @@
                                             </div>
                                         {% endif %}
 
-                                        {% if paso.activo and not paso.ciclo_bodega_externa.finalizada %}
+                                        {% if paso.puede_operar_ciclo_bodega_externa and not paso.ciclo_bodega_externa.finalizada %}
                                             <div class="op-discharge-actions mt-3">
                                                 {% if not paso.ciclo_bodega_externa.iniciada and paso.puede_iniciar_ciclo_bodega_externa %}
                                                     <button type="button" class="op-glass-button is-success btn-iniciar-ciclo-bodega-externa" data-paso="{{ paso.nombre }}">
@@ -3249,7 +3252,7 @@
                                                 {% elif paso.ciclo_bodega_externa.en_proceso %}
                                                     <div class="alert alert-light border mb-0">Ciclo externo en curso. Guardia Porteria debe registrar el regreso del camion.</div>
                                                 {% else %}
-                                                    <div class="alert alert-light border mb-0">Solo Sala Control puede autorizar la salida a Bodega Externa.</div>
+                                                    <div class="alert alert-light border mb-0">Solo Asistente_C_D puede autorizar la salida a Bodega Externa.</div>
                                                 {% endif %}
                                             </div>
                                         {% endif %}
@@ -4272,6 +4275,7 @@
                                     {% endif %}
                                 </div>
                             </div>
+                            {% endif %}
                             {% endfor %}
                         </div>
                     </div>

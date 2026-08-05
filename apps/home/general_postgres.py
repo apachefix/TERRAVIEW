@@ -1080,35 +1080,67 @@ def get_list_citaciones_proforma(proveedor, fecha_desde, fecha_hasta, tipo_citac
                         "CITACION"."PL_NID_id" AS "PLANIFICACION",
                         TO_CHAR("CITACION"."CI_FFECHACITACION", 'DD/MM/YYYY HH24:MI') "fecha_citacion",
                         COALESCE(sc."SE_CCODIGO" || ' - ' || sc."SE_CNOMBRE", '') "secuencia",
-                        COALESCE(cl."SN_CRAZONSOCIAL", '') "cliente",
-                        COALESCE(con."CON_CNOMBRE" || ' ' || con."CON_CAPELLIDO" , '') "conductor",
-                        COALESCE(cam."CAM_CPATENTE", '') "camion",
-                        COALESCE(pro."SN_CRAZONSOCIAL", '') "proveedor",
+                        COALESCE(cl."SN_CRAZONSOCIAL", cliente_etapa_0."cliente_snapshot", '') "cliente",
+                        COALESCE(cp."conductor", '') "conductor",
+                        COALESCE(cp."patente", '') "patente",
+                        COALESCE(cp."transportista", '') "transportista",
                         COALESCE(tg."TAR_CNOMBRETARIFA", '') "nombre_tarifa",
                         COALESCE("CITACION"."CI_NVALORTARIFA", 0) "tarifa",
                         COALESCE(tg."TAR_CDIVISA", '') "divisa",
-                        COALESCE(SUM(cie."CIE_NVALOR"), 0) "extras_ingreso",
-                        COALESCE(SUM(cie2."CIE_NVALOR"), 0) "extras_descuento",
+                        COALESCE(extras."extras_ingreso", 0) "extras_ingreso",
+                        COALESCE(extras."extras_descuento", 0) "extras_descuento",
                         COALESCE("CITACION"."CI_CTIPODOCUMENTO", '') "tipo_documento",
                         CASE "CITACION"."CI_CTIPO"
                             WHEN 'DESPACHO' THEN "DATO_OPERACION"."DO_CVALOR"
                             ELSE "CITACION"."CI_CNUMERODOCUMENTO"
-                        END AS "numero_documento"
+                        END AS "numero_documento",
+                        "CITACION"."SN_NID_id" AS "cliente_id",
+                        "CITACION"."EP_NID_id" AS "empresa_id",
+                        "CITACION"."CI_CTIPO" AS "tipo_citacion",
+                        "CITACION"."CI_FFECHACITACION" AS "fecha_citacion_orden",
+                        COALESCE(emp."EP_CRAZONSOCIAL", '') AS "empresa_nombre",
+                        "CITACION"."PRO_NID_id" AS "proveedor_id"
                     FROM "CITACION"
                     LEFT JOIN "SOCIONEGOCIO" AS cl ON "CITACION"."SN_NID_id" = cl."id"
+                    LEFT JOIN "EMPRESA" AS emp ON "CITACION"."EP_NID_id" = emp."id"
                     LEFT JOIN "RUTA" AS r ON "CITACION"."RUT_NID_id" = r."id"
-                    LEFT JOIN "CONDUCTOR" AS con ON "CITACION"."CON_NID_id" = con."id"
-                    LEFT JOIN "CAMION" AS cam ON "CITACION"."CA_NID_id" = cam."id"
+                    LEFT JOIN (
+                        SELECT
+                            dato."CI_NID_id",
+                            dato."EP_NID_id",
+                            MAX(NULLIF(TRIM(dato."DO_CVALOR"), '')) AS "cliente_snapshot"
+                        FROM "DATO_OPERACION" AS dato
+                        INNER JOIN "CAMPO" AS campo
+                            ON campo."id" = dato."CAMP_NID_id"
+                        WHERE campo."CA_CCODIGO" = 'ING_CLIENTE_DECLARADO'
+                        GROUP BY dato."CI_NID_id", dato."EP_NID_id"
+                    ) AS cliente_etapa_0
+                        ON cliente_etapa_0."CI_NID_id" = "CITACION"."id"
+                        AND cliente_etapa_0."EP_NID_id" = "CITACION"."EP_NID_id"
                     LEFT JOIN "SECUENCIA" AS sc ON "CITACION"."SC_NID_id" = sc."id"
-                    LEFT JOIN "CITACION_EXTRA" AS cie ON "CITACION"."id" = cie."CI_NID_id" and cie."CIE_BINGRESO" = True
-                    LEFT JOIN "CITACION_EXTRA" AS cie2 ON "CITACION"."id" = cie2."CI_NID_id" and cie2."CIE_BINGRESO" = False
+                    LEFT JOIN (
+                        SELECT
+                            cie."CI_NID_id",
+                            SUM(CASE WHEN cie."CIE_BINGRESO" THEN cie."CIE_NVALOR" ELSE 0 END) AS "extras_ingreso",
+                            SUM(CASE WHEN NOT cie."CIE_BINGRESO" THEN cie."CIE_NVALOR" ELSE 0 END) AS "extras_descuento"
+                        FROM "CITACION_EXTRA" AS cie
+                        WHERE NOT EXISTS (
+                            SELECT 1
+                            FROM "EXTRA_PROFORMA" AS epr
+                            WHERE epr."CIE_NID_id" = cie."id"
+                        )
+                        GROUP BY cie."CI_NID_id"
+                    ) AS extras ON extras."CI_NID_id" = "CITACION"."id"
                     LEFT JOIN "SOCIONEGOCIO" AS pro ON "CITACION"."PRO_NID_id" = pro."id"
                     LEFT JOIN "TARIFA_GLOBAL" AS tg ON "CITACION"."TAR_NID_id" = tg."id"
                     LEFT JOIN "DATO_OPERACION" ON "CITACION"."id" = "DATO_OPERACION"."CI_NID_id" AND "DATO_OPERACION"."CAMP_NID_id" = 38
                     INNER JOIN (
                         SELECT
                             "CI_NID_id",
-                            MIN("EP_NID_id") AS "EP_NID_id"
+                            MIN("EP_NID_id") AS "EP_NID_id",
+                            MAX("CPA_CNOMBRE_CONDUCTOR") AS "conductor",
+                            MAX("CPA_CPATENTE") AS "patente",
+                            MAX(TRIM("CPA_CTRANSPORTISTA_DECLARADO")) AS "transportista"
                         FROM "CAMION_PATIO"
                         WHERE "CPA_CESTADO" = 'ASOCIADO_CITACION'
                         GROUP BY "CI_NID_id"
@@ -1153,16 +1185,19 @@ def get_list_citaciones_proforma(proveedor, fecha_desde, fecha_hasta, tipo_citac
                         sc."SE_CCODIGO",
                         sc."SE_CNOMBRE",
                         cl."SN_CRAZONSOCIAL",
-                        con."CON_CNOMBRE",
-                        con."CON_CAPELLIDO",
-                        cam."CAM_CPATENTE",
-                        pro."SN_CRAZONSOCIAL",
+                        cliente_etapa_0."cliente_snapshot",
+                        cp."conductor",
+                        cp."patente",
+                        cp."transportista",
                         tg."TAR_CNOMBRETARIFA",
                         "CITACION"."CI_NVALORTARIFA",
                         tg."TAR_CDIVISA",
                         "CITACION"."CI_CTIPODOCUMENTO",
                         "DATO_OPERACION"."DO_CVALOR",
-                        "CITACION"."CI_CNUMERODOCUMENTO"
+                        "CITACION"."CI_CNUMERODOCUMENTO",
+                        extras."extras_ingreso",
+                        extras."extras_descuento",
+                        emp."EP_CRAZONSOCIAL"
                     ORDER BY "CITACION"."id" DESC
                     '''
             
@@ -1194,6 +1229,158 @@ def get_list_citaciones_proforma(proveedor, fecha_desde, fecha_hasta, tipo_citac
         import traceback
         traceback.print_exc()
         return None
+
+def get_list_citaciones_terminadas_proforma(
+    fecha_desde,
+    fecha_hasta,
+    tipo_citacion,
+    empresa,
+    transportista=None,
+):
+    """Lista citaciones elegibles que todavía no han iniciado proforma."""
+    try:
+        with connection.cursor() as cursor:
+            query = '''
+                SELECT
+                    c."id" AS "numero_citacion",
+                    TO_CHAR(c."CI_FFECHACITACION", 'DD/MM/YYYY HH24:MI') AS "fecha_citacion",
+                    c."CI_CTIPO" AS "tipo_citacion",
+                    COALESCE(
+                        cp."numero_guia",
+                        CASE
+                            WHEN c."CI_CTIPO" = 'DESPACHO' THEN dop."DO_CVALOR"
+                            ELSE c."CI_CNUMERODOCUMENTO"
+                        END,
+                        ''
+                    ) AS "guia",
+                    COALESCE(cp."patente", '') AS "patente",
+                    empresa."EP_CRAZONSOCIAL" AS "empresa",
+                    cp."transportista" AS "transportista",
+                    cp."transportista_normalizado" AS "transportista_normalizado"
+                FROM "CITACION" AS c
+                INNER JOIN "EMPRESA" AS empresa
+                    ON empresa."id" = c."EP_NID_id"
+                LEFT JOIN "DATO_OPERACION" AS dop
+                    ON dop."CI_NID_id" = c."id"
+                    AND dop."CAMP_NID_id" = 38
+                INNER JOIN (
+                    SELECT
+                        "CI_NID_id",
+                        MIN("EP_NID_id") AS "EP_NID_id",
+                        MAX("CPA_CPATENTE") AS "patente",
+                        MAX("CPA_CNUMERO_GUIA") AS "numero_guia",
+                        MAX(TRIM("CPA_CTRANSPORTISTA_DECLARADO")) AS "transportista",
+                        MAX(
+                            UPPER(TRIM(COALESCE("CPA_CTRANSPORTISTA_DECLARADO", '')))
+                        ) AS "transportista_normalizado"
+                    FROM "CAMION_PATIO"
+                    WHERE "CPA_CESTADO" = 'ASOCIADO_CITACION'
+                    GROUP BY "CI_NID_id"
+                    HAVING
+                        COUNT(*) = 1
+                        AND MAX(
+                            UPPER(TRIM(COALESCE("transporte_a_cargo", '')))
+                        ) = 'TERRAMAR'
+                        AND MAX(TRIM(COALESCE("CPA_CTRANSPORTISTA_DECLARADO", ''))) <> ''
+                        AND MAX(
+                            UPPER(TRIM(COALESCE("CPA_CTRANSPORTISTA_DECLARADO", '')))
+                        ) <> 'CLIENTE'
+                ) AS cp
+                    ON cp."CI_NID_id" = c."id"
+                    AND cp."EP_NID_id" = c."EP_NID_id"
+                WHERE
+                    c."CI_CESTADO" = 'TERMINADO'
+                    AND c."CI_BHABILITADO" = TRUE
+                    AND c."CI_BCONFORME" = FALSE
+                    AND NOT EXISTS (
+                        SELECT 1
+                        FROM "CITACION_PROFORMA" AS cip
+                        WHERE cip."CI_NID_id" = c."id"
+                    )
+            '''
+            params = []
+
+            if fecha_desde and fecha_desde != 'None':
+                query += ' AND c."CI_FFECHAREGISTRO"::date >= %s'
+                params.append(fecha_desde)
+
+            if fecha_hasta and fecha_hasta != 'None':
+                query += ' AND c."CI_FFECHAREGISTRO"::date <= %s'
+                params.append(fecha_hasta)
+
+            if tipo_citacion and tipo_citacion != 'None':
+                query += ' AND c."CI_CTIPO" = %s'
+                params.append(tipo_citacion)
+
+            if empresa and empresa != 'None':
+                query += ' AND c."EP_NID_id" = %s'
+                params.append(int(empresa))
+
+            if transportista and transportista != 'None':
+                query += ' AND cp."transportista_normalizado" = %s'
+                params.append(str(transportista).strip().upper())
+
+            query += ' ORDER BY c."id" DESC'
+            cursor.execute(query, params)
+            return cursor.fetchall()
+    except Exception as e:
+        print(f"Error listando citaciones terminadas para proforma: {e}")
+        return None
+
+
+def get_transportistas_citaciones_terminadas_proforma(empresa):
+    """Catálogo de transportistas con al menos una citación pendiente elegible."""
+    try:
+        with connection.cursor() as cursor:
+            query = '''
+                SELECT DISTINCT ON (cp."transportista_normalizado")
+                    cp."transportista_normalizado",
+                    cp."transportista"
+                FROM "CITACION" AS c
+                INNER JOIN (
+                    SELECT
+                        "CI_NID_id",
+                        MIN("EP_NID_id") AS "EP_NID_id",
+                        MAX(TRIM("CPA_CTRANSPORTISTA_DECLARADO")) AS "transportista",
+                        MAX(
+                            UPPER(TRIM(COALESCE("CPA_CTRANSPORTISTA_DECLARADO", '')))
+                        ) AS "transportista_normalizado"
+                    FROM "CAMION_PATIO"
+                    WHERE "CPA_CESTADO" = 'ASOCIADO_CITACION'
+                    GROUP BY "CI_NID_id"
+                    HAVING
+                        COUNT(*) = 1
+                        AND MAX(
+                            UPPER(TRIM(COALESCE("transporte_a_cargo", '')))
+                        ) = 'TERRAMAR'
+                        AND MAX(TRIM(COALESCE("CPA_CTRANSPORTISTA_DECLARADO", ''))) <> ''
+                        AND MAX(
+                            UPPER(TRIM(COALESCE("CPA_CTRANSPORTISTA_DECLARADO", '')))
+                        ) <> 'CLIENTE'
+                ) AS cp
+                    ON cp."CI_NID_id" = c."id"
+                    AND cp."EP_NID_id" = c."EP_NID_id"
+                WHERE
+                    c."CI_CESTADO" = 'TERMINADO'
+                    AND c."CI_BHABILITADO" = TRUE
+                    AND c."CI_BCONFORME" = FALSE
+                    AND c."EP_NID_id" = %s
+                    AND NOT EXISTS (
+                        SELECT 1
+                        FROM "CITACION_PROFORMA" AS cip
+                        WHERE cip."CI_NID_id" = c."id"
+                    )
+                ORDER BY
+                    cp."transportista_normalizado",
+                    c."CI_FFECHACITACION" DESC,
+                    c."id" DESC
+            '''
+            cursor.execute(query, [int(empresa)])
+            return cursor.fetchall()
+    except Exception as e:
+        print(f"Error listando transportistas para proforma: {e}")
+        return None
+
 
 def get_list_citaciones_xproveedor(id_proveedor, empresa):
     try:
