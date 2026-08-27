@@ -5,6 +5,8 @@ Copyright (c) 2019 - present AppSeed.us
 
 from django.urls import path, re_path
 from apps.home import views
+from apps.home import tarifa_global_views
+from apps.home import tarifa_ajuste_views
 from apps.home.api_calidad import resultado_calidad_integracion_api
 from django.contrib.auth.views import login_required
 from django.conf import settings
@@ -37,6 +39,7 @@ urlpatterns = [
     #########################################
     path('api/sap/producto/', login_required(views.API_SAP_PRODUCTO), name='api_sap_producto'),
     path('api/sap/productos/', login_required(views.API_SAP_PRODUCTOS), name='api_sap_productos'),
+    path('api/sap/recepcion-transferencia/estanque/', login_required(views.API_SAP_RECEPCION_TRANSFERENCIA_ESTANQUE), name='api_sap_recepcion_transferencia_estanque'),
     path('api/sap/clientes/', login_required(views.API_SAP_CLIENTES), name='api_sap_clientes'),
     path('api/sap/proveedores/', login_required(views.API_SAP_PROVEEDORES), name='api_sap_proveedores'),
     path('api/sap/pedido/', login_required(views.API_SAP_PEDIDO), name='api_sap_pedido'),
@@ -91,6 +94,7 @@ urlpatterns = [
     path('pla-citacion-estanque-avanzar/<int:pk>/', login_required(views.AVANZAR_ESTANQUE_SIGUIENTE_ETAPA), name='pla_citacion_estanque_avanzar'),
     path('ajax-rutas-transportista-revision/', login_required(views.AJAX_RUTAS_TRANSPORTISTA_REVISION), name='ajax_rutas_transportista_revision'),
     path('ajax-rutas-transportista-planificacion/', login_required(views.AJAX_RUTAS_TRANSPORTISTA_PLANIFICACION), name='ajax_rutas_transportista_planificacion'),
+    path('ajax-rutas-transportista-despacho-terramar/', login_required(views.AJAX_RUTAS_TRANSPORTISTA_DESPACHO_TERRAMAR), name='ajax_rutas_transportista_despacho_terramar'),
         #########################################
     ########         EMPRESA     NUEVO    ########
     #########################################
@@ -107,10 +111,17 @@ urlpatterns = [
     path('con_listall/', login_required(views.CONDUCTOR_LISTALL), name='con_listall'),
     path('con_listall_inhabilitado/', login_required(views.CONDUCTOR_LISTALL_INHABILITADO), name='con_listall_inhabilitado'),
     path('con_addone/', login_required(views.CONDUCTOR_ADDONE), name='con_addone'),
+    path('api/conductor/validar-rut/', login_required(views.CONDUCTOR_VALIDAR_RUT), name='conductor_validar_rut'),
     path('con_update/<int:pk>', login_required(views.CONDUCTOR_UPDATE), name='con_update'),
+    path('conductor/<int:pk>/licencia/deshabilitar/', login_required(views.CONDUCTOR_LICENCIA_DESHABILITAR), name='conductor_licencia_deshabilitar'),
     path('con_delete/<int:pk>', login_required(views.CONDUCTOR_DELETE), name='con_delete'),
     path('con_listone/<int:pk>', login_required(views.CONDUCTOR_LISTONE), name='con_listone'),
     path('con_habilitar/<int:pk>', login_required(views.CONDUCTOR_HABILITAR), name='con_habilitar'),
+    path('control-flota/transportes/<int:pk>/conductores/alta-rapida/', login_required(views.CONDUCTOR_ALTA_RAPIDA_TRANSPORTE), name='conductor_alta_rapida_transporte'),
+    path('control-flota/conductores/<int:pk>/patentes-documentos/', login_required(views.CONDUCTOR_PATENTES_DOCUMENTOS), name='conductor_patentes_documentos'),
+    path('control-flota/camiones/buscar/', login_required(views.CAMION_BUSCAR_DOCUMENTOS_TERRAMAR), name='camion_buscar_documentos_terramar'),
+    path('control-flota/camiones/<int:pk>/documentos/', login_required(views.CAMION_ESTADO_DOCUMENTAL_TERRAMAR), name='camion_estado_documental_terramar'),
+    path('control-flota/alertas-documentales/', login_required(views.REGISTRAR_ALERTA_DOCUMENTAL_TERRAMAR), name='registrar_alerta_documental_terramar'),
     #########################################
     ########    DOCUMENTO CONDUCTOR    ######
     #########################################
@@ -248,13 +259,23 @@ urlpatterns = [
     #########################################
     ########       TARIFA GLOBAL     ########
     #########################################
-    path('tg_listall/', login_required(views.TARIFA_GLOBAL_LISTALL), name='tg_listall'),
-    path('tg_listall_inhabilitado/', login_required(views.TARIFA_GLOBAL_LISTALL_INHABILITADO), name='tg_listall_inhabilitado'),
-    path('tg_addone/', login_required(views.TARIFA_GLOBAL_ADDONE), name='tg_addone'),
-    path('tg_update/<int:pk>', login_required(views.TARIFA_GLOBAL_UPDATE), name='tg_update'),
-    path('tg_delete/<int:pk>', login_required(views.TARIFA_GLOBAL_DELETE), name='tg_delete'),
-    path('tg_habilitar/<int:pk>', login_required(views.TARIFA_GLOBAL_HABILITAR), name='tg_habilitar'),
-    path('ajax_get_data_tarifa/<int:pk>', views.ajax_get_data_tarifa, name='ajax_get_data_tarifa'),
+    path('tg_listall/', login_required(tarifa_global_views.listar), name='tg_listall'),
+    path('tg_listall_inhabilitado/', login_required(tarifa_global_views.listar_inhabilitadas), name='tg_listall_inhabilitado'),
+    path('tg_addone/', login_required(tarifa_global_views.crear), name='tg_addone'),
+    path('tg_update/<int:pk>', login_required(tarifa_global_views.editar), name='tg_update'),
+    path('tg_delete/<int:pk>', login_required(tarifa_global_views.deshabilitar), name='tg_delete'),
+    path('tg_habilitar/<int:pk>', login_required(tarifa_global_views.habilitar), name='tg_habilitar'),
+    path('tg_listone/<int:pk>', login_required(tarifa_global_views.consultar), name='tg_listone'),
+    path('tg_consultar_ict/', login_required(tarifa_global_views.consultar_ict), name='tg_consultar_ict'),
+    path('tg_variacion/crear/', login_required(tarifa_ajuste_views.crear_concepto), name='tg_variacion_crear'),
+    path('tg_variacion/<int:pk>/estado/', login_required(tarifa_ajuste_views.cambiar_estado_concepto), name='tg_variacion_estado'),
+    path('tg_variacion/<int:pk>/preview/', login_required(tarifa_ajuste_views.preview_variacion), name='tg_variacion_preview'),
+    path('tg_variacion/<int:pk>/aplicar/', login_required(tarifa_ajuste_views.aplicar_variacion), name='tg_variacion_aplicar'),
+    path('tg_variacion/<int:pk>/historico/', login_required(tarifa_ajuste_views.historico_concepto), name='tg_variacion_historico'),
+    path('tg_ict/preview/', login_required(tarifa_ajuste_views.preview_ict), name='tg_ict_preview'),
+    path('tg_ict/aplicar/', login_required(tarifa_ajuste_views.aplicar_ict), name='tg_ict_aplicar'),
+    path('tg_ajuste/reversar/', login_required(tarifa_ajuste_views.reversar_ajuste), name='tg_reversar_ajuste'),
+    path('ajax_get_data_tarifa/<int:pk>', login_required(tarifa_global_views.datos_ajax), name='ajax_get_data_tarifa'),
     path('tg_addmasive/', login_required(views.TARIFA_GLOBAL_ADDMASIVE), name="tg_addmasive"),
     path('tg_download_platilla', login_required(views.TARIFA_GLOBAL_DOWNLOAD_PLANTILLA), name="tg_download_platilla"),
     #########################################
@@ -276,6 +297,7 @@ urlpatterns = [
     ########     PLANIFICACION       ########
     #########################################
     path('pla_listall/', login_required(views.PLANIFICACION_LISTALL), name='pla_listall'),
+    path('planificaciones/recepcion/transferencia/', login_required(views.PLANIFICACION_RECEPCION_TRANSFERENCIA), name='planificacion_recepcion_transferencia'),
     path('pla_listone/<int:pk>', login_required(views.PLANIFICACION_LISTONE), name='pla_listone'),
     path('pla_addone/', login_required(views.PLANIFICACION_ADDONE), name='pla_addone'),
     path('pla_filedone/<int:pk>', login_required(views.PLANIFICACION_FILEDONE), name="pla_filedone"),
@@ -313,6 +335,14 @@ urlpatterns = [
     path('cit_listone/<int:pk>', login_required(views.CITACION_LISTONE), name='cit_listone'),
     path('operacion-planta/<int:pk>/', login_required(views.OPERACION_PLANTA_CITACION), name='operacion_planta_citacion'),
     path('operacion-planta/<int:pk>/guardar-paso/', login_required(views.OPERACION_PLANTA_GUARDAR_PASO), name='operacion_planta_guardar_paso'),
+    path('operacion-planta/<int:pk>/despacho-terramar/ciclo-carga/documento/', login_required(views.ajax_operacion_planta_ciclo_carga_terramar_documento), name='ajax_operacion_planta_ciclo_carga_terramar_documento'),
+    path('operacion-planta/<int:pk>/despacho-terramar/ciclo-carga/documento/<str:codigo>/', login_required(views.ajax_operacion_planta_ciclo_carga_terramar_documento_ver), name='ajax_operacion_planta_ciclo_carga_terramar_documento_ver'),
+    path('operacion-planta/<int:pk>/despacho-terramar/ciclo-carga/completar/', login_required(views.ajax_operacion_planta_ciclo_carga_terramar_completar), name='ajax_operacion_planta_ciclo_carga_terramar_completar'),
+    path('operacion-planta/<int:pk>/despacho-terramar/documentacion/encarpe/', login_required(views.ajax_operacion_planta_documentacion_despacho_terramar_encarpe), name='ajax_operacion_planta_documentacion_despacho_terramar_encarpe'),
+    path('operacion-planta/<int:pk>/despacho-terramar/documentacion/guia/', login_required(views.ajax_operacion_planta_documentacion_despacho_terramar_guia), name='ajax_operacion_planta_documentacion_despacho_terramar_guia'),
+    path('operacion-planta/<int:pk>/despacho-terramar/documentacion/guia/ver/', login_required(views.ajax_operacion_planta_documentacion_despacho_terramar_guia_ver), name='ajax_operacion_planta_documentacion_despacho_terramar_guia_ver'),
+    path('operacion-planta/<int:pk>/despacho-terramar/documentacion/completar/', login_required(views.ajax_operacion_planta_documentacion_despacho_terramar_completar), name='ajax_operacion_planta_documentacion_despacho_terramar_completar'),
+    path('operacion-planta/<int:pk>/despacho-terramar/autorizar-salida/', login_required(views.ajax_operacion_planta_autorizar_salida_despacho_terramar), name='ajax_operacion_planta_autorizar_salida_despacho_terramar'),
     path('operacion-planta/<int:pk>/registrar-accion-toma-muestra/', login_required(views.ajax_operacion_planta_registrar_accion_toma_muestra), name='ajax_operacion_planta_registrar_accion_toma_muestra'),
     path('operacion-planta/<int:pk>/enviar-vapor/', login_required(views.ajax_operacion_planta_enviar_vapor), name='ajax_operacion_planta_enviar_vapor'),
     path('operacion-planta/<int:pk>/finalizar-vapor/', login_required(views.ajax_operacion_planta_finalizar_vapor), name='ajax_operacion_planta_finalizar_vapor'),
@@ -328,8 +358,13 @@ urlpatterns = [
     path('operacion-planta/<int:pk>/borrador-sap-preview/', login_required(views.ajax_operacion_planta_borrador_sap_preview), name='ajax_operacion_planta_borrador_sap_preview'),
     path('operacion-planta/<int:pk>/borrador-sap-enviar/', login_required(views.ajax_operacion_planta_borrador_sap_enviar), name='ajax_operacion_planta_borrador_sap_enviar'),
     path('operacion-planta/<int:pk>/sap-despacho-actualizar/', login_required(views.ajax_operacion_planta_actualizar_sap_despacho), name='ajax_operacion_planta_actualizar_sap_despacho'),
+    path('operacion-planta/<int:pk>/despacho-sbh/reabrir-cierre-carga/', login_required(views.ajax_operacion_planta_reabrir_cierre_carga_despacho_sbh), name='ajax_operacion_planta_reabrir_cierre_carga_despacho_sbh'),
     path('operacion-planta/<int:pk>/sap-recepcion-actualizar/', login_required(views.ajax_operacion_planta_actualizar_sap_recepcion), name='ajax_operacion_planta_actualizar_sap_recepcion'),
     path('operacion-planta/<int:pk>/autorizar-salida/', login_required(views.ajax_operacion_planta_autorizar_salida), name='ajax_operacion_planta_autorizar_salida'),
+    path('operacion-planta/<int:pk>/terramar/validar-documentacion/', login_required(views.ajax_operacion_planta_validar_documentacion_terramar), name='ajax_operacion_planta_validar_documentacion_terramar'),
+    path('operacion-planta/<int:pk>/terramar/timbrar-documentos/', login_required(views.ajax_operacion_planta_timbrar_documentos_terramar), name='ajax_operacion_planta_timbrar_documentos_terramar'),
+    path('operacion-planta/<int:pk>/terramar/exportar-documentos/', login_required(views.ajax_operacion_planta_exportar_documentos_terramar), name='ajax_operacion_planta_exportar_documentos_terramar'),
+    path('operacion-planta/<int:pk>/terramar/documento/<str:documento_key>/', login_required(views.ajax_operacion_planta_documento_terramar), name='ajax_operacion_planta_documento_terramar'),
     path('ajax/operacion-planta/ticket-pesaje/', login_required(views.ajax_operacion_planta_obtener_ticket_pesaje), name='ajax_operacion_planta_obtener_ticket_pesaje'),
     path('ajax/operacion-planta/ticket-pesaje/descargar/', login_required(views.ajax_operacion_planta_descargar_ticket_pesaje), name='ajax_operacion_planta_descargar_ticket_pesaje'),
     path('ajax/operacion-planta/documento-calidad/descargar/', login_required(views.ajax_operacion_planta_descargar_documento_calidad), name='ajax_operacion_planta_descargar_documento_calidad'),
@@ -389,9 +424,19 @@ urlpatterns = [
     path('proforma_listall', login_required(views.PROFORMA_LISTALL), name='proforma_listall'),
     path('proforma_listall_borrador', login_required(views.BORRADOR_PROFORMA_LISTALL), name='proforma_listall_borrador'),
     path('proforma_listone/<int:pk>', login_required(views.PROFORMA_LISTONE), name='proforma_listone'),
+    path('proformas/terramar/<int:pk>/', views.PROFORMA_TERRAMAR_DETALLE, name='proforma_terramar_detalle'),
+    path('proformas/terramar/citaciones/<int:citacion_id>/detalle/', views.PROFORMA_TERRAMAR_CITACION_OPERACIONAL, name='proforma_terramar_citacion_operacional'),
+    path('proformas/terramar/<int:pk>/citaciones/<int:citacion_id>/', views.PROFORMA_TERRAMAR_CITACION_DETALLE, name='proforma_terramar_citacion_detalle'),
+    path('proformas/terramar/<int:pk>/borrador.pdf', views.PROFORMA_TERRAMAR_BORRADOR_PDF, name='proforma_terramar_borrador_pdf'),
+    path('proformas/terramar/<int:pk>/aprobar/', views.PROFORMA_TERRAMAR_APROBAR_BORRADOR, name='proforma_terramar_aprobar_borrador'),
+    path('proformas/terramar/<int:pk>/borrar-carpeta/', views.PROFORMA_TERRAMAR_BORRAR_CARPETA, name='proforma_terramar_borrar_carpeta'),
+    path('proformas/terramar/<int:pk>/citaciones/<int:citacion_id>/extras/agregar/', views.PROFORMA_TERRAMAR_EXTRA_AGREGAR, name='proforma_terramar_extra_agregar'),
+    path('proformas/terramar/<int:pk>/citaciones/<int:citacion_id>/extras/<int:extra_id>/editar/', views.PROFORMA_TERRAMAR_EXTRA_EDITAR, name='proforma_terramar_extra_editar'),
+    path('proformas/terramar/<int:pk>/citaciones/<int:citacion_id>/extras/<int:extra_id>/eliminar/', views.PROFORMA_TERRAMAR_EXTRA_ELIMINAR, name='proforma_terramar_extra_eliminar'),
     path('proforma_listone_extras/<int:pk>', login_required(views.PROFORMA_LISTONE_SOLO_EXTRAS), name="proforma_listone_extras"),
     path('proforma_delete/<int:pk>', login_required(views.PROFORMA_DELETE), name='proforma_delete'),
-    path('prof_listall', login_required(views.PROFORMA_CITACION_LISTALL), name='prof_listall'),
+    path('prof_listall', login_required(views.PROFORMA_MENSUAL_LISTALL), name='prof_listall'),
+    path('proformas/historicos/', login_required(views.PROFORMA_MENSUAL_HISTORICO), name='proforma_historico'),
     path('proformas/borrador-pdf/', views.PROFORMA_BORRADOR_PDF, name='proforma_borrador_pdf'),
     path('proformas/citaciones-terminadas/', login_required(views.PROFORMA_CITACIONES_TERMINADAS), name='proforma_citaciones_terminadas'),
     path('proformas/citaciones-terminadas/iniciar-lote/', views.PROFORMA_CITACIONES_TERMINADAS_INICIAR_LOTE, name='proforma_citaciones_terminadas_iniciar_lote'),

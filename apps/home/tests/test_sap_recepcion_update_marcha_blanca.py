@@ -331,7 +331,7 @@ class SapRecepcionUpdateMarchaBlancaTests(TestCase):
         self.assertNotIn('BatchNumbers', observacion['payload']['DocumentLines'][0])
 
     @patch.object(views, 'send_goods_receipt_draft_update_to_sap')
-    @patch.object(views, 'usuario_puede_paso_operacion', return_value=True)
+    @patch.object(views, 'usuario_puede_actualizar_borrador_sap_recepcion', return_value=True)
     @patch.object(views, 'obtener_paso_activo_operacion')
     @patch.object(views, 'obtener_pasos_operacion_citacion')
     @patch.object(views, '_obtener_citacion_operacion_planta_ajax')

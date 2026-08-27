@@ -19,6 +19,7 @@ from apps.home.models import (
     OPERACION_PLANTA_LOG,
 )
 from apps.home.sap_di_api import HANA_IDENTIFIER_RE, SapDiApiError, _first_row, _load_config as load_hana_config
+from apps.integrations.sap_b1.sap_config import SAP_ENV_QA, normalize_sap_environment
 from apps.integrations.sap_b1.service_layer_probe import (
     SapServiceLayerClient,
     SapServiceLayerProbeError,
@@ -387,6 +388,7 @@ def get_goods_receipt_draft_guide_status(citacion: CITACION) -> Dict[str, Any]:
     }
 
 
+
 def build_goods_receipt_draft_preview(
     citacion: CITACION,
     *,
@@ -400,6 +402,7 @@ def build_goods_receipt_draft_preview(
 
     detalle = _latest_detail(citacion)
     doc_entry = _resolve_doc_entry(citacion, detalle)
+
     if origen_cantidad == ORIGEN_CANTIDAD_PESO_GUIA:
         quantity = _as_decimal(
             cantidad_informada
@@ -409,30 +412,72 @@ def build_goods_receipt_draft_preview(
     else:
         origen_cantidad = ORIGEN_CANTIDAD_PESAJE_SALIDA
         quantity = get_exit_weight_from_citation(citacion)
+
     batch_number = get_batch_number_from_citation(citacion)
     folio_prefix, folio_number, folio_errors = get_folio_from_citation(citacion)
     estanque_destino = get_plant_destination_from_citation(citacion, detalle)
 
-    _log_recepcion_folio(citacion, folio_prefix, folio_number, estanque_destino)
+    _log_recepcion_folio(
+        citacion,
+        folio_prefix,
+        folio_number,
+        estanque_destino,
+    )
+
     source_data = {
         "citacion": citacion.id,
         "empresa": citacion.EP_NID_id,
         "doc_entry": doc_entry,
-        "pedido_sap": _clean_text(detalle.CDO_CPEDIDO_SAP if detalle else ""),
-        "item_code": _clean_text(detalle.CDO_CCODIGO_SAP if detalle else ""),
-        "insumo": _clean_text(detalle.CDO_CINSUMO if detalle else ""),
-        "card_code": _clean_text(detalle.CDO_CPROVEEDOR_CODIGO if detalle else ""),
-        "card_name": _clean_text(detalle.CDO_CPRODUCTOR if detalle else ""),
-        "detalle_bl": _clean_text(detalle.CDO_CBL_CONTENEDOR if detalle else ""),
-        "ar_bl_validado": _dato_valor(citacion, "AR_BL_VALIDADO"),
-        "ing_bl": _dato_valor(citacion, "ING_BL"),
+        "pedido_sap": _clean_text(
+            detalle.CDO_CPEDIDO_SAP if detalle else ""
+        ),
+        "item_code": _clean_text(
+            detalle.CDO_CCODIGO_SAP if detalle else ""
+        ),
+        "insumo": _clean_text(
+            detalle.CDO_CINSUMO if detalle else ""
+        ),
+        "card_code": _clean_text(
+            detalle.CDO_CPROVEEDOR_CODIGO if detalle else ""
+        ),
+        "card_name": _clean_text(
+            detalle.CDO_CPRODUCTOR if detalle else ""
+        ),
+        "detalle_bl": _clean_text(
+            detalle.CDO_CBL_CONTENEDOR if detalle else ""
+        ),
+        "ar_bl_validado": _dato_valor(
+            citacion,
+            "AR_BL_VALIDADO",
+        ),
+        "ing_bl": _dato_valor(
+            citacion,
+            "ING_BL",
+        ),
         "batch_number": batch_number,
         "estanque_destino": estanque_destino,
+        "warehouse_code": estanque_destino,
         "origen_cantidad": origen_cantidad,
         "quantity": _json_safe(quantity),
-        "exit_weight": _json_safe(quantity) if origen_cantidad == ORIGEN_CANTIDAD_PESAJE_SALIDA else None,
-        "peso_informado_guia": _json_safe(quantity) if origen_cantidad == ORIGEN_CANTIDAD_PESO_GUIA else None,
-        "cantidad_disponible": _json_safe(quantity) if origen_cantidad == ORIGEN_CANTIDAD_DISPONIBLE else _json_safe(detalle.CDO_NCANTIDAD_DISPONIBLE if detalle else None),
+        "exit_weight": (
+            _json_safe(quantity)
+            if origen_cantidad == ORIGEN_CANTIDAD_PESAJE_SALIDA
+            else None
+        ),
+        "peso_informado_guia": (
+            _json_safe(quantity)
+            if origen_cantidad == ORIGEN_CANTIDAD_PESO_GUIA
+            else None
+        ),
+        "cantidad_disponible": (
+            _json_safe(quantity)
+            if origen_cantidad == ORIGEN_CANTIDAD_DISPONIBLE
+            else _json_safe(
+                detalle.CDO_NCANTIDAD_DISPONIBLE
+                if detalle
+                else None
+            )
+        ),
         "folio_prefix": folio_prefix,
         "folio_number": folio_number,
         "series": _draft_series(),
@@ -442,127 +487,268 @@ def build_goods_receipt_draft_preview(
     if folio_errors:
         errors.extend(folio_errors)
     else:
-        validations.append(f"FolioPrefixString: {folio_prefix}")
-        validations.append(f"FolioNumber: {folio_number}")
+        validations.append(
+            f"FolioPrefixString: {folio_prefix}"
+        )
+        validations.append(
+            f"FolioNumber: {folio_number}"
+        )
+
     if doc_entry:
-        validations.append(f"DocEntry encontrado: {doc_entry}")
+        validations.append(
+            f"DocEntry encontrado: {doc_entry}"
+        )
     else:
-        errors.append("No se puede crear Borrador SAP: falta DocEntry del pedido SAP.")
+        errors.append(
+            "No se puede crear Borrador SAP: "
+            "falta DocEntry del pedido SAP."
+        )
 
     if source_data["card_code"]:
-        validations.append(f"CardCode proveedor encontrado: {source_data['card_code']}")
+        validations.append(
+            "CardCode proveedor encontrado: "
+            f"{source_data['card_code']}"
+        )
     else:
-        errors.append("No se puede crear Borrador SAP: falta codigo proveedor SAP.")
+        errors.append(
+            "No se puede crear Borrador SAP: "
+            "falta codigo proveedor SAP."
+        )
 
     if source_data["item_code"]:
-        validations.append(f"Codigo producto SAP encontrado: {source_data['item_code']}")
+        validations.append(
+            "Codigo producto SAP encontrado: "
+            f"{source_data['item_code']}"
+        )
     else:
-        errors.append("No se puede crear Borrador SAP: falta codigo producto SAP.")
+        errors.append(
+            "No se puede crear Borrador SAP: "
+            "falta codigo producto SAP."
+        )
 
     if quantity and origen_cantidad == ORIGEN_CANTIDAD_PESO_GUIA:
-        validations.append(f"Peso informado en guia encontrado: {_json_safe(quantity)}")
+        validations.append(
+            "Peso informado en guia encontrado: "
+            f"{_json_safe(quantity)}"
+        )
     elif quantity and origen_cantidad == ORIGEN_CANTIDAD_DISPONIBLE:
-        validations.append(f"Cantidad disponible encontrada: {_json_safe(quantity)}")
+        validations.append(
+            "Cantidad disponible encontrada: "
+            f"{_json_safe(quantity)}"
+        )
     elif quantity:
-        validations.append(f"Peso salida encontrado: {_json_safe(quantity)}")
+        validations.append(
+            "Peso salida encontrado: "
+            f"{_json_safe(quantity)}"
+        )
     elif origen_cantidad == ORIGEN_CANTIDAD_PESO_GUIA:
-        errors.append("No se puede crear Borrador SAP: falta peso informado.")
+        errors.append(
+            "No se puede crear Borrador SAP: "
+            "falta peso informado."
+        )
     else:
-        errors.append("No se puede crear Borrador SAP: falta cantidad/peso informado.")
+        errors.append(
+            "No se puede crear Borrador SAP: "
+            "falta cantidad/peso informado."
+        )
 
     if batch_number:
-        validations.append(f"Lote encontrado: {batch_number}")
+        validations.append(
+            f"Lote encontrado: {batch_number}"
+        )
     else:
-        warnings.append("Lote no informado en esta etapa; se agregara posteriormente.")
+        warnings.append(
+            "Lote no informado en esta etapa; "
+            "se agregara posteriormente."
+        )
 
     if estanque_destino:
-        validations.append(f"Estanque encontrado: {estanque_destino}")
+        validations.append(
+            f"WarehouseCode encontrado: {estanque_destino}"
+        )
     else:
-        errors.append("La citación no tiene estanque destino asignado para U_HCO_Plantadestino.")
+        errors.append(
+            "La citación no tiene bodega/almacén destino "
+            "asignado para WarehouseCode."
+        )
 
     purchase_order: Dict[str, Any] = {}
     selected_line: Optional[Dict[str, Any]] = None
+
     if doc_entry:
         try:
-            config = load_config()
+            config = load_config(citacion.EP_NID_id)
+
             source_data["company_db"] = config.company_db
             source_data["sap_username"] = config.username
+
             client = SapServiceLayerClient(config)
             client.login()
-            purchase_order = client.get_json(f"PurchaseOrders({doc_entry})", f"PurchaseOrders({doc_entry})")
-            validations.append("PurchaseOrder encontrada en SAP.")
-            selected_line, match_reason = find_matching_purchase_order_line(purchase_order, source_data)
+
+            purchase_order = client.get_json(
+                f"PurchaseOrders({doc_entry})",
+                f"PurchaseOrders({doc_entry})",
+            )
+
+            validations.append(
+                "PurchaseOrder encontrada en SAP."
+            )
+
+            selected_line, match_reason = (
+                find_matching_purchase_order_line(
+                    purchase_order,
+                    source_data,
+                )
+            )
+
             if selected_line:
                 validations.append(match_reason)
             else:
                 errors.append(match_reason)
+
         except HTTPError as exc:
-            errors.append(f"Error HTTP Service Layer al consultar PurchaseOrder: {exc}")
+            errors.append(
+                "Error HTTP Service Layer al consultar "
+                f"PurchaseOrder: {exc}"
+            )
             source_data["sap_error"] = _extract_sap_error(exc)
+
         except SapServiceLayerProbeError as exc:
-            errors.append(f"Error Service Layer: {exc}")
+            errors.append(
+                f"Error Service Layer: {exc}"
+            )
+
         finally:
             if client:
                 client.logout()
 
     payload: Dict[str, Any] = {}
     line_summary: Dict[str, Any] = {}
+
     if selected_line:
         base_line = _line_num(selected_line)
+
         if base_line is None:
-            base_line = _clean_int(selected_line.get("_ResolvedBaseLine"))
+            base_line = _clean_int(
+                selected_line.get("_ResolvedBaseLine")
+            )
+
         remaining = _line_open_quantity(selected_line)
-        line_status = _clean_text(selected_line.get("LineStatus"))
-        line_item_code = _line_item_code(selected_line) or source_data["item_code"]
-        card_code = _clean_text(purchase_order.get("CardCode")) or source_data["card_code"]
+        line_status = _clean_text(
+            selected_line.get("LineStatus")
+        )
+        line_item_code = (
+            _line_item_code(selected_line)
+            or source_data["item_code"]
+        )
+        card_code = (
+            _clean_text(purchase_order.get("CardCode"))
+            or source_data["card_code"]
+        )
         fecha_accion = timezone.localdate().isoformat()
         line_total = selected_line.get("LineTotal")
 
         line_summary = {
             "LineNum": base_line,
             "ItemCode": line_item_code,
-            "ItemDescription": selected_line.get("ItemDescription") or selected_line.get("Dscription") or "",
+            "ItemDescription": (
+                selected_line.get("ItemDescription")
+                or selected_line.get("Dscription")
+                or ""
+            ),
             "Quantity": selected_line.get("Quantity"),
             "RemainingOpenQuantity": _json_safe(remaining),
             "LineStatus": line_status,
-            "U_NXContenedor": selected_line.get("U_NXContenedor") or "",
+            "U_NXContenedor": (
+                selected_line.get("U_NXContenedor")
+                or ""
+            ),
             "LineTotal": _json_safe(line_total),
         }
 
         if base_line is not None:
-            validations.append(f"BaseLine resuelto: {base_line}")
+            validations.append(
+                f"BaseLine resuelto: {base_line}"
+            )
             source_data["base_line"] = base_line
         else:
-            errors.append("No se puede crear Borrador SAP: falta linea del pedido SAP.")
+            errors.append(
+                "No se puede crear Borrador SAP: "
+                "falta linea del pedido SAP."
+            )
 
         if line_status == "bost_Open" or not line_status:
-            validations.append("Linea SAP esta abierta.")
+            validations.append(
+                "Linea SAP esta abierta."
+            )
         else:
-            errors.append(f"Linea SAP no esta abierta: {line_status}")
+            errors.append(
+                f"Linea SAP no esta abierta: {line_status}"
+            )
 
         if quantity and remaining and quantity != remaining:
             quantity_label = (
                 "peso informado en guia"
                 if origen_cantidad == ORIGEN_CANTIDAD_PESO_GUIA
-                else ("cantidad disponible" if origen_cantidad == ORIGEN_CANTIDAD_DISPONIBLE else "peso ticket salida")
+                else (
+                    "cantidad disponible"
+                    if origen_cantidad == ORIGEN_CANTIDAD_DISPONIBLE
+                    else "peso ticket salida"
+                )
             )
+
             warnings.append(
-                f"Quantity del borrador usa {quantity_label} {_json_safe(quantity)}; "
-                f"la linea SAP tiene RemainingOpenQuantity {_json_safe(remaining)}. "
+                f"Quantity del borrador usa {quantity_label} "
+                f"{_json_safe(quantity)}; "
+                "la linea SAP tiene RemainingOpenQuantity "
+                f"{_json_safe(remaining)}. "
                 "Confirmar unidad con SAP antes de enviar."
             )
-        quantity_exceeds_remaining = bool(quantity and remaining and quantity > remaining)
+
+        quantity_exceeds_remaining = bool(
+            quantity
+            and remaining
+            and quantity > remaining
+        )
+
         if quantity_exceeds_remaining:
             warnings.append(
-                "La cantidad informada supera la cantidad abierta en SAP. Revisar unidad de medida."
+                "La cantidad informada supera la cantidad "
+                "abierta en SAP. Revisar unidad de medida."
             )
-        source_data["remaining_open_quantity"] = _json_safe(remaining)
-        source_data["quantity_exceeds_remaining"] = quantity_exceeds_remaining
 
-        if not card_code and "No se puede crear Borrador SAP: falta codigo proveedor SAP." not in errors:
-            errors.append("No se puede crear Borrador SAP: falta codigo proveedor SAP.")
-        if not line_item_code and "No se puede crear Borrador SAP: falta codigo producto SAP." not in errors:
-            errors.append("No se puede crear Borrador SAP: falta codigo producto SAP.")
+        source_data["remaining_open_quantity"] = (
+            _json_safe(remaining)
+        )
+        source_data["quantity_exceeds_remaining"] = (
+            quantity_exceeds_remaining
+        )
+
+        if (
+            not card_code
+            and (
+                "No se puede crear Borrador SAP: "
+                "falta codigo proveedor SAP."
+            )
+            not in errors
+        ):
+            errors.append(
+                "No se puede crear Borrador SAP: "
+                "falta codigo proveedor SAP."
+            )
+
+        if (
+            not line_item_code
+            and (
+                "No se puede crear Borrador SAP: "
+                "falta codigo producto SAP."
+            )
+            not in errors
+        ):
+            errors.append(
+                "No se puede crear Borrador SAP: "
+                "falta codigo producto SAP."
+            )
 
         if not errors and quantity and base_line is not None:
             document_line = {
@@ -572,10 +758,13 @@ def build_goods_receipt_draft_preview(
                 "BaseType": 22,
                 "BaseEntry": doc_entry,
                 "BaseLine": base_line,
-                "U_HCO_Plantadestino": estanque_destino,
+                "WarehouseCode": estanque_destino,
             }
+
             if line_total not in [None, ""]:
-                document_line["LineTotal"] = _json_safe(line_total)
+                document_line["LineTotal"] = (
+                    _json_safe(line_total)
+                )
 
             payload = {
                 "DocType": "dDocument_Items",
@@ -587,7 +776,9 @@ def build_goods_receipt_draft_preview(
                 "Series": _draft_series(),
                 "DocObjectCode": 20,
                 "TaxDate": fecha_accion,
-                "DocumentLines": [document_line],
+                "DocumentLines": [
+                    document_line
+                ],
             }
 
     return {
@@ -599,6 +790,7 @@ def build_goods_receipt_draft_preview(
         "selected_line": line_summary,
         "status": get_goods_receipt_draft_status(citacion),
     }
+
 
 
 def build_goods_receipt_draft_preview_from_peso_guia(
@@ -1136,7 +1328,7 @@ def _send_goods_receipt_draft_update_to_sap_locked(
             "status": get_goods_receipt_draft_update_status(citacion),
         }
 
-    config = load_config()
+    config = load_config(citacion.EP_NID_id, for_write=True)
     client = SapServiceLayerClient(config)
     status_code: Optional[int] = None
     response_payload: Dict[str, Any] = {}
@@ -1280,9 +1472,12 @@ def send_goods_receipt_draft_from_peso_guia_to_sap(
             **_draft_debug_response(preview=preview, user=user),
         }
 
-    config = load_config()
+    config = load_config(citacion.EP_NID_id, for_write=True)
     expected_company_db = str(settings.SAP_DRAFT_QA_COMPANY_DB or "").strip()
-    if config.company_db != expected_company_db:
+    if (
+        normalize_sap_environment() == SAP_ENV_QA
+        and config.company_db != expected_company_db
+    ):
         return {
             "success": False,
             "message": (
@@ -1426,7 +1621,7 @@ def send_goods_receipt_draft_to_sap(citacion: CITACION, user: Any, allow_duplica
             "preview": preview,
         }
 
-    config = load_config()
+    config = load_config(citacion.EP_NID_id, for_write=True)
     client = SapServiceLayerClient(config)
     response_payload: Dict[str, Any] = {}
     status_code: Optional[int] = None

@@ -1,4 +1,5 @@
 {% extends "layouts/base.html" %}
+{% load permission_filters %}
 
 {% block title %} Camion {% endblock %} 
 
@@ -47,7 +48,7 @@
                                         
                                         <div class="fieldWrapper">
                                             {{ form.SN_NID.errors }}
-                                            <label class="my-1 me-2" for="{{ form.SN_NID.id_for_label }}">Proveedor:</label>
+                                            <label class="my-1 me-2" for="{{ form.SN_NID.id_for_label }}">{% if request.user|has_perfil:'CONTROL_FLOTA' %}Transporte{% else %}Proveedor{% endif %}:</label>
                                             {{form.SN_NID}}
                                         </div>
                                         <div class="fieldWrapper">

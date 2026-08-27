@@ -108,7 +108,7 @@ The project is coded using a simple and intuitive structure presented below:
    |              |-- 404-page.html         # 404 page
    |              |-- *.html                # All other pages
    |
-   |-- requirements.txt                     # Development modules - SQLite storage
+   |-- requirements.txt                     # requeriemientos para la instalación en proyecto 
    |
    |-- .env                                 # Inject Configuration via Environment
    |-- manage.py                            # Start the app - Django default start script

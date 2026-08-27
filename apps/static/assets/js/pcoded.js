@@ -571,7 +571,9 @@ $.fn.pcodedmenu = function(settings) {
                             }
                         }
                     });
-                    $(".pcoded-submenu > li").on('click', function(e) {
+                    $(".pcoded-submenu > li").not(
+                        ".pcoded-inner-navbar .pcoded-submenu > li > .pcoded-submenu > li"
+                    ).on('click', function(e) {
                         e.stopPropagation();
                         var str = $(this).closest('.pcoded-submenu').length;
                         if (str === 0) {

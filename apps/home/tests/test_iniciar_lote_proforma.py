@@ -1,6 +1,8 @@
+from datetime import datetime
 from django.template.loader import get_template
-from django.test import Client, TestCase
+from django.test import Client, TransactionTestCase
 from django.urls import reverse
+from django.utils import timezone
 
 from apps.home.models import (
     CAMION_PATIO,
@@ -8,6 +10,7 @@ from apps.home.models import (
     CITACION_PROFORMA,
     EMPRESA,
     PROFORMA,
+    SOCIONEGOCIO,
     SYSLOGGER,
     USERS_EMPRESA,
 )
@@ -18,11 +21,23 @@ from apps.home.tests.test_iniciar_proforma import IniciarProformaFixtureMixin
 TRANSPORTISTA = 'TRANSPORTES SAEZ LIMITADA'
 
 
-class IniciarLoteProformaTests(IniciarProformaFixtureMixin, TestCase):
+class IniciarLoteProformaTests(IniciarProformaFixtureMixin, TransactionTestCase):
+    reset_sequences = True
     def setUp(self):
         self.crear_datos_base()
         self.camion.CPA_CTRANSPORTISTA_DECLARADO = TRANSPORTISTA
         self.camion.save(update_fields=['CPA_CTRANSPORTISTA_DECLARADO'])
+        self.transportista_maestro = SOCIONEGOCIO.objects.create(
+            EP_NID=self.empresa,
+            SN_CRAZONSOCIAL=TRANSPORTISTA,
+            SN_CRUT='77061844-4',
+            SN_CTIPO='S',
+            SN_BHABILITADO=True,
+        )
+        self.citacion.CI_FFECHAREGISTRO = timezone.make_aware(
+            datetime(2026, 8, 4, 16, 48)
+        )
+        self.citacion.save(update_fields=['CI_FFECHAREGISTRO'])
         self.client.force_login(self.user)
 
     def crear_citacion(
@@ -151,6 +166,13 @@ class IniciarLoteProformaTests(IniciarProformaFixtureMixin, TestCase):
     def test_cliente_es_rechazado(self):
         self.camion.CPA_CTRANSPORTISTA_DECLARADO = ' CLIENTE '
         self.camion.save(update_fields=['CPA_CTRANSPORTISTA_DECLARADO'])
+        self.transportista_maestro = SOCIONEGOCIO.objects.create(
+            EP_NID=self.empresa,
+            SN_CRAZONSOCIAL=TRANSPORTISTA,
+            SN_CRUT='77061844-4',
+            SN_CTIPO='C',
+            SN_BHABILITADO=True,
+        )
 
         resultado = self.iniciar(
             [self.citacion.pk],
@@ -204,7 +226,7 @@ class IniciarLoteProformaTests(IniciarProformaFixtureMixin, TestCase):
         self.citacion.refresh_from_db()
         self.assertFalse(self.citacion.CI_BCONFORME)
 
-    def test_endpoint_es_post_csrf_y_redirige_a_citaciones(self):
+    def test_endpoint_es_post_csrf_y_crea_borrador_visible(self):
         url = reverse('proforma_citaciones_terminadas_iniciar_lote')
 
         cliente_csrf = Client(enforce_csrf_checks=True)
@@ -229,15 +251,18 @@ class IniciarLoteProformaTests(IniciarProformaFixtureMixin, TestCase):
             },
         )
 
+        proforma = PROFORMA.objects.get()
         self.assertRedirects(
             respuesta,
-            reverse('prof_listall'),
+            reverse('proforma_listone', args=[proforma.pk]),
             fetch_redirect_response=False,
         )
         self.citacion.refresh_from_db()
         self.assertTrue(self.citacion.CI_BCONFORME)
-        self.assertEqual(PROFORMA.objects.count(), 0)
-        self.assertEqual(CITACION_PROFORMA.objects.count(), 0)
+        self.assertIsNone(self.citacion.PRO_NID_id)
+        self.assertEqual(proforma.SN_NID, self.transportista_maestro)
+        self.assertEqual(PROFORMA.objects.count(), 1)
+        self.assertEqual(CITACION_PROFORMA.objects.count(), 1)
 
     def test_template_no_tiene_proveedor_y_prepara_seleccion_multiple(self):
         contenido = get_template(
@@ -246,7 +271,7 @@ class IniciarLoteProformaTests(IniciarProformaFixtureMixin, TestCase):
 
         self.assertNotIn('name="proveedor"', contenido)
         self.assertNotIn('selectedproveedor', contenido)
-        self.assertIn('name="buscar_transportista"', contenido)
+        self.assertIn('name="transportista"', contenido)
         self.assertIn('name="citacion_ids[]"', contenido)
         self.assertIn('id="seleccionar-todas-visibles"', contenido)
         self.assertIn('id="limpiar-seleccion"', contenido)

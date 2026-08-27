@@ -13,6 +13,15 @@ class SapDiApiError(Exception):
     pass
 
 
+def _configured_hana_schema(variable_name):
+    company_db = config(variable_name, default="").strip()
+    if not company_db:
+        raise SapDiApiError(f"Falta variable SAP HANA en .env: {variable_name}")
+    if not HANA_IDENTIFIER_RE.match(company_db):
+        raise SapDiApiError(f"{variable_name} tiene un formato no valido.")
+    return company_db
+
+
 def _load_config():
     values = {
         'ServerAddress': config('SAP_HANA_SERVER_ADDRESS', default='').strip(),
@@ -116,6 +125,42 @@ def _rows(sql, params=None):
             conn.close()
 
 
+def consultar_transportistas_sap(company_db):
+    """Obtiene desde OCRD los proveedores activos clasificados como transporte.
+
+    ``company_db`` proviene de la configuración central por empresa; se valida
+    antes de interpolarlo porque los identificadores HANA no admiten parámetros.
+    """
+    company_db = str(company_db or '').strip()
+    if not HANA_IDENTIFIER_RE.match(company_db):
+        raise SapDiApiError('CompanyDB HANA tiene un formato no valido.')
+
+    return _rows(f'''
+        SELECT
+            "CardCode",
+            "CardName",
+            "LicTradNum",
+            "Address",
+            "CardFName",
+            "Phone1",
+            "E_Mail",
+            "CardType",
+            "U_Transporte" AS "EsTransporte",
+            "validFor",
+            "frozenFor"
+        FROM "{company_db}"."OCRD"
+        WHERE
+            "CardCode" IS NOT NULL
+            AND "CardName" IS NOT NULL
+            AND "LicTradNum" IS NOT NULL
+            AND "CardType" = 'S'
+            AND "U_Transporte" = 'Si'
+            AND "validFor" = 'Y'
+            AND "frozenFor" = 'N'
+        ORDER BY "CardCode"
+    ''')
+
+
 def consultar_proveedores_sap():
     sql = '''
         SELECT DISTINCT
@@ -144,15 +189,17 @@ def consultar_proveedores_sap():
 
 
 def consultar_clientes_sap():
-    sql = '''
-        SELECT DISTINCT
+    company_db = _configured_hana_schema("SAP_HANA_CLIENTES_COMPANY_DB")
+    sql = f'''
+        SELECT
             T0."CardCode",
-            T0."CardName"
-        FROM OPOR T0
-        INNER JOIN POR1 T1
-            ON T0."DocEntry" = T1."DocEntry"
-        WHERE T0."DocStatus" = 'O'
-          AND T1."OpenQty" > 0
+            T0."CardName",
+            T0."CardType",
+            T0."validFor"
+        FROM "{company_db}"."OCRD" T0
+        WHERE T0."CardType" = 'C'
+          AND T0."validFor" = 'Y'
+          AND COALESCE(T0."frozenFor", 'N') = 'N'
         ORDER BY T0."CardName"
     '''
 
@@ -160,8 +207,8 @@ def consultar_clientes_sap():
         {
             'cardcode': row['CardCode'],
             'cardname': row['CardName'],
-            'cardtype': '',
-            'validfor': ''
+            'cardtype': row['CardType'],
+            'validfor': row['validFor']
         }
         for row in _rows(sql)
     ]
@@ -275,9 +322,57 @@ def consultar_producto_sap(codigo):
     }
 
 
+def consultar_productos_recepcion_transferencia_sap(estanque):
+    """Obtiene el inventario disponible del estanque PROSESA para Transferencia SBH."""
+    estanque = (estanque or '').strip()
+    if not estanque:
+        raise SapDiApiError('Debe seleccionar un estanque origen.')
+
+    company_db = (_load_config().get('CompanyDB') or '').strip()
+    if not HANA_IDENTIFIER_RE.match(company_db):
+        raise SapDiApiError('CompanyDB HANA tiene un formato no valido.')
+
+    sql = f'''
+        SELECT
+            T1."WhsCode" AS "EstanqueOrigen",
+            T0."ItemCode" AS "CodigoSAP",
+            T0."ItemName" AS "Insumo",
+            NULLIF(T0."U_Propiedad", '') AS "CodigoPropietario",
+            T2."CardName" AS "PropiedadProducto",
+            T1."OnHand" AS "StockFisico",
+            T1."IsCommited" AS "StockComprometido",
+            T1."OnHand" - T1."IsCommited" AS "StockDisponible",
+            T0."InvntryUom" AS "UnidadInventario"
+        FROM "{company_db}"."OITM" T0
+        INNER JOIN "{company_db}"."OITW" T1
+            ON T1."ItemCode" = T0."ItemCode"
+        LEFT JOIN "{company_db}"."OCRD" T2
+            ON T2."CardCode" = NULLIF(T0."U_Propiedad", '')
+        WHERE T1."WhsCode" = ?
+          AND (T1."OnHand" - T1."IsCommited") > 0
+        ORDER BY T1."OnHand" DESC, T0."ItemCode"
+    '''
+
+    return {
+        'estanque': estanque,
+        'productos': [
+            {
+                'codigo_sap': row['CodigoSAP'],
+                'insumo': row['Insumo'],
+                'codigo_propietario': row['CodigoPropietario'],
+                'propiedad_producto': row['PropiedadProducto'],
+                'stock_disponible': row['StockDisponible'],
+                'unidad': row['UnidadInventario'],
+            }
+            for row in _rows(sql, [estanque])
+        ],
+    }
+
+
 def consultar_pedido_sap(pedido, codigo, proveedor_codigo=''):
     pedido = (pedido or '').strip()
     codigo = (codigo or '').strip()
+    proveedor_codigo = (proveedor_codigo or '').strip()
 
     if not pedido:
         return {
@@ -313,7 +408,16 @@ def consultar_pedido_sap(pedido, codigo, proveedor_codigo=''):
             T1."ItemCode",
             T1."Dscription",
             T1."OpenQty",
-            T1."U_NXContenedor"
+            T1."U_NXContenedor" AS "Contenedor",
+            T1."U_HCO_Invoice" AS "Guia",
+            T1."U_HCO_FVEN" AS "FechaProduccion",
+            T1."U_NXFlote" AS "FechaVencimiento",
+            T1."U_CDA" AS "CDA",
+            T1."U_DI" AS "DI",
+            T1."U_SUI" AS "SUI",
+            T1."U_BL" AS "BL",
+            T1."U_HCO_NAVIERAS" AS "NaveNaviera",
+            T1."U_HCO_BOOKING" AS "Booking"
         FROM OPOR T0
         INNER JOIN POR1 T1
             ON T0."DocEntry" = T1."DocEntry"
@@ -323,9 +427,16 @@ def consultar_pedido_sap(pedido, codigo, proveedor_codigo=''):
           AND T1."OpenQty" > 0
           AND T0."DocNum" = ?
           AND T1."ItemCode" = ?
+          {filtro_proveedor}
     '''
 
-    row = _first_row(sql, [pedido_num, codigo])
+    filtro_proveedor = 'AND T0."CardCode" = ?' if proveedor_codigo else ''
+    sql = sql.format(filtro_proveedor=filtro_proveedor)
+    params = [pedido_num, codigo]
+    if proveedor_codigo:
+        params.append(proveedor_codigo)
+
+    row = _first_row(sql, params)
 
     if row is not None:
         return {
@@ -345,9 +456,17 @@ def consultar_pedido_sap(pedido, codigo, proveedor_codigo=''):
             'producto': row['Dscription'],
             'openqty': row['OpenQty'],
             'cantidad_disponible': row['OpenQty'],
-            'contenedor': row.get('U_NXContenedor') or '',
-            'bl': row.get('U_NXContenedor') or '',
-            'bl_contenedor': row.get('U_NXContenedor') or ''
+            'contenedor': row.get('Contenedor') or '',
+            'bl': row.get('BL') or '',
+            'bl_contenedor': row.get('Contenedor') or '',
+            'guia': row.get('Guia') or '',
+            'fecha_produccion': row.get('FechaProduccion') or '',
+            'fecha_vencimiento': row.get('FechaVencimiento') or '',
+            'cda': row.get('CDA') or '',
+            'di': row.get('DI') or '',
+            'sui': row.get('SUI') or '',
+            'nave_naviera': row.get('NaveNaviera') or '',
+            'booking': row.get('Booking') or ''
         }
 
     estado_sql = '''
@@ -401,7 +520,7 @@ def consultar_pedido_sap(pedido, codigo, proveedor_codigo=''):
 
 
 def _pedido_row_to_dict(row):
-    contenedor = row.get('U_NXContenedor') or ''
+    contenedor = row.get('Contenedor') or row.get('U_NXContenedor') or ''
 
     return {
         'docentry': row['DocEntry'],
@@ -423,8 +542,16 @@ def _pedido_row_to_dict(row):
         'openqty': row['OpenQty'],
         'cantidad_disponible': row['OpenQty'],
         'contenedor': contenedor,
-        'bl': contenedor,
+        'bl': row.get('BL') or '',
         'bl_contenedor': contenedor,
+        'guia': row.get('Guia') or '',
+        'fecha_produccion': row.get('FechaProduccion') or '',
+        'fecha_vencimiento': row.get('FechaVencimiento') or '',
+        'cda': row.get('CDA') or '',
+        'di': row.get('DI') or '',
+        'sui': row.get('SUI') or '',
+        'nave_naviera': row.get('NaveNaviera') or '',
+        'booking': row.get('Booking') or '',
     }
 
 
@@ -449,7 +576,16 @@ def consultar_pedidos_por_producto_sap(codigo):
             T1."ItemCode",
             T1."Dscription",
             T1."OpenQty",
-            T1."U_NXContenedor"
+            T1."U_NXContenedor" AS "Contenedor",
+            T1."U_HCO_Invoice" AS "Guia",
+            T1."U_HCO_FVEN" AS "FechaProduccion",
+            T1."U_NXFlote" AS "FechaVencimiento",
+            T1."U_CDA" AS "CDA",
+            T1."U_DI" AS "DI",
+            T1."U_SUI" AS "SUI",
+            T1."U_BL" AS "BL",
+            T1."U_HCO_NAVIERAS" AS "NaveNaviera",
+            T1."U_HCO_BOOKING" AS "Booking"
         FROM OPOR T0
         INNER JOIN POR1 T1
             ON T0."DocEntry" = T1."DocEntry"
@@ -495,7 +631,16 @@ def consultar_detalle_pedido_sap(pedido):
             T1."ItemCode",
             T1."Dscription",
             T1."OpenQty",
-            T1."U_NXContenedor"
+            T1."U_NXContenedor" AS "Contenedor",
+            T1."U_HCO_Invoice" AS "Guia",
+            T1."U_HCO_FVEN" AS "FechaProduccion",
+            T1."U_NXFlote" AS "FechaVencimiento",
+            T1."U_CDA" AS "CDA",
+            T1."U_DI" AS "DI",
+            T1."U_SUI" AS "SUI",
+            T1."U_BL" AS "BL",
+            T1."U_HCO_NAVIERAS" AS "NaveNaviera",
+            T1."U_HCO_BOOKING" AS "Booking"
         FROM OPOR T0
         INNER JOIN POR1 T1
             ON T0."DocEntry" = T1."DocEntry"
@@ -515,6 +660,7 @@ def consultar_detalle_pedido_sap(pedido):
 
 
 def consultar_acuerdos_despacho_sap(termino):
+    company_db = _configured_hana_schema("SAP_HANA_ACUERDOS_COMPANY_DB")
     termino = (termino or '').strip()
 
     if len(termino) < 2:
@@ -526,7 +672,7 @@ def consultar_acuerdos_despacho_sap(termino):
     termino_like = f'%{termino}%'
     termino_like_upper = f'%{termino.upper()}%'
 
-    sql = '''
+    sql = f'''
         SELECT
             TOP 50
             A."AbsID"      AS "sap_abs_id",
@@ -560,8 +706,8 @@ def consultar_acuerdos_despacho_sap(termino):
             L."U_CostEstim" AS "centro_costo_estimado",
             L."U_FeeMt"     AS "tarifa_mt",
             L."U_U_Incoterms" AS "incoterms"
-        FROM "SBO_TST_SBH_USD"."OOAT" A
-        INNER JOIN "SBO_TST_SBH_USD"."OAT1" L
+        FROM "{company_db}"."OOAT" A
+        INNER JOIN "{company_db}"."OAT1" L
             ON L."AgrNo" = A."AbsID"
         WHERE A."BpType" = 'C'
           AND A."Status" = 'A'

@@ -1,4 +1,5 @@
 {% extends "layouts/base.html" %}
+{% load permission_filters %}
 
 {% block title %} {{ proveedor }} {% endblock %} 
 
@@ -35,7 +36,7 @@
                             <ul class="breadcrumb">
                                 <li class="breadcrumb-item"><a href="/"><i class="feather icon-home"></i></a></li>
                                 <li class="breadcrumb-item"><a href="/">TERRAVIEW</a></li>
-                                <li class="breadcrumb-item"><a href="{% url 'pro_listall' %}">Proveedor</a></li>
+                                <li class="breadcrumb-item"><a href="{% url 'pro_listall' %}">{% if request.user|has_perfil:'CONTROL_FLOTA' or request.user|es_planificador or request.user|es_asistente_recepcion_rbac %}Transportes{% else %}Proveedor{% endif %}</a></li>
                                 
                             </ul>
                         </div>
@@ -197,6 +198,44 @@
                   </div>
 
                 <div class="modal-body">
+                    {% if puede_alta_rapida_conductor %}
+                    <div class="mb-3">
+                        <button class="btn btn-primary" type="button" data-toggle="collapse" data-target="#AltaRapidaConductor" aria-expanded="false">
+                            <i class="fas fa-user-plus mr-1"></i>Agregar conductor
+                        </button>
+                    </div>
+                    <div class="collapse mb-4" id="AltaRapidaConductor">
+                        <div class="card card-body border-primary">
+                            <h5>Alta rápida de conductor</h5>
+                            <p class="text-muted mb-2"><strong>Transporte:</strong> {{ proveedor.SN_CRAZONSOCIAL }} <small>(preseleccionado)</small></p>
+                            <p class="text-muted"><strong>Habilitado:</strong> S&iacute;</p>
+                            <form method="POST" action="{% url 'conductor_alta_rapida_transporte' proveedor.pk %}" enctype="multipart/form-data">
+                                {% csrf_token %}
+                                <div class="form-row">
+                                    <div class="form-group col-md-6"><label>Nombre *</label><input class="form-control" name="CON_CNOMBRE" required maxlength="128"></div>
+                                    <div class="form-group col-md-6"><label>Apellido *</label><input class="form-control" name="CON_CAPELLIDO" required maxlength="128"></div>
+                                    <div class="form-group col-md-4"><label>RUT</label><input class="form-control" name="CON_CRUT" maxlength="128"></div>
+                                    <div class="form-group col-md-4"><label>Tel&eacute;fono *</label><input class="form-control" name="CON_CTELEFONO" required maxlength="128"></div>
+                                    <div class="form-group col-md-4"><label>Correo electr&oacute;nico *</label><input class="form-control" type="email" name="CON_CEMAIL" required maxlength="128"></div>
+                                    <div class="form-group col-md-12"><label>Direcci&oacute;n</label><input class="form-control" name="CON_CDIRECCION" maxlength="256"></div>
+                                </div>
+                                <hr>
+                                <h6>Licencia de conducir <small class="text-danger">(obligatoria)</small></h6>
+                                <div class="form-row">
+                                    <div class="form-group col-md-4"><label>Archivo *</label><input class="form-control-file" type="file" name="licencia_archivo" required></div>
+                                    <div class="form-group col-md-4"><label>Fecha emisi&oacute;n *</label><input class="form-control" type="date" name="licencia_fecha_emision" required></div>
+                                    <div class="form-group col-md-4"><label>Fecha vencimiento *</label><input class="form-control" type="date" name="licencia_fecha_vencimiento" required></div>
+                                </div>
+                                <div class="form-group">
+                                    <label>Patente con la que se presenta</label>
+                                    <input class="form-control text-uppercase" name="patente_informada" maxlength="128" placeholder="Opcional; no crea ni modifica el cami&oacute;n">
+                                    <small class="form-text text-muted">Se registra como antecedente operacional, no como asociaci&oacute;n permanente.</small>
+                                </div>
+                                <button type="submit" class="btn btn-success">Guardar conductor y licencia</button>
+                            </form>
+                        </div>
+                    </div>
+                    {% endif %}
                     <div class="dt-responsive table-responsive">
                         <table id="basic-btn" class="table table-striped table-bordered nowrap" >
 
@@ -215,7 +254,7 @@
                                 {% for objeto in conductores %}
                                     <tr>
                                         <td>
-                                            {% if not request.user.userv.UX_IS_PROVEEDOR %}
+                                            {% if not request.user|es_proveedor_legacy %}
                                             <a class="btn btn-info" href="{% url 'con_update' objeto.id %}">
                                                 <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-pencil-square" viewBox="0 0 16 16">
                                                     <path d="M15.502 1.94a.5.5 0 0 1 0 .706L14.459 3.69l-2-2L13.502.646a.5.5 0 0 1 .707 0l1.293 1.293zm-1.75 2.456-2-2L4.939 9.21a.5.5 0 0 0-.121.196l-.805 2.414a.25.25 0 0 0 .316.316l2.414-.805a.5.5 0 0 0 .196-.12l6.813-6.814z"/>
@@ -229,6 +268,11 @@
                                                     <path d="M8 5.5a2.5 2.5 0 1 0 0 5 2.5 2.5 0 0 0 0-5zM4.5 8a3.5 3.5 0 1 1 7 0 3.5 3.5 0 0 1-7 0z"/>
                                                 </svg>
                                             </a>
+                                            {% if puede_alta_rapida_conductor %}
+                                            <button type="button" class="btn btn-outline-primary btn-tripulacion-conductor" data-conductor-id="{{ objeto.id }}" data-toggle="modal" data-target="#ModalTripulacionConductor" title="Patentes y documentos">
+                                                <i class="fas fa-id-card"></i>
+                                            </button>
+                                            {% endif %}
 
                                         </td>
                                         <td><span class="fw-normal">{{ objeto.CON_CNOMBRE }} {{ objeto.CON_CAPELLIDO }}</span></td>
@@ -265,6 +309,28 @@
         </div>
     </div>
 <!-- End of Modal Content -->
+
+<div class="modal fade" id="ModalTripulacionConductor" tabindex="-1" role="dialog" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-scrollable" role="document">
+        <div class="modal-content">
+            <div class="modal-header"><h5 class="modal-title">Tripulación y control documental</h5><button type="button" class="close" data-dismiss="modal"><span>&times;</span></button></div>
+            <div class="modal-body">
+                <div id="tripulacion-conductor-alerta" class="alert alert-light">Seleccione un conductor.</div>
+                <h6>Patente informada</h6>
+                <div id="tripulacion-patente-informada" class="alert alert-secondary">Sin patente informada.</div>
+                <h6>Patentes utilizadas</h6>
+                <div class="table-responsive"><table class="table table-sm"><thead><tr><th>Patente</th><th>Última utilización</th><th>Usos</th></tr></thead><tbody id="tripulacion-patentes-historicas"></tbody></table></div>
+                <hr>
+                <h6>Buscar otra patente TERRAMAR</h6>
+                <div class="input-group mb-2"><input id="tripulacion-buscar-patente" class="form-control text-uppercase" placeholder="Ingrese patente"><div class="input-group-append"><button id="tripulacion-btn-buscar" type="button" class="btn btn-outline-primary">Buscar</button></div></div>
+                <div id="tripulacion-resultados-patente" class="list-group mb-3"></div>
+                <div id="tripulacion-documentos-camion"></div>
+                <div class="alert alert-info mt-3 mb-0"><strong>Control no bloqueante:</strong> las alertas documentales no impiden continuar la operación.</div>
+            </div>
+            <div class="modal-footer"><button type="button" class="btn btn-secondary" data-dismiss="modal">Cerrar</button></div>
+        </div>
+    </div>
+</div>
 <!------------------------------------------------------------------------------------------------------------>
 <!-------------------------------------- MODAL CAMIONES ------------------------------------------------------>
 <!------------------------------------------------------------------------------------------------------------>
@@ -298,7 +364,7 @@
                             {% for objeto in camiones %}
                             <tr>
                                 <td>
-                                    {% if not request.user.userv.UX_IS_PROVEEDOR %}
+                                    {% if not request.user|es_proveedor_legacy %}
                                     <a class="btn btn-info" href="{% url 'cam_update' objeto.id  %}">
                                         <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-pencil-square" viewBox="0 0 16 16">
                                             <path d="M15.502 1.94a.5.5 0 0 1 0 .706L14.459 3.69l-2-2L13.502.646a.5.5 0 0 1 .707 0l1.293 1.293zm-1.75 2.456-2-2L4.939 9.21a.5.5 0 0 0-.121.196l-.805 2.414a.25.25 0 0 0 .316.316l2.414-.805a.5.5 0 0 0 .196-.12l6.813-6.814z"/>
@@ -433,7 +499,7 @@
                 {% else %}
                 <br>
                     <div class="d-flex flex-column justify-content-center">
-                        <label class="text-center my-1 me-2">No se ha agregado ningun documento para este proveedor</label>
+                        <label class="text-center my-1 me-2">No se ha agregado ning&uacute;n documento para este {% if request.user|has_perfil:'CONTROL_FLOTA' or request.user|es_planificador %}transporte{% else %}proveedor{% endif %}</label>
                         <label class="text-center my-1 me-2">¿Quiere agregar uno ahora?</label>
                         <br>
                         <button type="button" id="add_container" class="btn btn-primary"  data-toggle="modal" data-target="#ModalAgregarDocumento" >Agregar documento</button>
@@ -628,7 +694,78 @@
             btn_ver.style.display = 'block';
             embed.setAttribute('src',pdfURL);
         }
-    }        
+    }
+
+    function iconoEstadoDocumento(estado) {
+        if (estado === 'VIGENTE') return '<span class="text-success">✓</span>';
+        if (estado === 'POR VENCER') return '<span class="text-warning">⚠</span>';
+        if (estado === 'VENCIDO') return '<span class="text-danger">✕</span>';
+        return '<span class="text-muted">?</span>';
+    }
+
+    function renderDocumentosTripulacion(documentos) {
+        return '<ul class="list-group">' + (documentos || []).map(function (doc) {
+            const fecha = doc.fecha_vencimiento ? ' — vence ' + doc.fecha_vencimiento : '';
+            return '<li class="list-group-item">' + iconoEstadoDocumento(doc.estado) + ' <strong>' + $('<div>').text(doc.documento).html() + '</strong>: ' + doc.estado + fecha + '</li>';
+        }).join('') + '</ul>';
+    }
+
+    function registrarAlertaTripulacion(tipo, entidadId) {
+        return $.post('{% url "registrar_alerta_documental_terramar" %}', {
+            csrfmiddlewaretoken: $('input[name=csrfmiddlewaretoken]').first().val(),
+            tipo: tipo,
+            entidad_id: entidadId,
+            modulo: 'CONTROL_FLOTA'
+        });
+    }
+
+    $('.btn-tripulacion-conductor').on('click', function () {
+        const conductorId = $(this).data('conductor-id');
+        $('#tripulacion-conductor-alerta').text('Cargando...');
+        $('#tripulacion-patentes-historicas, #tripulacion-resultados-patente, #tripulacion-documentos-camion').empty();
+        $('#tripulacion-patente-informada').text('Cargando...');
+        $.get('/control-flota/conductores/' + conductorId + '/patentes-documentos/').done(function (data) {
+            const licencia = data.licencia || {};
+            $('#tripulacion-conductor-alerta')
+                .removeClass('alert-light alert-success alert-warning alert-danger')
+                .addClass(licencia.estado === 'VIGENTE' ? 'alert-success' : (licencia.estado === 'VENCIDO' ? 'alert-danger' : 'alert-warning'))
+                .html('<strong>' + $('<div>').text(data.conductor.nombre).html() + '</strong><br>Licencia de conducir: ' + (licencia.estado || 'FALTANTE'));
+            const informada = data.patente_informada;
+            if (informada) {
+                let detalle = informada.uso_operacional_registrado
+                    ? 'Uso operacional confirmado por citacion.'
+                    : 'Sin uso operacional registrado.';
+                if (informada.camion_existente) detalle += ' Patente existente en TERRAMAR' + (informada.transporte ? ' - ' + informada.transporte : '') + '.';
+                $('#tripulacion-patente-informada').html('<strong>' + $('<div>').text(informada.patente).html() + '</strong><br>' + $('<div>').text(detalle).html());
+            } else {
+                $('#tripulacion-patente-informada').text('Sin patente informada.');
+            }
+            const filas = (data.patentes || []).map(function (item) {
+                const fecha = item.ultima_utilizacion ? new Date(item.ultima_utilizacion).toLocaleString('es-CL') : '-';
+                return '<tr><td>' + $('<div>').text(item.patente).html() + '</td><td>' + fecha + '</td><td>' + item.cantidad_usos + '</td></tr>';
+            }).join('');
+            $('#tripulacion-patentes-historicas').html(filas || '<tr><td colspan="3" class="text-muted">Sin patentes históricas.</td></tr>');
+            if (licencia.estado && licencia.estado !== 'VIGENTE') registrarAlertaTripulacion('CONDUCTOR', conductorId);
+        });
+    });
+
+    $('#tripulacion-btn-buscar').on('click', function () {
+        const q = $('#tripulacion-buscar-patente').val();
+        $.get('{% url "camion_buscar_documentos_terramar" %}', {q: q}).done(function (data) {
+            const botones = (data.results || []).map(function (item) {
+                return '<button type="button" class="list-group-item list-group-item-action seleccionar-camion-tripulacion" data-id="' + item.id + '"><strong>' + $('<div>').text(item.patente).html() + '</strong><br><small>' + $('<div>').text(item.transporte || 'Sin transporte').html() + '</small></button>';
+            }).join('');
+            $('#tripulacion-resultados-patente').html(botones || '<div class="text-muted">No se encontraron patentes.</div>');
+        });
+    });
+
+    $(document).on('click', '.seleccionar-camion-tripulacion', function () {
+        const camionId = $(this).data('id');
+        $.get('/control-flota/camiones/' + camionId + '/documentos/').done(function (data) {
+            $('#tripulacion-documentos-camion').html('<h6>Documentación patente ' + $('<div>').text(data.camion.patente).html() + '</h6>' + renderDocumentosTripulacion(data.documentos));
+            if ((data.documentos || []).some(function (doc) { return doc.estado !== 'VIGENTE'; })) registrarAlertaTripulacion('CAMION', camionId);
+        });
+    });
 </script>
 
 {% endblock javascripts %}

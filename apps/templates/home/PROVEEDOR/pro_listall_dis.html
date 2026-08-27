@@ -1,6 +1,7 @@
 {% extends "layouts/base.html" %}
+{% load permission_filters %}
 
-{% block title %} Proveedores {% endblock %} 
+{% block title %}{% if request.user|has_perfil:'CONTROL_FLOTA' or request.user|es_planificador %} Transportes {% else %} Proveedores {% endif %}{% endblock %}
 
 <!-- Specific CSS goes HERE -->
 {% block stylesheets %}
@@ -30,12 +31,12 @@
                     <div class="row align-items-center">
                         <div class="col-md-12">
                             <div class="page-header-title">
-                                <h5 class="m-b-10">Lista de proveedores eliminados</h5>
+                                <h5 class="m-b-10">{% if request.user|has_perfil:'CONTROL_FLOTA' or request.user|es_planificador %}Lista de transportes eliminados{% else %}Lista de proveedores eliminados{% endif %}</h5>
                             </div>
                             <ul class="breadcrumb">
                                 <li class="breadcrumb-item"><a href="/"><i class="feather icon-home"></i></a></li>
                                 <li class="breadcrumb-item"><a href="/">TERRAVIEW</a></li>
-                                <li class="breadcrumb-item"><a href="{% url 'pro_listall' %}">Proveedores</a></li>
+                                <li class="breadcrumb-item"><a href="{% url 'pro_listall' %}">{% if request.user|has_perfil:'CONTROL_FLOTA' or request.user|es_planificador %}Transportes{% else %}Proveedores{% endif %}</a></li>
                                 
                             </ul>
                         </div>
@@ -140,7 +141,7 @@
             const urlToNavigate = $(this).data('href');
             Swal.fire({
                 title: '¿Estás seguro?',
-                text: "¿Deseas habilitar este proveedor nuevamente?",
+                text: "{% if request.user|has_perfil:'CONTROL_FLOTA' or request.user|es_planificador %}¿Deseas habilitar este transporte nuevamente?{% else %}¿Deseas habilitar este proveedor nuevamente?{% endif %}",
                 icon: 'warning',
                 showCancelButton: true,
                 confirmButtonColor: '#3085d6',

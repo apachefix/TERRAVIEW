@@ -1,0 +1,72 @@
+{% extends "layouts/base.html" %}
+{% load formats %}
+
+{% block title %}Detalle tarifa global{% endblock %}
+
+{% block content %}
+<section class="pcoded-main-container">
+    <div class="pcoded-content">
+        <div class="page-header">
+            <div class="page-block">
+                <div class="row align-items-center">
+                    <div class="col-md-12">
+                        <div class="page-header-title"><h5 class="m-b-10">Detalle de tarifa global</h5></div>
+                        <ul class="breadcrumb">
+                            <li class="breadcrumb-item"><a href="/"><i class="feather icon-home"></i></a></li>
+                            <li class="breadcrumb-item"><a href="{% url 'tg_listall' %}">Tarifas globales</a></li>
+                            <li class="breadcrumb-item">{{ tarifa.TAR_CNOMBRETARIFA }}</li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="row">
+            <div class="col-lg-5">
+                <div class="card">
+                    <div class="card-header d-flex justify-content-between align-items-center">
+                        <h5 class="mb-0">Tarifa #{{ tarifa.pk }}</h5>
+                        {% if puede_administrar_tarifas %}
+                        <a href="{% url 'tg_update' tarifa.pk %}" class="btn btn-info btn-sm"><i class="fas fa-edit mr-1"></i>Editar</a>
+                        {% endif %}
+                    </div>
+                    <div class="card-body">
+                        <dl class="row mb-0">
+                            <dt class="col-sm-5">Nombre</dt><dd class="col-sm-7">{{ tarifa.TAR_CNOMBRETARIFA|default:'-' }}</dd>
+                            <dt class="col-sm-5">Transporte</dt><dd class="col-sm-7">{{ tarifa.SN_NID|default:'-' }}</dd>
+                            <dt class="col-sm-5">Ruta</dt><dd class="col-sm-7">{{ tarifa.RUT_NID|default:'-' }}</dd>
+                            <dt class="col-sm-5">Tipo / divisa</dt><dd class="col-sm-7">{{ tarifa.TAR_CTIPOTARIFA }} / {{ tarifa.TAR_CDIVISA }}</dd>
+                            <dt class="col-sm-5">Valor previo</dt><dd class="col-sm-7">$ {{ tarifa.TAR_NVALORPREVIO|custom_number_format|default:'-' }}</dd>
+                            <dt class="col-sm-5">Valor actual</dt><dd class="col-sm-7"><strong>$ {{ tarifa.TAR_NVALOR|custom_number_format }}</strong></dd>
+                            <dt class="col-sm-5">Última modificación</dt><dd class="col-sm-7">{{ tarifa.TAR_FFECHAULTIMAMODIFICACION|date:'d/m/Y H:i'|default:'-' }}</dd>
+                            <dt class="col-sm-5">Estado</dt><dd class="col-sm-7">{% if tarifa.TAR_BHABILITADO %}Habilitada{% else %}Inhabilitada{% endif %}</dd>
+                        </dl>
+                    </div>
+                </div>
+            </div>
+            <div class="col-lg-7">
+                <div class="card">
+                    <div class="card-header"><h5 class="mb-0">Histórico registrado</h5></div>
+                    <div class="card-body table-responsive">
+                        <table class="table table-striped table-bordered">
+                            <thead><tr><th>Fecha</th><th>Usuario</th><th>Valor registrado</th></tr></thead>
+                            <tbody>
+                                {% for log in logs %}
+                                <tr>
+                                    <td>{{ log.TL_FFECHAREGISTRO|date:'d/m/Y H:i'|default:'-' }}</td>
+                                    <td>{{ log.US_NID.get_full_name|default:log.US_NID.username }}</td>
+                                    <td>$ {{ log.TL_NVALOR|custom_number_format }}</td>
+                                </tr>
+                                {% empty %}
+                                <tr><td colspan="3" class="text-center text-muted">Esta tarifa no tiene registros en TARIFA_LOG.</td></tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                        <small class="text-muted">El histórico legacy registra usuario, fecha y valor resultante; no contiene motivo ni fuente ICT.</small>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</section>
+{% endblock content %}

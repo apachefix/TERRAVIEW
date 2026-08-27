@@ -48,9 +48,12 @@ class ClonarAccesoUsuarioTests(TestCase):
 
         origen_html = menu(self.origen)
         destino_html = menu(self.destino)
+        self.assertNotIn('menu-ingreso-camion-nodo', origen_html)
+        self.assertNotIn('menu-ingreso-camion-nodo', destino_html)
         for etiqueta in (
-            'Ingreso de cami&oacute;n',
             'Control de cami&oacute;n',
+            'Recepci&oacute;n',
+            'Despacho',
             'Operaci&oacute;n Planta',
             'Seguimiento Operacional',
             'Biblioteca de citaciones',

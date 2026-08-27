@@ -567,6 +567,39 @@ class CONDUCTOR(models.Model):
             alerta.sort(key=lambda x: x[1])
         return alerta
 
+
+class CONDUCTOR_EMPRESA(models.Model):
+    """Pertenencia operacional de un conductor a una empresa.
+
+    ``CONDUCTOR.EP_NID`` se mantiene como propietario histórico del registro;
+    esta tabla permite que el mismo conductor opere en más de una empresa.
+    """
+    CON_NID = models.ForeignKey(
+        CONDUCTOR, verbose_name='Id conductor', on_delete=models.PROTECT,
+        related_name='empresas_operacionales',
+    )
+    EP_NID = models.ForeignKey(
+        EMPRESA, verbose_name='Id empresa', on_delete=models.PROTECT,
+        related_name='conductores_operacionales',
+    )
+    US_NID = models.ForeignKey(
+        User, verbose_name='Usuario registro', on_delete=models.PROTECT,
+        null=True, blank=True,
+    )
+    CEM_BHABILITADO = models.BooleanField(('Habilitado'), default=True)
+    CEM_FFECHAREGISTRO = models.DateTimeField(('Fecha registro'), auto_now_add=True)
+
+    class Meta:
+        db_table = 'CONDUCTOR_EMPRESA'
+        constraints = [
+            models.UniqueConstraint(
+                fields=['CON_NID', 'EP_NID'], name='unique_conductor_empresa',
+            )
+        ]
+
+    def __str__(self):
+        return f'{self.CON_NID_id} / {self.EP_NID_id}'
+
 class LISTADO_DOCUMENTO(models.Model):
     EP_NID = models.ForeignKey(EMPRESA, verbose_name='Id empresa', on_delete=models.PROTECT)
     US_NID = models.ForeignKey(User, verbose_name='Id usuario', on_delete=models.PROTECT, null=True, blank=True)
@@ -702,6 +735,144 @@ class TARIFA_LOG(models.Model):
     class Meta:
         db_table = 'TARIFA_LOG'
 
+class CONCEPTO_VARIACION_TARIFA(models.Model):
+    EP_NID = models.ForeignKey(EMPRESA, verbose_name='Id empresa', on_delete=models.PROTECT)
+    US_NID = models.ForeignKey(User, verbose_name='Usuario creador', on_delete=models.PROTECT)
+    CVT_CNOMBRE = models.CharField(('Nombre variacion'), max_length=128, null=False)
+    CVT_CDESCRIPCION = models.TextField(('Descripcion variacion'), null=True, blank=True)
+    CVT_NPORCENTAJEDEFAULT = models.DecimalField(('Porcentaje sugerido'), decimal_places=4, max_digits=9, null=True, blank=True)
+    CVT_FFECHAINICIODEFAULT = models.DateField(('Fecha inicio sugerida'), null=True, blank=True)
+    CVT_FFECHAVENCIMIENTODEFAULT = models.DateField(('Fecha vencimiento sugerida'), null=True, blank=True)
+    CVT_BHABILITADO = models.BooleanField(('Habilitado'), default=True)
+    CVT_FFECHAREGISTRO = models.DateTimeField(('Fecha registro'), auto_now_add=True)
+
+    class Meta:
+        db_table = 'CONCEPTO_VARIACION_TARIFA'
+        ordering = ['CVT_CNOMBRE', 'id']
+
+    def __str__(self):
+        return self.CVT_CNOMBRE
+
+
+class AJUSTE_TARIFA(models.Model):
+    TIPO_ICT = 'ICT'
+    TIPO_ICT_ACUMULADO_6_MESES = 'ICT_ACUMULADO_6_MESES'
+    TIPO_VARIACION_MANUAL = 'VARIACION_MANUAL'
+    TIPOS = (
+        (TIPO_ICT, 'ICT legacy'),
+        (TIPO_ICT_ACUMULADO_6_MESES, 'ICT acumulado 6 meses'),
+        (TIPO_VARIACION_MANUAL, 'Variacion manual'),
+    )
+    ESTADO_APLICADO = 'APLICADO'
+    ESTADO_VENCIDO = 'VENCIDO'
+    ESTADO_REVERSADO = 'REVERSADO'
+    ESTADOS = (
+        (ESTADO_APLICADO, 'Aplicado'),
+        (ESTADO_VENCIDO, 'Vencido'),
+        (ESTADO_REVERSADO, 'Reversado'),
+    )
+    ORIGEN_PORCENTAJE_ICT = 'ICT'
+    ORIGEN_PORCENTAJE_MANUAL = 'MANUAL'
+    ORIGENES_PORCENTAJE = (
+        (ORIGEN_PORCENTAJE_ICT, 'ICT calculado'),
+        (ORIGEN_PORCENTAJE_MANUAL, 'Ajuste manual'),
+    )
+    EP_NID = models.ForeignKey(EMPRESA, verbose_name='Id empresa', on_delete=models.PROTECT)
+    CVT_NID = models.ForeignKey(
+        CONCEPTO_VARIACION_TARIFA, verbose_name='Concepto', null=True, blank=True,
+        on_delete=models.PROTECT, related_name='ajustes'
+    )
+    US_NID = models.ForeignKey(
+        User, verbose_name='Usuario aplicador', on_delete=models.PROTECT,
+        related_name='ajustes_tarifa_aplicados'
+    )
+    REVERSADO_POR = models.ForeignKey(
+        User, verbose_name='Usuario reversa', null=True, blank=True,
+        on_delete=models.PROTECT, related_name='ajustes_tarifa_reversados'
+    )
+    AJT_CTIPO = models.CharField(('Tipo ajuste'), max_length=32, choices=TIPOS)
+    AJT_NPORCENTAJE = models.DecimalField(('Porcentaje aplicado'), decimal_places=4, max_digits=9)
+    AJT_NPORCENTAJECALCULADO = models.DecimalField(
+        ('ICT acumulado calculado'), decimal_places=4, max_digits=9,
+        null=True, blank=True,
+    )
+    AJT_NPORCENTAJEMANUAL = models.DecimalField(
+        ('Ajuste manual'), decimal_places=4, max_digits=9,
+        null=True, blank=True,
+    )
+    AJT_CORIGENPORCENTAJE = models.CharField(
+        ('Origen porcentaje aplicado'), max_length=16,
+        choices=ORIGENES_PORCENTAJE, null=True, blank=True,
+    )
+    AJT_CMOTIVOMANUAL = models.TextField(
+        ('Motivo ajuste manual'), null=True, blank=True,
+    )
+    AJT_FPERIODOICTINICIO = models.DateField(
+        ('Inicio periodo ICT'), null=True, blank=True
+    )
+    AJT_FPERIODOICTFIN = models.DateField(
+        ('Fin periodo ICT'), null=True, blank=True
+    )
+    AJT_CCOMPONENTESICT = models.TextField(
+        ('Componentes mensuales ICT'), null=True, blank=True
+    )
+    AJT_FFECHAINICIO = models.DateField(('Fecha inicio'))
+    AJT_FFECHAVENCIMIENTO = models.DateField(('Fecha vencimiento'))
+    AJT_FFECHAAPLICACION = models.DateTimeField(('Fecha aplicacion'), auto_now_add=True)
+    AJT_CESTADO = models.CharField(('Estado'), max_length=16, choices=ESTADOS, default=ESTADO_APLICADO)
+    AJT_CFUENTE = models.CharField(('Fuente'), max_length=256, null=True, blank=True)
+    AJT_CURLFUENTE = models.URLField(('URL fuente'), max_length=512, null=True, blank=True)
+    AJT_CPERIODOICT = models.CharField(('Periodo ICT'), max_length=64, null=True, blank=True)
+    AJT_COBSERVACION = models.TextField(('Observacion'), null=True, blank=True)
+    AJT_FFECHAREVERSA = models.DateTimeField(('Fecha reversa'), null=True, blank=True)
+    AJT_CMOTIVOREVERSA = models.TextField(('Motivo reversa'), null=True, blank=True)
+
+    class Meta:
+        db_table = 'AJUSTE_TARIFA'
+        ordering = ['-AJT_FFECHAAPLICACION', '-id']
+
+
+class AJUSTE_TARIFA_DETALLE(models.Model):
+    AJT_NID = models.ForeignKey(
+        AJUSTE_TARIFA, verbose_name='Ajuste tarifa', on_delete=models.PROTECT,
+        related_name='detalles'
+    )
+    TAR_NID = models.ForeignKey(TARIFA_GLOBAL, verbose_name='Tarifa', on_delete=models.PROTECT)
+    AJTD_NVALORANTERIOR = models.DecimalField(('Valor anterior'), decimal_places=5, max_digits=18)
+    AJTD_NVALORNUEVO = models.DecimalField(('Valor nuevo'), decimal_places=5, max_digits=18)
+    AJTD_NPORCENTAJE = models.DecimalField(('Porcentaje'), decimal_places=4, max_digits=9)
+    AJTD_FFECHAREGISTRO = models.DateTimeField(('Fecha registro'), auto_now_add=True)
+
+    class Meta:
+        db_table = 'AJUSTE_TARIFA_DETALLE'
+        constraints = [
+            models.UniqueConstraint(fields=['AJT_NID', 'TAR_NID'], name='uq_ajuste_tarifa_detalle'),
+        ]
+
+
+class AJUSTE_TARIFA_CITACION_DETALLE(models.Model):
+    AJT_NID = models.ForeignKey(
+        AJUSTE_TARIFA, verbose_name='Ajuste tarifa', on_delete=models.PROTECT,
+        related_name='detalles_citaciones'
+    )
+    CI_NID = models.ForeignKey('CITACION', verbose_name='Citacion', on_delete=models.PROTECT)
+    TAR_NID = models.ForeignKey(TARIFA_GLOBAL, verbose_name='Tarifa', on_delete=models.PROTECT)
+    EP_NID = models.ForeignKey(EMPRESA, verbose_name='Id empresa', on_delete=models.PROTECT)
+    US_NID = models.ForeignKey(User, verbose_name='Usuario aplicador', on_delete=models.PROTECT)
+    AJTC_NVALORANTERIOR = models.DecimalField(('Valor citacion anterior'), decimal_places=5, max_digits=18)
+    AJTC_NVALORNUEVO = models.DecimalField(('Valor citacion nuevo'), decimal_places=5, max_digits=18)
+    AJTC_FFECHAREGISTRO = models.DateTimeField(('Fecha registro'), auto_now_add=True)
+
+    class Meta:
+        db_table = 'AJUSTE_TARIFA_CITACION_DETALLE'
+        constraints = [
+            models.UniqueConstraint(
+                fields=['AJT_NID', 'CI_NID'],
+                name='uq_ajuste_tarifa_citacion_detalle',
+            ),
+        ]
+
+
 ###################################################################################################
 ################################## MODELO DE ETAPA 3 ##############################################
 ###################################################################################################
@@ -735,6 +906,7 @@ class CITACION(models.Model):
     CI_NVALORTARIFA = models.DecimalField(("Valor tarifa"), decimal_places=5, max_digits=18, null=True, blank=True)
     CI_NDIFERENCIATARIFA = models.DecimalField(("Diferencia tarifa"), decimal_places=5, max_digits=18, null=True, blank=True)
     CI_CCOMENTARIO = models.TextField(("Comentario"), null=True, blank=True)
+    CI_CFECHAVENCIMIENTOPRODUCTO = models.CharField(("Fecha vencimiento producto DDMMAAAA"), max_length=8, null=True, blank=True)
     CI_NID_REF = models.IntegerField(("Id citacion original"), null=True, blank=True)
     CI_CTIPO_FLETE = models.CharField(("Tipo flete"), max_length=128, null=True, blank=True)
     CI_BCONFORME = models.BooleanField(("Entrega conforme"), default=False)
@@ -848,10 +1020,26 @@ class CITACION_DETALLE_OPERACIONAL(models.Model):
     CDO_CPEDIDO_SAP = models.CharField('Pedido SAP', max_length=128, null=True, blank=True)
     CDO_CSAP_OPOR_ID = models.CharField('SAP OPOR id', max_length=128, null=True, blank=True)
     CDO_CPROVEEDOR_CODIGO = models.CharField('Codigo proveedor', max_length=128, null=True, blank=True)
-    CDO_CBL_CONTENEDOR = models.CharField('BL contenedor', max_length=128, null=True, blank=True)
+    CDO_CBL_CONTENEDOR = models.CharField('Contenedor', max_length=128, null=True, blank=True)
+    CDO_CBL = models.CharField('BL', max_length=128, null=True, blank=True)
+    CDO_CGUIA = models.CharField('Guia', max_length=128, null=True, blank=True)
+    CDO_CFECHA_PRODUCCION = models.CharField('Fecha produccion', max_length=128, null=True, blank=True)
+    CDO_CFECHA_VENCIMIENTO = models.CharField('Fecha vencimiento', max_length=128, null=True, blank=True)
+    CDO_CCDA = models.CharField('CDA', max_length=128, null=True, blank=True)
+    CDO_CDI = models.CharField('DI', max_length=128, null=True, blank=True)
+    CDO_CSUI = models.CharField('SUI', max_length=128, null=True, blank=True)
+    CDO_CNAVE_NAVIERA = models.CharField('Nave naviera', max_length=256, null=True, blank=True)
+    CDO_CBOOKING = models.CharField('Booking', max_length=128, null=True, blank=True)
     CDO_NCANTIDAD_DISPONIBLE = models.DecimalField('Cantidad disponible', max_digits=18, decimal_places=5, null=True, blank=True)
     CDO_CDOCENTRY = models.CharField('DocEntry', max_length=128, null=True, blank=True)
     CDO_CPRODUCTOR = models.CharField('Productor', max_length=256, null=True, blank=True)
+    CDO_CTIPO_RECEPCION = models.CharField('Tipo recepcion', max_length=20, null=True, blank=True)
+    CDO_CESTANQUE_ORIGEN = models.CharField('Estanque origen transferencia', max_length=128, null=True, blank=True)
+    CDO_CCODIGO_PROPIETARIO = models.CharField('Codigo propietario transferencia', max_length=128, null=True, blank=True)
+    CDO_CPROPIEDAD_PRODUCTO = models.CharField('Propiedad producto transferencia', max_length=128, null=True, blank=True)
+    CDO_CUNIDAD_INVENTARIO = models.CharField('Unidad inventario transferencia', max_length=128, null=True, blank=True)
+    CDO_NCANTIDAD_CAMION = models.DecimalField('Cantidad camion transferencia', max_digits=18, decimal_places=5, null=True, blank=True)
+    CDO_NCANTIDAD_A_MOVER = models.DecimalField('Cantidad a mover transferencia', max_digits=18, decimal_places=5, null=True, blank=True)
     CDO_CALMACEN_DESTINO = models.CharField('Almacen destino', max_length=128, null=True, blank=True)
     CDO_CESTANQUE_DESTINO = models.CharField('Estanque destino', max_length=128, null=True, blank=True)
     CDO_COBSERVACION = models.TextField('Observacion', null=True, blank=True)
@@ -886,6 +1074,14 @@ class CITACION_DESPACHO_DETALLE(models.Model):
     CDD_CBODEGA = models.CharField('Bodega', max_length=128, null=True, blank=True)
     CDD_CSECUENCIA_OPERACIONAL_CODIGO = models.CharField('Codigo secuencia operacional', max_length=128, null=True, blank=True)
     CDD_CSECUENCIA_OPERACIONAL_NOMBRE = models.CharField('Nombre secuencia operacional', max_length=256, null=True, blank=True)
+    # Datos propios del modal de planificacion de Despacho Terramar. Son opcionales para preservar los registros SBH existentes.
+    CDD_CCONTENEDOR_CRT = models.CharField('Contenedor / CRT despacho Terramar', max_length=128, null=True, blank=True)
+    CDD_CTIPO_CAMION = models.CharField('Tipo camion despacho Terramar', max_length=32, null=True, blank=True)
+    CDD_BPALLET = models.BooleanField('Carga con pallet despacho Terramar', null=True, blank=True)
+    CDD_BRELLENO = models.BooleanField('Carga con relleno despacho Terramar', null=True, blank=True)
+    CDD_CCODIGO_PAIS_TELEFONO = models.CharField('Codigo pais telefono despacho Terramar', max_length=5, null=True, blank=True)
+    CDD_CHORA_CITACION = models.CharField('Hora citacion despacho Terramar', max_length=5, null=True, blank=True)
+    CDD_CTRANSPORTE_A_CARGO = models.CharField('Transporte a cargo despacho Terramar', max_length=16, null=True, blank=True)
     CDD_CSAP_ABS_ID = models.CharField('SAP AbsID', max_length=128, null=True, blank=True)
     CDD_CSAP_NUMERO_ACUERDO = models.CharField('Numero acuerdo SAP', max_length=128, null=True, blank=True)
     CDD_CSAP_LINEA_ACUERDO = models.CharField('Linea acuerdo SAP', max_length=128, null=True, blank=True)
@@ -976,6 +1172,9 @@ class EXTRA(models.Model):
     EXT_CTIPO_CITACION = models.CharField(("Tipo citacion"), choices=TIPO_CHOICES, max_length=128, null=True, blank=True)
     EXT_CARTICULOSAP = models.CharField(("Articulos SAP"), max_length=128, null=True, blank=True)
     EXT_CCUENTASAP = models.CharField(("Cuentas SAP"), max_length=128, null=True, blank=True)
+    EXT_NVALORBASE = models.DecimalField(("Valor base"), decimal_places=5, max_digits=18, null=True, blank=True)
+    EXT_BPERMITECANTIDAD = models.BooleanField(("Permite cantidad"), null=True, blank=True)
+    EXT_BPERMITEEDITARVALOR = models.BooleanField(("Permite editar valor"), null=True, blank=True)
 
     class Meta:
         db_table = 'EXTRA'
@@ -989,6 +1188,8 @@ class CITACION_EXTRA(models.Model):
     CIE_FFECHAREGISTRO = models.DateTimeField(("Fecha registro"), null=True, blank=True)
     CIE_BINGRESO = models.BooleanField(("Ingreso"), default=False)
     CIE_CCOMENTARIO = models.CharField(("Comentario"), max_length=128, null=True, blank=True)
+    CIE_NCANTIDAD = models.PositiveIntegerField(("Cantidad"), null=True, blank=True)
+    CIE_NVALORUNITARIO = models.DecimalField(("Valor unitario"), decimal_places=5, max_digits=18, null=True, blank=True)
 
     class Meta:
         db_table = 'CITACION_EXTRA'
@@ -1556,9 +1757,31 @@ class PROFORMA(models.Model):
     PRO_BBORRADOR = models.BooleanField(("Borrador"), default=True)
     PRO_BSINEXTRAS = models.BooleanField(("Sin Extras"), default=False)
     PRO_BSOLOEXTRAS = models.BooleanField(("Solo extras"), default=False)
+    PRO_FPERIODO_INICIO = models.DateField(
+        ("Inicio periodo"), null=True, blank=True, db_index=True
+    )
+    PRO_FPERIODO_FIN = models.DateField(
+        ("Fin periodo"), null=True, blank=True, db_index=True
+    )
 
     class Meta:
         db_table = "PROFORMA"
+        constraints = [
+            models.UniqueConstraint(
+                fields=(
+                    'EP_NID', 'SN_NID', 'PRO_CTIPO',
+                    'PRO_FPERIODO_INICIO', 'PRO_FPERIODO_FIN',
+                ),
+                condition=models.Q(
+                    EP_NID_id=1,
+                    PRO_CESTADO='CREADO',
+                    PRO_BBORRADOR=True,
+                    PRO_FPERIODO_INICIO__isnull=False,
+                    PRO_FPERIODO_FIN__isnull=False,
+                ),
+                name='uniq_proforma_terramar_borrador_periodo',
+            ),
+        ]
 
 class EXTRA_PROFORMA(models.Model):
     EP_NID = models.ForeignKey(EMPRESA, verbose_name='Id empresa', on_delete=models.PROTECT)
@@ -1567,6 +1790,8 @@ class EXTRA_PROFORMA(models.Model):
     EPR_NVALOR = models.DecimalField(("Valor"), decimal_places=5, max_digits=18, null=False)
     EPR_BINGRESO = models.BooleanField(("Ingreso"), default=False)
     EPR_BHABILITADO = models.BooleanField(("Habilitado"), default=True)
+    EPR_NCANTIDAD = models.PositiveIntegerField(("Cantidad snapshot"), null=True, blank=True)
+    EPR_NVALORUNITARIO = models.DecimalField(("Valor unitario snapshot"), decimal_places=5, max_digits=18, null=True, blank=True)
 
     class Meta:
         db_table = "EXTRA_PROFORMA"
@@ -1576,9 +1801,17 @@ class CITACION_PROFORMA(models.Model):
     CI_NID = models.ForeignKey(CITACION, verbose_name='id citacion', on_delete=models.PROTECT)
     PRO_NID = models.ForeignKey(PROFORMA, verbose_name='Id Proforma', on_delete=models.PROTECT)
     CIP_NSUBTOTAL = models.DecimalField(("Subtotal"), max_digits=18, decimal_places=5, null=False)
+    CIP_BREGLA_MENSUAL = models.BooleanField(default=False)
 
     class Meta:
         db_table = "CITACION_PROFORMA"
+        constraints = [
+            models.UniqueConstraint(
+                fields=('CI_NID',),
+                condition=models.Q(CIP_BREGLA_MENSUAL=True),
+                name='uniq_citacion_proforma_mensual',
+            ),
+        ]
     
     def GET_ITEM_CODE(self):
         item_code, account_number = get_citacion_item_code(self.CI_NID.CI_CTIPO_FLETE, self.EP_NID_id)
@@ -1743,6 +1976,13 @@ class CAMION_PATIO(models.Model):
     CPA_CPROVEEDOR_DECLARADO = models.CharField('Proveedor declarado', max_length=256, null=True, blank=True)
     CPA_CPRODUCTO_DECLARADO = models.CharField('Producto declarado', max_length=256, null=True, blank=True)
     CPA_CINSUMO_DECLARADO_GUIA = models.CharField('Insumo declarado en guia', max_length=256, null=True, blank=True)
+    CPA_CTIPO_RECEPCION = models.CharField('Tipo de recepcion', max_length=20, null=True, blank=True)
+    CPA_CCDA = models.CharField('CDA', max_length=128, null=True, blank=True)
+    CPA_CDI = models.CharField('DI', max_length=128, null=True, blank=True)
+    CPA_CNAVE_NAVIERA = models.CharField('Nave / Naviera', max_length=256, null=True, blank=True)
+    CPA_CFECHAPRODUCCION = models.CharField('Fecha produccion DDMMAAAA', max_length=8, null=True, blank=True)
+    CPA_CFECHAVENCIMIENTOPRODUCTO = models.CharField('Fecha vencimiento producto DDMMAAAA', max_length=8, null=True, blank=True)
+    CPA_CSUI = models.CharField('SUI', max_length=128, null=True, blank=True)
     CPA_CCLIENTE_DECLARADO = models.CharField('Cliente declarado', max_length=256, null=True, blank=True)
     CPA_CTIPO_DOCUMENTO = models.CharField('Tipo de documento', max_length=2, choices=TIPOS_DOCUMENTO)
     CPA_CNUMERO_GUIA = models.CharField('Numero guia/documento', max_length=128, null=True, blank=True)

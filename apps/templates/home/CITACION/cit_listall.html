@@ -174,7 +174,7 @@
                     <div class="row align-items-center">
                         <div class="col-md-12">
                             <div class="page-header-title">
-                                <h5 class="m-b-10">{% if tipo_citacion_actual == 'DESPACHO' or request.path == '/cit_listall_despachos/' %}Lista de citaciones - Despacho{% else %}Lista de citaciones - Recepci&oacute;n{% endif %}</h5>
+                                <h5 class="m-b-10">{% if contexto_operacion_terminadas %}Bandeja Operaciones Terminadas{% elif tipo_citacion_actual == 'DESPACHO' or request.path == '/cit_listall_despachos/' %}Lista de citaciones - Despacho{% else %}Lista de citaciones - Recepci&oacute;n{% endif %}</h5>
                             </div>
                             <ul class="breadcrumb">
                                 <li class="breadcrumb-item"><a href="/"><i class="feather icon-home"></i></a></li>
@@ -196,14 +196,14 @@
                     <div class="d-flex justify-content-end mr-5 mt-4">
                         <button class="btn btn-primary m-t-5" type="button" data-toggle="collapse" data-target="#collapseExample" aria-expanded="false" aria-controls="collapseExample"><i class="fas fa-filter"></i> Ocultar/Mostrar Filtros</button>
                         {% if filtrado == 1 %}
-                            <a class="btn btn-danger m-t-5 ml-3" href="{% if request.path == '/cit_listall_despachos/' %}{% url 'cit_listall_despachos' %}{% else %}{% url 'cit_listall_recepciones' %}{% endif %}{% if contexto_operacion_planta %}?contexto=operacion_planta&tipo={{ tipo_citacion_actual }}&empresa_id={{ empresa_activa_id }}&_empresa_id={{ empresa_activa_id }}{% endif %}"><i class="fas fa-times"></i> Borrar Filtros</a>
+                            <a class="btn btn-danger m-t-5 ml-3" href="{% if request.path == '/cit_listall_despachos/' %}{% url 'cit_listall_despachos' %}{% else %}{% url 'cit_listall_recepciones' %}{% endif %}{% if contexto_operacion_planta %}?contexto={{ contexto_operacion_valor }}&tipo={{ tipo_citacion_actual }}&empresa_id={{ empresa_activa_id }}&_empresa_id={{ empresa_activa_id }}{% endif %}"><i class="fas fa-times"></i> Borrar Filtros</a>
                         {% endif %}
                     </div>
                     <div class="collapse show" id="collapseExample">
                         <form method="GET" onsubmit="return validacion()">
                             {% csrf_token %}
                             {% if contexto_operacion_planta %}
-                                <input type="hidden" name="contexto" value="operacion_planta">
+                                <input type="hidden" name="contexto" value="{{ contexto_operacion_valor }}">
                                 <input type="hidden" name="tipo" value="{{ tipo_citacion_actual }}">
                                 <input type="hidden" name="empresa_id" value="{{ empresa_activa_id }}">
                                 <input type="hidden" name="_empresa_id" value="{{ empresa_activa_id }}">
@@ -259,13 +259,14 @@
                     <div class="card">
                         <div class="card-header table-card-header d-flex justify-content-between">
                             {% if contexto_operacion_planta %}
+                            {% if contexto_operacion_terminadas %}<h4 class="mb-2">OPERACIONES TERMINADAS</h4>{% endif %}
                             <div class="operacion-tipo-selector">
                                 <a class="btn {% if tipo_citacion_actual == 'RECEPCION' %}btn-primary{% else %}btn-outline-primary{% endif %}"
-                                   href="{% url 'cit_listall_recepciones' %}?contexto=operacion_planta&tipo=RECEPCION&empresa_id={{ empresa_activa_id }}&_empresa_id={{ empresa_activa_id }}">
+                                   href="{% url 'cit_listall_recepciones' %}?contexto={{ contexto_operacion_valor }}&tipo=RECEPCION&empresa_id={{ empresa_activa_id }}&_empresa_id={{ empresa_activa_id }}">
                                     <i class="fas fa-truck-loading mr-1"></i> Recepci&oacute;n
                                 </a>
                                 <a class="btn {% if tipo_citacion_actual == 'DESPACHO' %}btn-primary{% else %}btn-outline-primary{% endif %}"
-                                   href="{% url 'cit_listall_recepciones' %}?contexto=operacion_planta&tipo=DESPACHO&empresa_id={{ empresa_activa_id }}&_empresa_id={{ empresa_activa_id }}">
+                                   href="{% url 'cit_listall_recepciones' %}?contexto={{ contexto_operacion_valor }}&tipo=DESPACHO&empresa_id={{ empresa_activa_id }}&_empresa_id={{ empresa_activa_id }}">
                                     <i class="fas fa-shipping-fast mr-1"></i> Despacho
                                 </a>
                             </div>
@@ -301,6 +302,11 @@
                                             <th>FECHA CITACION</th>
                                             <th>NOMBRE SECUENCIA</th>
                                             <th>NOMBRE ETAPA</th>
+                                            {% if contexto_operacion_terminadas %}
+                                                <th>EMPRESA</th>
+                                                <th>FECHA/HORA TERMINO</th>
+                                                <th>GUARDIA CONFIRMA SALIDA</th>
+                                            {% endif %}
                                             {% if not ocultar_cliente_operacion_recepcion %}
                                                 <th>CLIENTE</th>
                                             {% endif %}
@@ -317,7 +323,11 @@
                                         {% for object in object_list %}
                                             <tr>
                                                 <td>
-                                                    {% if contexto_operacion_planta and object.operacion_planta_habilitada %}
+                                                    {% if contexto_operacion_terminadas %}
+                                                    <a class="btn btn-info" href="{% url 'operacion_planta_citacion' object.pk %}?empresa_id={{ empresa_activa_id }}&modo=historial" title="Ver historial operacional">
+                                                        <i class="fas fa-history"></i> Ver historial
+                                                    </a>
+                                                    {% elif contexto_operacion_planta and object.operacion_planta_habilitada %}
                                                     <a class="btn btn-success {% if object.requiere_accion_usuario %}btn-operacion-alerta{% endif %}" href="{% url 'operacion_planta_citacion' object.pk %}?empresa_id={{ empresa_activa_id }}" title="{% if object.requiere_accion_usuario %}Pendiente para usted: {{ object.nombre_paso_activo }}{% else %}Gestionar operacion{% endif %}">
                                                         <i class="fas {% if tipo_citacion_actual == 'DESPACHO' %}fa-shipping-fast{% else %}fa-truck-loading{% endif %}"></i> Operaci&oacute;n
                                                     </a>
@@ -334,7 +344,7 @@
                                                         <i class="fas fa-eye"></i>
                                                     </a>
                                                     {% endif %}
-                                                    {% if permiso_borrar %}
+                                                    {% if permiso_borrar and not contexto_operacion_terminadas %}
                                                     <a class="btn btn-danger delete_citacion" data-href="{% url 'cit_delete' object.pk %}" id="delete_citacion">
                                                         <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-trash" viewBox="0 0 16 16">
                                                             <path d="M5.5 5.5A.5.5 0 0 1 6 6v6a.5.5 0 0 1-1 0V6a.5.5 0 0 1 .5-.5zm2.5 0a.5.5 0 0 1 .5.5v6a.5.5 0 0 1-1 0V6a.5.5 0 0 1 .5-.5zm3 .5a.5.5 0 0 0-1 0v6a.5.5 0 0 0 1 0V6z" />
@@ -358,6 +368,11 @@
                                                 <td>{{ object.CI_FFECHACITACION|date:'d/m/Y' }}</td>
                                                 <td>{{ object.SC_NID.SE_CCODIGO }} - {{ object.SC_NID.SE_CNOMBRE }}</td>
                                                 <td>{{ object.operacion_estado_visible|default:object.ETAPA_ACTUAL.ET_CCODIGO }}</td>
+                                                 {% if contexto_operacion_terminadas %}
+                                                     <td>{{ object.EP_NID.EP_CRAZONSOCIAL }}</td>
+                                                     <td>{{ object.operacion_fecha_termino|date:'d/m/Y H:i:s' }}</td>
+                                                     <td>{{ object.operacion_usuario_termino|default:'-' }}</td>
+                                                 {% endif %}
                                                 {% if not ocultar_cliente_operacion_recepcion %}
                                                     <td>{{ object.SN_NID.SN_CRAZONSOCIAL|default:'-' }}</td>
                                                 {% endif %}

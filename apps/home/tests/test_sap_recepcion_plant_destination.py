@@ -57,13 +57,13 @@ class SapRecepcionPlantDestinationTests(SimpleTestCase):
         stack.enter_context(patch.object(sap_recepcion.timezone, "localdate", return_value=date(2026, 7, 27)))
         return stack
 
-    def test_preview_usa_estanque_del_detalle_en_cada_linea_sin_warehouse(self):
+    def test_preview_usa_estanque_del_detalle_como_warehouse(self):
         with self._preview_dependencies():
             preview = sap_recepcion.build_goods_receipt_draft_preview_from_peso_guia(self.citacion, Decimal("1"))
 
         line = preview["payload"]["DocumentLines"][0]
-        self.assertEqual(line["U_HCO_Plantadestino"], "PROSE_T3")
-        self.assertNotIn("WarehouseCode", line)
+        self.assertEqual(line["WarehouseCode"], "PROSE_T3")
+        self.assertNotIn("U_HCO_Plantadestino", line)
         self.assertEqual(preview["source_data"]["estanque_destino"], "PROSE_T3")
 
     def test_preview_bloquea_si_el_estanque_del_detalle_esta_vacio(self):
@@ -72,7 +72,7 @@ class SapRecepcionPlantDestinationTests(SimpleTestCase):
             preview = sap_recepcion.build_goods_receipt_draft_preview_from_peso_guia(self.citacion, Decimal("1"))
 
         self.assertIn(
-            "La citación no tiene estanque destino asignado para U_HCO_Plantadestino.",
+            "La citación no tiene bodega/almacén destino asignado para WarehouseCode.",
             preview["errors"],
         )
         self.assertEqual(preview["payload"], {})

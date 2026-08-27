@@ -99,13 +99,31 @@
                 </div>
                 {% if empresa_activa_id == 1 %}<div class="card-body border-bottom pb-3"><div class="alert alert-light border mb-0"><label for="patio_patente_consulta"><strong>Consultar patente</strong></label><div class="input-group"><input id="patio_patente_consulta" class="form-control text-uppercase" placeholder="Ej.: JW-RS-50"><div class="input-group-append"><button type="button" class="btn btn-primary" id="patio_buscar_citacion">Buscar citación</button></div></div><div id="patio_resultado_citacion" class="mt-3 d-none"></div></div></div>{% endif %}                <div class="card-body">
                     <div class="patio-form-grid">
-                        <div class="form-group patio-form-full">
+                        <div class="form-group">
                             <label for="patio_transporte_a_cargo">Transporte a cargo de *</label>
                             <select name="transporte_a_cargo" id="patio_transporte_a_cargo" class="form-control" required>
                                 <option value="TERRAMAR" {% if form_data.transporte_a_cargo != 'CLIENTE' %}selected{% endif %}>Terramar</option>
                                 <option value="CLIENTE" {% if form_data.transporte_a_cargo == 'CLIENTE' %}selected{% endif %}>Cliente</option>
                             </select>
                         </div>
+                        <div class="form-group">
+                            <label for="patio_es_despacho">&iquest;Es despacho? *</label>
+                            <select name="es_despacho" id="patio_es_despacho" class="form-control" required>
+                                <option value="0" {% if form_data.es_despacho != '1' %}selected{% endif %}>No</option>
+                                <option value="1" {% if form_data.es_despacho == '1' %}selected{% endif %}>S&iacute;</option>
+                            </select>
+                        </div>
+                        {% if empresa_activa_id == 2 %}
+                        <div class="form-group{% if form_data.es_despacho == '1' %} d-none{% endif %}" id="bloque_tipo_recepcion_patio">
+                            <label for="patio_tipo_recepcion">Tipo de recepci&oacute;n *</label>
+                            <select name="tipo_recepcion" id="patio_tipo_recepcion" class="form-control"
+                                    {% if form_data.es_despacho == '1' %}disabled{% else %}required{% endif %}>
+                                <option value="">Seleccione</option>
+                                <option value="NACIONAL" {% if form_data.tipo_recepcion == 'NACIONAL' %}selected{% endif %}>Nacional</option>
+                                <option value="EXTRANJERO" {% if form_data.tipo_recepcion == 'EXTRANJERO' %}selected{% endif %}>Extranjero</option>
+                            </select>
+                        </div>
+                        {% endif %}
                         <div class="form-group{% if form_data.transporte_a_cargo == 'CLIENTE' %} d-none{% endif %}" id="bloque_transporte_terramar">
                             <label>Empresa transporte *</label>
                             <select name="transportista" id="patio_transportista" class="form-control" {% if form_data.transporte_a_cargo == 'CLIENTE' %}disabled{% else %}required{% endif %}>
@@ -129,44 +147,52 @@
                                 <input type="checkbox" name="conductor_manual" id="patio_conductor_manual_check" value="1" {% if form_data.conductor_manual %}checked{% endif %} {% if form_data.transporte_a_cargo == 'CLIENTE' %}disabled{% endif %}>
                                 <span>Conductor no registrado</span>
                             </label>
+                            <a id="patio_registrar_conductor"
+                               class="btn btn-outline-primary btn-sm mt-2 d-none"
+                               href="{% url 'con_addone' %}?_empresa_id={{ empresa_activa_id }}">
+                                <i class="fas fa-user-plus mr-1"></i> Ir a registrar conductor
+                            </a>
+                            <small id="patio_conductor_pendiente_aviso" class="form-text text-primary d-none">
+                                Para continuar, registre primero al conductor en el maestro.
+                            </small>
                         </div>
-                        <div class="form-group{% if form_data.transporte_a_cargo != 'CLIENTE' and not form_data.conductor_manual %} d-none{% endif %}" id="bloque_conductor_cliente">
+                        <div class="form-group{% if form_data.transporte_a_cargo != 'CLIENTE' %} d-none{% endif %}" id="bloque_conductor_cliente">
                             <label for="patio_conductor_manual">Nombre conductor *</label>
                             <input type="text" name="conductor_nombre_manual" id="patio_conductor_manual"
                                    class="form-control" placeholder="Ingrese nombre completo"
                                    value="{{ form_data.conductor_nombre_manual|default:'' }}"
-                                   {% if form_data.transporte_a_cargo == 'CLIENTE' or form_data.conductor_manual %}required{% else %}disabled{% endif %}>
+                                   {% if form_data.transporte_a_cargo == 'CLIENTE' %}required{% else %}disabled{% endif %}>
                         </div>
                         <div class="form-group">
                             <label>Patente camion *</label>
                             <input type="text" name="patente" id="patio_patente" class="form-control text-uppercase" list="patio_patentes_sugeridas" required value="{{ form_data.patente|default:'' }}">
                             <datalist id="patio_patentes_sugeridas"></datalist>
                         </div>
-                        <div class="form-group">
+                        <div class="form-group{% if form_data.transporte_a_cargo != 'CLIENTE' and form_data.conductor_manual %} d-none{% endif %}" id="bloque_rut_conductor">
                             <label>RUT conductor *</label>
-                            <input type="text" name="rut_conductor" id="patio_rut_conductor" class="form-control" required value="{{ form_data.rut_conductor|default:'' }}">
+                            <input type="text" name="rut_conductor" id="patio_rut_conductor" class="form-control" required value="{{ form_data.rut_conductor|default:'' }}" {% if form_data.transporte_a_cargo != 'CLIENTE' %}disabled{% endif %}>
                         </div>
-                        <div class="form-group">
+                        <div class="form-group{% if form_data.transporte_a_cargo != 'CLIENTE' and form_data.conductor_manual %} d-none{% endif %}" id="bloque_telefono_codigo_pais">
                             <label for="patio_telefono_codigo_pais">Codigo de pais *</label>
                             <select name="telefono_codigo_pais" id="patio_telefono_codigo_pais" class="form-control" required>
                                 {% for pais in country_calling_codes %}<option value="{{ pais.codigo_telefonico }}" {% if form_data.telefono_codigo_pais|default:'+56' == pais.codigo_telefonico %}selected{% endif %}>{{ pais.nombre }} ({{ pais.codigo_telefonico }})</option>{% endfor %}
                             </select>
                         </div>
-                        <div class="form-group">
+                        <div class="form-group{% if form_data.transporte_a_cargo != 'CLIENTE' and form_data.conductor_manual %} d-none{% endif %}" id="bloque_telefono_conductor">
                             <label>Telefono conductor *</label>
                             <input type="text" name="telefono_conductor" id="patio_telefono_conductor" class="form-control" required value="{{ form_data.telefono_conductor|default:'' }}">
                             <small class="form-text text-muted">Ingrese solo el numero local; tambien puede pegar el numero internacional completo.</small>
                         </div>
                         <div class="form-group">
-                            <label>Proveedor declarado *</label>
+                            <label>Proveedor declarado <span class="patio-required-documental">*</span></label>
                             <input type="text" name="proveedor" class="form-control" required value="{{ form_data.proveedor|default:'' }}">
                         </div>
                         <div class="form-group">
-                            <label>Cliente declarado *</label>
+                            <label>Cliente declarado <span class="patio-required-documental">*</span></label>
                             <input type="text" name="cliente" class="form-control" required value="{{ form_data.cliente|default:'' }}">
                         </div>
                         <div class="form-group">
-                            <label>Tipo de documento *</label>
+                            <label>Tipo de documento <span class="patio-required-documental">*</span></label>
                             <select name="tipo_documento" class="form-control" required>
                                 <option value="">Seleccione</option>
                                 <option value="GD" {% if form_data.tipo_documento == 'GD' %}selected{% endif %}>Guía de despacho</option>
@@ -174,29 +200,68 @@
                             </select>
                         </div>
                         <div class="form-group">
-                            <label>Numero guia/documento *</label>
+                            <label>Numero guia/documento <span class="patio-required-documental">*</span></label>
                             <input type="text" name="numero_guia" class="form-control" required value="{{ form_data.numero_guia|default:'' }}">
                         </div>
-                        <div class="form-group">
-                            <label>BL</label>
-                            <input type="text" name="bl" class="form-control" value="{{ form_data.bl|default:'' }}">
+                        {% if empresa_activa_id == 2 %}
+                        <div class="form-group d-none" id="bloque_cda_patio">
+                            <label for="patio_cda">CDA</label>
+                            <input type="text" name="cda" id="patio_cda" class="form-control" value="{{ form_data.cda|default:'' }}" disabled>
+                            <small class="form-text text-muted">Certificado de Aduana</small>
+                        </div>
+                        <div class="form-group d-none" id="bloque_di_patio">
+                            <label for="patio_di">DI</label>
+                            <input type="text" name="di" id="patio_di" class="form-control" value="{{ form_data.di|default:'' }}" disabled>
+                            <small class="form-text text-muted">Declaraci&oacute;n de Ingreso</small>
+                        </div>
+                        {% endif %}
+                        <div class="form-group" id="bloque_bl_patio">
+                            <label for="patio_bl">BL</label>
+                            <input type="text" name="bl" id="patio_bl" class="form-control" value="{{ form_data.bl|default:'' }}">
+                        </div>
+                        {% if empresa_activa_id == 2 %}
+                        <div class="form-group d-none" id="bloque_nave_naviera_patio">
+                            <label for="patio_nave_naviera">Nave / Naviera</label>
+                            <input type="text" name="nave_naviera" id="patio_nave_naviera" class="form-control" value="{{ form_data.nave_naviera|default:'' }}" disabled>
+                        </div>
+                        {% endif %}
+                        <div class="form-group" id="bloque_contenedor_patio">
+                            <label for="patio_lote_contenedor" id="patio_contenedor_label">Contenedor / CRT</label>
+                            <input type="text" name="lote_contenedor" id="patio_lote_contenedor" class="form-control" value="{{ form_data.lote_contenedor|default:'' }}">
                         </div>
                         <div class="form-group">
-                            <label>Contenedor / CRT</label>
-                            <input type="text" name="lote_contenedor" class="form-control" value="{{ form_data.lote_contenedor|default:'' }}">
-                        </div>
-                        <div class="form-group">
-                            <label>Insumo declarado en guia *</label>
+                            <label>Insumo declarado en guia <span class="patio-required-documental">*</span></label>
                             <input type="text" name="insumo_declarado_guia" class="form-control" required
                                    value="{{ form_data.insumo_declarado_guia|default:'' }}"
                                    oninvalid="this.setCustomValidity('Debe ingresar el insumo declarado en guia.')"
                                    oninput="this.setCustomValidity('')">
                         </div>
+                        {% if empresa_activa_id == 2 %}
+                        <div class="form-group d-none" id="bloque_fecha_produccion_producto">
+                            <label for="patio_fecha_produccion">Fecha producci&oacute;n</label>
+                            <input type="text" name="fecha_produccion" id="patio_fecha_produccion"
+                                   class="form-control" inputmode="numeric" maxlength="10" autocomplete="off"
+                                   placeholder="14/08/2026" value="{{ form_data.fecha_produccion|default:'' }}" disabled>
+                            <small class="form-text text-muted">Formato ejemplo: 14/08/2026</small>
+                        </div>
+                        <div class="form-group d-none" id="bloque_fecha_vencimiento_producto">
+                            <label for="patio_fecha_vencimiento_producto">Fecha vencimiento</label>
+                            <input type="text" name="fecha_vencimiento_producto" id="patio_fecha_vencimiento_producto"
+                                   class="form-control" inputmode="numeric" maxlength="10" autocomplete="off"
+                                   placeholder="14/08/2026" value="{{ form_data.fecha_vencimiento_producto|default:'' }}" disabled>
+                            <small class="form-text text-muted">Formato ejemplo: 14/08/2026</small>
+                        </div>
+                        <div class="form-group d-none" id="bloque_sui_patio">
+                            <label for="patio_sui">SUI</label>
+                            <input type="text" name="sui" id="patio_sui" class="form-control" value="{{ form_data.sui|default:'' }}" disabled>
+                        </div>
+                        {% endif %}
                         {% if empresa_activa_id == 1 %}<div class="form-group"><label>Citación</label><input type="text" id="patio_numero_citacion" class="form-control" readonly></div>{% endif %}
                     </div>
                     <div class="form-group">
                         <label>Observacion</label>
-                        <textarea name="observacion" class="form-control" rows="4">{{ form_data.observacion|default:'' }}</textarea>
+                        <textarea name="observacion" id="patio_observacion" class="form-control" rows="4"{% if empresa_activa_id == 2 %} maxlength="250"{% endif %}>{{ form_data.observacion|default:'' }}</textarea>
+                        {% if empresa_activa_id == 2 %}<small class="form-text text-muted text-right" id="patio_observacion_contador">0 / 250</small>{% endif %}
                     </div>
                 </div>
             </div>
@@ -313,6 +378,66 @@
         });
     }
 
+    function esDespachoPatio() {
+        return $('#patio_es_despacho').val() === '1';
+    }
+
+    function esRecepcionSbhPatio() {
+        return Number(PATIO_EMPRESA_ID) === 2 && !esDespachoPatio();
+    }
+    function esSbhPatio() {
+        return Number(PATIO_EMPRESA_ID) === 2;
+    }
+
+    function actualizarDocumentosRecepcionSbh(limpiar) {
+        const esDespacho = esDespachoPatio();
+        const esRecepcionSbh = Number(PATIO_EMPRESA_ID) === 2 && !esDespacho;
+        const selectorTipo = $('#patio_tipo_recepcion');
+        const tipo = esRecepcionSbh ? String(selectorTipo.val() || '').toUpperCase() : '';
+        const tieneTipo = tipo === 'NACIONAL' || tipo === 'EXTRANJERO';
+        const esExtranjero = tipo === 'EXTRANJERO';
+        const camposExtranjeros = $('#patio_cda, #patio_di, #patio_nave_naviera, #patio_sui');
+        const fechasCompartidas = $('#patio_fecha_produccion, #patio_fecha_vencimiento_producto');
+        const bl = $('#patio_bl');
+        const contenedor = $('#patio_lote_contenedor');
+
+        $('#bloque_tipo_recepcion_patio').toggleClass('d-none', !esRecepcionSbh);
+        selectorTipo.prop('disabled', !esRecepcionSbh).prop('required', esRecepcionSbh);
+        $('#bloque_cda_patio, #bloque_di_patio, #bloque_nave_naviera_patio, #bloque_sui_patio')
+            .toggleClass('d-none', !esRecepcionSbh || !esExtranjero);
+        camposExtranjeros.prop('disabled', !esRecepcionSbh || !esExtranjero).prop('required', false);
+        $('#bloque_fecha_produccion_producto, #bloque_fecha_vencimiento_producto')
+            .toggleClass('d-none', !esRecepcionSbh || !tieneTipo);
+        fechasCompartidas.prop('disabled', !esRecepcionSbh || !tieneTipo).prop('required', false);
+
+        $('#bloque_bl_patio, #bloque_contenedor_patio')
+            .toggleClass('d-none', esRecepcionSbh && !esExtranjero);
+        bl.prop('disabled', esRecepcionSbh && !esExtranjero).prop('required', false);
+        contenedor.prop('disabled', esRecepcionSbh && !esExtranjero).prop('required', false);
+        $('#patio_contenedor_label').text(esRecepcionSbh ? 'Contenedor' : 'Contenedor / CRT');
+
+        if (limpiar && esRecepcionSbh && !esExtranjero) {
+            camposExtranjeros.add(bl).add(contenedor).val('');
+        }
+        if (limpiar && !esRecepcionSbh) {
+            selectorTipo.val('');
+            camposExtranjeros.add(fechasCompartidas).val('');
+        }
+    }
+
+    function actualizarModoDespachoPatio(limpiarRecepcion) {
+        const esDespacho = esDespachoPatio();
+        const camposDocumentales = $('[name="proveedor"], [name="cliente"], [name="tipo_documento"], [name="numero_guia"], [name="insumo_declarado_guia"]');
+        camposDocumentales.prop('required', !esDespacho).removeClass('is-invalid');
+        camposDocumentales.each(function () {
+            this.setCustomValidity('');
+        });
+        $('.patio-required-documental').toggleClass('d-none', esDespacho);
+        actualizarDocumentosRecepcionSbh(limpiarRecepcion === true);
+        if (esDespacho) {
+            $('#patio_guia_validacion').addClass('d-none');
+        }
+    }
     function esTransporteTerramarPatio() {
         return $('#patio_transporte_a_cargo').val() === 'TERRAMAR';
     }
@@ -338,7 +463,7 @@
         limpiar = limpiar !== false;
         const terramar = esTransporteTerramarPatio();
         const manual = terramar && $('#patio_conductor_manual_check').is(':checked');
-        const mostrarManual = !terramar || manual;
+        const mostrarManual = !terramar;
 
         if (limpiar) {
             limpiarConductorPatio();
@@ -349,7 +474,16 @@
         $('#patio_conductor').prop('disabled', !terramar || manual).prop('required', terramar && !manual);
         $('#patio_conductor_id').prop('disabled', !terramar || manual);
         $('#patio_conductor_manual').prop('disabled', !mostrarManual).prop('required', mostrarManual);
-        $('#patio_telefono_conductor').prop('required', true);
+        $('#patio_rut_conductor')
+            .prop('disabled', terramar)
+            .prop('required', !terramar);
+        $('#patio_telefono_conductor, #patio_telefono_codigo_pais')
+            .prop('disabled', manual)
+            .prop('required', !manual);
+        $('#bloque_rut_conductor, #bloque_telefono_codigo_pais, #bloque_telefono_conductor')
+            .toggleClass('d-none', manual);
+        $('#patio_registrar_conductor').toggleClass('d-none', !(terramar && manual));
+        $('#patio_conductor_pendiente_aviso').toggleClass('d-none', !(terramar && manual));
 
         if (limpiar && mostrarManual) {
             $('#patio_conductor_manual').trigger('focus');
@@ -400,10 +534,14 @@
             if (!esTransporteTerramarPatio()) return;
             const item = event.params.data || {};
             $('#patio_transportista_id').val(item.socionegocio_id || '');
-            limpiarConductorPatio();
+            if (!esSbhPatio()) {
+                limpiarConductorPatio();
+            }
         }).on('select2:clear', function () {
             $('#patio_transportista_id').val('');
-            limpiarConductorPatio();
+            if (!esSbhPatio()) {
+                limpiarConductorPatio();
+            }
         });
 
         $('#patio_conductor').select2({
@@ -418,6 +556,7 @@
                     return {
                         q: params.term || '',
                         empresa_id: PATIO_EMPRESA_ID,
+                        es_despacho: esDespachoPatio() ? '1' : '0',
                         transportista_id: $('#patio_transportista_id').val(),
                         transportista: $('#patio_transportista').val()
                     };
@@ -432,7 +571,7 @@
             $('#patio_conductor_id').val('');
             $('#patio_rut_conductor').val('');
             $('#patio_telefono_conductor').val('');
-        $('#patio_telefono_codigo_pais').val('+56');
+            $('#patio_telefono_codigo_pais').val(item.telefono_codigo_pais || '+56').trigger('change');
             $('#patio_patente').val('');
             $('#patio_patentes_sugeridas').empty();
             $('#patio_conductor_id').val(item.conductor_id || '');
@@ -481,16 +620,40 @@
         $('#patio_transporte_a_cargo').on('change', function () {
             actualizarTransporteCargoPatio(true);
         });
+        $('#patio_es_despacho').on('change', function () {
+            actualizarModoDespachoPatio(true);
+        });
+        $('#patio_tipo_recepcion').on('change', function () {
+            actualizarDocumentosRecepcionSbh(true);
+        });
+        $('#patio_observacion').on('input', function () {
+            $('#patio_observacion_contador').text(String($(this).val().length) + ' / 250');
+        }).trigger('input');
         $('#patio_conductor_manual_check').on('change', function () {
             actualizarModoConductorPatio(true);
         });
         {% if empresa_activa_id == 1 %}
         let patioMatches=[]; const patioNorm=v=>String(v||'').toUpperCase().replace(/[^A-Z0-9]/g,'');
-        function patioUsar(m){$('#patio_carga_planificacion').val('1');$('#patio_citacion_planificada_id').val(m.citacion_id);$('#patio_planificacion_planificada_id').val(m.planificacion_id);$('#patio_patente_consultada').val($('#patio_patente_consulta').val());$('#patio_transporte_a_cargo').val(String(m.transporte_a_cargo||'').toUpperCase()==='CLIENTE'?'CLIENTE':'TERRAMAR').trigger('change');if(m.empresa_transporte_id){$('#patio_transportista').append(new Option(m.empresa_transporte_nombre,m.empresa_transporte_nombre,true,true)).trigger('change');$('#patio_transportista_id').val(m.empresa_transporte_id);}if(m.conductor_registrado&&m.conductor_id){$('#patio_conductor_manual_check').prop('checked',false).trigger('change');$('#patio_conductor').append(new Option(m.conductor_nombre,m.conductor_nombre,true,true)).trigger('change');$('#patio_conductor_id').val(m.conductor_id);}else{$('#patio_conductor_manual_check').prop('checked',true).trigger('change');$('#patio_conductor_manual').val(m.conductor_nombre||'');}$('#patio_patente').val(m.patente||'');$('#patio_rut_conductor').val(m.conductor_rut||'');$('#patio_telefono_codigo_pais').val(m.codigo_pais||'+56').trigger('change');$('#patio_telefono_conductor').val(m.conductor_telefono||'');$('[name="proveedor"]').val(m.proveedor||'');$('[name="cliente"]').val(m.cliente||'');if(['GD','FE'].includes(m.tipo_documento))$('[name="tipo_documento"]').val(m.tipo_documento);$('[name="insumo_declarado_guia"]').val(m.insumo||'');$('[name="numero_guia"]').val(m.guia_esperada||'');$('#patio_guia_esperada').val(m.guia_esperada||'');$('#patio_numero_citacion').val(m.numero_citacion||m.citacion_numero||'');$('[name="bl"]').val(m.bl||'');$('[name="lote_contenedor"]').val(m.contenedor_crt||m.lote_contenedor||'');patioValidarGuia();}
-        function patioValidarGuia(){const m=patioMatches.find(x=>String(x.citacion_id)===$('#patio_citacion_planificada_id').val()),g=m&&m.guia_esperada,r=$('[name="numero_guia"]').val()||'',b=$('#patio_guia_validacion');if(!m){b.addClass('d-none');return true;}if(!g){b.removeClass('d-none alert-warning').addClass('alert-info').text('La planificación no contiene un número de guía para comparar. Validación del número ingresado.');return true;}if(patioNorm(g)===patioNorm(r)){$('#patio_acepta_diferencia_guia,#patio_observacion_diferencia_guia').val('');b.removeClass('d-none alert-warning').addClass('alert-success').text('Guía validada: coincide con la registrada en planificación.');return true;}b.removeClass('d-none alert-success alert-info').addClass('alert-warning').html('La guía ingresada no coincide con la registrada en planificación. Esperada: '+$('<div>').text(g).html()+'<br><label><input type="checkbox" id="patio_confirmar_diferencia"> Continuar con diferencia</label><textarea id="patio_motivo_diferencia" class="form-control" placeholder="Observación obligatoria"></textarea>');return false;}
-        $('#patio_buscar_citacion').on('click',function(){$.get('{% url "camiones_patio_consultar_citacion_patente" %}',{patente:$('#patio_patente_consulta').val(),_empresa_id:PATIO_EMPRESA_ID}).done(d=>{patioMatches=d.matches||[];const box=$('#patio_resultado_citacion').removeClass('d-none');if(d.status==='NO_MATCH'){box.html('<div class="alert alert-info">No existe una coincidencia de patente en citaciones de Terramar dentro de la ventana de 24 horas. Continúe el proceso manual.</div>');return;}box.html((d.matches||[]).map((x,i)=>'<div class="alert alert-success">Citación '+x.citacion_numero+' · '+x.fecha_citacion+' · '+x.empresa_transporte_nombre+' · '+x.conductor_nombre+' · Guía esperada: '+(x.guia_esperada||'sin guía')+' <button type="button" class="btn btn-sm btn-outline-primary patio-usar" data-i="'+i+'">Traer datos de planificación</button></div>').join(''));}).fail(x=>$('#patio_resultado_citacion').removeClass('d-none').html('<div class="alert alert-warning">'+((x.responseJSON||{}).status||'No fue posible consultar')+'</div>'));});
-        $('#patio_resultado_citacion').on('click','.patio-usar',function(){patioUsar(patioMatches[$(this).data('i')]);}).on('click','.patio-manual',function(){$('#patio_carga_planificacion,#patio_citacion_planificada_id,#patio_planificacion_planificada_id,#patio_patente_consultada,#patio_guia_esperada,#patio_numero_citacion').val('');$('#patio_resultado_citacion').addClass('d-none').empty();});$('[name="numero_guia"]').on('input blur',patioValidarGuia);$('#archivos_documentos').closest('form').on('submit.terramar',function(e){if(!$('#patio_carga_planificacion').val())return;if(!patioValidarGuia()){let ok=$('#patio_confirmar_diferencia').is(':checked'),o=$('#patio_motivo_diferencia').val()||'';if(!ok||!o.trim()){e.preventDefault();return;}$('#patio_acepta_diferencia_guia').val('1');$('#patio_observacion_diferencia_guia').val(o.trim());}});
+        function patioUsar(m){
+            $('#patio_es_despacho').val(String(m.tipo_citacion||'').toUpperCase()==='DESPACHO'?'1':'0').trigger('change');
+            $('#patio_carga_planificacion').val('1');$('#patio_citacion_planificada_id').val(m.citacion_id);$('#patio_planificacion_planificada_id').val(m.planificacion_id);$('#patio_patente_consultada').val($('#patio_patente_consulta').val());
+            $('#patio_transporte_a_cargo').val(String(m.transporte_a_cargo||'').toUpperCase()==='CLIENTE'?'CLIENTE':'TERRAMAR').trigger('change');
+            if(m.empresa_transporte_nombre){$('#patio_transportista').append(new Option(m.empresa_transporte_nombre,m.empresa_transporte_nombre,true,true)).trigger('change');$('#patio_transportista_id').val(m.empresa_transporte_id||'');}
+            const esDespachoTerramar=String(m.tipo_citacion||'').toUpperCase()==='DESPACHO'&&String(m.transporte_a_cargo||'').toUpperCase()==='TERRAMAR';
+            if(m.conductor_pendiente){$('#patio_conductor_manual_check').prop('checked',false).trigger('change');}
+            else if(m.conductor_registrado&&m.conductor_id){$('#patio_conductor_manual_check').prop('checked',false).trigger('change');$('#patio_conductor').append(new Option(m.conductor_nombre,m.conductor_nombre,true,true)).trigger('change');$('#patio_conductor_id').val(m.conductor_id);}
+            else if(esDespachoTerramar){$('#patio_conductor_manual_check').prop('checked',false).trigger('change');}
+            else{$('#patio_conductor_manual_check').prop('checked',true).trigger('change');$('#patio_conductor_manual').val(m.conductor_nombre||'');}
+            $('#patio_patente').val(m.patente||$('#patio_patente_consulta').val()||'');$('#patio_rut_conductor').val(m.conductor_rut||'');$('#patio_telefono_codigo_pais').val(m.codigo_pais||'+56').trigger('change');$('#patio_telefono_conductor').val(m.conductor_telefono||'');
+            $('[name="proveedor"]').val(m.proveedor||'');$('[name="cliente"]').val(m.cliente||'');if(['GD','FE'].includes(m.tipo_documento))$('[name="tipo_documento"]').val(m.tipo_documento);$('[name="insumo_declarado_guia"]').val(m.insumo||'');$('[name="numero_guia"]').val(m.guia_esperada||'');$('#patio_guia_esperada').val(m.guia_esperada||'');$('#patio_numero_citacion').val(m.numero_citacion||m.citacion_numero||'');$('[name="bl"]').val(m.bl||'');$('[name="lote_contenedor"]').val(m.contenedor_crt||m.lote_contenedor||'');
+            $('#patio_transportista').prop('disabled',String(m.transporte_a_cargo||'').toUpperCase()!=='CLIENTE');
+            patioValidarGuia();
+        }
+        function patioValidarGuia(){if(esDespachoPatio())return true;const m=patioMatches.find(x=>String(x.citacion_id)===$('#patio_citacion_planificada_id').val()),g=m&&m.guia_esperada,r=$('[name="numero_guia"]').val()||'',b=$('#patio_guia_validacion');if(!m){b.addClass('d-none');return true;}if(!g){b.removeClass('d-none alert-warning').addClass('alert-info').text('La planificación no contiene un número de guía para comparar. Validación del número ingresado.');return true;}if(patioNorm(g)===patioNorm(r)){$('#patio_acepta_diferencia_guia,#patio_observacion_diferencia_guia').val('');b.removeClass('d-none alert-warning').addClass('alert-success').text('Guía validada: coincide con la registrada en planificación.');return true;}b.removeClass('d-none alert-success alert-info').addClass('alert-warning').html('La guía ingresada no coincide con la registrada en planificación. Esperada: '+$('<div>').text(g).html()+'<br><label><input type="checkbox" id="patio_confirmar_diferencia"> Continuar con diferencia</label><textarea id="patio_motivo_diferencia" class="form-control" placeholder="Observación obligatoria"></textarea>');return false;}
+        $('#patio_buscar_citacion').on('click',function(){$.get('{% url "camiones_patio_consultar_citacion_patente" %}',{patente:$('#patio_patente_consulta').val(),_empresa_id:PATIO_EMPRESA_ID}).done(d=>{patioMatches=d.matches||[];const box=$('#patio_resultado_citacion').removeClass('d-none');if(d.status==='NO_MATCH'){box.html('<div class="alert alert-info">No existe una coincidencia de patente en citaciones de Terramar dentro de la ventana de 24 horas. Continúe el proceso manual.</div>');return;}box.html((d.matches||[]).map((x,i)=>'<div class="alert alert-success">Citación '+x.citacion_numero+' · '+x.fecha_citacion+' · '+x.empresa_transporte_nombre+' · '+(x.conductor_nombre||'Pendiente de confirmar en ingreso')+' · Guía esperada: '+(x.guia_esperada||'sin guía')+' <button type="button" class="btn btn-sm btn-outline-primary patio-usar" data-i="'+i+'">Traer datos de planificación</button></div>').join(''));}).fail(x=>$('#patio_resultado_citacion').removeClass('d-none').html('<div class="alert alert-warning">'+((x.responseJSON||{}).status||'No fue posible consultar')+'</div>'));});
+        $('#patio_resultado_citacion').on('click','.patio-usar',function(){patioUsar(patioMatches[$(this).data('i')]);}).on('click','.patio-manual',function(){$('#patio_carga_planificacion,#patio_citacion_planificada_id,#patio_planificacion_planificada_id,#patio_patente_consultada,#patio_guia_esperada,#patio_numero_citacion').val('');$('#patio_transportista').prop('disabled',!esTransporteTerramarPatio());$('#patio_resultado_citacion').addClass('d-none').empty();});$('[name="numero_guia"]').on('input blur',patioValidarGuia);$('#archivos_documentos').closest('form').on('submit.terramar',function(e){if(!$('#patio_carga_planificacion').val())return;if(!patioValidarGuia()){let ok=$('#patio_confirmar_diferencia').is(':checked'),o=$('#patio_motivo_diferencia').val()||'';if(!ok||!o.trim()){e.preventDefault();return;}$('#patio_acepta_diferencia_guia').val('1');$('#patio_observacion_diferencia_guia').val(o.trim());}});
         {% endif %}        actualizarTransporteCargoPatio(false);
+        actualizarModoDespachoPatio();
         renderArchivosDocumentos();
     });
 </script>

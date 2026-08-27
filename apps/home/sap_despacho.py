@@ -26,7 +26,7 @@ from .models import CAMION_PATIO, CITACION_DESPACHO_DETALLE, DATO_OPERACION, OPE
 from .sap_di_api import HANA_IDENTIFIER_RE, SapDiApiError, _load_config, _rows, consultar_acuerdos_despacho_sap
 
 
-SAP_DESPACHO_DRAFT_SERIES_DEFAULT = 102
+SAP_DESPACHO_DRAFT_SERIES_DEFAULT = 116
 SAP_DESPACHO_DRAFT_OBJECT_CODE_DEFAULT = "13"
 LOG_BORRADOR_SAP_DESPACHO_ENVIO = "BORRADOR_SAP_DESPACHO_ENVIO"
 LOG_UPDATE_SAP_DESPACHO_ENVIO = "UPDATE_SAP_DESPACHO_ENVIO"
@@ -58,6 +58,10 @@ SALIDA_DOCUMENTO_DESPACHO_OPCIONES = {
     "factura de cliente": "Factura de cliente",
     "guia de despacho": "Gu\u00eda de despacho",
     "factura anticipada": "Factura anticipada",
+    "factura reserva": "FE_RESERVA",
+    "gd": "GD",
+    "fe": "FE",
+    "fe_reserva": "FE_RESERVA",
 }
 
 
@@ -319,11 +323,34 @@ def construir_payload_draft_despacho(citacion):
         .order_by('-CPA_FFECHAASOCIACION', '-id')
         .first()
     )
-    tipo_documento = texto_o_primero(
+    tipo_documento_camion = texto_o_primero(
         getattr(camion_patio, 'CPA_CTIPO_DOCUMENTO', '') if camion_patio else ''
     ).upper()
-    numero_documento = texto_o_primero(
-        getattr(camion_patio, 'CPA_CNUMERO_GUIA', '') if camion_patio else ''
+    es_despacho_sbh = (
+        citacion.EP_NID_id == 2
+        and str(getattr(citacion, 'CI_CTIPO', '') or '').upper() == 'DESPACHO'
+    )
+    tipo_documento_planificado = texto_o_primero(
+        detalle_resumen.get('salida_documento') if es_despacho_sbh else ''
+    ).upper()
+    tipo_documento = (
+        tipo_documento_planificado
+        if tipo_documento_planificado in {'GD', 'FE', 'FE_RESERVA'}
+        else tipo_documento_camion
+    )
+    doc_object_code = _draft_object_code()
+    reserve_invoice = None
+    if es_despacho_sbh:
+        if tipo_documento == 'GD':
+            doc_object_code = '15'
+        elif tipo_documento == 'FE':
+            doc_object_code, reserve_invoice = '13', 'tNO'
+        elif tipo_documento == 'FE_RESERVA':
+            doc_object_code, reserve_invoice = '13', 'tYES'
+    numero_documento = (
+        ''
+        if es_despacho_sbh
+        else texto_o_primero(getattr(camion_patio, 'CPA_CNUMERO_GUIA', '') if camion_patio else '')
     )
     folio_number = int(numero_documento) if numero_documento.isdigit() else None
 
@@ -336,9 +363,13 @@ def construir_payload_draft_despacho(citacion):
         _dato_valor(citacion, "ACD_INTERMES_ID"),
         _dato_valor(citacion, "AR_INTERMES_ID"),
     )
-    quantity = decimal_o_primero(
-        _dato_valor(citacion, "ACD_PESO_INFORMADO"),
-        getattr(detalle, "CDD_NPESO_INFORMADO", None) if detalle else None,
+    quantity = (
+        decimal_o_primero(getattr(detalle, "CDD_NCANTIDAD_INTENTADA_DESPACHAR", None) if detalle else None)
+        if es_despacho_sbh
+        else decimal_o_primero(
+            _dato_valor(citacion, "ACD_PESO_INFORMADO"),
+            getattr(detalle, "CDD_NPESO_INFORMADO", None) if detalle else None,
+        )
     )
     card_code = texto_o_primero(
         detalle_resumen.get("sap_cliente_codigo"),
@@ -354,11 +385,16 @@ def construir_payload_draft_despacho(citacion):
         "citacion": citacion.id,
         "empresa": citacion.EP_NID_id,
         "series": _draft_series(),
-        "doc_object_code": _draft_object_code(),
+        "doc_object_code": doc_object_code if es_despacho_sbh else _draft_object_code(),
         "card_code": card_code,
         "tipo_documento": tipo_documento,
-        "numero_documento": numero_documento,
-        "folio_number": folio_number,
+        **({
+            **({"reserve_invoice": reserve_invoice} if doc_object_code == '13' else {}),
+            "quantity_source": "CDD_NCANTIDAD_INTENTADA_DESPACHAR",
+        } if es_despacho_sbh else {
+            "numero_documento": numero_documento,
+            "folio_number": folio_number,
+        }),
         "item_code": item_code,
         "agreement_no": agreement_no,
         "sap_abs_id": sap_abs_id,
@@ -369,12 +405,14 @@ def construir_payload_draft_despacho(citacion):
         "doc_date": doc_date,
     }
 
-    if tipo_documento not in dict(CAMION_PATIO.TIPOS_DOCUMENTO):
-        errors.append('No se puede crear borrador SAP: falta un tipo de documento valido (GD o FE).')
-    if not numero_documento:
-        errors.append('No se puede crear borrador SAP: falta numero de guia/documento.')
-    elif folio_number is None:
-        errors.append('No se puede crear borrador SAP: el numero de guia/documento debe ser numerico.')
+    tipos_documento_validos = {'GD', 'FE', 'FE_RESERVA'} if es_despacho_sbh else set(dict(CAMION_PATIO.TIPOS_DOCUMENTO))
+    if tipo_documento not in tipos_documento_validos:
+        errors.append('No se puede crear borrador SAP: falta un tipo de documento valido (GD, FE o FE_RESERVA).' if es_despacho_sbh else 'No se puede crear borrador SAP: falta un tipo de documento valido (GD o FE).')
+    if not es_despacho_sbh:
+        if not numero_documento:
+            errors.append('No se puede crear borrador SAP: falta numero de guia/documento.')
+        elif folio_number is None:
+            errors.append('No se puede crear borrador SAP: el numero de guia/documento debe ser numerico.')
 
     if not sap_abs_id:
         errors.append("No se puede crear borrador SAP: falta SAP AbsID del acuerdo global.")
@@ -402,10 +440,12 @@ def construir_payload_draft_despacho(citacion):
     if not errors:
         payload = {
             "Series": _draft_series(),
-            "DocObjectCode": _draft_object_code(),
+            "DocObjectCode": doc_object_code if es_despacho_sbh else _draft_object_code(),
             "CardCode": card_code,
-            "FolioPrefixString": tipo_documento,
-            "FolioNumber": folio_number,
+            **({} if es_despacho_sbh else {
+                "FolioPrefixString": tipo_documento,
+                "FolioNumber": folio_number,
+            }),
             "DocDate": doc_date,
             "Comments": comment,
             "JournalMemo": comment,
@@ -425,6 +465,8 @@ def construir_payload_draft_despacho(citacion):
                 }
             ],
         }
+        if es_despacho_sbh and doc_object_code == '13':
+            payload["ReserveInvoice"] = reserve_invoice
 
     return {
         "payload": payload,
@@ -441,6 +483,10 @@ def construir_payload_update_draft_despacho(citacion):
     validations = []
     warnings = []
     detalle = _detalle_despacho(citacion)
+    es_despacho_sbh = (
+        citacion.EP_NID_id == 2
+        and str(getattr(citacion, 'CI_CTIPO', '') or '').upper() == 'DESPACHO'
+    )
     draft_status = get_sap_despacho_draft_status(citacion)
     update_status = get_sap_despacho_update_status(citacion)
     docentry_texto = texto_o_primero(draft_status.get("docentry"))
@@ -474,6 +520,15 @@ def construir_payload_update_draft_despacho(citacion):
     payload = {}
     if not errors and base_payload:
         payload = json_safe(base_payload)
+        if es_despacho_sbh:
+            payload.pop("FolioPrefixString", None)
+            payload.pop("FolioNumber", None)
+            doc_object_code = draft_preview.get("payload", {}).get("DocObjectCode")
+            payload["DocObjectCode"] = doc_object_code
+            if doc_object_code == "13":
+                payload["ReserveInvoice"] = draft_preview["payload"]["ReserveInvoice"]
+            else:
+                payload.pop("ReserveInvoice", None)
         document_lines = payload.get("DocumentLines") or []
         if document_lines:
             document_lines[0]["Quantity"] = json_safe(peso_salida)
@@ -632,16 +687,22 @@ def _registrar_log_update_sap_despacho(citacion, usuario, success, payload, resp
 
 def crear_borrador_sap_despacho(citacion, usuario, allow_duplicate=False):
     existing_status = get_sap_despacho_draft_status(citacion)
+
     if existing_status.get("created") and not allow_duplicate:
         docentry = existing_status.get("docentry") or ""
         docnum = existing_status.get("docnum") or ""
+
         return {
             "success": False,
-            "message": f"La citacion ya tiene un borrador SAP creado. DocEntry: {docentry} DocNum: {docnum}",
+            "message": (
+                f"La citacion ya tiene un borrador SAP creado. "
+                f"DocEntry: {docentry} DocNum: {docnum}"
+            ),
             "status": existing_status,
         }
 
     preview = construir_payload_draft_despacho(citacion)
+
     if preview.get("errors") or not preview.get("payload"):
         return {
             "success": False,
@@ -650,40 +711,336 @@ def crear_borrador_sap_despacho(citacion, usuario, allow_duplicate=False):
             "status": existing_status,
         }
 
-    config = load_config()
+    config = load_config(citacion.EP_NID_id, for_write=True)
     client = SapServiceLayerClient(config)
+
     status_code = None
     response_payload = {}
+    sap_phase = "LOGIN"
+
     try:
         print(
-            f"\n[Borrador SAP][Despacho] citacion={citacion.id} empresa={citacion.EP_NID_id} "
-            f"CompanyDB={config.company_db} endpoint=/Drafts"
+            f"\n[Borrador SAP][Despacho] "
+            f"citacion={citacion.id} "
+            f"empresa={citacion.EP_NID_id} "
+            f"CompanyDB={config.company_db} "
+            f"endpoint=/Drafts"
         )
-        print(json.dumps(preview["payload"], indent=2, ensure_ascii=False))
+
+        print(
+            json.dumps(
+                preview["payload"],
+                indent=2,
+                ensure_ascii=False
+            )
+        )
+
         client.login()
-        sap_response = client.post_draft(preview["payload"])
+
+        sap_phase = "DRAFT"
+
+        sap_response = client.post_draft(
+            preview["payload"]
+        )
+
         status_code = sap_response.get("status_code")
         response_payload = sap_response.get("data") or {}
+
     except HTTPError as exc:
         error_data = _extract_sap_error(exc)
+
+        response = getattr(
+            exc,
+            "response",
+            None
+        )
+
+        sap_data = error_data.get("data")
+
+        sap_error = (
+            sap_data.get("error")
+            if isinstance(sap_data, dict)
+            else None
+        )
+
+        sap_code = ""
+        sap_message = ""
+
+        # --------------------------------------------------
+        # EXTRAER CÓDIGO Y MENSAJE SAP
+        # --------------------------------------------------
+
+        if isinstance(sap_error, dict):
+            sap_code = sap_error.get(
+                "code",
+                ""
+            )
+
+            message = sap_error.get(
+                "message"
+            )
+
+            if isinstance(message, dict):
+                sap_message = texto_o_primero(
+                    message.get("value"),
+                    message.get("message"),
+                    message.get("description"),
+                )
+
+                if not sap_message:
+                    sap_message = json.dumps(
+                        message,
+                        ensure_ascii=False
+                    )
+
+            elif message is not None:
+                sap_message = str(message)
+
+        elif sap_error is not None:
+            sap_message = str(
+                sap_error
+            )
+
+        # --------------------------------------------------
+        # FALLBACK PARA OTROS FORMATOS DE SAP
+        # --------------------------------------------------
+
+        if isinstance(sap_data, dict):
+            sap_code = sap_code or texto_o_primero(
+                sap_data.get("code"),
+                sap_data.get("Code")
+            )
+
+            sap_message = sap_message or texto_o_primero(
+                sap_data.get("message"),
+                sap_data.get("Message"),
+                sap_data.get("description"),
+            )
+
+        elif sap_data is not None:
+            sap_message = str(
+                sap_data
+            )
+
+        # --------------------------------------------------
+        # RESPUESTA RAW SAP
+        # --------------------------------------------------
+
+        raw_response = (
+            getattr(response, "text", "")
+            if response is not None
+            else ""
+        )
+
+        endpoint = (
+            "/Drafts"
+            if sap_phase == "DRAFT"
+            else "/Login"
+        )
+
+        error_header = (
+            "[SAP ERROR][DESPACHO]"
+            if sap_phase == "DRAFT"
+            else "[SAP ERROR][DESPACHO][LOGIN]"
+        )
+
+        # --------------------------------------------------
+        # TRADUCCIONES SOLO PARA CONSOLA
+        # --------------------------------------------------
+
+        mensajes_sap_es = {
+            "-4002": (
+                "Para generar este documento, primero defina "
+                "la serie de numeración en el módulo Administración."
+            ),
+        }
+
+        mensaje_original = (
+            sap_message
+            or str(exc)
+        )
+
+        mensaje_sap_es = mensajes_sap_es.get(
+            str(sap_code),
+            mensaje_original
+        )
+
+        # --------------------------------------------------
+        # LOG DIAGNÓSTICO CONSOLA
+        # --------------------------------------------------
+
+        print("\n" + "=" * 60)
+
+        print(
+            error_header
+        )
+
+        print(
+            f"Citación: {citacion.id}"
+        )
+
+        print(
+            f"Empresa: {citacion.EP_NID_id}"
+        )
+
+        print(
+            f"CompanyDB: {config.company_db}"
+        )
+
+        print(
+            f"Endpoint: {endpoint}"
+        )
+
+        print(
+            f"HTTP SAP: {error_data.get('status_code')}"
+        )
+
+        print(
+            f"Código SAP: {sap_code}"
+        )
+
+        print(
+            f"Mensaje SAP original: {mensaje_original}"
+        )
+
+        print(
+            f"Mensaje SAP ES: {mensaje_sap_es}"
+        )
+
+        print(
+            f"Respuesta SAP Raw: {raw_response}"
+        )
+
+        print(
+            "=" * 60
+        )
+
+        # --------------------------------------------------
+        # REGISTRAR ERROR
+        # --------------------------------------------------
+
         _registrar_log_borrador_sap_despacho(
             citacion,
             usuario,
             success=False,
             payload=preview["payload"],
-            status_code=error_data.get("status_code"),
+            status_code=error_data.get(
+                "status_code"
+            ),
             sap_error=error_data,
         )
+
+        # --------------------------------------------------
+        # RESPUESTA ACTUAL
+        # NO SE MODIFICA COMPORTAMIENTO FRONTEND
+        # --------------------------------------------------
+
         return {
             "success": False,
-            "message": "SAP rechazo la creacion del borrador de despacho.",
-            "status_code": error_data.get("status_code"),
+            "message": (
+                "SAP rechazo la creacion "
+                "del borrador de despacho."
+            ),
+            "status_code": error_data.get(
+                "status_code"
+            ),
             "sap_error": error_data,
             "preview": preview,
-            "status": get_sap_despacho_draft_status(citacion),
+            "status": get_sap_despacho_draft_status(
+                citacion
+            ),
         }
+
     except SapServiceLayerProbeError as exc:
-        error_data = {"error": str(exc)}
+        error_data = {
+            "error": str(exc)
+        }
+
+        root_exc = exc
+
+        while getattr(
+            root_exc,
+            "__cause__",
+            None
+        ) is not None:
+            root_exc = root_exc.__cause__
+
+        root_type = type(
+            root_exc
+        ).__name__
+
+        error_text = str(
+            exc
+        ).lower()
+
+        if (
+            "timeout" in error_text
+            or "timeout" in root_type.lower()
+        ):
+            error_category = "TIMEOUT"
+
+        elif (
+            "ssl" in error_text
+            or "ssl" in root_type.lower()
+        ):
+            error_category = "SSL"
+
+        elif (
+            "conex" in error_text
+            or "connection" in root_type.lower()
+        ):
+            error_category = "CONNECTION"
+
+        elif "json" in error_text:
+            error_category = "NON_JSON"
+
+        elif sap_phase == "LOGIN":
+            error_category = "LOGIN"
+
+        else:
+            error_category = "SERVICE_LAYER"
+
+        endpoint = (
+            "/Drafts"
+            if sap_phase == "DRAFT"
+            else "/Login"
+        )
+
+        print("\n" + "=" * 60)
+
+        print(
+            f"[SAP ERROR][DESPACHO]"
+            f"[{error_category}]"
+        )
+
+        print(
+            f"Citación: {citacion.id}"
+        )
+
+        print(
+            f"Empresa: {citacion.EP_NID_id}"
+        )
+
+        print(
+            f"CompanyDB: {config.company_db}"
+        )
+
+        print(
+            f"Endpoint: {endpoint}"
+        )
+
+        print(
+            f"Tipo: {root_type}"
+        )
+
+        print(
+            f"Detalle: {exc}"
+        )
+
+        print(
+            "=" * 60
+        )
+
         _registrar_log_borrador_sap_despacho(
             citacion,
             usuario,
@@ -691,17 +1048,31 @@ def crear_borrador_sap_despacho(citacion, usuario, allow_duplicate=False):
             payload=preview["payload"],
             sap_error=error_data,
         )
+
         return {
             "success": False,
             "message": str(exc),
             "sap_error": error_data,
             "preview": preview,
-            "status": get_sap_despacho_draft_status(citacion),
+            "status": get_sap_despacho_draft_status(
+                citacion
+            ),
         }
+
     finally:
         client.logout()
 
-    guardar_respuesta_borrador_sap_despacho(citacion, usuario, preview["payload"], response_payload)
+    # ------------------------------------------------------
+    # BORRADOR CREADO CORRECTAMENTE
+    # ------------------------------------------------------
+
+    guardar_respuesta_borrador_sap_despacho(
+        citacion,
+        usuario,
+        preview["payload"],
+        response_payload
+    )
+
     _registrar_log_borrador_sap_despacho(
         citacion,
         usuario,
@@ -710,6 +1081,7 @@ def crear_borrador_sap_despacho(citacion, usuario, allow_duplicate=False):
         response=response_payload,
         status_code=status_code,
     )
+
     return {
         "success": True,
         "message": "Borrador SAP de despacho creado.",
@@ -717,12 +1089,14 @@ def crear_borrador_sap_despacho(citacion, usuario, allow_duplicate=False):
         "request_json": preview["payload"],
         "response": response_payload,
         "preview": preview,
-        "status": get_sap_despacho_draft_status(citacion),
+        "status": get_sap_despacho_draft_status(
+            citacion
+        ),
     }
-
 
 def actualizar_borrador_sap_despacho(citacion, usuario, allow_retry=False):
     existing_status = get_sap_despacho_update_status(citacion)
+
     if existing_status.get("updated") and not allow_retry:
         return {
             "success": True,
@@ -731,10 +1105,26 @@ def actualizar_borrador_sap_despacho(citacion, usuario, allow_retry=False):
         }
 
     preview = construir_payload_update_draft_despacho(citacion)
-    docentry = preview.get("source_data", {}).get("draft_docentry")
-    peso_salida = decimal_or_none(preview.get("source_data", {}).get("peso_salida"))
+
+    docentry = preview.get(
+        "source_data",
+        {}
+    ).get("draft_docentry")
+
+    peso_salida = decimal_or_none(
+        preview.get(
+            "source_data",
+            {}
+        ).get("peso_salida")
+    )
+
     if preview.get("errors") or not preview.get("payload"):
-        message = preview["errors"][0] if preview.get("errors") else "Faltan datos obligatorios para actualizar SAP."
+        message = (
+            preview["errors"][0]
+            if preview.get("errors")
+            else "Faltan datos obligatorios para actualizar SAP."
+        )
+
         return {
             "success": False,
             "message": message,
@@ -742,25 +1132,246 @@ def actualizar_borrador_sap_despacho(citacion, usuario, allow_retry=False):
             "status": existing_status,
         }
 
-    config = load_config()
+    config = load_config(
+        citacion.EP_NID_id,
+        for_write=True
+    )
+
     client = SapServiceLayerClient(config)
+
     status_code = None
     response_payload = {}
+    sap_phase = "LOGIN"
+
     try:
         print(
-            f"\n[Update SAP][Despacho] citacion={citacion.id} empresa={citacion.EP_NID_id} "
-            f"CompanyDB={config.company_db} endpoint=/Drafts({docentry})"
+            f"\n[Update SAP][Despacho] "
+            f"citacion={citacion.id} "
+            f"empresa={citacion.EP_NID_id} "
+            f"CompanyDB={config.company_db} "
+            f"endpoint=/Drafts({docentry})"
         )
-        print(json.dumps(preview["payload"], indent=2, ensure_ascii=False))
+
+        print(
+            json.dumps(
+                preview["payload"],
+                indent=2,
+                ensure_ascii=False
+            )
+        )
+
         client.login()
-        sap_response = client.patch_draft(docentry, preview["payload"])
-        status_code = sap_response.get("status_code")
-        response_payload = sap_response.get("data") or {
-            "status_code": status_code,
-            "message": "Service Layer respondio sin cuerpo.",
-        }
+
+        sap_phase = "UPDATE_DRAFT"
+
+        sap_response = client.patch_draft(
+            docentry,
+            preview["payload"]
+        )
+
+        status_code = sap_response.get(
+            "status_code"
+        )
+
+        response_payload = (
+            sap_response.get("data")
+            or {
+                "status_code": status_code,
+                "message": (
+                    "Service Layer respondio sin cuerpo."
+                ),
+            }
+        )
+
     except HTTPError as exc:
         error_data = _extract_sap_error(exc)
+
+        response = getattr(
+            exc,
+            "response",
+            None
+        )
+
+        sap_data = error_data.get(
+            "data"
+        )
+
+        sap_error = (
+            sap_data.get("error")
+            if isinstance(sap_data, dict)
+            else None
+        )
+
+        sap_code = ""
+        sap_message = ""
+
+        # --------------------------------------------------
+        # EXTRAER CÓDIGO Y MENSAJE SAP
+        # --------------------------------------------------
+
+        if isinstance(sap_error, dict):
+            sap_code = sap_error.get(
+                "code",
+                ""
+            )
+
+            message = sap_error.get(
+                "message"
+            )
+
+            if isinstance(message, dict):
+                sap_message = texto_o_primero(
+                    message.get("value"),
+                    message.get("message"),
+                    message.get("description"),
+                )
+
+                if not sap_message:
+                    sap_message = json.dumps(
+                        message,
+                        ensure_ascii=False
+                    )
+
+            elif message is not None:
+                sap_message = str(
+                    message
+                )
+
+        elif sap_error is not None:
+            sap_message = str(
+                sap_error
+            )
+
+        # --------------------------------------------------
+        # FALLBACK PARA OTROS FORMATOS SAP
+        # --------------------------------------------------
+
+        if isinstance(sap_data, dict):
+            sap_code = (
+                sap_code
+                or texto_o_primero(
+                    sap_data.get("code"),
+                    sap_data.get("Code")
+                )
+            )
+
+            sap_message = (
+                sap_message
+                or texto_o_primero(
+                    sap_data.get("message"),
+                    sap_data.get("Message"),
+                    sap_data.get("description"),
+                )
+            )
+
+        elif sap_data is not None:
+            sap_message = str(
+                sap_data
+            )
+
+        raw_response = (
+            getattr(
+                response,
+                "text",
+                ""
+            )
+            if response is not None
+            else ""
+        )
+
+        endpoint = (
+            f"/Drafts({docentry})"
+            if sap_phase == "UPDATE_DRAFT"
+            else "/Login"
+        )
+
+        error_header = (
+            "[SAP ERROR][UPDATE DESPACHO]"
+            if sap_phase == "UPDATE_DRAFT"
+            else "[SAP ERROR][UPDATE DESPACHO][LOGIN]"
+        )
+
+        # --------------------------------------------------
+        # TRADUCCIONES SOLO PARA CONSOLA
+        # --------------------------------------------------
+
+        mensajes_sap_es = {
+            "-4002": (
+                "Para generar este documento, primero defina "
+                "la serie de numeración en el módulo Administración."
+            ),
+        }
+
+        mensaje_original = (
+            sap_message
+            or str(exc)
+        )
+
+        mensaje_sap_es = mensajes_sap_es.get(
+            str(sap_code),
+            mensaje_original
+        )
+
+        # --------------------------------------------------
+        # LOG DETALLADO EN CONSOLA
+        # --------------------------------------------------
+
+        print(
+            "\n" + "=" * 60
+        )
+
+        print(
+            error_header
+        )
+
+        print(
+            f"Citación: {citacion.id}"
+        )
+
+        print(
+            f"Empresa: {citacion.EP_NID_id}"
+        )
+
+        print(
+            f"CompanyDB: {config.company_db}"
+        )
+
+        print(
+            f"DocEntry: {docentry}"
+        )
+
+        print(
+            f"Endpoint: {endpoint}"
+        )
+
+        print(
+            f"HTTP SAP: {error_data.get('status_code')}"
+        )
+
+        print(
+            f"Código SAP: {sap_code}"
+        )
+
+        print(
+            f"Mensaje SAP original: {mensaje_original}"
+        )
+
+        print(
+            f"Mensaje SAP ES: {mensaje_sap_es}"
+        )
+
+        print(
+            f"Respuesta SAP Raw: {raw_response}"
+        )
+
+        print(
+            "=" * 60
+        )
+
+        # --------------------------------------------------
+        # GUARDAR ERROR EN TERRAVIEW
+        # --------------------------------------------------
+
         guardar_respuesta_update_sap_despacho(
             citacion,
             usuario,
@@ -770,24 +1381,136 @@ def actualizar_borrador_sap_despacho(citacion, usuario, allow_retry=False):
             error_data,
             SAP_DESPACHO_UPDATE_ESTADO_ERROR,
         )
+
         _registrar_log_update_sap_despacho(
             citacion,
             usuario,
             success=False,
             payload=preview["payload"],
-            status_code=error_data.get("status_code"),
+            status_code=error_data.get(
+                "status_code"
+            ),
             sap_error=error_data,
         )
+
         return {
             "success": False,
-            "message": "SAP rechazo la actualizacion del documento de despacho.",
-            "status_code": error_data.get("status_code"),
+            "message": (
+                "SAP rechazo la actualizacion "
+                "del documento de despacho."
+            ),
+            "status_code": error_data.get(
+                "status_code"
+            ),
             "sap_error": error_data,
             "preview": preview,
-            "status": get_sap_despacho_update_status(citacion),
+            "status": get_sap_despacho_update_status(
+                citacion
+            ),
         }
+
     except SapServiceLayerProbeError as exc:
-        error_data = {"error": str(exc)}
+        error_data = {
+            "error": str(exc)
+        }
+
+        root_exc = exc
+
+        while getattr(
+            root_exc,
+            "__cause__",
+            None
+        ) is not None:
+            root_exc = (
+                root_exc.__cause__
+            )
+
+        root_type = type(
+            root_exc
+        ).__name__
+
+        error_text = str(
+            exc
+        ).lower()
+
+        if (
+            "timeout" in error_text
+            or "timeout" in root_type.lower()
+        ):
+            error_category = "TIMEOUT"
+
+        elif (
+            "ssl" in error_text
+            or "ssl" in root_type.lower()
+        ):
+            error_category = "SSL"
+
+        elif (
+            "conex" in error_text
+            or "connection" in root_type.lower()
+        ):
+            error_category = "CONNECTION"
+
+        elif "json" in error_text:
+            error_category = "NON_JSON"
+
+        elif sap_phase == "LOGIN":
+            error_category = "LOGIN"
+
+        else:
+            error_category = "SERVICE_LAYER"
+
+        endpoint = (
+            f"/Drafts({docentry})"
+            if sap_phase == "UPDATE_DRAFT"
+            else "/Login"
+        )
+
+        # --------------------------------------------------
+        # LOG ERROR TÉCNICO EN CONSOLA
+        # --------------------------------------------------
+
+        print(
+            "\n" + "=" * 60
+        )
+
+        print(
+            f"[SAP ERROR][UPDATE DESPACHO]"
+            f"[{error_category}]"
+        )
+
+        print(
+            f"Citación: {citacion.id}"
+        )
+
+        print(
+            f"Empresa: {citacion.EP_NID_id}"
+        )
+
+        print(
+            f"CompanyDB: {config.company_db}"
+        )
+
+        print(
+            f"DocEntry: {docentry}"
+        )
+
+        print(
+            f"Endpoint: {endpoint}"
+        )
+
+        print(
+            f"Tipo: {root_type}"
+        )
+
+        print(
+            f"Detalle: {exc}"
+        )
+
+        print(
+            "=" * 60
+        )
+
         guardar_respuesta_update_sap_despacho(
             citacion,
             usuario,
@@ -797,6 +1520,7 @@ def actualizar_borrador_sap_despacho(citacion, usuario, allow_retry=False):
             error_data,
             SAP_DESPACHO_UPDATE_ESTADO_ERROR,
         )
+
         _registrar_log_update_sap_despacho(
             citacion,
             usuario,
@@ -804,15 +1528,23 @@ def actualizar_borrador_sap_despacho(citacion, usuario, allow_retry=False):
             payload=preview["payload"],
             sap_error=error_data,
         )
+
         return {
             "success": False,
             "message": str(exc),
             "sap_error": error_data,
             "preview": preview,
-            "status": get_sap_despacho_update_status(citacion),
+            "status": get_sap_despacho_update_status(
+                citacion
+            ),
         }
+
     finally:
         client.logout()
+
+    # ------------------------------------------------------
+    # ACTUALIZACIÓN SAP CORRECTA
+    # ------------------------------------------------------
 
     guardar_respuesta_update_sap_despacho(
         citacion,
@@ -823,6 +1555,7 @@ def actualizar_borrador_sap_despacho(citacion, usuario, allow_retry=False):
         response_payload,
         SAP_DESPACHO_UPDATE_ESTADO_ACTUALIZADO,
     )
+
     _registrar_log_update_sap_despacho(
         citacion,
         usuario,
@@ -831,6 +1564,7 @@ def actualizar_borrador_sap_despacho(citacion, usuario, allow_retry=False):
         response=response_payload,
         status_code=status_code,
     )
+
     return {
         "success": True,
         "message": "Documento SAP actualizado.",
@@ -838,9 +1572,10 @@ def actualizar_borrador_sap_despacho(citacion, usuario, allow_retry=False):
         "request_json": preview["payload"],
         "response": response_payload,
         "preview": preview,
-        "status": get_sap_despacho_update_status(citacion),
+        "status": get_sap_despacho_update_status(
+            citacion
+        ),
     }
-
 
 def normalizar_salida_documento_despacho(valor):
     texto = str(valor or "").strip()

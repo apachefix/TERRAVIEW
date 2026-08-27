@@ -1,9 +1,14 @@
 {% extends "layouts/base.html" %}
+{% load permission_filters %}
 
 {% block title %} Conductor {% endblock %} 
 
 <!-- Specific CSS goes HERE -->
-{% block stylesheets %}{% endblock stylesheets %}
+{% block stylesheets %}
+{% if alta_operacional or edicion_operacional %}
+<link rel="stylesheet" href="/static/assets/css/plugins/daterangepicker.css">
+{% endif %}
+{% endblock stylesheets %}
 
 {% block content %}		
     <!-- [ Main Content ] start -->
@@ -20,7 +25,7 @@
                             <ul class="breadcrumb">
                                 <li class="breadcrumb-item"><a href="/"><i class="feather icon-home"></i></a></li>
                                 <li class="breadcrumb-item"><a href="{% url 'con_listall' %}">Conductor</a></li>
-                                <li class="breadcrumb-item"><a href="#!">Agregar Conductor</a></li>
+                                <li class="breadcrumb-item"><a href="#!">{% if edicion_operacional %}Editar Conductor{% else %}Agregar Conductor{% endif %}</a></li>
                             </ul>
                         </div>
                     </div>
@@ -36,37 +41,38 @@
                             <h5>Conductor</h5>
                         </div>
                         <div class="card-body">
-                            <h5>Ingrese datos</h5>
+                            <h5>{% if edicion_operacional %}Editar datos y licencia{% else %}Ingrese datos{% endif %}</h5>
                             <hr>
                             <div class="row">
                                 <div class="col-md-8">
-                                    <form method="POST" id="validation-form123"  enctype="multipart/form-data" > 
+                                    <form method="POST" id="{% if alta_operacional or edicion_operacional %}conductor-operacional-form{% else %}validation-form123{% endif %}" {% if alta_operacional or edicion_operacional %}novalidate{% endif %} enctype="multipart/form-data" >
                                     {% csrf_token %}
                                     {{ form.non_field_errors }}                                        
                                         {{form.EP_NID}}
                                         <div class="fieldWrapper">
                                             {{ form.SN_NID.errors }}
-                                            <label class="my-1 me-2" for="{{ form.SN_NID.id_for_label }}">Proveedor:</label>
+                                            <label class="my-1 me-2" for="{{ form.SN_NID.id_for_label }}">{% if request.user|has_perfil:'CONTROL_FLOTA' or request.user|es_planificador or request.user|es_asistente_recepcion_rbac %}Transporte{% else %}Proveedor{% endif %}{% if alta_operacional %} *{% endif %}:</label>
                                             {{form.SN_NID}}
                                         </div>
                                         <div class="fieldWrapper">
                                             {{ form.CON_CRUT.errors }}
-                                            <label class="my-1 me-2" for="{{ form.CON_CRUT.id_for_label }}">Rut:</label>
+                                            <label class="my-1 me-2" for="{{ form.CON_CRUT.id_for_label }}">RUT:</label>
                                             {{form.CON_CRUT}}
+                                            {% if alta_operacional or edicion_operacional %}<small class="form-text text-muted">Puede ingresar 247362584, 24736258-4 o 24.736.258-4.</small><div id="rut-operacional-error" class="invalid-feedback d-block"></div>{% endif %}
                                         </div>
                                         <div class="fieldWrapper">
                                             {{ form.CON_CNOMBRE.errors }}
-                                            <label class="my-1 me-2" for="{{ form.CON_CNOMBRE.id_for_label }}">Nombre:</label>
+                                            <label class="my-1 me-2" for="{{ form.CON_CNOMBRE.id_for_label }}">Nombre{% if alta_operacional %} *{% endif %}:</label>
                                             {{form.CON_CNOMBRE}}
                                         </div>
                                         <div class="fieldWrapper">
                                             {{ form.CON_CAPELLIDO.errors }}
-                                            <label class="my-1 me-2" for="{{ form.CON_CAPELLIDO.id_for_label }}">Apellido:</label>
+                                            <label class="my-1 me-2" for="{{ form.CON_CAPELLIDO.id_for_label }}">Apellido{% if alta_operacional %} *{% endif %}:</label>
                                             {{form.CON_CAPELLIDO}}
                                         </div>
                                         <div class="fieldWrapper">
                                             {{ form.CON_CEMAIL.errors }}
-                                            <label class="my-1 me-2" for="{{ form.CON_CEMAIL.id_for_label }}">Email:</label>
+                                            <label class="my-1 me-2" for="{{ form.CON_CEMAIL.id_for_label }}">Correo electr&oacute;nico{% if alta_operacional %} *{% endif %}:</label>
                                             {{form.CON_CEMAIL}}
                                         </div>
                                         <div class="fieldWrapper">
@@ -79,11 +85,14 @@
                                             <label class="my-1 me-2" for="{{ form.CON_CDIRECCION.id_for_label }}">Dirección:</label>
                                             {{form.CON_CDIRECCION}}
                                         </div>
+                                        {% if not request.user|has_perfil:'CONTROL_FLOTA' and not request.user|es_planificador %}
                                         <div class="fieldWrapper">
                                             {{ form.CON_NPERIODO_EXTRA.errors }}
                                             <label class="my-1 me-2" for="{{ form.CON_NPERIODO_EXTRA.id_for_label }}">Período de extras:</label>
                                             {{form.CON_NPERIODO_EXTRA}}
                                         </div>
+                                        {% endif %}
+                                        {% if not edicion_operacional or puede_deshabilitar_conductor %}
                                         <div class="form-group">
                                             {{ form.CON_BHABILITADO.errors }}
                                             <label class=" font-weight-bold mr-3">¿Habilitado? </label>
@@ -94,6 +103,65 @@
                                             </div>
                                             <label>Si</label>
                                         </div>
+                                        {% endif %}
+                                        {% if alta_operacional or edicion_operacional %}
+                                        <hr>
+                                        <h5>Licencia de conducir</h5>
+                                        {% if alta_operacional %}
+                                        <p class="text-muted">El conductor y su licencia se guardar&aacute;n en una sola operaci&oacute;n.</p>
+                                        {% elif licencia_actual %}
+                                        <div class="alert alert-info">
+                                            Documento activo: <a href="{% url 'download_doc_con' licencia_actual.id %}">Descargar licencia</a><br>
+                                            Estado: <strong>{{ licencia_estado.estado }}</strong>
+                                        </div>
+                                        {% else %}
+                                        <div class="alert alert-warning">Estado: <strong>FALTANTE</strong>. Puede cargar una licencia sin bloquear la operaci&oacute;n.</div>
+                                        {% endif %}
+                                        <div class="form-row">
+                                            <div class="form-group col-md-4">
+                                                <label for="licencia_archivo">{% if alta_operacional %}Archivo *{% else %}Reemplazar archivo (opcional){% endif %}</label>
+                                                <input class="form-control-file" id="licencia_archivo" type="file" name="licencia_archivo" {% if alta_operacional %}required{% endif %}>
+                                                <div id="licencia-archivo-error" class="invalid-feedback d-block">{% if errores_operacionales.licencia_archivo %}{{ errores_operacionales.licencia_archivo }}{% endif %}</div>
+                                                <small id="licencia-seleccionada" class="form-text text-muted">{% if edicion_operacional %}Seleccione un archivo solo para reemplazar la licencia activa.{% else %}Ning&uacute;n archivo seleccionado.{% endif %}</small>
+                                            </div>
+                                            <div class="form-group col-md-4">
+                                                <label for="licencia_fecha_emision_visual">Fecha de emisi&oacute;n *</label>
+                                                <div class="input-group">
+                                                    <input class="form-control licencia-fecha-visual" id="licencia_fecha_emision_visual" type="text" placeholder="DD-MM-AAAA" autocomplete="off" readonly aria-describedby="licencia-emision-error" {% if alta_operacional or licencia_actual %}required{% endif %}>
+                                                    <div class="input-group-append">
+                                                        <button class="btn btn-outline-secondary abrir-selector-licencia" type="button" data-fecha-selector="licencia_fecha_emision_visual" aria-label="Abrir calendario de fecha de emisión"><i class="feather icon-calendar"></i></button>
+                                                    </div>
+                                                </div>
+                                                <input id="licencia_fecha_emision" type="hidden" name="licencia_fecha_emision" value="{% if edicion_operacional %}{{ licencia_fecha_emision }}{% else %}{{ request.POST.licencia_fecha_emision }}{% endif %}">
+                                                <small class="form-text text-muted">Seleccione año, mes y día en el calendario.</small>
+                                                <div id="licencia-emision-error" class="invalid-feedback d-block">{% if errores_operacionales.licencia_fecha_emision %}{{ errores_operacionales.licencia_fecha_emision }}{% endif %}</div>
+                                            </div>
+                                            <div class="form-group col-md-4">
+                                                <label for="licencia_fecha_vencimiento_visual">Fecha de vencimiento *</label>
+                                                <div class="input-group">
+                                                    <input class="form-control licencia-fecha-visual" id="licencia_fecha_vencimiento_visual" type="text" placeholder="DD-MM-AAAA" autocomplete="off" readonly aria-describedby="licencia-vencimiento-error" {% if alta_operacional or licencia_actual %}required{% endif %}>
+                                                    <div class="input-group-append">
+                                                        <button class="btn btn-outline-secondary abrir-selector-licencia" type="button" data-fecha-selector="licencia_fecha_vencimiento_visual" aria-label="Abrir calendario de fecha de vencimiento"><i class="feather icon-calendar"></i></button>
+                                                    </div>
+                                                </div>
+                                                <input id="licencia_fecha_vencimiento" type="hidden" name="licencia_fecha_vencimiento" value="{% if edicion_operacional %}{{ licencia_fecha_vencimiento }}{% else %}{{ request.POST.licencia_fecha_vencimiento }}{% endif %}">
+                                                <div id="licencia-vencimiento-error" class="invalid-feedback d-block">{% if errores_operacionales.licencia_fecha_vencimiento %}{{ errores_operacionales.licencia_fecha_vencimiento }}{% endif %}</div>
+                                            </div>
+                                        </div>
+                                        {% if alta_operacional %}
+                                        <div class="form-group">
+                                            <label for="patente_informada">Patente con la que se presenta</label>
+                                            <input class="form-control text-uppercase" id="patente_informada" name="patente_informada" value="{{ request.POST.patente_informada }}" maxlength="128" placeholder="Opcional; por ejemplo ABCD12">
+                                            <small class="form-text text-muted">No crea ni modifica el maestro CAMION.</small>
+                                        </div>
+                                        {% endif %}
+                                        {% if edicion_operacional and puede_deshabilitar_conductor and licencia_actual %}
+                                        <div class="alert alert-danger">
+                                            <strong>Acci&oacute;n administrativa:</strong> quitar la licencia la dejar&aacute; FALTANTE sin borrar el historial.
+                                            <button type="submit" class="btn btn-outline-danger btn-sm ml-2" form="deshabilitar-licencia-form">Quitar licencia activa</button>
+                                        </div>
+                                        {% endif %}
+                                        {% endif %}
                                         {{ form.errors }}
                                         <br>
                                         <div class="form-group nav justify-content-end">
@@ -104,6 +172,11 @@
                                             </a>
                                         </div>
                                     </form>
+                                    {% if edicion_operacional and puede_deshabilitar_conductor and licencia_actual %}
+                                    <form id="deshabilitar-licencia-form" method="POST" action="{% url 'conductor_licencia_deshabilitar' conductor.id %}" onsubmit="return confirm('¿Quitar la licencia activa? El historial se conservará.');">
+                                        {% csrf_token %}
+                                    </form>
+                                    {% endif %}
                                 </div>
                             </div>
                         </div>
@@ -119,6 +192,229 @@
 
 <!-- Specific Page JS goes HERE  -->
 {% block javascripts %}
+    {% if alta_operacional or edicion_operacional %}
+    <script src="/static/assets/js/plugins/moment.min.js"></script>
+    <script src="/static/assets/js/plugins/daterangepicker.js"></script>
+    <script>
+    document.addEventListener('DOMContentLoaded', function () {
+        const form = document.getElementById('conductor-operacional-form');
+        const rutInput = document.getElementById('rut');
+        const rutError = document.getElementById('rut-operacional-error');
+        const telefonoInput = document.getElementById('telefono');
+        const telefonoError = document.getElementById('telefono-operacional-error');
+        const archivoInput = document.getElementById('licencia_archivo');
+        const archivoTexto = document.getElementById('licencia-seleccionada');
+        const archivoError = document.getElementById('licencia-archivo-error');
+        const emisionInput = document.getElementById('licencia_fecha_emision');
+        const emisionSelector = document.getElementById('licencia_fecha_emision_visual');
+        const emisionError = document.getElementById('licencia-emision-error');
+        const vencimientoInput = document.getElementById('licencia_fecha_vencimiento');
+        const vencimientoSelector = document.getElementById('licencia_fecha_vencimiento_visual');
+        const vencimientoError = document.getElementById('licencia-vencimiento-error');
+        const validarRutUrl = '{% url "conductor_validar_rut" %}';
+        const conductorEditadoId = '{% if edicion_operacional %}{{ conductor.id }}{% endif %}';
+        const licenciaExistente = {% if licencia_actual %}true{% else %}false{% endif %};
+        const archivoObligatorio = {% if alta_operacional %}true{% else %}false{% endif %};
+        let rutDuplicado = false;
+
+        function normalizarRut(valor) {
+            const limpio = String(valor || '').toUpperCase().replace(/[.\s-]/g, '');
+            if (!limpio) return '';
+            if (!/^\d{2,8}[0-9K]$/.test(limpio)) return null;
+            const cuerpoNumero = parseInt(limpio.slice(0, -1), 10);
+            const cuerpo = String(cuerpoNumero);
+            let suma = 0;
+            let factor = 2;
+            for (let i = cuerpo.length - 1; i >= 0; i--) {
+                suma += Number(cuerpo[i]) * factor;
+                factor = factor === 7 ? 2 : factor + 1;
+            }
+            const resultado = 11 - (suma % 11);
+            const esperado = resultado === 11 ? '0' : (resultado === 10 ? 'K' : String(resultado));
+            if (limpio.slice(-1) !== esperado) return null;
+            return cuerpo + '-' + esperado;
+        }
+
+        function validarRut() {
+            const normalizado = normalizarRut(rutInput.value);
+            if (normalizado === null) {
+                rutInput.setCustomValidity('RUT inv\u00e1lido. Revise el n\u00famero ingresado.');
+                rutInput.classList.add('is-invalid');
+                rutError.textContent = 'RUT inv\u00e1lido. Revise el n\u00famero ingresado.';
+                return false;
+            }
+            if (!rutDuplicado) {
+                rutInput.setCustomValidity('');
+                rutInput.classList.remove('is-invalid');
+                rutError.textContent = '';
+            }
+            if (normalizado) rutInput.value = normalizado;
+            return !rutDuplicado;
+        }
+
+        async function validarDuplicidadRut() {
+            if (!validarRut() || !rutInput.value) return;
+            const params = new URLSearchParams({rut: rutInput.value});
+            if (conductorEditadoId) params.set('excluir_id', conductorEditadoId);
+            const empresaId = new URLSearchParams(window.location.search).get('_empresa_id');
+            if (empresaId) params.set('_empresa_id', empresaId);
+            try {
+                const response = await fetch(validarRutUrl + '?' + params.toString(), {
+                    headers: {'X-Requested-With': 'XMLHttpRequest'},
+                });
+                if (!response.ok) return;
+                const data = await response.json();
+                rutDuplicado = Boolean(data.existe);
+                if (rutDuplicado) {
+                    let mensaje = data.message || 'Este RUT ya se encuentra registrado en esta empresa.';
+                    if (data.duplicados_historicos) {
+                        mensaje += ' Existen registros históricos duplicados; no se creará uno nuevo.';
+                    }
+                    rutInput.setCustomValidity(mensaje);
+                    rutInput.classList.add('is-invalid');
+                    rutError.textContent = mensaje;
+                }
+            } catch (error) {
+                // La comprobacion definitiva se realiza siempre en el POST transaccional.
+            }
+        }
+
+        function validarTelefono() {
+            const valor = telefonoInput.value.trim();
+            if (/[A-Za-z]/.test(valor)) {
+                telefonoInput.setCustomValidity('El tel\u00e9fono contiene caracteres no permitidos.');
+                telefonoInput.classList.add('is-invalid');
+                telefonoError.textContent = 'El tel\u00e9fono contiene caracteres no permitidos.';
+                return false;
+            }
+            const digitos = valor.replace(/\D/g, '');
+            if (digitos.length < 6 || digitos.length > 14) {
+                telefonoInput.setCustomValidity('Ingrese un n\u00famero telef\u00f3nico v\u00e1lido.');
+                telefonoInput.classList.add('is-invalid');
+                telefonoError.textContent = 'Ingrese un n\u00famero telef\u00f3nico v\u00e1lido.';
+                return false;
+            }
+            telefonoInput.value = digitos;
+            telefonoInput.setCustomValidity('');
+            telefonoInput.classList.remove('is-invalid');
+            telefonoError.textContent = '';
+            return true;
+        }
+
+        function validarLicencia() {
+            let valida = true;
+            const requiereFechas = archivoObligatorio || licenciaExistente || archivoInput.files.length > 0;
+            if (archivoObligatorio && !archivoInput.files.length) {
+                archivoInput.setCustomValidity('Debe adjuntar la licencia de conducir.');
+                archivoError.textContent = 'Debe adjuntar la licencia de conducir.';
+                valida = false;
+            } else {
+                archivoInput.setCustomValidity('');
+                archivoError.textContent = '';
+            }
+            if (requiereFechas && !fechaIsoCompleta(emisionInput.value)) {
+                emisionSelector.setCustomValidity('Debe ingresar la fecha de emisión de la licencia.');
+                emisionSelector.classList.add('is-invalid');
+                emisionError.textContent = 'Debe ingresar la fecha de emisión de la licencia.';
+                valida = false;
+            } else {
+                emisionSelector.setCustomValidity('');
+                emisionSelector.classList.remove('is-invalid');
+                emisionError.textContent = '';
+            }
+            if (requiereFechas && !fechaIsoCompleta(vencimientoInput.value)) {
+                vencimientoSelector.setCustomValidity('Debe ingresar la fecha de vencimiento de la licencia.');
+                vencimientoSelector.classList.add('is-invalid');
+                vencimientoError.textContent = 'Debe ingresar la fecha de vencimiento de la licencia.';
+                valida = false;
+            } else {
+                vencimientoSelector.setCustomValidity('');
+                vencimientoSelector.classList.remove('is-invalid');
+                vencimientoError.textContent = '';
+            }
+            return valida;
+        }
+
+        function fechaIsoCompleta(valor) {
+            return /^\d{4}-\d{2}-\d{2}$/.test(String(valor || ''));
+        }
+
+        function configurarSelectorFechaLicencia(selector, campoOculto) {
+            const $selector = $(selector);
+            $selector.daterangepicker({
+                singleDatePicker: true,
+                showDropdowns: true,
+                autoApply: false,
+                autoUpdateInput: false,
+                minYear: 1900,
+                maxYear: moment().year() + 50,
+                locale: {
+                    format: 'DD-MM-YYYY',
+                    applyLabel: 'Aplicar',
+                    cancelLabel: 'Cancelar',
+                    daysOfWeek: ['Do', 'Lu', 'Ma', 'Mi', 'Ju', 'Vi', 'Sa'],
+                    monthNames: ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'],
+                    firstDay: 1,
+                },
+            }, function (fecha) {
+                campoOculto.value = fecha.format('YYYY-MM-DD');
+                selector.value = fecha.format('DD-MM-YYYY');
+                validarLicencia();
+            });
+
+            // El valor sólo se actualiza cuando el usuario selecciona un día.
+            selector.addEventListener('click', function () {
+                window.setTimeout(function () {
+                    $selector.data('daterangepicker').show();
+                }, 0);
+            });
+
+            if (fechaIsoCompleta(campoOculto.value)) {
+                const fechaInicial = moment(campoOculto.value, 'YYYY-MM-DD', true);
+                if (fechaInicial.isValid()) {
+                    const picker = $selector.data('daterangepicker');
+                    picker.setStartDate(fechaInicial);
+                    picker.setEndDate(fechaInicial);
+                    selector.value = fechaInicial.format('DD-MM-YYYY');
+                }
+            }
+        }
+
+        rutInput.addEventListener('input', function () {
+            rutDuplicado = false;
+            validarRut();
+        });
+        rutInput.addEventListener('blur', validarDuplicidadRut);
+        telefonoInput.addEventListener('input', validarTelefono);
+        telefonoInput.addEventListener('blur', validarTelefono);
+        archivoInput.addEventListener('change', function () {
+            validarLicencia();
+            archivoTexto.textContent = archivoInput.files.length
+                ? '\u2713 ' + archivoInput.files[0].name
+                : 'Ning\u00fan archivo seleccionado.';
+        });
+        configurarSelectorFechaLicencia(emisionSelector, emisionInput);
+        configurarSelectorFechaLicencia(vencimientoSelector, vencimientoInput);
+        document.querySelectorAll('.abrir-selector-licencia').forEach(function (boton) {
+            boton.addEventListener('click', function () {
+                const selector = document.getElementById(boton.dataset.fechaSelector);
+                const picker = $(selector).data('daterangepicker');
+                picker.isShowing = false;
+                picker.show();
+            });
+        });
+        form.addEventListener('submit', function (event) {
+            const rutValido = validarRut();
+            const telefonoValido = validarTelefono();
+            const licenciaValida = validarLicencia();
+            if (!rutValido || rutDuplicado || !telefonoValido || !licenciaValida || !form.checkValidity()) {
+                event.preventDefault();
+                form.reportValidity();
+            }
+        });
+    });
+    </script>
+    {% endif %}
     <!-- bootstrap-tagsinput-latest Js -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/typeahead.js/0.11.1/typeahead.bundle.min.js"></script>
     <script src="/static/assets/js/plugins/bootstrap-tagsinput.min.js"></script>

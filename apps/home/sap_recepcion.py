@@ -34,6 +34,7 @@ from .sap_di_api import (
     consultar_pedidos_por_producto_sap,
     consultar_producto_sap,
     consultar_productos_sap,
+    consultar_productos_recepcion_transferencia_sap,
     consultar_proveedores_sap,
 )
 
@@ -56,6 +57,7 @@ __all__ = [
     "consultar_pedidos_por_producto_sap",
     "consultar_producto_sap",
     "consultar_productos_sap",
+    "consultar_productos_recepcion_transferencia_sap",
     "consultar_proveedores_sap",
     "generar_lote_recepcion_sap",
     "get_goods_receipt_draft_guide_status",

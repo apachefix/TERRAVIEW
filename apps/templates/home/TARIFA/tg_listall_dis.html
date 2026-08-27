@@ -45,7 +45,7 @@
                                 <table id="basic-btn3" class="table table-striped table-bordered nowrap" data-page-length='50'>
                                     <thead>
                                         <tr>
-                                            {% if request.user.is_superuser == 1  %}
+                                            {% if puede_administrar_tarifas %}
                                             <th>ACCIONES</th>
                                             {% endif %}
                                             <th>NOMBRE</th>
@@ -60,6 +60,7 @@
                                     <tbody>
                                         {% for objeto in object_list %}
                                         <tr>
+                                            {% if puede_administrar_tarifas %}
                                             <td class="text-center">
                                                 <a class="btn btn-primary habilitar_tarifa" data-href="{% url 'tg_habilitar' objeto.pk %}">                                                        
                                                     <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-arrow-clockwise" viewBox="0 0 16 16">
@@ -68,6 +69,7 @@
                                                     </svg>
                                                 </a> 
                                             </td>
+                                            {% endif %}
                                             <td><span class="fw-normal">{{ objeto.TAR_CNOMBRETARIFA|default:"-" }}</span></td>
                                             <td><span class="fw-normal">{{ objeto.TAR_CTIPOTARIFA|default:"-" }}</span></td>
                                             <td><span class="fw-normal">{{ objeto.TAR_CDIVISA|default:"-" }}</span></td>

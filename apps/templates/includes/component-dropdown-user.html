@@ -1,3 +1,4 @@
+{% load permission_filters %}
 
     <div class="dropdown drp-user">
         <a href="#!" class="dropdown-toggle" data-toggle="dropdown">
@@ -7,7 +8,7 @@
             <div class="pro-head">
                 <img src="/static/assets/images/user/logo_terramar.png?v=20260527-2" class="img-radius user-menu-avatar" alt="User-Profile-Image">
                 <span>
-                    {{ request.user.username }}
+                    {{ request.user|nombre_usuario_visible }}
                 </span>
             </div>
             <ul class="pro-body">

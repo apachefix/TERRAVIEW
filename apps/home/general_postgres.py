@@ -1,3 +1,4 @@
+from django.conf import settings
 from django.db import connection
 
 from .vars import *
@@ -1069,8 +1070,10 @@ def tiene_perfil_usuario(vista, perfil):
 ################# PROFORMA ########################
 ###################################################
 
-def get_list_citaciones_proforma(proveedor, fecha_desde, fecha_hasta, tipo_citacion, empresa):
-    from django.db import connection
+def get_list_citaciones_proforma(
+    proveedor, fecha_desde, fecha_hasta, tipo_citacion, empresa,
+    usar_fecha_citacion=False,
+):
     
     try:
         with connection.cursor() as cursor:
@@ -1161,12 +1164,19 @@ def get_list_citaciones_proforma(proveedor, fecha_desde, fecha_hasta, tipo_citac
                 query += ' AND pro."id" = %s'
                 params.append(int(proveedor))
             
+            campo_fecha = (
+                'timezone(' + repr(settings.TIME_ZONE) + ', '
+                '"CITACION"."CI_FFECHACITACION")'
+                if usar_fecha_citacion
+                else '"CITACION"."CI_FFECHAREGISTRO"'
+            )
+
             if fecha_desde and fecha_desde != 'None':
-                query += ' AND "CITACION"."CI_FFECHAREGISTRO"::date >= %s'
+                query += f' AND {campo_fecha}::date >= %s'
                 params.append(fecha_desde)
 
             if fecha_hasta and fecha_hasta != 'None':
-                query += ' AND "CITACION"."CI_FFECHAREGISTRO"::date <= %s'
+                query += f' AND {campo_fecha}::date <= %s'
                 params.append(fecha_hasta)
                         
             if tipo_citacion and tipo_citacion != 'None':
@@ -1291,7 +1301,14 @@ def get_list_citaciones_terminadas_proforma(
                 WHERE
                     c."CI_CESTADO" = 'TERMINADO'
                     AND c."CI_BHABILITADO" = TRUE
-                    AND c."CI_BCONFORME" = FALSE
+                    AND (
+                        c."CI_BCONFORME" = FALSE
+                        OR (
+                            c."EP_NID_id" = 1
+                            AND c."CI_BCONFORME" = TRUE
+                            AND c."PRO_NID_id" IS NULL
+                        )
+                    )
                     AND NOT EXISTS (
                         SELECT 1
                         FROM "CITACION_PROFORMA" AS cip
@@ -1363,7 +1380,14 @@ def get_transportistas_citaciones_terminadas_proforma(empresa):
                 WHERE
                     c."CI_CESTADO" = 'TERMINADO'
                     AND c."CI_BHABILITADO" = TRUE
-                    AND c."CI_BCONFORME" = FALSE
+                    AND (
+                        c."CI_BCONFORME" = FALSE
+                        OR (
+                            c."EP_NID_id" = 1
+                            AND c."CI_BCONFORME" = TRUE
+                            AND c."PRO_NID_id" IS NULL
+                        )
+                    )
                     AND c."EP_NID_id" = %s
                     AND NOT EXISTS (
                         SELECT 1

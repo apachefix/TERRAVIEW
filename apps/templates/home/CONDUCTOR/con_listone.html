@@ -1,4 +1,5 @@
 {% extends "layouts/base.html" %}
+{% load permission_filters %}
 
 {% block title %} {{ conductor.SN_NID }} {% endblock %} 
 
@@ -42,7 +43,7 @@
                 <div class="col-sm-7">
                     <div class="card">
                         <div class="card-body">
-                            {% if not request.user.userv.UX_IS_PROVEEDOR %}
+                            {% if not request.user|es_proveedor_legacy %}
                                 <div class="d-flex justify-content-end">
                                     <a class="btn btn-info" href="{% url 'con_update' conductor.id %}?next={{request.path}}">
                                     <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-pencil-square" viewBox="0 0 16 16">
@@ -50,10 +51,15 @@
                                         <path fill-rule="evenodd" d="M1 13.5A1.5 1.5 0 0 0 2.5 15h11a1.5 1.5 0 0 0 1.5-1.5v-6a.5.5 0 0 0-1 0v6a.5.5 0 0 1-.5.5h-11a.5.5 0 0 1-.5-.5v-11a.5.5 0 0 1 .5-.5H9a.5.5 0 0 0 0-1H2.5A1.5 1.5 0 0 0 1 2.5v11z"/>
                                     </svg> Editar conductor
                                     </a>
+                                    {% if puede_eliminar_conductor and conductor.CON_BHABILITADO %}
+                                    <a class="btn btn-danger ml-2 delete_conductor" data-href="{% url 'con_delete' conductor.id %}">
+                                        <i class="fas fa-user-slash"></i> Deshabilitar conductor
+                                    </a>
+                                    {% endif %}
                                 </div>
                             {% endif %}
                             <div class="form-group">                                
-                                <label class="my-1 me-2">Proveedor:</label>
+                                <label class="my-1 me-2">{% if request.user|has_perfil:'CONTROL_FLOTA' or request.user|es_planificador or request.user|es_asistente_recepcion_rbac %}Transporte{% else %}Proveedor{% endif %}:</label>
                                 <p class="form-control col-12">{{conductor.SN_NID}}</p>
                             </div>
                             <div class="form-group">
@@ -108,7 +114,7 @@
                     </div>
                 </div>
             
-                {% for documento in tipos_documentos %}
+                {% for documento in tipos_documentos_legacy %}
                     <p class="data_list" hidden>{{documento}}</p>
                 {% endfor %}
                 <!-- BOTONES DE MODALES -->
@@ -176,6 +182,9 @@
                             </button>
                         </div>
                     {% endif %}
+                    <div class="alert {% if estado_documental_general == 'VIGENTE' %}alert-success{% elif estado_documental_general == 'POR VENCER' %}alert-warning{% else %}alert-danger{% endif %} mt-3">
+                        Estado documental: <strong>{{ estado_documental_general }}</strong>
+                    </div>
                 </div>
             </div>
             <!-- [ Main Content ] end -->
@@ -205,16 +214,18 @@
                                 <th>FECHA VENCIMIENTO</th>
                                 <th>DIAS PARA VENCER </th>
                                 <th>DOCUMENTO</th>
-                                <th>ACCIONES</th>
+
                             </tr>
                         </thead>
                         <tbody>
                             <!-- BOTÓN PARA AGREGAR DOCUMENTOS -->
+                            {% if puede_agregar_documento_legacy %}
                             <div class=" mb-2 mb-md-0" style="right:20px;top: 10px; position: absolute;">
-                                <button type='button' data-toggle="modal" data-target="#ModalAgregarDocumento" class="btn  btn-primary d-inline-flex align-items-center"><i class="fas fa-user-plus"></i>
-                                    &nbsp&nbsp Agregar Documento
+                                <button type='button' data-toggle="modal" data-target="#ModalAgregarDocumento" class="btn btn-primary d-inline-flex align-items-center"><i class="fas fa-file-medical"></i>
+                                    &nbsp;&nbsp; Agregar documento adicional
                                 </button>
-                            </div> 
+                            </div>
+                            {% endif %}
                             {% for documento in documentos %}
                                 {% if documento.DCON_FFECHAVENCIMIENTO %}
                                     {% if documento.DIAS_VENCIMIENTO < 30 and documento.DIAS_VENCIMIENTO >= 1 %}
@@ -226,11 +237,6 @@
                                             <td><span class="fw-normal">{{ documento.DCON_FFECHAVENCIMIENTO|date:"d/m/Y" }}</span></td>
                                             <td><span class="fw-normal">{{ documento.DIAS_VENCIMIENTO }} dias <i class="fas fa-exclamation" style="color: rgb(252, 233, 0);"></i></span></td>
                                             <td><span class="fw-normal"><a href="{% url 'download_doc_con' documento.id %}"><i class="fas fa-file-pdf"></i>  Descargar</a></span></td>
-                                            <td>
-                                                <button class="btn btn-danger btn-sm" onclick="confirmDelete({{ documento.id }})">
-                                                    <i class="fas fa-trash"></i>
-                                                </button>
-                                            </td>
                                         </tr>
                                     {% elif documento.DIAS_VENCIMIENTO <= 0  %}
                                         <tr>
@@ -241,11 +247,6 @@
                                             <td><span class="fw-normal">{{ documento.DCON_FFECHAVENCIMIENTO|date:"d/m/Y" }} </span></td>
                                             <td><span class="fw-normal">{{ documento.DIAS_VENCIMIENTO }} dias <i class="fas fa-ban" style="color: rgb(255, 0, 0);"></i></span></td>
                                             <td><span class="fw-normal"><a href="{% url 'download_doc_con' documento.id %}"><i class="fas fa-file-pdf"></i>  Descargar</a></span></td>
-                                            <td>
-                                                <button class="btn btn-danger btn-sm" onclick="confirmDelete({{ documento.id }})">
-                                                    <i class="fas fa-trash"></i>
-                                                </button>
-                                            </td>
                                         </tr>
                                     {% else %}
                                         <tr >
@@ -256,11 +257,6 @@
                                             <td><span class="fw-normal">{{ documento.DCON_FFECHAVENCIMIENTO|date:"d/m/Y" }}</span></td>
                                             <td><span class="fw-normal">{{ documento.DIAS_VENCIMIENTO }} dias</span></td>
                                             <td><span class="fw-normal"><a href="{% url 'download_doc_con' documento.id %}"><i class="fas fa-file-pdf"></i>  Descargar</a></span></td>
-                                            <td>
-                                                <button class="btn btn-danger btn-sm" onclick="confirmDelete({{ documento.id }})">
-                                                    <i class="fas fa-trash"></i>
-                                                </button>
-                                            </td>
                                         </tr>
                                     {% endif %}
                                 {% else %}
@@ -272,10 +268,6 @@
                                         <td><span class="fw-normal">No registrada</span></td>
                                         <td><span class="fw-normal">No registrada</span></td>
                                         <td><span class="fw-normal"><a href="{% url 'download_doc_con' documento.id %}"><i class="fas fa-file-pdf"></i>  Descargar</a></span></td>
-                                        <td>
-                                            <button class="btn btn-danger btn-sm" onclick="confirmDelete({{ documento.id }})">
-                                                <i class="fas fa-trash"></i>
-                                            </td>
                                         </tr>
                                 {% endif %} 
                             {% endfor %}
@@ -284,9 +276,11 @@
                 {% else %}
                     <div class="d-flex flex-column justify-content-center">
                         <label class="text-center my-1 me-2">No se ha agregado ningun documento para este conductor</label>
-                        <label class="text-center my-1 me-2">¿Quiere agregar uno ahora?</label>
+                        {% if puede_agregar_documento_legacy %}
+                        <label class="text-center my-1 me-2">Puede agregar documentos adicionales desde esta consulta.</label>
                         <br>
-                        <button type="button" id="add_container" class="btn btn-primary"  data-toggle="modal" data-target="#ModalAgregarDocumento" >Agregar documento</button>
+                        <button type="button" id="add_container" class="btn btn-primary" data-toggle="modal" data-target="#ModalAgregarDocumento">Agregar documento adicional</button>
+                        {% endif %}
                     </div>
                 {% endif %}                        
             </div>
@@ -474,6 +468,18 @@
             embed.setAttribute('src',pdfURL);
             }
         }
+    $('.delete_conductor').on('click', function () {
+        const destino = $(this).data('href');
+        Swal.fire({
+            title: 'Â¿Deshabilitar conductor?',
+            text: 'El registro se conservarÃ¡ como histÃ³rico.',
+            icon: 'warning', showCancelButton: true,
+            confirmButtonText: 'Confirmar', cancelButtonText: 'Cancelar'
+        }).then((resultado) => {
+            if (resultado.isConfirmed) window.location.href = destino;
+        });
+    });
+
     function confirmDelete(documentId) {
         $('#ModalDocumentos').modal('hide');
         Swal.fire({

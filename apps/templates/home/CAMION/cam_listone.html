@@ -1,4 +1,5 @@
 {% extends "layouts/base.html" %}
+{% load permission_filters %}
 
 {% block title %} {{ camion.SN_NID.SN_CRAZONSOCIAL }} {% endblock %} 
 
@@ -48,7 +49,7 @@
                     <div class="col-sm-8">
                         <div class="card">
                             <div class="card-body">
-                                {% if not request.user.userv.UX_IS_PROVEEDOR %}
+                                {% if not request.user|es_proveedor_legacy %}
                                     <div class="d-flex justify-content-end">
                                         <a class="btn btn-info" href="{% url 'cam_update' camion.pk %}?next={{request.path}}">
                                             <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-pencil-square" viewBox="0 0 16 16">
@@ -59,7 +60,7 @@
                                     </div>
                                 {% endif %}
                                 <div class="form-group">
-                                    <label class="my-1 me-2">Proveedor:</label>
+                                    <label class="my-1 me-2">{% if request.user|has_perfil:'CONTROL_FLOTA' %}Transporte{% else %}Proveedor{% endif %}:</label>
                                     <p class="form-control col-12">{{camion.SN_NID.SN_CRAZONSOCIAL}}</p>
                                 </div>
                                 <div class="form-group">

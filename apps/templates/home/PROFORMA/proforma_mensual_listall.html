@@ -1,0 +1,120 @@
+{% extends "layouts/base.html" %}
+{% load formats %}
+
+{% block title %}Lista de Proformas{% endblock %}
+
+{% block content %}
+<section class="pcoded-main-container">
+  <div class="pcoded-content">
+    <div class="page-header"><div class="page-block">
+      <h5 class="m-b-10">Lista de Proformas</h5>
+      <ul class="breadcrumb">
+        <li class="breadcrumb-item"><a href="/"><i class="feather icon-home"></i></a></li>
+        <li class="breadcrumb-item">Proformas</li>
+        <li class="breadcrumb-item">Lista de Proformas</li>
+      </ul>
+    </div></div>
+
+    <div class="card">
+      <div class="card-header">
+        <span class="badge badge-info">Total: {{ total_records }} registros</span>
+        <span class="badge badge-primary ml-2">Empresa: TERRAMAR CHILE</span>
+        <span class="badge badge-warning ml-2">Vigentes: en preparación o pendientes de aprobación final</span>
+      </div>
+      <div class="card-body">
+        <form method="get" class="border rounded p-3 mb-4">
+          <div class="form-row">
+            <div class="form-group col-md-3">
+              <label for="filtro-categoria">Categoría</label>
+              <select class="form-control" id="filtro-categoria" name="categoria">
+                <option value="">Fletes y Extras</option>
+                <option value="FLETE" {% if filtros.categoria == 'FLETE' %}selected{% endif %}>Fletes</option>
+                <option value="EXTRAS" {% if filtros.categoria == 'EXTRAS' %}selected{% endif %}>Extras</option>
+              </select>
+            </div>            <div class="form-group col-md-3">
+              <label for="filtro-tipo">Tipo operación</label>
+              <select class="form-control" id="filtro-tipo" name="tipo">
+                <option value="">Todos</option>
+                <option value="RECEPCION" {% if filtros.tipo == 'RECEPCION' %}selected{% endif %}>Recepción</option>
+                <option value="DESPACHO" {% if filtros.tipo == 'DESPACHO' %}selected{% endif %}>Despacho</option>
+              </select>
+            </div>
+            <div class="form-group col-md-3">
+              <label for="filtro-periodo">Período</label>
+              <input class="form-control" id="filtro-periodo" name="periodo" type="month" value="{{ filtros.periodo }}">
+            </div>
+            <div class="form-group col-md-3">
+              <label for="filtro-transporte">Transporte</label>
+              <select class="form-control" id="filtro-transporte" name="transporte">
+                <option value="">Todos los Transportes</option>
+                {% for transporte in transportes %}
+                <option value="{{ transporte.pk }}" {% if filtros.transporte == transporte.pk|stringformat:"s" %}selected{% endif %}>{{ transporte.SN_CRAZONSOCIAL }}</option>
+                {% endfor %}
+              </select>
+            </div>
+            <div class="form-group col-md-3">
+              <label for="filtro-estado">Estado</label>
+              <select class="form-control" id="filtro-estado" name="estado">
+                <option value="">Todos los vigentes</option>
+                {% for estado in estados %}<option value="{{ estado }}" {% if filtros.estado == estado %}selected{% endif %}>{{ estado }}</option>{% endfor %}
+              </select>
+            </div>
+          </div>
+          <div class="form-row align-items-end">
+            <div class="form-group col-md-9 mb-0">
+              <label>Empresa</label>
+              <input class="form-control" value="TERRAMAR CHILE" readonly>
+            </div>
+            <div class="form-group col-md-3 mb-0 text-right">
+              <a class="btn btn-outline-secondary" href="{% url 'prof_listall' %}">Limpiar</a>
+              <button class="btn btn-primary" type="submit">Filtrar</button>
+            </div>
+          </div>
+        </form>
+
+        <div class="table-responsive">
+          <table class="table table-striped table-bordered nowrap">
+            <thead><tr>
+              <th>ID</th><th>Categoría</th><th>Operación</th>
+              <th>Período</th><th>Estado</th><th>Registros</th>
+              <th>Subtotal</th><th>Extras ingreso</th><th>Extras descuento</th>
+              <th>IVA</th><th>Total</th><th>Acción</th>
+            </tr></thead>
+            <tbody>
+              {% for carpeta in carpetas %}
+              <tr class="table-info"><td colspan="12"><strong>Carpeta {{ carpeta.transporte.SN_CRAZONSOCIAL|default:"Sin transporte" }} · {{ carpeta.operacion }} · {{ carpeta.inicio|date:"m/Y" }}</strong></td></tr>
+              {% for proforma in carpeta.documentos %}
+              <tr>
+                <td>{{ proforma.id }}</td>
+                <td><span class="badge {% if proforma.categoria_visual == 'FLETE' %}badge-primary{% else %}badge-warning{% endif %}">{{ proforma.categoria_visual }}</span></td>
+                <td>{{ proforma.operacion_visual }}</td>
+                <td>{{ proforma.PRO_FPERIODO_INICIO|date:"m/Y" }}</td>
+                <td>{% if proforma.PRO_CESTADO == "CREADO" %}<span class="badge badge-warning">En preparación</span>{% elif proforma.PRO_CESTADO == "APROBADO" %}<span class="badge badge-success">Borrador aprobado · pendiente aprobación final</span>{% else %}{{ proforma.PRO_CESTADO }}{% endif %}</td>
+                <td>{% if proforma.categoria_visual == 'FLETE' %}{{ proforma.cantidad_citaciones }} citaciones{% else %}{{ proforma.cantidad_extras }} extras{% endif %}</td>
+                <td class="text-right">$ {{ proforma.PRO_NSUBTOTAL|clp }}</td>
+                <td class="text-right">$ {{ proforma.PRO_NINGRESO|clp }}</td>
+                <td class="text-right">$ {{ proforma.PRO_NDESCUENTO|clp }}</td>
+                <td class="text-right">$ {{ proforma.PRO_NIVA|clp }}</td>
+                <td class="text-right">$ {{ proforma.PRO_NTOTAL|clp }}</td>
+                <td><a class="btn btn-sm btn-primary" href="{% url 'proforma_terramar_detalle' proforma.pk %}">Ver {{ proforma.categoria_visual|lower }}</a></td>
+              </tr>
+              {% endfor %}
+              {% empty %}
+              <tr><td colspan="12" class="text-center">No existen Proformas vigentes para los filtros seleccionados.</td></tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+
+        {% if paginator.num_pages > 1 %}
+        <nav aria-label="Paginación"><ul class="pagination justify-content-center mt-3">
+          {% if page_obj.has_previous %}<li class="page-item"><a class="page-link" href="?{% if querystring %}{{ querystring }}&amp;{% endif %}page={{ page_obj.previous_page_number }}">Anterior</a></li>{% endif %}
+          <li class="page-item active"><span class="page-link">{{ page_obj.number }} / {{ paginator.num_pages }}</span></li>
+          {% if page_obj.has_next %}<li class="page-item"><a class="page-link" href="?{% if querystring %}{{ querystring }}&amp;{% endif %}page={{ page_obj.next_page_number }}">Siguiente</a></li>{% endif %}
+        </ul></nav>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+</section>
+{% endblock content %}

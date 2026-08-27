@@ -1,0 +1,217 @@
+{% extends "layouts/base.html" %}
+{% load humanize formats %}
+{% block title %}Detalle de Proforma {{ categoria }}{% endblock %}
+{% block content %}
+<section class="pcoded-main-container"><div class="pcoded-content">
+  <div class="card mb-3"><div class="card-body py-3">
+    <div class="d-flex flex-column flex-lg-row justify-content-between align-items-lg-start">
+      <div>
+        <div class="d-flex flex-wrap align-items-center mb-2">
+          <h4 class="mb-1 mr-2">PROFORMA {{ categoria }} #{{ proforma.pk }}</h4>
+          <span class="badge {% if es_flete %}badge-primary{% else %}badge-warning{% endif %} mr-2">{{ categoria }}</span>
+          {% if proforma.PRO_CESTADO == 'CREADO' %}<span class="badge badge-warning">EN PREPARACIÓN</span>{% elif proforma.PRO_CESTADO == 'APROBADO' %}<span class="badge badge-success">BORRADOR APROBADO</span>{% elif proforma.PRO_CESTADO == 'AUTORIZADO' %}<span class="badge badge-primary">AUTORIZADO</span>{% else %}<span class="badge badge-secondary">{{ proforma.PRO_CESTADO }} · Solo lectura</span>{% endif %}
+        </div>
+        <div class="text-muted"><strong>{{ proforma.SN_NID.SN_CRAZONSOCIAL }}</strong> · {{ proforma.PRO_CTIPO }} · {{ proforma.PRO_FPERIODO_INICIO|date:"m/Y" }}</div>
+        {% if proforma.PRO_DOC_NUM %}<div class="mt-2 text-success"><strong>OC SAP N° {{ proforma.PRO_DOC_NUM }}</strong><small class="text-muted ml-2">DocEntry: {{ proforma.PRO_DOC_ENTRY }}</small></div>{% endif %}
+      </div>
+      <div class="d-flex flex-wrap">
+        <a href="{% url 'prof_listall' %}" class="btn btn-outline-secondary mb-2 mr-2">Volver a Lista</a>
+        {% if not es_mixta %}<a href="{% url 'proforma_terramar_borrador_pdf' proforma.pk %}" target="_blank" class="btn btn-outline-primary mb-2 mr-2">Ver PDF {{ categoria }}</a>{% endif %}
+        {% if puede_borrar_carpeta %}<form method="post" action="{% url 'proforma_terramar_borrar_carpeta' proforma.pk %}" class="mb-2 mr-3 pr-3 border-right" onsubmit="return confirmarBorradoCarpeta(this);">{% csrf_token %}<input type="hidden" name="firma_borrado" value="{{ firma_borrado_carpeta }}"><input type="hidden" name="confirmacion" value=""><button type="submit" class="btn btn-outline-danger">Borrar carpeta</button></form>{% endif %}
+        {% if puede_aprobar_borrador %}<form method="post" action="{% url 'proforma_terramar_aprobar_borrador' proforma.pk %}" class="mb-2 mr-2" onsubmit="return confirm('¿Confirma la aprobación independiente de esta Proforma {{ categoria }}?');">{% csrf_token %}<button class="btn btn-success">Aprobar {{ categoria|lower }}</button></form>{% endif %}
+        {% if puede_autorizar_sap %}<form id="form-autorizar-sap" method="post" action="{% url 'proforma_autorizar_ajax' proforma.pk %}" class="mb-2">{% csrf_token %}<button type="button" id="btn-autorizar-sap" class="btn btn-success btn-lg" aria-haspopup="dialog" aria-controls="modal-aprobar-proforma">APROBAR PROFORMA</button></form>{% endif %}
+      </div>
+    </div>
+  </div></div>
+
+  {% if messages %}{% for message in messages %}<div class="alert alert-{{ message.tags|default:'info' }}">{{ message }}</div>{% endfor %}{% endif %}
+  {% if proforma.PRO_CESTADO == 'APROBADO' and proforma.PRO_BBORRADOR and not proforma.PRO_DOC_ENTRY and not proforma.PRO_DOC_NUM %}<div class="alert alert-info"><strong>Borrador aprobado.</strong> Pendiente de aprobación final y generación de la OC SAP.</div>{% endif %}
+  {% if es_mixta %}<div class="alert alert-danger"><strong>Transición requerida:</strong> este borrador histórico mezcla Fletes y Extras. No puede aprobarse ni generar PDF hasta separar sus snapshots de forma controlada.</div>{% endif %}
+
+  <div class="card mb-3"><div class="card-header"><h5 class="mb-0">Carpeta mensual</h5></div><div class="card-body py-2">
+    {% for documento in documentos_carpeta %}<a class="btn btn-sm mb-1 mr-1 {% if documento.pk == proforma.pk %}btn-dark{% else %}btn-outline-dark{% endif %}" href="{% url 'proforma_terramar_detalle' documento.pk %}">{{ documento.categoria_visual }} #{{ documento.pk }} · {{ documento.PRO_CESTADO }}</a>{% empty %}<span class="text-muted">Sin documentos relacionados.</span>{% endfor %}
+  </div></div>
+
+  <div class="row">
+    {% if es_flete %}<div class="col-md-4"><div class="card"><div class="card-body p-3"><small>Subtotal Fletes</small><h5>$ {{ subtotal_transporte|clp }}</h5></div></div></div>{% else %}
+    <div class="col-md-4"><div class="card"><div class="card-body p-3"><small>Extras ingreso</small><h5 class="text-success">+$ {{ proforma.PRO_NINGRESO|clp }}</h5></div></div></div>
+    <div class="col-md-4"><div class="card"><div class="card-body p-3"><small>Extras descuento</small><h5 class="text-danger">-$ {{ proforma.PRO_NDESCUENTO|clp }}</h5></div></div></div>{% endif %}
+    <div class="col-md-4"><div class="card"><div class="card-body p-3"><small>Subtotal {{ categoria|title }}</small><h5>$ {{ proforma.PRO_NSUBTOTAL|clp }}</h5></div></div></div>
+    <div class="col-md-2"><div class="card"><div class="card-body p-3"><small>IVA</small><h5>$ {{ proforma.PRO_NIVA|clp }}</h5></div></div></div>
+    <div class="col-md-2"><div class="card bg-primary text-white"><div class="card-body p-3"><small>Total</small><h5 class="text-white">$ {{ proforma.PRO_NTOTAL|clp }}</h5></div></div></div>
+  </div>
+
+  <div class="card"><div class="card-header"><h5>{% if es_flete %}Citaciones de Flete{% else %}Citaciones con Extras{% endif %}</h5></div><div class="card-body"><div class="table-responsive">
+    <table class="table table-sm table-hover"><thead><tr><th>Citación</th><th>Fecha</th><th>Patente</th><th>Conductor</th><th>Ruta</th><th>Guía/documento</th>{% if es_flete %}<th class="text-right">Tarifa snapshot</th>{% else %}<th class="text-right">Total Extras</th>{% endif %}<th></th></tr></thead><tbody>
+    {% for fila in citaciones %}<tr><td>{{ fila.citacion.pk }}</td><td>{{ fila.citacion.CI_FFECHACITACION|date:"d/m/Y H:i" }}</td><td>{{ fila.patente|default:"-" }}</td><td>{{ fila.conductor|default:"-" }}</td><td>{{ fila.ruta|default:"-" }}</td><td>{{ fila.guia|default:"-" }}</td><td class="text-right">{% if es_flete %}$ {{ fila.asociacion.CIP_NSUBTOTAL|clp }}{% else %}$ {{ fila.total_extras|clp }}{% endif %}</td><td><a class="btn btn-sm btn-outline-primary" href="{% url 'proforma_terramar_citacion_operacional' fila.citacion.pk %}">Ver detalle</a></td></tr>
+    {% empty %}<tr><td colspan="8" class="text-center">Sin registros en este documento.</td></tr>{% endfor %}
+    </tbody></table>
+  </div></div></div>
+
+  {% if es_extras or es_mixta %}<div class="card" id="extras"><div class="card-header"><h5 class="mb-0">Detalle exclusivo de Extras</h5></div><div class="card-body"><div class="table-responsive"><table class="table table-bordered table-sm"><thead><tr><th>Concepto</th><th>Citación</th><th>Cantidad</th><th class="text-right">Unitario</th><th class="text-right">Total</th><th>Naturaleza</th><th>Comentario</th></tr></thead><tbody>
+    {% for extra in extras %}<tr><td>{{ extra.CIE_NID.EXT_NID.EXT_CNOMBRE }}</td><td>#{{ extra.CIE_NID.CI_NID_id }}</td><td>{{ extra.EPR_NCANTIDAD|default:"-" }}</td><td class="text-right">$ {{ extra.EPR_NVALORUNITARIO|clp }}</td><td class="text-right">$ {{ extra.EPR_NVALOR|clp }}</td><td>{% if extra.EPR_BINGRESO %}<span class="text-success">INGRESO</span>{% else %}<span class="text-danger">DESCUENTO</span>{% endif %}</td><td>{{ extra.CIE_NID.CIE_CCOMENTARIO|default:"-" }}</td></tr>{% empty %}<tr><td colspan="7" class="text-center">Sin Extras.</td></tr>{% endfor %}
+  </tbody></table></div></div></div>{% endif %}
+</div></section>
+{% if puede_autorizar_sap %}
+<div id="modal-aprobar-proforma" class="modal fade" tabindex="-1" role="dialog" aria-labelledby="modal-aprobar-proforma-titulo" aria-modal="true" hidden>
+  <div class="modal-dialog modal-dialog-centered" role="document">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="modal-aprobar-proforma-titulo">APROBAR PROFORMA</h5>
+      </div>
+      <div class="modal-body">
+        <p>Esta acción aprobará definitivamente la Proforma y generará una Orden de Compra en SAP {{ sap_environment|default:"configurado" }}.</p>
+        <dl class="row mb-0">
+          <dt class="col-sm-4">Empresa</dt><dd class="col-sm-8">{{ proforma.EP_NID.EP_CRAZONSOCIAL }}</dd>
+          <dt class="col-sm-4">Proforma</dt><dd class="col-sm-8">#{{ proforma.pk }}</dd>
+          <dt class="col-sm-4">Categoría</dt><dd class="col-sm-8">{{ categoria }}</dd>
+          <dt class="col-sm-4">Destino SAP</dt><dd class="col-sm-8">{{ sap_company_db|default:"No configurado" }}</dd>
+        </dl>
+        <p class="mt-3 mb-0"><strong>¿Desea continuar?</strong></p>
+        <div id="aprobar-proforma-error" class="alert alert-danger mt-3 mb-0" role="alert" hidden></div>
+        <div id="aprobar-proforma-exito" class="alert alert-success mt-3 mb-0" role="status" hidden></div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" id="btn-cancelar-aprobacion" class="btn btn-outline-secondary">Cancelar</button>
+        <button type="button" id="btn-confirmar-aprobacion" class="btn btn-success">Confirmar aprobación</button>
+      </div>
+    </div>
+  </div>
+</div>
+<div id="modal-aprobar-proforma-backdrop" class="modal-backdrop fade show" hidden></div>
+{% endif %}
+{% if puede_borrar_carpeta %}<script>
+function confirmarBorradoCarpeta(form){
+  const mensaje={% if es_flete %}'¿Confirma borrar este borrador de Fletes?\n\nLas citaciones asociadas volverán a Citaciones terminadas.\n\nNo se eliminarán datos operacionales, documentos ni pesajes.'{% else %}'¿Confirma borrar este borrador de Extras?\n\nLos Extras asociados volverán a quedar pendientes de Proforma.\n\nNo se eliminarán los Extras registrados en las citaciones.'{% endif %};
+  if(!window.confirm(mensaje)) return false;
+  const texto=window.prompt('Para confirmar la acción, escriba BORRAR:','');
+  if(texto!=='BORRAR'){ if(texto!==null) window.alert('Confirmación incorrecta. No se borró la carpeta.'); return false; }
+  form.querySelector('[name="confirmacion"]').value=texto;
+  form.querySelector('button[type="submit"]').disabled=true;
+  return true;
+}
+</script>{% endif %}{% if puede_autorizar_sap %}
+<script>
+(function () {
+  'use strict';
+
+  function iniciarAprobacionProforma() {
+    const form = document.getElementById('form-autorizar-sap');
+    const botonPrincipal = document.getElementById('btn-autorizar-sap');
+    const modal = document.getElementById('modal-aprobar-proforma');
+    const backdrop = document.getElementById('modal-aprobar-proforma-backdrop');
+    const botonCancelar = document.getElementById('btn-cancelar-aprobacion');
+    const botonConfirmar = document.getElementById('btn-confirmar-aprobacion');
+    const cajaError = document.getElementById('aprobar-proforma-error');
+    const cajaExito = document.getElementById('aprobar-proforma-exito');
+    const csrfInput = form ? form.querySelector('[name="csrfmiddlewaretoken"]') : null;
+
+    if (!form || !botonPrincipal || !modal || !backdrop || !botonCancelar ||
+        !botonConfirmar || !cajaError || !cajaExito || !csrfInput) {
+      console.error('No fue posible inicializar la aprobación final de Proforma.');
+      return;
+    }
+
+    let enviando = false;
+    const textoPrincipal = botonPrincipal.textContent;
+    const textoConfirmar = botonConfirmar.textContent;
+
+    function limpiarMensajes() {
+      cajaError.hidden = true;
+      cajaError.textContent = '';
+      cajaExito.hidden = true;
+      cajaExito.textContent = '';
+    }
+
+    function abrirModal() {
+      if (enviando) return;
+      limpiarMensajes();
+      modal.hidden = false;
+      modal.style.display = 'block';
+      modal.classList.add('show');
+      backdrop.hidden = false;
+      document.body.classList.add('modal-open');
+      botonConfirmar.focus();
+    }
+
+    function cerrarModal() {
+      if (enviando) return;
+      modal.classList.remove('show');
+      modal.style.display = 'none';
+      modal.hidden = true;
+      backdrop.hidden = true;
+      document.body.classList.remove('modal-open');
+      botonPrincipal.focus();
+    }
+
+    function establecerEnviando(valor) {
+      enviando = valor;
+      botonPrincipal.disabled = valor;
+      botonConfirmar.disabled = valor;
+      botonCancelar.disabled = valor;
+      botonPrincipal.textContent = valor ? 'APROBANDO...' : textoPrincipal;
+      botonConfirmar.textContent = valor ? 'APROBANDO...' : textoConfirmar;
+    }
+
+    botonPrincipal.addEventListener('click', abrirModal);
+    botonCancelar.addEventListener('click', cerrarModal);
+    backdrop.addEventListener('click', cerrarModal);
+    document.addEventListener('keydown', function (event) {
+      if (event.key === 'Escape' && !modal.hidden) cerrarModal();
+    });
+
+    botonConfirmar.addEventListener('click', async function () {
+      if (enviando) return;
+      limpiarMensajes();
+      establecerEnviando(true);
+
+      try {
+        const respuesta = await fetch(form.action, {
+          method: 'POST',
+          headers: {
+            'X-CSRFToken': csrfInput.value,
+            'X-Requested-With': 'XMLHttpRequest'
+          },
+          credentials: 'same-origin'
+        });
+
+        let datos = {};
+        try {
+          datos = await respuesta.json();
+        } catch (errorJson) {
+          console.error('La respuesta de aprobación no contiene JSON válido.', errorJson);
+        }
+
+        if (!respuesta.ok || !datos.success) {
+          throw new Error(datos.error || 'El servidor no pudo aprobar la Proforma.');
+        }
+
+        cajaExito.textContent = (datos.message || 'Proforma aprobada correctamente.') +
+          ' OC SAP N° ' + datos.doc_num;
+        cajaExito.hidden = false;
+        botonConfirmar.textContent = 'APROBADA';
+        window.setTimeout(function () {
+          window.location.reload();
+        }, 1200);
+      } catch (error) {
+        console.error('Error al aprobar la Proforma.', error);
+        const detalle = error && error.message ? error.message : 'Error desconocido.';
+        cajaError.textContent = 'No fue posible generar la Orden de Compra SAP: ' + detalle;
+        cajaError.hidden = false;
+        const reintentoInseguro = /DocEntry|ya tiene una Orden de Compra SAP/i.test(detalle);
+        if (!reintentoInseguro) {
+          establecerEnviando(false);
+        }
+      }
+    });
+  }
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', iniciarAprobacionProforma, {once: true});
+  } else {
+    iniciarAprobacionProforma();
+  }
+})();
+</script>
+{% endif %}
+{% endblock content %}

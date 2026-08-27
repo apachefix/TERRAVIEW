@@ -217,7 +217,7 @@
                                            data-transportista="{{ object.6 }}"
                                            data-transportista-normalizado="{{ object.7 }}">
                                 </td>
-                                <td><a href="{% url 'cit_listone' object.0 %}">{{ object.0 }}</a></td>
+                                <td><a href="{% url 'proforma_terramar_citacion_operacional' object.0 %}">{{ object.0 }}</a></td>
                                 <td>{{ object.1 }}</td>
                                 <td>{{ object.2 }}</td>
                                 <td>{{ object.3 }}</td>
@@ -385,6 +385,16 @@ document.addEventListener('DOMContentLoaded', function () {
         if (!items.length || !mismoGrupo(items)) {
             event.preventDefault();
             window.alert('La selección del lote no es válida.');
+            return;
+        }
+        const ids = items.map(function (checkbox) {
+            return checkbox.value;
+        }).join(', ');
+        if (!window.confirm(
+            'Se asociarán únicamente las citaciones seleccionadas: ' + ids
+            + '. ¿Desea continuar?'
+        )) {
+            event.preventDefault();
         }
     });
 

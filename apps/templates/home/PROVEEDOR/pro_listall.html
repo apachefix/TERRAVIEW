@@ -1,6 +1,7 @@
 {% extends "layouts/base.html" %}
+{% load permission_filters %}
 
-{% block title %} Proveedores {% endblock %} 
+{% block title %}{% if request.user|has_perfil:'CONTROL_FLOTA' or request.user|es_planificador or request.user|es_asistente_recepcion_rbac %} Transportes {% else %} Proveedores {% endif %}{% endblock %}
 
 <!-- Specific CSS goes HERE -->
 {% block stylesheets %}
@@ -30,12 +31,12 @@
                     <div class="row align-items-center">
                         <div class="col-md-12">
                             <div class="page-header-title">
-                                <h5 class="m-b-10">Lista de proveedores</h5>
+                                <h5 class="m-b-10">{% if request.user|has_perfil:'CONTROL_FLOTA' or request.user|es_planificador or request.user|es_asistente_recepcion_rbac %}Lista de transportes{% else %}Lista de proveedores{% endif %}</h5>
                             </div>
                             <ul class="breadcrumb">
                                 <li class="breadcrumb-item"><a href="/"><i class="feather icon-home"></i></a></li>
                                 <li class="breadcrumb-item"><a href="/">TERRAVIEW</a></li>
-                                <li class="breadcrumb-item"><a href="{% url 'pro_listall' %}">Proveedores</a></li>
+                                <li class="breadcrumb-item"><a href="{% url 'pro_listall' %}">{% if request.user|has_perfil:'CONTROL_FLOTA' or request.user|es_planificador or request.user|es_asistente_recepcion_rbac %}Transportes{% else %}Proveedores{% endif %}</a></li>
                                 
                             </ul>
                         </div>
@@ -154,7 +155,7 @@
             Swal.fire({
                 title: '¡Atención!',
                 icon: 'warning',
-                text: '¿Estás seguro de eliminar a este proveedor?',
+                text: '{% if request.user|has_perfil:'CONTROL_FLOTA' or request.user|es_planificador %}¿Estás seguro de eliminar este transporte?{% else %}¿Estás seguro de eliminar a este proveedor?{% endif %}',
                 showCancelButton: true,
                 confirmButtonColor: '#299B0B',
                 cancelButtonColor: '#d33',

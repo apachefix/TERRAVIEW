@@ -26,6 +26,7 @@ from apps.home.models import (
     PLANIFICACION,
     PROFORMA,
     SECUENCIA,
+    SOCIONEGOCIO,
     SYSLOGGER,
     USERS_EMPRESA,
     VISTA,
@@ -140,34 +141,48 @@ class IniciarProformaFixtureMixin:
         )
 
 
-class IniciarProformaTests(IniciarProformaFixtureMixin, TestCase):
+class IniciarProformaTests(IniciarProformaFixtureMixin, TransactionTestCase):
+    reset_sequences = True
     def setUp(self):
         self.crear_datos_base()
+        self.camion.CPA_CTRANSPORTISTA_DECLARADO = 'TRANSPORTES SAEZ LIMITADA'
+        self.camion.save(update_fields=['CPA_CTRANSPORTISTA_DECLARADO'])
+        self.transporte = SOCIONEGOCIO.objects.create(
+            EP_NID=self.empresa,
+            SN_CRAZONSOCIAL='TRANSPORTES SAEZ LIMITADA',
+            SN_CRUT='77061844-4',
+            SN_CTIPO='S',
+            SN_BHABILITADO=True,
+        )
+        self.citacion.PRO_NID = self.transporte
+        self.citacion.save(update_fields=['PRO_NID'])
         self.client.force_login(self.user)
 
-    def test_post_solo_marca_conforme_audita_y_es_idempotente(self):
+    def test_post_materializa_borrador_y_no_deja_estado_intermedio(self):
         url = reverse('citacion_iniciar_proforma', args=[self.citacion.pk])
 
         respuesta = self.client.post(url)
 
-        self.assertEqual(respuesta.status_code, 302)
+        proforma = PROFORMA.objects.get()
+        self.assertRedirects(
+            respuesta,
+            reverse('proforma_listone', args=[proforma.pk]),
+            fetch_redirect_response=False,
+        )
         self.citacion.refresh_from_db()
         self.assertTrue(self.citacion.CI_BCONFORME)
-        self.assertEqual(PROFORMA.objects.count(), 0)
-        self.assertEqual(CITACION_PROFORMA.objects.count(), 0)
-        log = SYSLOGGER.objects.get(LOG_COPERACION='INICIAR_PROFORMA')
+        self.assertEqual(self.citacion.PRO_NID, self.transporte)
+        self.assertEqual(CITACION_PROFORMA.objects.get(
+            CI_NID=self.citacion
+        ).PRO_NID, proforma)
+        log = SYSLOGGER.objects.get(LOG_COPERACION='BORRADOR_MENSUAL')
         self.assertEqual(log.US_NID, self.user)
         self.assertEqual(log.EP_NID, self.empresa)
-        self.assertIn('Fuente: CAMION_PATIO', log.LOG_CDESCRIPCION)
 
         segunda_respuesta = self.client.post(url)
-
-        self.assertEqual(segunda_respuesta.status_code, 302)
-        self.assertEqual(
-            SYSLOGGER.objects.filter(LOG_COPERACION='INICIAR_PROFORMA').count(),
-            1,
-        )
-        self.assertEqual(PROFORMA.objects.count(), 0)
+        self.assertEqual(segunda_respuesta.status_code, 400)
+        self.assertEqual(PROFORMA.objects.count(), 1)
+        self.assertEqual(CITACION_PROFORMA.objects.count(), 1)
 
     def test_nueva_ruta_rechaza_get_y_ruta_legacy_no_muta(self):
         nueva = reverse('citacion_iniciar_proforma', args=[self.citacion.pk])
@@ -309,7 +324,7 @@ class IniciarProformaTests(IniciarProformaFixtureMixin, TestCase):
         )
 
         self.assertEqual(respuesta.status_code, 403)
-        self.assertNotIn('>Citaciones</a>', html)
+        self.assertNotIn('>Lista de Proformas</a>', html)
         self.citacion.refresh_from_db()
         self.assertFalse(self.citacion.CI_BCONFORME)
 
@@ -330,7 +345,7 @@ class IniciarProformaTests(IniciarProformaFixtureMixin, TestCase):
             {'request': request},
             request=request,
         )
-        self.assertNotIn('>Citaciones</a>', html)
+        self.assertNotIn('>Lista de Proformas</a>', html)
 
 
     def test_asociacion_existente_es_incompatible(self):
@@ -368,7 +383,7 @@ class IniciarProformaTests(IniciarProformaFixtureMixin, TestCase):
             request=request,
         )
 
-        self.assertIn('>Citaciones</a>', html)
+        self.assertIn('>Lista de Proformas</a>', html)
         self.assertNotIn('>Extras</a>', html)
         self.assertNotIn('>Manual</a>', html)
         self.assertNotIn('>Borradores</a>', html)

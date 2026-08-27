@@ -59,7 +59,7 @@ class CitacionesTerminadasProformaTests(IniciarProformaFixtureMixin, TestCase):
         )
 
         self.assertIn('Citaciones terminadas', html)
-        self.assertIn('>Citaciones</a>', html)
+        self.assertIn('>Lista de Proformas</a>', html)
         self.assertLess(html.index('>Proformas</span>'), html.index('<label>Consultas</label>'))
         self.assertNotIn('>Extras</a>', html)
         self.assertNotIn('>Manual</a>', html)
@@ -93,6 +93,13 @@ class CitacionesTerminadasProformaTests(IniciarProformaFixtureMixin, TestCase):
         self.assertContains(respuesta_lista, str(self.citacion.pk))
         self.assertContains(respuesta_lista, 'CONTINUAR CON BORRADOR')
         self.assertContains(respuesta_lista, 'citacion_ids[]')
+        detalle_operacional = reverse(
+            'proforma_terramar_citacion_operacional', args=[self.citacion.pk]
+        )
+        self.assertContains(respuesta_lista, detalle_operacional)
+        self.assertNotContains(
+            respuesta_lista, reverse('cit_listone', args=[self.citacion.pk])
+        )
         self.assertIn(self.citacion.pk, self._ids_pendientes())
         self.assertNotIn(self.citacion.pk, self._ids_iniciadas())
 

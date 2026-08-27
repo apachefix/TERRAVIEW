@@ -2408,7 +2408,13 @@
 
 {% block content %}
 <div class="pcoded-main-container">
-    <div class="pcoded-content">
+    <div class="pcoded-content" data-operacion-solo-lectura="{% if operacion_solo_lectura %}true{% else %}false{% endif %}">
+        {% if operacion_solo_lectura %}
+        <div class="alert alert-info d-flex justify-content-between align-items-center mb-3">
+            <span><i class="fas fa-history mr-2"></i><strong>Operación terminada.</strong> Historial disponible en modo solo lectura.</span>
+            <a class="btn btn-sm btn-outline-info" href="{% url 'cit_listall_recepciones' %}?contexto=operacion_planta_terminadas&tipo={{ citacion.CI_CTIPO }}&empresa_id={{ empresa_activa_id }}&_empresa_id={{ empresa_activa_id }}">Volver a operaciones terminadas</a>
+        </div>
+        {% endif %}
         <div class="page-header">
             <div class="operacion-hero">
                 <div class="operacion-hero-inner">
@@ -2479,6 +2485,25 @@
         {% endif %}
 
         <div class="row">
+            {% if snapshot_recepcion_sbh %}
+            <div class="col-12">
+                <div class="card">
+                    <div class="card-header">
+                        <h5>Datos SAP / operacionales</h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="row">
+                            {% for etiqueta, valor in snapshot_recepcion_sbh.items %}
+                            <div class="col-md-4 mb-3">
+                                <small class="text-muted d-block">{{ etiqueta }}</small>
+                                <strong>{{ valor }}</strong>
+                            </div>
+                            {% endfor %}
+                        </div>
+                    </div>
+                </div>
+            </div>
+            {% endif %}
             <div class="col-12">
                 <div class="card operacion-contact-card">
                     <div class="card-body">
@@ -2537,7 +2562,7 @@
 
             <div class="col-12">
                 <div class="card operacion-doc-card">
-                    <div class="card-body">
+                    <div class="card-body operacion-documentos-adjuntos">
                         <div class="operacion-doc-title">
                             <div class="operacion-doc-title-main">
                                 <div class="operacion-doc-icon">
@@ -2551,39 +2576,28 @@
                             <span class="operacion-doc-count">{{ documentos_operacion|length }} archivo(s)</span>
                         </div>
 
+                        <div class="operacion-doc-content">
                         {% if documentos_operacion %}
-                            <div class="operacion-doc-list">
-                                {% for documento in documentos_operacion %}
-                                    <div class="operacion-doc-item">
-                                        <div>
-                                            <span class="operacion-doc-label">Documento</span>
-                                            <div class="operacion-doc-value">{{ documento.label }}</div>
-                                        </div>
-                                        <div>
-                                            <span class="operacion-doc-label">Etapa</span>
-                                            <div class="operacion-doc-value">{{ documento.etapa|default:"Sin etapa" }}</div>
-                                        </div>
-                                        <div>
-                                            <span class="operacion-doc-label">Archivo</span>
-                                            <div class="operacion-doc-value">{{ documento.nombre_archivo|default:"Sin archivo" }}</div>
-                                        </div>
-                                        <div class="text-right">
-                                            {% if documento.download_url %}
-                                                <a href="{{ documento.download_url }}" class="btn btn-primary btn-sm">
-                                                    <i class="fas fa-download"></i> Descargar
-                                                </a>
-                                            {% else %}
-                                                <span class="badge badge-secondary">No disponible</span>
-                                            {% endif %}
-                                        </div>
-                                    </div>
-                                {% endfor %}
+                            <div class="table-responsive">
+                                <table class="table table-sm mb-0">
+                                    <thead><tr><th>Archivo</th><th>Etapa</th><th class="text-right">Acción</th></tr></thead>
+                                    <tbody>
+                                    {% for documento in documentos_operacion %}
+                                        <tr>
+                                            <td>{{ documento.nombre_archivo|default:"Sin archivo" }}</td>
+                                            <td>{{ documento.etapa|default:"Sin etapa" }}</td>
+                                            <td class="text-right">{% if documento.download_url %}<a href="{{ documento.download_url }}" class="btn btn-primary btn-sm"><i class="fas fa-download"></i> Descargar</a>{% else %}<span class="badge badge-secondary">No disponible</span>{% endif %}</td>
+                                        </tr>
+                                    {% endfor %}
+                                    </tbody>
+                                </table>
                             </div>
                         {% else %}
                             <div class="operacion-doc-empty">
                                 No hay documentos adjuntos cargados para esta citacion.
                             </div>
                         {% endif %}
+                        </div>
                     </div>
                 </div>
             </div>
@@ -2697,6 +2711,35 @@
                                                 </a>
                                             </div>
                                         </div>
+
+                                        {% if paso.ticket_mop.requerido %}
+                                        <div class="operacion-ticket-mop border rounded p-3 mt-3"
+                                             data-mop-ok="{% if paso.ticket_mop.ok %}true{% else %}false{% endif %}">
+                                            <div class="d-flex justify-content-between align-items-center mb-2">
+                                                <strong>Ticket MOP / Ejes</strong>
+                                                <span class="badge operacion-ticket-mop-estado {% if paso.ticket_mop.ok %}badge-success{% else %}badge-warning{% endif %}">
+                                                    {% if paso.ticket_mop.ok %}DISPONIBLE{% else %}PENDIENTE{% endif %}
+                                                </span>
+                                            </div>
+                                            <div class="operacion-ticket-mop-nombre text-muted mb-2">
+                                                {{ paso.ticket_mop.nombre|default:'El Ticket MOP / Ejes todavía no está disponible.' }}
+                                            </div>
+                                            <a class="btn btn-outline-secondary btn-sm btn-descargar-ticket-mop {% if not paso.ticket_mop.ok %}d-none{% endif %}"
+                                               href="{{ paso.ticket_mop.download_url|default:'#' }}"
+                                               target="_blank"
+                                               rel="noopener">
+                                                <i class="fas fa-download"></i> Descargar PDF
+                                            </a>
+                                            {% if paso.activo and paso.puede_editar %}
+                                            <button type="button"
+                                                    class="btn btn-outline-primary btn-sm btn-obtener-ticket-pesaje btn-reintentar-ticket-mop {% if not paso.ticket_pesaje or paso.ticket_mop.ok %}d-none{% endif %}"
+                                                    data-paso="{{ paso.nombre }}"
+                                                    data-tipo-ticket="{{ paso.tipo_ticket_pesaje }}">
+                                                <i class="fas fa-sync-alt"></i> Reintentar Ticket MOP
+                                            </button>
+                                            {% endif %}
+                                        </div>
+                                        {% endif %}
 
                                         <div class="operacion-ticket-actions">
                                             {% if paso.ticket_pesaje %}
@@ -3155,11 +3198,11 @@
                                         <div class="op-cycle-header">
                                             <div>
                                                 <div class="op-cycle-title">
-                                                    <span class="op-cycle-title-icon"><i class="fas fa-route"></i></span>
-                                                    SALIDA A BODEGA EXTERNA
+                                                    <span class="op-cycle-title-icon"><i class="fas {% if paso.es_terramar_bodega_externa %}fa-warehouse{% else %}fa-route{% endif %}"></i></span>
+                                                    {% if paso.es_terramar_bodega_externa %}DESCARGA EN BODEGA EXTERNA{% else %}SALIDA A BODEGA EXTERNA{% endif %}
                                                 </div>
                                                 <div class="op-cycle-subtitle">
-                                                    Responsable inicio: Asistente_C_D | Responsable cierre: Guardia Porteria
+                                                    {% if paso.es_terramar_bodega_externa %}Responsable inicio: Asistente Bodega{% else %}Responsable inicio: Asistente_C_D{% endif %} | Responsable cierre: Guardia Porteria
                                                 </div>
                                             </div>
                                             <span class="op-cycle-state-badge {{ paso.ciclo_bodega_externa.estado_badge }}">
@@ -3192,7 +3235,7 @@
                                         </div>
 
                                         <div class="alert alert-info mt-3 mb-0">
-                                            Sala Control debe autorizar la salida del camion hacia Bodega Externa. El proceso permanecera activo hasta que Guardia Porteria registre el regreso del camion.
+                                            {% if paso.es_terramar_bodega_externa %}Asistente Bodega inicia la salida del camion hacia la descarga externa. Guardia Porteria confirma el regreso a planta.{% else %}Sala Control debe autorizar la salida del camion hacia Bodega Externa. El proceso permanecera activo hasta que Guardia Porteria registre el regreso del camion.{% endif %}
                                         </div>
 
                                         {% if paso.ciclo_bodega_externa.iniciada %}
@@ -3210,7 +3253,7 @@
                                                 </div>
                                                 <div>
                                                     <div class="op-dashboard-card-title">
-                                                        {% if paso.ciclo_bodega_externa.finalizada %}Ciclo Bodega Externa finalizado{% else %}Camion en Bodega Externa{% endif %}
+                                                        {% if paso.ciclo_bodega_externa.finalizada %}Ciclo Bodega Externa finalizado{% elif paso.es_terramar_bodega_externa %}CAMION EN DESCARGA EXTERNA{% else %}Camion en Bodega Externa{% endif %}
                                                     </div>
                                                     <div class="op-dashboard-muted">Tiempo transcurrido desde salida hacia Bodega Externa</div>
                                                     <div class="op-wait-clock-time op-bodega-externa-live-time"
@@ -3218,7 +3261,7 @@
                                                         {{ paso.ciclo_bodega_externa.duracion_legible|default:"00:00:00" }}
                                                     </div>
                                                     <div class="op-dashboard-muted">
-                                                        Salida: {{ paso.ciclo_bodega_externa.inicio_legible|default:"Sin salida" }}{% if paso.ciclo_bodega_externa.usuario_inicio %} | Autorizo: {{ paso.ciclo_bodega_externa.usuario_inicio }}{% endif %}{% if paso.ciclo_bodega_externa.finalizada %} | Regreso: {{ paso.ciclo_bodega_externa.fin_legible|default:"Sin regreso" }}{% if paso.ciclo_bodega_externa.usuario_fin %} | Registro: {{ paso.ciclo_bodega_externa.usuario_fin }}{% endif %}{% endif %}
+                                                        Salida: {{ paso.ciclo_bodega_externa.inicio_legible|default:"Sin salida" }}{% if paso.ciclo_bodega_externa.usuario_inicio %} | Inicio: {{ paso.ciclo_bodega_externa.usuario_inicio }}{% endif %}{% if paso.ciclo_bodega_externa.observacion_inicio %} | Observacion: {{ paso.ciclo_bodega_externa.observacion_inicio }}{% endif %}{% if paso.ciclo_bodega_externa.finalizada %} | Regreso: {{ paso.ciclo_bodega_externa.fin_legible|default:"Sin regreso" }}{% if paso.ciclo_bodega_externa.usuario_fin %} | Registro: {{ paso.ciclo_bodega_externa.usuario_fin }}{% endif %}{% endif %}
                                                     </div>
                                                 </div>
                                             </div>
@@ -3234,9 +3277,13 @@
                                         {% if paso.puede_operar_ciclo_bodega_externa and not paso.ciclo_bodega_externa.finalizada %}
                                             <div class="op-discharge-actions mt-3">
                                                 {% if not paso.ciclo_bodega_externa.iniciada and paso.puede_iniciar_ciclo_bodega_externa %}
+                                                    {% if paso.es_terramar_bodega_externa %}
+                                                        <label>Observacion de la salida</label>
+                                                        <textarea class="form-control observacion-inicio-bodega-externa mb-2" rows="2" placeholder="Salida hacia bodega externa."></textarea>
+                                                    {% endif %}
                                                     <button type="button" class="op-glass-button is-success btn-iniciar-ciclo-bodega-externa" data-paso="{{ paso.nombre }}">
-                                                        <i class="op-glass-icon fas fa-route"></i>
-                                                        AUTORIZAR SALIDA A BODEGA EXTERNA
+                                                        <i class="op-glass-icon fas {% if paso.es_terramar_bodega_externa %}fa-warehouse{% else %}fa-route{% endif %}"></i>
+                                                        {% if paso.es_terramar_bodega_externa %}INICIAR SALIDA A BODEGA EXTERNA{% else %}AUTORIZAR SALIDA A BODEGA EXTERNA{% endif %}
                                                     </button>
                                                 {% elif paso.ciclo_bodega_externa.en_proceso and paso.puede_finalizar_ciclo_bodega_externa %}
                                                     <div class="w-100">
@@ -3245,14 +3292,14 @@
                                                         <div class="d-flex justify-content-end mt-2">
                                                             <button type="button" class="op-glass-button is-success btn-finalizar-ciclo-bodega-externa" data-paso="{{ paso.nombre }}">
                                                                 <i class="op-glass-icon fas fa-check-circle"></i>
-                                                                REGISTRAR REGRESO DESDE BODEGA EXTERNA
+                                                                {% if paso.es_terramar_bodega_externa %}CONFIRMAR REGRESO DE BODEGA EXTERNA{% else %}REGISTRAR REGRESO DESDE BODEGA EXTERNA{% endif %}
                                                             </button>
                                                         </div>
                                                     </div>
                                                 {% elif paso.ciclo_bodega_externa.en_proceso %}
                                                     <div class="alert alert-light border mb-0">Ciclo externo en curso. Guardia Porteria debe registrar el regreso del camion.</div>
                                                 {% else %}
-                                                    <div class="alert alert-light border mb-0">Solo Asistente_C_D puede autorizar la salida a Bodega Externa.</div>
+                                                    <div class="alert alert-light border mb-0">{% if paso.es_terramar_bodega_externa %}Solo Asistente Bodega puede iniciar la salida a Bodega Externa.{% else %}Solo Asistente_C_D puede autorizar la salida a Bodega Externa.{% endif %}</div>
                                                 {% endif %}
                                             </div>
                                         {% endif %}
@@ -3394,7 +3441,7 @@
                                                     Ciclo Descarga
                                                 </div>
                                                 <div class="op-cycle-subtitle">
-                                                    Responsable: Sala_Control | Patente: {{ patente }}
+                                                    Responsable: {% if paso.es_flujo_terramar %}{{ paso.responsable }}{% else %}Sala_Control{% endif %} | Patente: {{ patente }}
                                                 </div>
                                             </div>
                                             <span class="op-cycle-state-badge {% if paso.ciclo_descarga.finalizada %}is-done{% elif paso.ciclo_descarga.en_proceso %}is-active{% endif %}">
@@ -3409,6 +3456,7 @@
                                             </span>
                                         </div>
 
+                                        {% if not paso.es_flujo_terramar %}
                                         <div class="op-cycle-summary-grid">
                                             <div class="op-field-summary-card">
                                                 <div class="op-field-summary-label">Calidad</div>
@@ -3442,20 +3490,48 @@
                                             </div>
                                         </div>
 
+                                        {% endif %}
                                         <div class="op-lab-title"><i class="fas fa-tasks"></i> Tipo de descarga</div>
                                         <div class="op-cycle-options">
                                             {% for opcion_descarga in paso.tipos_ciclo_descarga %}
                                                 <button type="button"
-                                                        class="op-cycle-option {% if paso.ciclo_descarga.tipo_descarga_codigo == opcion_descarga.codigo %}is-selected{% endif %}"
+                                                        class="op-cycle-option {% if paso.ciclo_descarga.tipo_descarga_codigo == opcion_descarga.codigo or paso.es_flujo_terramar %}is-selected{% endif %}"
                                                         data-tipo-descarga="{{ opcion_descarga.codigo }}"
                                                         {% if not paso.activo or not paso.puede_editar or paso.ciclo_descarga.iniciada %}disabled{% endif %}>
                                                     <span class="op-cycle-option-icon">
-                                                        <i class="fas {% if 'Trasvasije' in opcion_descarga.etiqueta_tarjeta %}fa-exchange-alt{% elif 'Cisterna' in opcion_descarga.etiqueta_tarjeta %}fa-truck-moving{% elif 'Patio' in opcion_descarga.etiqueta_tarjeta %}fa-map-marked-alt{% else %}fa-oil-can{% endif %}"></i>
+                                                        <i class="fas {% if paso.es_flujo_terramar %}fa-cubes{% elif 'Trasvasije' in opcion_descarga.etiqueta_tarjeta %}fa-exchange-alt{% elif 'Cisterna' in opcion_descarga.etiqueta_tarjeta %}fa-truck-moving{% elif 'Patio' in opcion_descarga.etiqueta_tarjeta %}fa-map-marked-alt{% else %}fa-oil-can{% endif %}"></i>
                                                     </span>
                                                     <span class="op-cycle-option-title">{{ opcion_descarga.etiqueta_tarjeta }}</span>
                                                 </button>
                                             {% endfor %}
                                         </div>
+
+                                        {% if paso.es_recepcion_terramar_principal and not paso.ciclo_descarga.iniciada and paso.ciclo_descarga.espera_descarga.iniciada %}
+                                            <div class="op-cycle-runtime op-wait-discharge-runtime">
+                                                <div class="op-hourglass descarga-activa">
+                                                    <div class="op-hourglass-inner">
+                                                        <span class="op-hourglass-neck"></span>
+                                                        <span class="op-hourglass-glass-shine"></span>
+                                                        <span class="op-hourglass-sand-layer">
+                                                            <span class="op-hourglass-sand-top"></span>
+                                                            <span class="op-hourglass-flow"></span>
+                                                            <span class="op-hourglass-sand-bottom"></span>
+                                                        </span>
+                                                    </div>
+                                                </div>
+                                                <div>
+                                                    <div class="op-dashboard-card-title">EN ESPERA DESCARGA</div>
+                                                    <div class="op-dashboard-muted">Espera previa a descarga</div>
+                                                    <div class="op-wait-clock-time"
+                                                         data-wait-start="{{ paso.ciclo_descarga.espera_descarga.inicio }}">
+                                                        {{ paso.ciclo_descarga.espera_descarga.duracion_legible|default:'00:00:00' }}
+                                                    </div>
+                                                    <div class="op-dashboard-muted">
+                                                        Inicio: {{ paso.ciclo_descarga.espera_descarga.inicio_legible|default:'Sin inicio' }}
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        {% endif %}
 
                                         {% if paso.ciclo_descarga.iniciada %}
                                             <div class="op-cycle-runtime">
@@ -3493,16 +3569,27 @@
                                         {% if paso.ciclo_descarga.finalizada %}
                                             <div class="op-update-strip">
                                                 <i class="fas fa-check-circle"></i>
-                                                Tipo: {{ paso.ciclo_descarga.tipo_descarga_label }} | Inicio: {{ paso.ciclo_descarga.inicio_descarga_legible }} | Fin: {{ paso.ciclo_descarga.fin_descarga_legible }} | Duracion: {{ paso.ciclo_descarga.duracion_legible }} | Finalizo: {{ paso.ciclo_descarga.usuario_fin }}
+                                                {% if paso.es_recepcion_terramar_principal %}
+                                                    Tiempo espera descarga: {{ paso.ciclo_descarga.espera_descarga.duracion_legible|default:'00:00:00' }} |
+                                                    Tiempo proceso descarga: {{ paso.ciclo_descarga.duracion_legible|default:'00:00:00' }} |
+                                                {% endif %}
+                                                Tipo: {{ paso.ciclo_descarga.tipo_descarga_label }} | Inicio: {{ paso.ciclo_descarga.inicio_descarga_legible }} | Fin: {{ paso.ciclo_descarga.fin_descarga_legible }} | Finalizo: {{ paso.ciclo_descarga.usuario_fin }}
+                                            </div>
+                                        {% endif %}
+
+                                        {% if paso.es_flujo_terramar and paso.ciclo_descarga.iniciada and not paso.ciclo_descarga.finalizada %}
+                                            <div class="form-group mt-3">
+                                                <label>Observaciones</label>
+                                                <textarea class="form-control observacion-final-ciclo-descarga" rows="3" placeholder="Observación opcional de la descarga"></textarea>
                                             </div>
                                         {% endif %}
 
                                         {% if paso.activo and paso.puede_editar and not paso.ciclo_descarga.finalizada %}
                                             <div class="op-discharge-actions">
                                                 {% if not paso.ciclo_descarga.iniciada %}
-                                                    <button type="button" class="op-glass-button is-secondary btn-iniciar-ciclo-descarga" data-paso="{{ paso.nombre }}" disabled>
+                                                    <button type="button" class="op-glass-button is-secondary btn-iniciar-ciclo-descarga" data-paso="{{ paso.nombre }}" {% if not paso.es_flujo_terramar %}disabled{% endif %}>
                                                         <i class="op-glass-icon fas fa-play"></i>
-                                                        Iniciar descarga
+                                                        {% if paso.es_recepcion_terramar_principal %}Iniciar Descarga{% elif paso.es_flujo_terramar %}Iniciar proceso de descarga{% else %}Iniciar descarga{% endif %}
                                                     </button>
                                                 {% else %}
                                                     <button type="button" class="op-glass-button is-success btn-finalizar-ciclo-descarga" data-paso="{{ paso.nombre }}">
@@ -3528,7 +3615,7 @@
                                                     Borrador SAP
                                                 </div>
                                                 <div class="op-cycle-subtitle">
-                                                    Ambiente QA | CompanyDB: <strong class="op-sap-company-db">{{ paso.borrador_sap.company_db|default:'SBO_TST_SBH_USD' }}</strong>
+                                                    Ambiente QA | CompanyDB: <strong class="op-sap-company-db">{{ paso.borrador_sap.company_db|default:'No informado' }}</strong>
                                                 </div>
                                             </div>
                                             <span class="op-sap-draft-status {% if paso.borrador_sap.sent %}is-done{% elif paso.activo %}is-active{% endif %}">
@@ -3831,7 +3918,7 @@
                                                     Autorizar Salida
                                                 </div>
                                                 <div class="op-cycle-subtitle">
-                                                    Responsable: Asistente_Recepcion | Siguiente: Guardia_Porteria
+                                                    Responsable: {% if paso.es_flujo_terramar %}{{ paso.responsable }}{% else %}Asistente_Recepcion{% endif %} | Siguiente: Guardia_Porteria
                                                 </div>
                                             </div>
                                             <span class="op-cycle-state-badge {% if paso.autorizar_salida.registrada %}is-done{% elif paso.activo %}is-active{% endif %}">
@@ -3840,7 +3927,11 @@
                                             </span>
                                         </div>
 
-                                        {% if paso.autorizar_salida.registrada %}
+                                        {% if paso.implementacion_pendiente %}
+                                            <div class="alert alert-info mb-0">
+                                                Paso configurado para {{ paso.responsable }}. Su acción funcional se habilitará en la Etapa 2.
+                                            </div>
+                                        {% elif paso.autorizar_salida.registrada %}
                                             <div class="op-exit-summary">
                                                 <div class="op-field-summary-card">
                                                     <div class="op-field-summary-label">Recepcion conforme</div>
@@ -3922,7 +4013,7 @@
                                                         {{ paso.sap_update_recepcion.resumen_mensaje|default:'Debe actualizar el Borrador SAP de recepcion antes de autorizar la salida.' }}
                                                     </div>
                                                 </div>
-                                                {% if paso.activo and paso.puede_editar and not paso.sap_update_recepcion.updated %}
+                                                {% if paso.activo and paso.puede_operar_sap_recepcion and not paso.sap_update_recepcion.updated %}
                                                     <button type="button" class="btn btn-primary btn-sm btn-actualizar-sap-recepcion">
                                                         <i class="fas fa-sync-alt mr-1"></i> Actualizar Borrador SAP
                                                     </button>
@@ -3931,6 +4022,7 @@
                                                         <i class="fas fa-check-circle mr-1"></i> Borrador SAP actualizado
                                                     </span>
                                                 {% endif %}
+                                                {% if paso.puede_ver_detalle_tecnico_sap %}
                                                 <details class="sap-update-tech-details" open>
                                                     <summary>Detalle t&eacute;cnico SAP Recepci&oacute;n</summary>
                                                     <div class="row mt-2">
@@ -3944,6 +4036,7 @@
                                                         </div>
                                                     </div>
                                                 </details>
+                                                {% endif %}
                                             </div>
                                             {% endif %}
                                             {% if paso.requiere_update_sap_despacho %}
@@ -4030,7 +4123,7 @@
                                                     <label>Observacion descarga</label>
                                                     <textarea class="form-control autorizacion-observacion-descarga"
                                                               rows="5"
-                                                              {% if not paso.puede_guardar_observacion %}readonly{% endif %}>{{ paso.observacion|default:paso.autorizar_salida.observacion_descarga }}</textarea>
+                                                              {% if not paso.puede_guardar_observacion or paso.autorizar_salida.revision_conformidad.recepcion_conforme %}readonly{% endif %}>{{ paso.autorizar_salida.revision_conformidad.observacion|default:paso.observacion|default:paso.autorizar_salida.observacion_descarga }}</textarea>
                                                     {% if paso.puede_guardar_observacion %}
                                                         <div class="d-flex justify-content-end mt-2">
                                                             <button type="button"
@@ -4051,20 +4144,22 @@
                                                 </div>
                                                 <div>
                                                     <div class="op-lab-title"><i class="fas fa-check-double"></i> Recepcion Conforme</div>
-                                                    <div class="op-dashboard-muted">Presione Si o No para cerrar la autorizacion.</div>
+                                                    <div class="op-dashboard-muted">Presione Si o No para guardar la revisión. La salida se autoriza sólo con el botón final.</div>
                                                     <div class="op-auth-toggle op-conforme-toggle">
                                                         <label class="op-auth-option op-conforme-option op-conforme-si">
                                                             <input type="radio"
                                                                    name="recepcion_conforme_{{ paso.orden }}"
                                                                    value="SI"
-                                                                   {% if not paso.activo or not paso.puede_editar or paso.requiere_update_sap_despacho and not paso.sap_update_despacho.updated or paso.requiere_update_sap_recepcion and not paso.sap_update_recepcion.updated %}disabled{% endif %}>
+                                                                   {% if paso.autorizar_salida.revision_conformidad.recepcion_conforme == 'SI' %}checked{% endif %}
+                                                                   {% if paso.autorizar_salida.revision_conformidad.recepcion_conforme or not paso.activo or not paso.puede_editar or paso.requiere_update_sap_despacho and not paso.sap_update_despacho.updated or paso.requiere_update_sap_recepcion and not paso.sap_update_recepcion.updated and not paso.es_sbh_recepcion %}disabled{% endif %}>
                                                             <span><i class="fas fa-check"></i> Si</span>
                                                         </label>
                                                         <label class="op-auth-option op-conforme-option op-conforme-no is-no">
                                                             <input type="radio"
                                                                    name="recepcion_conforme_{{ paso.orden }}"
                                                                    value="NO"
-                                                                   {% if not paso.activo or not paso.puede_editar or paso.requiere_update_sap_despacho and not paso.sap_update_despacho.updated or paso.requiere_update_sap_recepcion and not paso.sap_update_recepcion.updated %}disabled{% endif %}>
+                                                                   {% if paso.autorizar_salida.revision_conformidad.recepcion_conforme == 'NO' %}checked{% endif %}
+                                                                   {% if paso.autorizar_salida.revision_conformidad.recepcion_conforme or not paso.activo or not paso.puede_editar or paso.requiere_update_sap_despacho and not paso.sap_update_despacho.updated or paso.requiere_update_sap_recepcion and not paso.sap_update_recepcion.updated and not paso.es_sbh_recepcion %}disabled{% endif %}>
                                                             <span><i class="fas fa-times"></i> No</span>
                                                         </label>
                                                     </div>
@@ -4153,13 +4248,69 @@
                                         </div>
                                     {% endif %}
 
+                                    {% if paso.ciclo_carga_terramar.aplicable and paso.nombre == 'Ciclo Carga' %}
+                                    <div class="op-lab-panel op-result-dashboard-panel" data-ciclo-carga-terramar="true">
+                                        <div class="op-result-dashboard-section">
+                                            <div class="op-lab-title"><i class="fas fa-truck-loading"></i> Ciclo Carga</div>
+                                            <div class="op-lab-subtitle">Responsable: Asistente Bodega</div>
+                                            <span class="badge {% if paso.ciclo_carga_terramar.completado %}badge-success{% else %}badge-warning{% endif %}">{% if paso.ciclo_carga_terramar.completado %}COMPLETADO{% else %}PENDIENTE{% endif %}</span>
+                                            <hr><h6>Documentación de carga</h6>
+                                            {% for documento in paso.ciclo_carga_terramar.documentos %}
+                                            <div class="border rounded p-3 mb-2 bg-light">
+                                                <strong>{{ documento.nombre }}</strong>
+                                                {% if documento.cargado %}
+                                                    <span class="badge badge-success ml-2">CARGADO</span><br>
+                                                    <small>{{ documento.archivo_nombre }}<br>Cargado por: {{ documento.usuario }} | {{ documento.fecha }}</small><br>
+                                                    <a class="btn btn-sm btn-outline-primary mt-2" target="_blank" rel="noopener" href="{{ documento.archivo_url }}">Ver / Descargar</a>
+                                                {% else %}
+                                                    <span class="badge badge-secondary ml-2">PENDIENTE</span>
+                                                {% endif %}
+                                                {% if paso.ciclo_carga_terramar.activo and paso.ciclo_carga_terramar.puede_editar and not paso.ciclo_carga_terramar.completado and not documento.cargado %}
+                                                <form class="form-ciclo-carga-terramar mt-2" enctype="multipart/form-data" data-codigo="{{ documento.codigo }}">
+                                                    {% csrf_token %}<input type="file" name="archivo" accept=".pdf,.jpg,.jpeg,.png,.doc,.docx" required>
+                                                    <button class="btn btn-sm btn-primary" type="submit">Cargar</button>
+                                                </form>
+                                                {% endif %}
+                                            </div>
+                                            {% endfor %}
+                                            {% if paso.ciclo_carga_terramar.activo and paso.ciclo_carga_terramar.puede_editar and not paso.ciclo_carga_terramar.completado %}
+                                            <form class="form-completar-ciclo-carga-terramar mt-3">
+                                                {% csrf_token %}
+                                                <textarea class="form-control mb-2" name="observacion" placeholder="Observación opcional"></textarea>
+                                                <button class="btn btn-success" type="submit" {% if not paso.ciclo_carga_terramar.todos_cargados %}disabled{% endif %}>Completar Ciclo Carga</button>
+                                                {% if not paso.ciclo_carga_terramar.todos_cargados %}<small class="d-block text-muted mt-1">Faltan: {{ paso.ciclo_carga_terramar.faltantes|join:', ' }}</small>{% endif %}
+                                            </form>
+                                            {% elif not paso.ciclo_carga_terramar.puede_editar %}
+                                            <div class="alert alert-light border mt-3 mb-0">Solo lectura: este paso corresponde a Asistente Bodega.</div>
+                                            {% endif %}
+                                        </div>
+                                    </div>
+                                    {% endif %}
+
                                     {% if paso.requiere_cierre_carga_despacho %}
                                     <div class="op-lab-panel op-result-dashboard-panel operacion-cierre-carga-despacho-box"
                                          data-paso="{{ paso.nombre }}"
                                          data-tipo-imagen-sello="{{ paso.cierre_carga_despacho.tipo_imagen_sello }}"
-                                         data-nro-sellos-dato-id="{{ paso.cierre_carga_despacho.nro_sellos_dato_id }}">
+                                         data-nro-sellos-dato-id="{{ paso.cierre_carga_despacho.nro_sellos_dato_id }}"
+                                         data-tiene-imagenes="{% if paso.cierre_carga_despacho.imagenes_sellos %}true{% else %}false{% endif %}"
+                                         data-sap-updated="{% if paso.sap_update_despacho.updated %}true{% else %}false{% endif %}">
                                         <div class="op-result-dashboard-section">
                                             <div class="op-lab-title"><i class="fas fa-clipboard-check"></i> Cierre Proceso de Carga</div>
+                                            {% if paso.es_despacho_sbh_operacion %}
+                                            <div class="alert {% if paso.sap_update_despacho.updated %}alert-success{% else %}alert-danger{% endif %} operacion-sap-despacho-update-box"
+                                                 data-sap-updated="{% if paso.sap_update_despacho.updated %}true{% else %}false{% endif %}"
+                                                 data-sap-error="{% if paso.sap_update_despacho.is_error %}true{% else %}false{% endif %}">
+                                                {% if paso.sap_update_despacho.updated %}
+                                                    <strong>Draft SAP actualizado con peso de salida.</strong>
+                                                {% else %}
+                                                    <strong>Actualizacion SAP pendiente.</strong>
+                                                    No se puede completar el cierre hasta actualizar el Draft con el peso de salida.
+                                                    {% if paso.activo and paso.puede_editar %}
+                                                    <button type="button" class="btn btn-sm btn-primary ml-2 btn-actualizar-sap-despacho">Reintentar actualizacion SAP</button>
+                                                    {% endif %}
+                                                {% endif %}
+                                            </div>
+                                            {% endif %}
                                             <div class="op-close-load-grid">
                                                 <div class="op-field-summary-card op-close-load-field">
                                                     <div class="op-field-summary-label">Codigo SAP</div>
@@ -4210,6 +4361,15 @@
 
                                             <div class="op-seal-images">
                                                 <div class="op-lab-title mb-2"><i class="fas fa-images"></i> Imagenes de sellos</div>
+                                                {% if paso.es_despacho_sbh_operacion and paso.activo and paso.puede_editar %}
+                                                <div class="form-group">
+                                                    <input type="file" class="form-control-file cierre-imagenes-sellos"
+                                                           accept=".jpg,.jpeg,.png,image/jpeg,image/png" multiple>
+                                                    <small class="form-text text-muted">Debe existir al menos una imagen JPG, JPEG o PNG. Puede seleccionar varias.</small>
+                                                    <small class="form-text cierre-imagenes-sellos-estado" aria-live="polite"></small>
+                                                </div>
+                                                {% endif %}
+                                                <div class="cierre-imagenes-sellos-lista">
                                                 {% if paso.cierre_carga_despacho.imagenes_sellos %}
                                                     <div class="op-seal-image-grid">
                                                         {% for imagen in paso.cierre_carga_despacho.imagenes_sellos %}
@@ -4217,7 +4377,7 @@
                                                                 <img src="{{ imagen.download_url }}" alt="{{ imagen.nombre }}">
                                                                 <div class="op-seal-image-caption">
                                                                     {{ imagen.nombre|default:'Imagen sello' }}
-                                                                    {% if imagen.fecha %}<br>{{ imagen.fecha }}{% endif %}
+                                                                    {% if imagen.fecha %}<br>{{ imagen.fecha }}{% endif %}{% if imagen.usuario %}<br>{{ imagen.usuario }}{% endif %}
                                                                 </div>
                                                             </a>
                                                         {% endfor %}
@@ -4225,6 +4385,7 @@
                                                 {% else %}
                                                     <div class="op-dashboard-muted">Sin imagenes de sellos cargadas</div>
                                                 {% endif %}
+                                                </div>
                                             </div>
 
                                             <div class="op-field-summary-card op-close-load-field mt-3">
@@ -4234,9 +4395,18 @@
 
                                             {% if paso.activo and paso.puede_editar %}
                                                 <div class="d-flex justify-content-end mt-3">
-                                                    <button type="button" class="op-glass-button is-success btn-guardar-operacion" data-paso="{{ paso.nombre }}">
+                                                    <button type="button" class="op-glass-button is-success btn-guardar-operacion" data-paso="{{ paso.nombre }}"
+                                                            {% if paso.es_despacho_sbh_operacion and not paso.sap_update_despacho.updated %}disabled{% endif %}>
                                                         <i class="op-glass-icon fas fa-check"></i>
                                                         Enviar siguiente etapa
+                                                    </button>
+                                                </div>
+                                            {% endif %}
+                                            {% if paso.puede_reabrir_cierre_carga %}
+                                                <div class="alert alert-warning mt-3 mb-0">
+                                                    <strong>Accion administrativa.</strong> Reabre solamente este cierre; conserva Draft SAP y pesajes.
+                                                    <button type="button" class="btn btn-sm btn-outline-danger ml-2 btn-reabrir-cierre-carga">
+                                                        Reabrir Cierre Proceso de Carga
                                                     </button>
                                                 </div>
                                             {% endif %}
@@ -4244,7 +4414,173 @@
                                     </div>
                                     {% endif %}
 
-                                    {% if not paso.requiere_resultado_calidad and not paso.requiere_preparacion_descarga and not paso.requiere_ciclo_descarga and not paso.requiere_cierre_carga_despacho and not paso.requiere_borrador_sap and not paso.requiere_autorizar_salida and not paso.requiere_confirmar_salida and not paso.requiere_autorizacion_salida_bodega_externa and not paso.requiere_ingreso_planta_bodega_externa %}
+                                    {% if paso.requiere_documentacion_despacho_terramar %}
+                                    <div class="op-lab-panel op-result-dashboard-panel operacion-documentacion-despacho-terramar" data-paso="{{ paso.nombre }}">
+                                        <div class="op-result-dashboard-section">
+                                            <div class="op-lab-title"><i class="fas fa-folder-open"></i> Documentación</div>
+                                            <div class="op-lab-subtitle">Responsable: Asistente Recepción</div>
+                                            <div class="op-cycle-runtime mt-3">
+                                                <div class="op-hourglass {% if paso.documentacion_despacho_terramar.temporizador.finalizado %}descarga-finalizada{% else %}descarga-activa{% endif %}"><div class="op-hourglass-inner"><span class="op-hourglass-neck"></span><span class="op-hourglass-glass-shine"></span><span class="op-hourglass-sand-layer"><span class="op-hourglass-sand-top"></span><span class="op-hourglass-flow"></span><span class="op-hourglass-sand-bottom"></span></span></div></div>
+                                                <div>
+                                                    <div class="op-dashboard-card-title">Tiempo en Documentación <span class="badge {% if paso.documentacion_despacho_terramar.temporizador.finalizado %}badge-success{% else %}badge-warning{% endif %}">{% if paso.documentacion_despacho_terramar.temporizador.finalizado %}COMPLETADO{% else %}EN PROCESO{% endif %}</span></div>
+                                                    <div class="op-wait-clock-time" {% if paso.documentacion_despacho_terramar.temporizador.en_proceso %}data-wait-start="{{ paso.documentacion_despacho_terramar.temporizador.inicio_iso }}"{% endif %}>{{ paso.documentacion_despacho_terramar.temporizador.duracion_legible|default:'00:00:00' }}</div>
+                                                    <div class="op-dashboard-muted">Inicio: {{ paso.documentacion_despacho_terramar.temporizador.inicio_legible|default:'Pendiente' }}{% if paso.documentacion_despacho_terramar.temporizador.usuario_inicio %} | Inicio por: {{ paso.documentacion_despacho_terramar.temporizador.usuario_inicio }}{% endif %}{% if paso.documentacion_despacho_terramar.temporizador.finalizado %} | Fin: {{ paso.documentacion_despacho_terramar.temporizador.fin_legible }}{% if paso.documentacion_despacho_terramar.temporizador.usuario_fin %} | Finalizó: {{ paso.documentacion_despacho_terramar.temporizador.usuario_fin }}{% endif %}{% endif %}</div>
+                                                </div>
+                                            </div>
+                                            <hr>
+                                            <h6>Encarpe</h6>
+                                            {% if paso.documentacion_despacho_terramar.encarpe_ok %}
+                                                <div class="alert alert-success mb-3"><strong>✓ OK</strong><br>Confirmado por: {{ paso.documentacion_despacho_terramar.encarpe_usuario }}<br>Fecha: {{ paso.documentacion_despacho_terramar.encarpe_fecha }}</div>
+                                            {% elif paso.activo and paso.puede_editar %}
+                                                <form class="form-documentacion-despacho-terramar-encarpe mb-3">{% csrf_token %}<button class="btn btn-primary" type="submit"><i class="fas fa-check"></i> OK</button></form>
+                                            {% else %}<div class="alert alert-light border">PENDIENTE</div>{% endif %}
+                                            <h6>Emisión de guía</h6>
+                                            {% if paso.documentacion_despacho_terramar.guia_cargada %}
+                                                <div class="alert alert-success"><strong>✓ DOCUMENTO CARGADO</strong><br>Archivo: {{ paso.documentacion_despacho_terramar.guia_nombre }}<br>Cargado por: {{ paso.documentacion_despacho_terramar.guia_usuario }} | {{ paso.documentacion_despacho_terramar.guia_fecha }}<br><a class="btn btn-sm btn-outline-primary mt-2" href="{{ paso.documentacion_despacho_terramar.guia_url }}">Ver / Descargar</a></div>
+                                            {% elif paso.activo and paso.puede_editar %}
+                                                <form class="form-documentacion-despacho-terramar-guia mb-3" enctype="multipart/form-data">{% csrf_token %}<input type="file" name="archivo" accept=".pdf,.jpg,.jpeg,.png,.doc,.docx" required><button class="btn btn-primary btn-sm" type="submit">Cargar guía</button></form>
+                                            {% else %}<div class="alert alert-light border">PENDIENTE</div>{% endif %}
+                                            {% if paso.activo and paso.puede_editar and not paso.documentacion_despacho_terramar.completada %}
+                                                <form class="form-documentacion-despacho-terramar-completar">{% csrf_token %}<textarea name="observacion" class="form-control mb-2" rows="2" placeholder="Observación opcional"></textarea><button class="btn btn-success" type="submit" {% if not paso.documentacion_despacho_terramar.encarpe_ok or not paso.documentacion_despacho_terramar.guia_cargada %}disabled{% endif %}>Guía lista</button></form>
+                                            {% elif not paso.puede_editar %}<div class="alert alert-light border mb-0">Solo lectura: este paso corresponde a Asistente Recepción.</div>{% endif %}
+                                        </div>
+                                    </div>
+                                    {% endif %}
+                                    {% if paso.requiere_documentacion_terramar %}
+                                    <div class="operacion-documentacion-terramar" data-paso="{{ paso.nombre }}">
+                                        <div class="op-lab-title"><i class="fas fa-folder-open"></i> Documentos de salida obligatorios - CITACION_DOCUMENTO</div>
+                                        {% if paso.documentacion_terramar.originales %}
+                                        <div class="table-responsive mb-3">
+                                            <table class="table table-sm table-bordered">
+                                                <thead><tr><th>Nombre</th><th>Tipo</th><th>Origen</th><th>Estado</th><th>Acciones</th></tr></thead>
+                                                <tbody>
+                                                {% for documento in paso.documentacion_terramar.originales %}
+                                                <tr>
+                                                    <td>{{ documento.nombre }}</td><td>{{ documento.tipo }}</td><td>{{ documento.origen }}</td><td>{{ documento.estado }}</td>
+                                                    <td>
+                                                        {% if documento.view_url %}<a class="btn btn-sm btn-outline-primary" href="{{ documento.view_url }}" target="_blank" rel="noopener">Ver</a>{% endif %}
+                                                        {% if documento.download_url %}<a class="btn btn-sm btn-outline-secondary" href="{{ documento.download_url }}">Descargar</a>{% endif %}
+                                                    </td>
+                                                </tr>
+                                                {% endfor %}
+                                                </tbody>
+                                            </table>
+                                        </div>
+                                        {% else %}<div class="alert alert-warning">No hay documentos originales registrados.</div>{% endif %}
+
+                                        <div class="op-lab-title"><i class="fas fa-weight"></i> Ticket Pesaje Salida - incluido en salida</div>
+                                        {% if paso.documentacion_terramar.tickets %}
+                                        <div class="table-responsive mb-3"><table class="table table-sm table-bordered"><tbody>
+                                            {% for documento in paso.documentacion_terramar.tickets %}
+                                            <tr><td>{{ documento.nombre }}</td><td>{{ documento.tipo }}</td><td>{{ documento.estado }}</td><td>{% if documento.view_url %}<a class="btn btn-sm btn-outline-primary" href="{{ documento.view_url }}" target="_blank" rel="noopener">Ver</a>{% endif %} {% if documento.download_url %}<a class="btn btn-sm btn-outline-secondary" href="{{ documento.download_url }}">Descargar</a>{% endif %}</td></tr>
+                                            {% endfor %}
+                                        </tbody></table></div>
+                                        {% else %}<div class="alert alert-warning">Aún no están disponibles los tickets de pesaje.</div>{% endif %}
+
+                                        <div class="op-lab-title"><i class="fas fa-history"></i> Antecedentes no incluidos en salida</div>
+                                        {% if paso.documentacion_terramar.antecedentes %}
+                                        <div class="table-responsive mb-3"><table class="table table-sm table-bordered"><tbody>
+                                            {% for documento in paso.documentacion_terramar.antecedentes %}
+                                            <tr><td>{{ documento.nombre }}</td><td>{{ documento.tipo }}</td><td><span class="badge badge-secondary">No se timbra ni se envía</span></td><td>{% if documento.view_url %}<a class="btn btn-sm btn-outline-primary" href="{{ documento.view_url }}" target="_blank" rel="noopener">Ver</a>{% endif %} {% if documento.download_url %}<a class="btn btn-sm btn-outline-secondary" href="{{ documento.download_url }}">Descargar</a>{% endif %}</td></tr>
+                                            {% endfor %}
+                                        </tbody></table></div>
+                                        {% else %}<div class="alert alert-light border">No hay ticket de Pesaje Entrada como antecedente.</div>{% endif %}
+
+                                        {% if paso.documentacion_terramar.validada %}
+                                        <div class="alert alert-success">
+                                            Documentación validada por {{ paso.documentacion_terramar.usuario_validacion }} el {{ paso.documentacion_terramar.fecha_validacion }}.
+                                            {% if paso.documentacion_terramar.observacion_validacion %}<br>{{ paso.documentacion_terramar.observacion_validacion }}{% endif %}
+                                        </div>
+                                        {% elif paso.activo and paso.puede_editar %}
+                                        <div class="custom-control custom-checkbox mb-3">
+                                            <input type="checkbox" class="custom-control-input documentacion-terramar-validada" id="documentacion-validada-{{ forloop.counter }}">
+                                            <label class="custom-control-label" for="documentacion-validada-{{ forloop.counter }}">He validado la documentación</label>
+                                        </div>
+                                        <div class="form-group"><label>Observación</label><textarea class="form-control documentacion-terramar-observacion" rows="3"></textarea></div>
+                                        <button type="button" class="btn btn-primary btn-validar-documentacion-terramar"><i class="fas fa-check"></i> Pasar a siguiente etapa</button>
+                                        {% endif %}
+                                    </div>
+                                    {% endif %}
+
+                                    {% if paso.requiere_autorizar_salida_despacho_terramar %}
+                                    <div class="op-lab-panel op-result-dashboard-panel operacion-autorizar-salida-despacho-terramar">
+                                        <div class="op-lab-title"><i class="fas fa-clipboard-check"></i> Autorizar Salida</div><div class="op-lab-subtitle">Responsable: Asistente Despacho</div>
+                                        <hr>
+                                        <h6>Datos planificación</h6>
+                                        <div class="row small">
+                                            {% for etiqueta, valor in paso.autorizacion_salida_despacho_terramar.planificacion.datos.items %}
+                                            <div class="col-md-6 mb-1"><strong>{{ etiqueta }}:</strong> {{ valor|default:'-' }}</div>
+                                            {% endfor %}
+                                            <div class="col-md-6 mb-1"><strong>Citación:</strong> {{ paso.autorizacion_salida_despacho_terramar.planificacion.citacion }}</div>
+                                        </div>
+                                        <hr><h6>Transporte / Camión</h6><div class="small">A cargo de: {{ paso.autorizacion_salida_despacho_terramar.transporte.cargo|default:'-' }} | Empresa: {{ paso.autorizacion_salida_despacho_terramar.transporte.empresa|default:'-' }} | Conductor: {{ paso.autorizacion_salida_despacho_terramar.transporte.conductor|default:'-' }} | Teléfono: {{ paso.autorizacion_salida_despacho_terramar.transporte.telefono|default:'-' }} | Patente: {{ paso.autorizacion_salida_despacho_terramar.transporte.patente|default:'-' }}</div>
+                                        <hr><h6>Pesajes</h6><div class="small">Entrada: {{ paso.autorizacion_salida_despacho_terramar.entrada.peso_neto|default:'-' }} | Folio: {{ paso.autorizacion_salida_despacho_terramar.entrada.folio|default:'-' }} {% if paso.autorizacion_salida_despacho_terramar.entrada.download_url %}<a href="{{ paso.autorizacion_salida_despacho_terramar.entrada.download_url }}" class="btn btn-sm btn-outline-primary">Descargar</a>{% endif %}<br>Salida: {{ paso.autorizacion_salida_despacho_terramar.salida.peso_neto|default:'-' }} | Folio: {{ paso.autorizacion_salida_despacho_terramar.salida.folio|default:'-' }} {% if paso.autorizacion_salida_despacho_terramar.salida.download_url %}<a href="{{ paso.autorizacion_salida_despacho_terramar.salida.download_url }}" class="btn btn-sm btn-outline-primary">Descargar</a>{% endif %}<br>MOP / Ejes: {{ paso.autorizacion_salida_despacho_terramar.mop.nombre|default:'Pendiente' }} {% if paso.autorizacion_salida_despacho_terramar.mop.download_url %}<a href="{{ paso.autorizacion_salida_despacho_terramar.mop.download_url }}" class="btn btn-sm btn-outline-primary">Descargar</a>{% endif %}</div>
+                                        <hr><h6>Ciclo Carga</h6>{% for documento in paso.autorizacion_salida_despacho_terramar.ciclo.documentos %}<div class="small mb-1">{{ documento.nombre }}: {% if documento.cargado %}{{ documento.archivo_nombre }} <a href="{{ documento.archivo_url }}" class="btn btn-sm btn-outline-primary">Descargar</a>{% else %}<span class="text-danger">PENDIENTE</span>{% endif %}</div>{% endfor %}
+                                        <hr><h6>Documentación</h6><div class="small">Encarpe: {% if paso.autorizacion_salida_despacho_terramar.documentacion.encarpe_ok %}✓ OK{% else %}PENDIENTE{% endif %}<br>Guía: {{ paso.autorizacion_salida_despacho_terramar.documentacion.guia_nombre|default:'Pendiente' }} {% if paso.autorizacion_salida_despacho_terramar.documentacion.guia_url %}<a href="{{ paso.autorizacion_salida_despacho_terramar.documentacion.guia_url }}" class="btn btn-sm btn-outline-primary">Descargar</a>{% endif %}<br>Duración: {{ paso.autorizacion_salida_despacho_terramar.documentacion.temporizador.duracion_legible|default:'-' }}</div>
+                                        {% if paso.activo and paso.puede_editar %}<form class="form-autorizar-salida-despacho-terramar mt-3">{% csrf_token %}<div class="custom-control custom-checkbox mb-2"><input class="custom-control-input check-autorizar-salida-despacho-terramar" id="check-aut-{{ forloop.counter }}" type="checkbox"><label class="custom-control-label" for="check-aut-{{ forloop.counter }}">He validado que toda la documentación está correcta</label></div><button class="btn btn-success" type="submit" disabled>Autorizar Salida</button></form>{% elif not paso.puede_editar %}<div class="alert alert-light border mt-3 mb-0">Solo lectura: este paso corresponde a Asistente Despacho.</div>{% endif %}
+                                    </div>
+                                    {% endif %}
+                                    {% if paso.requiere_autorizar_salida_terramar %}
+                                    <div class="operacion-autorizar-terramar" data-paso="{{ paso.nombre }}">
+                                        {% if paso.documentacion_terramar.validada %}
+                                        <div class="alert alert-info">
+                                            Documentación validada por <strong>{{ paso.documentacion_terramar.usuario_validacion|default:'Usuario no disponible' }}</strong>
+                                            {% if paso.documentacion_terramar.fecha_validacion %} el {{ paso.documentacion_terramar.fecha_validacion }}{% endif %}.
+                                            {% if paso.documentacion_terramar.observacion_validacion %}<br>{{ paso.documentacion_terramar.observacion_validacion }}{% endif %}
+                                        </div>
+                                        {% endif %}
+                                        <div class="op-lab-title"><i class="fas fa-file-alt"></i> Paquete documental de salida</div>
+                                        <div class="table-responsive mb-3"><table class="table table-sm table-bordered"><thead><tr><th>Documento</th><th>Origen</th><th>Timbrado</th><th>Acciones</th></tr></thead><tbody>
+                                            {% for documento in paso.documentacion_terramar.originales %}
+                                            <tr><td>{{ documento.nombre }}</td><td>{{ documento.origen }}</td><td>{{ documento.estado_timbrado }}</td><td>{% if documento.view_url %}<a class="btn btn-sm btn-outline-primary" href="{{ documento.view_url }}" target="_blank" rel="noopener">Ver</a>{% endif %} {% if documento.download_url %}<a class="btn btn-sm btn-outline-secondary" href="{{ documento.download_url }}">Descargar</a>{% endif %}</td></tr>
+                                            {% endfor %}
+                                            {% for documento in paso.documentacion_terramar.tickets %}
+                                            <tr><td>{{ documento.nombre }}</td><td>{{ documento.origen }}</td><td>{{ documento.estado_timbrado }}</td><td>{% if documento.view_url %}<a class="btn btn-sm btn-outline-primary" href="{{ documento.view_url }}" target="_blank" rel="noopener">Ver</a>{% endif %} {% if documento.download_url %}<a class="btn btn-sm btn-outline-secondary" href="{{ documento.download_url }}">Descargar</a>{% endif %}</td></tr>
+                                            {% endfor %}
+                                        </tbody></table></div>
+
+                                        {% if paso.documentacion_terramar.antecedentes %}
+                                        <div class="op-lab-title"><i class="fas fa-history"></i> Antecedentes no incluidos en salida</div>
+                                        <ul class="list-group mb-3">{% for documento in paso.documentacion_terramar.antecedentes %}<li class="list-group-item d-flex justify-content-between align-items-center"><span>{{ documento.nombre }}</span><span class="badge badge-secondary">Pesaje Entrada - no se timbra ni se envía</span></li>{% endfor %}</ul>
+                                        {% endif %}
+
+                                        <div class="op-lab-title"><i class="fas fa-stamp"></i> Documentos timbrados</div>
+                                        {% if paso.documentacion_terramar.timbrados %}
+                                        <ul class="list-group mb-3">{% for documento in paso.documentacion_terramar.timbrados %}<li class="list-group-item d-flex justify-content-between align-items-center"><span>{{ documento.stamped_name }}</span><a class="btn btn-sm btn-success" href="{{ documento.stamped_download_url }}">Descargar</a></li>{% endfor %}</ul>
+                                        {% else %}<div class="alert alert-warning">Aún no se han generado documentos timbrados.</div>{% endif %}
+                                        {% if paso.documentacion_terramar.obligatorios_pendientes %}<div class="alert alert-warning">Pendientes obligatorios: {{ paso.documentacion_terramar.obligatorios_pendientes|join:', ' }}</div>{% endif %}
+
+                                        {% if paso.activo and paso.puede_editar %}
+                                        <div class="d-flex flex-wrap mb-3" style="gap:8px;">
+                                            <button type="button" class="btn btn-dark btn-timbrar-documentos-terramar"><i class="fas fa-stamp"></i> Timbrar documentos</button>
+                                            <button type="button" class="btn btn-success btn-exportar-documentos-terramar" {% if not paso.documentacion_terramar.timbrado_completo %}disabled{% endif %}><i class="fas fa-download"></i> Descargar documentos firmados</button>
+                                            <button type="button" class="btn btn-outline-secondary btn-copiar-ruta-terramar" disabled><i class="fas fa-copy"></i> Copiar ruta</button>
+                                            <button type="button"
+                                                    class="btn btn-success btn-operacion-whatsapp btn-operacion-whatsapp-terramar"
+                                                    data-phone="{{ telefono_conductor|default:'' }}"
+                                                    data-citacion="{{ citacion.id }}"
+                                                    data-patente="{{ patente|default:'' }}">
+                                                <i class="fab fa-whatsapp"></i> Abrir WhatsApp
+                                            </button>
+                                        </div>
+                                        <div class="alert alert-light border mb-3">
+                                            Descargue los documentos firmados y luego adjúntelos manualmente desde WhatsApp.<br>
+                                            WhatsApp solo abrirá la conversación; no adjunta ni envía archivos automáticamente.
+                                        </div>
+                                        <div class="alert d-none exportar-documentos-terramar-resultado" role="status"></div>
+                                        <div class="form-group"><label>Observación de autorización</label><textarea class="form-control autorizar-terramar-observacion" rows="3"></textarea></div>
+                                        <button type="button" class="btn btn-primary btn-autorizar-salida-terramar" {% if not paso.documentacion_terramar.timbrado_completo %}disabled{% endif %}><i class="fas fa-check-circle"></i> Autorizar salida</button>
+                                        {% endif %}
+                                    </div>
+                                    {% endif %}
+
+                                    {% if paso.implementacion_pendiente and not paso.requiere_autorizar_salida %}
+                                    <div class="alert alert-info mb-0">
+                                        Paso configurado para {{ paso.responsable }}. Su acción funcional se habilitará en la Etapa 2.
+                                    </div>
+                                    {% endif %}
+
+                                    {% if not paso.requiere_documentacion_terramar and not paso.requiere_autorizar_salida_terramar and not paso.implementacion_pendiente and not paso.requiere_resultado_calidad and not paso.requiere_preparacion_descarga and not paso.requiere_ciclo_descarga and not paso.requiere_cierre_carga_despacho and not paso.requiere_borrador_sap and not paso.requiere_autorizar_salida and not paso.requiere_confirmar_salida and not paso.requiere_autorizacion_salida_bodega_externa and not paso.requiere_ingreso_planta_bodega_externa %}
                                     <div class="form-group">
                                         <label>Observacion</label>
                                         <textarea class="form-control operacion-observacion" data-paso="{{ paso.nombre }}" rows="4" {% if not paso.puede_guardar_observacion %}readonly{% endif %}>{{ paso.observacion }}</textarea>
@@ -4268,7 +4604,7 @@
                                     </div>
                                     {% endif %}
 
-                                    {% if paso.activo and paso.puede_editar and not paso.requiere_ticket_pesaje and not paso.requiere_accion_toma_muestra and not paso.requiere_resultado_calidad and not paso.requiere_preparacion_descarga and not paso.requiere_ciclo_descarga and not paso.requiere_cierre_carga_despacho and not paso.requiere_borrador_sap and not paso.requiere_autorizar_salida and not paso.requiere_confirmar_salida and not paso.requiere_autorizacion_salida_bodega_externa and not paso.requiere_ingreso_planta_bodega_externa %}
+                                    {% if paso.activo and paso.puede_editar and not paso.ciclo_carga_terramar.aplicable and not paso.requiere_documentacion_terramar and not paso.requiere_autorizar_salida_terramar and not paso.implementacion_pendiente and not paso.requiere_ticket_pesaje and not paso.requiere_accion_toma_muestra and not paso.requiere_resultado_calidad and not paso.requiere_preparacion_descarga and not paso.requiere_ciclo_descarga and not paso.requiere_cierre_carga_despacho and not paso.requiere_borrador_sap and not paso.requiere_autorizar_salida and not paso.requiere_confirmar_salida and not paso.requiere_autorizacion_salida_bodega_externa and not paso.requiere_ingreso_planta_bodega_externa %}
                                     <button type="button" class="btn btn-primary btn-guardar-operacion" data-paso="{{ paso.nombre }}">
                                         <i class="fas fa-save"></i> Guardar paso
                                     </button>
@@ -4379,6 +4715,7 @@
     const BORRADOR_SAP_PREVIEW_URL = "{% url 'ajax_operacion_planta_borrador_sap_preview' citacion.id %}";
     const BORRADOR_SAP_ENVIAR_URL = "{% url 'ajax_operacion_planta_borrador_sap_enviar' citacion.id %}";
     const SAP_DESPACHO_UPDATE_URL = "{% url 'ajax_operacion_planta_actualizar_sap_despacho' citacion.id %}";
+    const REABRIR_CIERRE_CARGA_URL = "{% url 'ajax_operacion_planta_reabrir_cierre_carga_despacho_sbh' citacion.id %}";
     const SAP_RECEPCION_UPDATE_URL = "{% url 'ajax_operacion_planta_actualizar_sap_recepcion' citacion.id %}";
     let borradorSapPreviewActual = null;
 
@@ -4427,7 +4764,7 @@
         const payload = preview.payload || {};
         const docLine = (payload.DocumentLines || [])[0] || {};
         return [
-            'CompanyDB: ' + (source.company_db || 'SBO_TST_SBH_USD'),
+            'CompanyDB: ' + (source.company_db || 'No informado'),
             'Citacion: ' + (source.citacion || OP_CALIDAD_CITACION),
             'DocEntry: ' + (source.doc_entry || docLine.BaseEntry || ''),
             'DocNum: ' + (source.pedido_sap || ''),
@@ -4620,7 +4957,9 @@
             return;
         }
 
-        const message = 'Hola, le contactamos desde Planta por la citacion #' + citacion + ', patente ' + (patente || 'sin patente') + '. Favor estar atento a las instrucciones de ingreso/salida.';
+        const message = boton.hasClass('btn-operacion-whatsapp-terramar')
+            ? 'A continuación se envían sus documentos. Citación ' + citacion + ', patente ' + (patente || 'sin patente') + '.'
+            : 'Hola, le contactamos desde Planta por la citacion #' + citacion + ', patente ' + (patente || 'sin patente') + '. Favor estar atento a las instrucciones de ingreso/salida.';
         window.open(getWhatsappUrl(phone, message), '_blank', 'noopener');
     });
 
@@ -4813,13 +5152,16 @@
 
     $(document).on('click', '.btn-iniciar-ciclo-bodega-externa', function () {
         const boton = $(this);
+        const box = boton.closest('.operacion-ciclo-bodega-externa-box');
+        const observacionInicio = box.find('.observacion-inicio-bodega-externa').val() || '';
         const textoOriginal = boton.html();
         $.ajax({
             url: "{% url 'ajax_operacion_planta_iniciar_ciclo_recepcion_bodega_externa' citacion.id %}",
             type: 'POST',
             data: {
                 _empresa_id: OPERACION_PLANTA_EMPRESA_ID,
-                empresa_id: OPERACION_PLANTA_EMPRESA_ID
+                empresa_id: OPERACION_PLANTA_EMPRESA_ID,
+                observacion: observacionInicio
             },
             headers: { 'X-CSRFToken': getCookie('csrftoken') },
             beforeSend: function () {
@@ -5026,14 +5368,125 @@
         });
     });
 
+    $(document).on('click', '.btn-validar-documentacion-terramar', function () {
+        const boton = $(this);
+        const box = boton.closest('.operacion-documentacion-terramar');
+        const validada = box.find('.documentacion-terramar-validada').is(':checked');
+        if (!validada) {
+            Swal.fire({ icon: 'warning', title: 'Validación requerida', text: 'Debe marcar He validado la documentación.' });
+            return;
+        }
+        boton.prop('disabled', true);
+        $.ajax({
+            url: "{% url 'ajax_operacion_planta_validar_documentacion_terramar' citacion.id %}",
+            type: 'POST',
+            headers: { 'X-CSRFToken': getCookie('csrftoken') },
+            data: { documentacion_validada: '1', observacion: box.find('.documentacion-terramar-observacion').val() || '', _empresa_id: OPERACION_PLANTA_EMPRESA_ID, empresa_id: OPERACION_PLANTA_EMPRESA_ID },
+            success: response => Swal.fire({ icon: 'success', title: 'Documentación validada', text: response.message }).then(() => location.reload()),
+            error: xhr => { const r=xhr.responseJSON||{}; Swal.fire({ icon:'error', title:'No fue posible validar', text:r.message||'Error de validación.' }); boton.prop('disabled', false); }
+        });
+    });
+
+    $(document).on('click', '.btn-timbrar-documentos-terramar', function () {
+        const boton = $(this);
+        boton.prop('disabled', true).html('<i class="fas fa-spinner fa-spin"></i> Timbrando...');
+        $.ajax({
+            url: "{% url 'ajax_operacion_planta_timbrar_documentos_terramar' citacion.id %}",
+            type: 'POST',
+            headers: { 'X-CSRFToken': getCookie('csrftoken') },
+            data: { _empresa_id: OPERACION_PLANTA_EMPRESA_ID, empresa_id: OPERACION_PLANTA_EMPRESA_ID },
+            success: response => Swal.fire({ icon:'success', title:'Timbrado finalizado', text:response.message }).then(() => location.reload()),
+            error: xhr => { const r=xhr.responseJSON||{}; Swal.fire({ icon:'error', title:'No fue posible timbrar', text:r.message||'Error de timbrado.' }); boton.prop('disabled', false).html('<i class="fas fa-stamp"></i> Timbrar documentos'); }
+        });
+    });
+
+    const TERRAMAR_EXPORT_FOLDERS = new WeakMap();
+
+    $(document).on('click', '.btn-exportar-documentos-terramar', function () {
+        const boton = $(this);
+        const box = boton.closest('.operacion-autorizar-terramar');
+        const resultadoBox = box.find('.exportar-documentos-terramar-resultado');
+        const textoOriginal = boton.html();
+        boton.prop('disabled', true).html('<i class="fas fa-spinner fa-spin"></i> Procesando...');
+        resultadoBox.removeClass('d-none alert-success alert-warning alert-danger').addClass('alert-info').text('Procesando documentos firmados...');
+        $.ajax({
+            url: "{% url 'ajax_operacion_planta_exportar_documentos_terramar' citacion.id %}",
+            type: 'POST',
+            headers: { 'X-CSRFToken': getCookie('csrftoken') },
+            success: function (response) {
+                TERRAMAR_EXPORT_FOLDERS.set(box.get(0), response.carpeta);
+                box.find('.btn-copiar-ruta-terramar').prop('disabled', false);
+                const parcial = Boolean(response.partial);
+                resultadoBox
+                    .removeClass('alert-info alert-danger')
+                    .addClass(parcial ? 'alert-warning' : 'alert-success')
+                    .text(
+                        (parcial ? 'Exportación parcial. ' : 'Exportación completada. ') +
+                        'Carpeta: ' + response.carpeta + '. ' +
+                        'Copiados: ' + response.cantidad_copiada + '; reutilizados: ' +
+                        response.cantidad_reutilizada + '; reemplazados: ' +
+                        response.cantidad_reemplazada + '; fallidos: ' + response.cantidad_fallida + '.'
+                    );
+            },
+            error: function (xhr) {
+                const response = xhr.responseJSON || {};
+                resultadoBox.removeClass('alert-info alert-success alert-warning').addClass('alert-danger').text(response.message || 'No fue posible exportar los documentos firmados.');
+            },
+            complete: function () {
+                boton.prop('disabled', false).html(textoOriginal);
+            }
+        });
+    });
+
+    $(document).on('click', '.btn-copiar-ruta-terramar', function () {
+        const box = $(this).closest('.operacion-autorizar-terramar');
+        const carpeta = TERRAMAR_EXPORT_FOLDERS.get(box.get(0));
+        if (!carpeta) {
+            Swal.fire({ icon: 'warning', title: 'Ruta no disponible', text: 'Primero descargue los documentos firmados.' });
+            return;
+        }
+        const confirmar = function () {
+            Swal.fire({ icon: 'success', title: 'Ruta copiada.', timer: 1400, showConfirmButton: false });
+        };
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+            navigator.clipboard.writeText(carpeta).then(confirmar).catch(function () {
+                const temporal = $('<textarea>').val(carpeta).appendTo('body').select();
+                document.execCommand('copy');
+                temporal.remove();
+                confirmar();
+            });
+        } else {
+            const temporal = $('<textarea>').val(carpeta).appendTo('body').select();
+            document.execCommand('copy');
+            temporal.remove();
+            confirmar();
+        }
+    });
+    $(document).on('click', '.btn-autorizar-salida-terramar', function () {
+        const boton = $(this);
+        const box = boton.closest('.operacion-autorizar-terramar');
+        boton.prop('disabled', true);
+        $.ajax({
+            url: "{% url 'ajax_operacion_planta_autorizar_salida' citacion.id %}",
+            type: 'POST',
+            headers: { 'X-CSRFToken': getCookie('csrftoken') },
+            data: { observacion: box.find('.autorizar-terramar-observacion').val() || '', observacion_descarga: box.find('.autorizar-terramar-observacion').val() || '', recepcion_conforme: 'SI', _empresa_id: OPERACION_PLANTA_EMPRESA_ID, empresa_id: OPERACION_PLANTA_EMPRESA_ID },
+            success: response => Swal.fire({ icon:'success', title:'Salida autorizada', text:response.message }).then(() => location.reload()),
+            error: xhr => { const r=xhr.responseJSON||{}; Swal.fire({ icon:'error', title:'No fue posible autorizar', text:r.message||'Error de autorización.' }); boton.prop('disabled', false); }
+        });
+    });
+
     $(document).on('click', '.btn-finalizar-ciclo-descarga', function () {
         const boton = $(this);
+        const box = boton.closest('.operacion-ciclo-descarga-box');
+        const observacion = (box.find('.observacion-final-ciclo-descarga').val() || '').trim();
         const textoOriginal = boton.html();
 
         $.ajax({
             url: "{% url 'ajax_operacion_planta_finalizar_ciclo_descarga' citacion.id %}",
             type: 'POST',
             data: {
+                observacion: observacion,
                 _empresa_id: OPERACION_PLANTA_EMPRESA_ID,
                 empresa_id: OPERACION_PLANTA_EMPRESA_ID
             },
@@ -5160,6 +5613,45 @@
                     }
                 });
             }
+        });
+    });
+
+    $(document).on('click', '.btn-reabrir-cierre-carga', function () {
+        const button = $(this);
+        Swal.fire({
+            icon: 'warning',
+            title: 'Reabrir Cierre Proceso de Carga',
+            text: 'Se conservaran el Draft SAP, Pesaje Entrada, Ciclo de Carga y Pesaje Salida.',
+            showCancelButton: true,
+            confirmButtonText: 'Reabrir cierre',
+            cancelButtonText: 'Cancelar'
+        }).then(function (result) {
+            if (!result.isConfirmed) {
+                return;
+            }
+            $.ajax({
+                url: REABRIR_CIERRE_CARGA_URL,
+                type: 'POST',
+                data: {
+                    _empresa_id: OPERACION_PLANTA_EMPRESA_ID,
+                    empresa_id: OPERACION_PLANTA_EMPRESA_ID,
+                    motivo: 'Reapertura tecnica: Draft SAP no fue actualizado despues de Pesaje Salida.'
+                },
+                headers: {'X-CSRFToken': getCookie('csrftoken')},
+                beforeSend: function () {
+                    button.prop('disabled', true);
+                },
+                success: function (response) {
+                    Swal.fire('Cierre reabierto', response.message, 'success').then(function () {
+                        location.reload();
+                    });
+                },
+                error: function (xhr) {
+                    button.prop('disabled', false);
+                    const response = xhr.responseJSON || {};
+                    Swal.fire('No fue posible reabrir', response.message || 'Revise el estado de la citacion.', 'warning');
+                }
+            });
         });
     });
 
@@ -5309,7 +5801,13 @@
         input.prop('checked', true);
         toggle.find('.op-conforme-option').removeClass('active');
         opcion.addClass('active');
-        autorizarSalidaOperacion(box, input.val() || '', opcion);
+        $.ajax({
+            url: "{% url 'ajax_operacion_planta_autorizar_salida' citacion.id %}", type: 'POST',
+            data: { accion: 'guardar_conformidad', recepcion_conforme: input.val() || '', observacion_descarga: (box.find('.autorizacion-observacion-descarga').val() || '').trim(), _empresa_id: OPERACION_PLANTA_EMPRESA_ID, empresa_id: OPERACION_PLANTA_EMPRESA_ID },
+            headers: { 'X-CSRFToken': getCookie('csrftoken') },
+            success: response => { box.find('.op-conforme-toggle input[type="radio"]').prop('disabled', true); box.find('.autorizacion-observacion-descarga').prop('readonly', true); Swal.fire({ icon: 'success', title: 'Conformidad registrada', text: response.message }); },
+            error: xhr => { const r=xhr.responseJSON||{}; Swal.fire({ icon:'error', title:'No fue posible guardar', text:r.message||'Error de conformidad.' }); }
+        });
     });
 
     $(document).on('submit', '.op-confirmar-salida-form', function () {
@@ -5611,13 +6109,56 @@
         });
     });
 
+    function actualizarTicketMopOperacion(ticketBox, response) {
+        if (!response.mop_requerido) {
+            return;
+        }
+        const mopBox = ticketBox.find('.operacion-ticket-mop');
+        const estado = mopBox.find('.operacion-ticket-mop-estado');
+        const nombre = mopBox.find('.operacion-ticket-mop-nombre');
+        const descarga = mopBox.find('.btn-descargar-ticket-mop');
+        const reintento = mopBox.find('.btn-reintentar-ticket-mop');
+        mopBox.attr('data-mop-ok', response.mop_ok ? 'true' : 'false');
+        estado
+            .text(response.mop_ok ? 'DISPONIBLE' : 'PENDIENTE')
+            .toggleClass('badge-success', !!response.mop_ok)
+            .toggleClass('badge-warning', !response.mop_ok);
+        nombre.text(response.mop_ok
+            ? (response.mop_nombre || 'Ticket MOP disponible.')
+            : (response.mop_mensaje || 'El Ticket MOP / Ejes todavía no está disponible.'));
+        descarga
+            .attr('href', response.mop_download_url || '#')
+            .toggleClass('d-none', !response.mop_ok);
+        reintento.toggleClass('d-none', !!response.mop_ok);
+    }
+
+    function actualizarTicketEstandarOperacion(ticketBox, response) {
+        ticketBox.attr('data-ticket-obtenido', 'true').data('ticket-obtenido', true);
+        ticketBox.find('.operacion-ticket-peso').val(response.peso_neto || '');
+        ticketBox.find('.operacion-ticket-folio').text(response.folio || 'Sin ticket');
+        ticketBox.find('.operacion-ticket-observacion')
+            .text(response.observacion || 'Sin observacion')
+            .toggleClass('operacion-ticket-card-value-muted', !response.observacion);
+        ticketBox.find('.operacion-ticket-pdf-name')
+            .text(response.nombre_archivo_pdf || 'PDF congelado')
+            .removeClass('operacion-ticket-card-value-muted');
+        ticketBox.find('.operacion-ticket-info')
+            .addClass('is-frozen')
+            .html('<i class="fas fa-check-circle"></i> Ticket de pesaje congelado correctamente.');
+        ticketBox.find('.btn-descargar-ticket-pesaje')
+            .attr('href', response.download_url || '#')
+            .removeClass('d-none');
+        ticketBox.find('.btn-finalizar-ticket-pesaje').prop('disabled', false);
+    }
+
     $(document).on('click', '.btn-obtener-ticket-pesaje', function () {
         const boton = $(this);
         const paso = boton.data('paso');
         const tipoTicket = String(boton.data('tipo-ticket') || '');
         const ticketBox = obtenerTicketBoxOperacion(paso);
         const textoOriginal = boton.html();
-        let ticketCongelado = false;
+        const esReintentoMop = boton.hasClass('btn-reintentar-ticket-mop');
+        let solicitudProcesada = false;
 
         $.ajax({
             url: "{% url 'ajax_operacion_planta_obtener_ticket_pesaje' %}",
@@ -5629,46 +6170,159 @@
                 empresa_id: OPERACION_PLANTA_EMPRESA_ID
             },
             beforeSend: function () {
-                boton.prop('disabled', true).html('<i class="op-glass-icon fas fa-spinner fa-spin"></i> Buscando ticket...');
+                boton.prop('disabled', true).html('<i class="op-glass-icon fas fa-spinner fa-spin"></i> ' + (esReintentoMop ? 'Buscando MOP...' : 'Buscando ticket...'));
             },
             success: function (response) {
+                solicitudProcesada = true;
                 if (!response.valid) {
+                    boton.prop('disabled', false).html(textoOriginal);
                     Swal.fire({ icon: 'warning', title: 'Ticket no disponible', text: response.msg || 'No fue posible obtener el ticket.' });
                     return;
                 }
 
-                ticketCongelado = true;
-                ticketBox.attr('data-ticket-obtenido', 'true').data('ticket-obtenido', true);
-                ticketBox.find('.operacion-ticket-peso').val(response.peso_neto || '');
-                ticketBox.find('.operacion-ticket-folio').text(response.folio || 'Sin ticket');
-                ticketBox.find('.operacion-ticket-observacion')
-                    .text(response.observacion || 'Sin observacion')
-                    .toggleClass('operacion-ticket-card-value-muted', !response.observacion);
-                ticketBox.find('.operacion-ticket-pdf-name')
-                    .text(response.nombre_archivo_pdf || 'PDF congelado')
-                    .removeClass('operacion-ticket-card-value-muted');
-                ticketBox.find('.operacion-ticket-info')
-                    .addClass('is-frozen')
-                    .html('<i class="fas fa-check-circle"></i> Ticket de pesaje congelado correctamente.');
-                ticketBox.find('.btn-descargar-ticket-pesaje')
-                    .attr('href', response.download_url || '#')
-                    .removeClass('d-none');
-                ticketBox.find('.btn-finalizar-ticket-pesaje')
-                    .prop('disabled', false);
-                boton.replaceWith('<div class="operacion-ticket-frozen-pill"><i class="fas fa-check-circle"></i> Ticket ya congelado</div>');
+                actualizarTicketEstandarOperacion(ticketBox, response);
+                actualizarTicketMopOperacion(ticketBox, response);
+                if (esReintentoMop) {
+                    if (response.mop_ok) {
+                        boton.addClass('d-none');
+                    } else {
+                        boton.prop('disabled', false).html(textoOriginal);
+                    }
+                } else {
+                    boton.replaceWith('<div class="operacion-ticket-frozen-pill"><i class="fas fa-check-circle"></i> Ticket ya congelado</div>');
+                }
 
-                Swal.fire({ icon: 'success', title: 'Ticket ' + tipoTicket + ' congelado', text: 'Peso obtenido: ' + (response.peso_neto || '') });
+                if (response.mop_requerido && !response.mop_ok) {
+                    Swal.fire({
+                        icon: 'info',
+                        title: 'Ticket de salida obtenido',
+                        text: 'Ticket de pesaje de salida obtenido correctamente. El Ticket MOP / Ejes todavía no está disponible.'
+                    });
+                } else {
+                    Swal.fire({
+                        icon: 'success',
+                        title: response.mop_requerido ? 'Tickets de salida obtenidos' : ('Ticket ' + tipoTicket + ' congelado'),
+                        text: response.mop_requerido ? response.mop_mensaje : ('Peso obtenido: ' + (response.peso_neto || ''))
+                    });
+                }
             },
             error: function (xhr) {
                 const response = xhr.responseJSON || {};
-                const detalle = response.msg || response.message || ('Error HTTP ' + xhr.status + ' al obtener el ticket de pesaje.');
-                Swal.fire({ icon: 'error', title: 'No fue posible obtener ticket', text: detalle });
+                if (response.guardado) {
+                    solicitudProcesada = true;
+                    actualizarTicketEstandarOperacion(ticketBox, response);
+                    actualizarTicketMopOperacion(ticketBox, response);
+                    if (!esReintentoMop) {
+                        boton.replaceWith('<div class="operacion-ticket-frozen-pill"><i class="fas fa-check-circle"></i> Ticket ya congelado</div>');
+                    } else {
+                        boton.prop('disabled', false).html(textoOriginal);
+                    }
+                }
+                const detalle = response.msg || response.mop_mensaje || response.message || ('Error HTTP ' + xhr.status + ' al obtener el ticket de pesaje.');
+                const errorMop = esReintentoMop || response.mop_requerido === true;
+                const nombrePesaje = tipoTicket === 'ENT' ? 'Entrada' : 'Salida';
+                Swal.fire({
+                    icon: 'error',
+                    title: errorMop ? 'No fue posible obtener Ticket MOP' : ('No fue posible obtener Ticket de Pesaje de ' + nombrePesaje),
+                    text: detalle
+                });
             },
             complete: function () {
-                if (!ticketCongelado) {
+                if (!solicitudProcesada) {
                     boton.prop('disabled', false).html(textoOriginal);
                 }
             }
+        });
+    });
+    function escaparHtmlOperacion(valor) {
+        return String(valor == null ? '' : valor).replace(/[&<>"']/g, function (caracter) {
+            return {'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'}[caracter];
+        });
+    }
+
+    function renderImagenesSellos(cierreCargaBox, imagenes) {
+        const lista = cierreCargaBox.find('.cierre-imagenes-sellos-lista');
+        if (!lista.length) return;
+        if (!imagenes || !imagenes.length) {
+            lista.html('<div class="op-dashboard-muted">Sin imagenes de sellos cargadas</div>');
+            cierreCargaBox.attr('data-tiene-imagenes', 'false');
+            return;
+        }
+        const items = imagenes.map(function (imagen) {
+            const nombre = escaparHtmlOperacion(imagen.nombre || 'Imagen sello');
+            const url = escaparHtmlOperacion(imagen.download_url || '#');
+            const fecha = imagen.fecha ? '<br>' + escaparHtmlOperacion(imagen.fecha) : '';
+            const usuario = imagen.usuario ? '<br>' + escaparHtmlOperacion(imagen.usuario) : '';
+            return '<a class="op-seal-image-item" href="' + url + '" target="_blank" rel="noopener">' +
+                '<img src="' + url + '" alt="' + nombre + '">' +
+                '<div class="op-seal-image-caption">' + nombre + fecha + usuario + '</div></a>';
+        }).join('');
+        lista.html('<div class="op-seal-image-grid">' + items + '</div>');
+        cierreCargaBox.attr('data-tiene-imagenes', 'true');
+    }
+
+    function renderDocumentosOperacion(documentos) {
+        const contenedor = $('.operacion-documentos-adjuntos');
+        if (!contenedor.length) return;
+        const lista = documentos || [];
+        contenedor.find('.operacion-doc-count').text(lista.length + ' archivo(s)');
+        if (!lista.length) {
+            contenedor.find('.operacion-doc-content').html(
+                '<div class="operacion-doc-empty">No hay documentos adjuntos cargados para esta citacion.</div>'
+            );
+            return;
+        }
+        const filas = lista.map(function (documento) {
+            const nombre = escaparHtmlOperacion(documento.nombre_archivo || 'Sin archivo');
+            const etapa = escaparHtmlOperacion(documento.etapa || 'Sin etapa');
+            const accion = documento.download_url
+                ? '<a href="' + escaparHtmlOperacion(documento.download_url) + '" class="btn btn-primary btn-sm"><i class="fas fa-download"></i> Descargar</a>'
+                : '<span class="badge badge-secondary">No disponible</span>';
+            return '<tr><td>' + nombre + '</td><td>' + etapa + '</td><td class="text-right">' + accion + '</td></tr>';
+        }).join('');
+        contenedor.find('.operacion-doc-content').html(
+            '<div class="table-responsive"><table class="table table-sm mb-0">' +
+            '<thead><tr><th>Archivo</th><th>Etapa</th><th class="text-right">Accion</th></tr></thead>' +
+            '<tbody>' + filas + '</tbody></table></div>'
+        );
+    }
+
+    $(document).on('change', '.cierre-imagenes-sellos', function () {
+        const input = $(this);
+        const archivos = Array.from(this.files || []);
+        if (!archivos.length) return;
+        const cierreCargaBox = input.closest('.operacion-cierre-carga-despacho-box');
+        const estado = cierreCargaBox.find('.cierre-imagenes-sellos-estado');
+        const data = new FormData();
+        data.append('accion', 'subir_imagenes_sellos');
+        data.append('paso', cierreCargaBox.data('paso'));
+        data.append('_empresa_id', '{{ empresa_activa_id }}');
+        archivos.forEach(function (archivo) {
+            data.append('imagenes_sellos', archivo);
+        });
+
+        cierreCargaBox.attr('data-subiendo-imagenes', 'true');
+        input.prop('disabled', true);
+        estado.removeClass('text-danger text-success').addClass('text-info').text('Subiendo imagenes...');
+        $.ajax({
+            url: "{% url 'operacion_planta_guardar_paso' citacion.id %}",
+            type: 'POST',
+            data: data,
+            processData: false,
+            contentType: false,
+            headers: {'X-CSRFToken': getCookie('csrftoken')}
+        }).done(function (response) {
+            renderImagenesSellos(cierreCargaBox, response.imagenes || []);
+            renderDocumentosOperacion(response.documentos_operacion || []);
+            estado.removeClass('text-info text-danger').addClass('text-success').text(response.message || 'Imagenes cargadas correctamente.');
+            Swal.fire({icon: 'success', title: 'Imagenes cargadas', text: response.message || 'Carga completada.'});
+        }).fail(function (xhr) {
+            const mensaje = xhr.responseJSON && xhr.responseJSON.message ? xhr.responseJSON.message : 'No fue posible cargar las imagenes.';
+            estado.removeClass('text-info text-success').addClass('text-danger').text(mensaje);
+            Swal.fire({icon: 'error', title: 'Error de carga', text: mensaje});
+        }).always(function () {
+            cierreCargaBox.attr('data-subiendo-imagenes', 'false');
+            input.prop('disabled', false).val('');
         });
     });
 
@@ -5684,6 +6338,16 @@
                 icon: 'warning',
                 title: 'Ticket obligatorio',
                 text: TICKET_PESAJE_REQUIRED_MESSAGE
+            });
+            return;
+        }
+
+        const mopBox = ticketBox.find('.operacion-ticket-mop');
+        if (mopBox.length && String(mopBox.attr('data-mop-ok')) !== 'true') {
+            Swal.fire({
+                icon: 'warning',
+                title: 'Ticket MOP obligatorio',
+                text: 'No es posible finalizar Pesaje Salida. Falta el Ticket MOP / Ejes asociado a este pesaje.'
             });
             return;
         }
@@ -5728,17 +6392,50 @@
                 return;
             }
 
+            if (String(cierreCargaBox.attr('data-subiendo-imagenes')) === 'true') {
+                Swal.fire({
+                    icon: 'info',
+                    title: 'Carga en proceso',
+                    text: 'Espere a que finalice la subida de imagenes de sellos.'
+                });
+                return;
+            }
+            const tieneImagenes = String(cierreCargaBox.attr('data-tiene-imagenes')) === 'true';
+            if (!tieneImagenes) {
+                Swal.fire({
+                    icon: 'warning',
+                    title: 'Imagen de sellos obligatoria',
+                    text: 'Debe cargar al menos una imagen de los sellos antes de cerrar el proceso de carga.'
+                });
+                return;
+            }
+
             datosExtra.despacho_cierre_nro_sellos = nroSellos;
             datosExtra.despacho_cierre_temperatura = temperatura;
+        }
+
+        const datosPaso = $.extend({
+            paso: paso,
+            observacion: textarea.val() || ''
+        }, datosExtra);
+        let ajaxData = datosPaso;
+        let processData = true;
+        let contentType = 'application/x-www-form-urlencoded; charset=UTF-8';
+        if (cierreCargaBox.length) {
+            ajaxData = new FormData();
+            Object.keys(datosPaso).forEach(function (key) {
+                ajaxData.append(key, datosPaso[key]);
+            });
+            processData = false;
+            contentType = false;
         }
 
         $.ajax({
             url: "{% url 'operacion_planta_guardar_paso' citacion.id %}",
             type: 'POST',
-            data: $.extend({
-                paso: paso,
-                observacion: textarea.val() || ''
-            }, datosExtra),
+            data: ajaxData,
+            processData: processData,
+            contentType: contentType,
             headers: {
                 'X-CSRFToken': getCookie('csrftoken')
             },
@@ -5779,5 +6476,53 @@
         event.preventDefault();
         guardarPasoOperacion($(this).data('paso'), $(this));
     });
-</script>
+
+    $(document).on('submit', '.form-ciclo-carga-terramar', function(event) {
+        event.preventDefault();
+        const form = this, data = new FormData(form);
+        data.append('codigo_documento', form.dataset.codigo);
+        $.ajax({url: "{% url 'ajax_operacion_planta_ciclo_carga_terramar_documento' citacion.id %}", type: 'POST', data: data, processData: false, contentType: false})
+            .done(function(){ window.location.reload(); })
+            .fail(function(xhr){ Swal.fire('No fue posible cargar', (xhr.responseJSON && xhr.responseJSON.error) || 'Revise el archivo.', 'warning'); });
+    });
+    $(document).on('submit', '.form-completar-ciclo-carga-terramar', function(event) {
+        event.preventDefault();
+        const form=this;
+        $.post("{% url 'ajax_operacion_planta_ciclo_carga_terramar_completar' citacion.id %}", $(form).serialize())
+            .done(function(){ window.location.reload(); })
+            .fail(function(xhr){ const r=xhr.responseJSON||{}; Swal.fire('No fue posible completar', r.error || 'Revise los documentos obligatorios.', 'warning'); });
+    });
+    $(document).on('submit', '.form-documentacion-despacho-terramar-encarpe', function(event) {
+        event.preventDefault();
+        const form = this;
+        $.post("{% url 'ajax_operacion_planta_documentacion_despacho_terramar_encarpe' citacion.id %}", $(form).serialize())
+            .done(function(){ window.location.reload(); })
+            .fail(function(xhr){ const r=xhr.responseJSON||{}; Swal.fire('No fue posible confirmar Encarpe', r.error || 'Revise el estado de la citación.', 'warning'); });
+    });
+    $(document).on('submit', '.form-documentacion-despacho-terramar-guia', function(event) {
+        event.preventDefault();
+        const form=this, data=new FormData(form);
+        $.ajax({url:"{% url 'ajax_operacion_planta_documentacion_despacho_terramar_guia' citacion.id %}", type:'POST', data:data, processData:false, contentType:false})
+            .done(function(){ window.location.reload(); })
+            .fail(function(xhr){ const r=xhr.responseJSON||{}; Swal.fire('No fue posible cargar la guía', r.error || 'Revise el archivo.', 'warning'); });
+    });
+    $(document).on('submit', '.form-documentacion-despacho-terramar-completar', function(event) {
+        event.preventDefault();
+        const form=this;
+        $.post("{% url 'ajax_operacion_planta_documentacion_despacho_terramar_completar' citacion.id %}", $(form).serialize())
+            .done(function(){ window.location.reload(); })
+            .fail(function(xhr){ const r=xhr.responseJSON||{}; Swal.fire('No fue posible finalizar Documentación', r.error || 'Revise Encarpe y la guía.', 'warning'); });
+    });    $(document).on('change', '.check-autorizar-salida-despacho-terramar', function(){
+        $(this).closest('.form-autorizar-salida-despacho-terramar').find('button[type="submit"]').prop('disabled', !this.checked);
+    });
+    $(document).on('submit', '.form-autorizar-salida-despacho-terramar', function(event){
+        event.preventDefault();
+        const form=$(this);
+        if(!form.find('.check-autorizar-salida-despacho-terramar').is(':checked')) return;
+        const data=form.serialize() + '&documentacion_validada=1';
+        form.find('button[type="submit"]').prop('disabled', true);
+        $.post("{% url 'ajax_operacion_planta_autorizar_salida_despacho_terramar' citacion.id %}", data)
+          .done(function(){ window.location.reload(); })
+          .fail(function(xhr){ const r=xhr.responseJSON||{}; form.find('button[type="submit"]').prop('disabled', false); Swal.fire('No fue posible autorizar salida', r.error || 'Revise las validaciones.', 'warning'); });
+    });</script>
 {% endblock javascripts %}

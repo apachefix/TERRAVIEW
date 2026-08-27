@@ -1,9 +1,23 @@
 from django import template
 from apps.home.models import PERFIL_USUARIO
+from decimal import Decimal, InvalidOperation, ROUND_HALF_UP
 import locale
 import logging
 
 register = template.Library()
+
+
+@register.filter
+def clp(value):
+    """Formato chileno determinista, sin depender del locale del servidor."""
+    try:
+        numero = Decimal(str(value if value not in (None, '') else 0))
+    except (InvalidOperation, TypeError, ValueError):
+        return '0'
+    numero = numero.quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
+    decimales = 0 if numero == numero.to_integral_value() else 2
+    ingles = f'{numero:,.{decimales}f}'
+    return ingles.replace(',', '_').replace('.', ',').replace('_', '.')
 
 # Logger para registrar problemas con locale
 logger = logging.getLogger(__name__)

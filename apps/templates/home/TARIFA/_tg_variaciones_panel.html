@@ -1,0 +1,102 @@
+{% load formats %}
+<div class="row mb-3">
+    <div class="col-lg-8 mb-3 mb-lg-0">
+        <div class="card h-100">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <div>
+                    <h5 class="mb-1"><i class="fas fa-percentage mr-2"></i>Variaciones de tarifa</h5>
+                    <small class="text-muted">Conceptos reutilizables; cada aplicación conserva su propio histórico.</small>
+                </div>
+                <button class="btn btn-primary btn-sm" type="button" data-toggle="modal" data-target="#modalCrearVariacion">
+                    <i class="fas fa-plus mr-1"></i>Crear variación
+                </button>
+            </div>
+            <div class="card-body">
+                <div class="table-responsive">
+                    <table class="table table-striped table-bordered mb-0">
+                        <thead><tr><th>Nombre</th><th>Último porcentaje</th><th>Última aplicación</th><th>Vencimiento</th><th>Estado</th><th>Acciones</th></tr></thead>
+                        <tbody>
+                            {% for concepto in conceptos_variacion %}
+                            <tr id="concepto-variacion-{{ concepto.pk }}"
+                                data-concepto-habilitado="{% if concepto.CVT_BHABILITADO %}true{% else %}false{% endif %}"
+                                data-estado-ultima="{% if concepto.ultima_aplicacion %}{{ concepto.ultima_aplicacion.AJT_CESTADO }}{% else %}SIN_APLICAR{% endif %}">
+                                <td><strong>{{ concepto.CVT_CNOMBRE }}</strong><br><small class="text-muted">{{ concepto.CVT_CDESCRIPCION|default:'' }}</small></td>
+                                <td>{% if concepto.ultima_aplicacion %}{{ concepto.ultima_aplicacion.AJT_NPORCENTAJE }} %{% else %}{{ concepto.CVT_NPORCENTAJEDEFAULT }} %{% endif %}</td>
+                                <td>{% if concepto.ultima_aplicacion %}{{ concepto.ultima_aplicacion.AJT_FFECHAAPLICACION|date:'d/m/Y H:i' }}{% else %}-{% endif %}</td>
+                                <td>{% if concepto.ultima_aplicacion %}{{ concepto.ultima_aplicacion.AJT_FFECHAVENCIMIENTO|date:'d/m/Y' }}{% else %}{{ concepto.CVT_FFECHAVENCIMIENTODEFAULT|date:'d/m/Y'|default:'-' }}{% endif %}</td>
+                                <td>
+                                    {% if not concepto.CVT_BHABILITADO %}
+                                        <span id="estado-concepto-{{ concepto.pk }}" class="badge badge-secondary">INHABILITADO</span>
+                                    {% elif not concepto.ultima_aplicacion %}
+                                        <span id="estado-concepto-{{ concepto.pk }}" class="badge badge-info">DISPONIBLE / SIN APLICAR</span>
+                                    {% elif concepto.ultima_aplicacion.AJT_CESTADO == 'REVERSADO' %}
+                                        <span id="estado-concepto-{{ concepto.pk }}" class="badge badge-secondary">REVERSADO</span>
+                                    {% elif concepto.ultima_aplicacion.AJT_CESTADO == 'VENCIDO' %}
+                                        <span id="estado-concepto-{{ concepto.pk }}" class="badge badge-warning">VENCIDO</span>
+                                    {% elif concepto.ultima_aplicacion.AJT_CESTADO == 'APLICADO' %}
+                                        <span id="estado-concepto-{{ concepto.pk }}" class="badge badge-success">ACTIVO</span>
+                                    {% else %}
+                                        <span id="estado-concepto-{{ concepto.pk }}" class="badge badge-light">{{ concepto.ultima_aplicacion.AJT_CESTADO }}</span>
+                                    {% endif %}
+                                </td>
+                                <td class="text-nowrap">
+                                    {% if concepto.CVT_BHABILITADO %}<a id="aplicar-concepto-{{ concepto.pk }}" href="{% url 'tg_variacion_preview' concepto.pk %}" class="btn btn-primary btn-sm">Aplicar</a>{% endif %}
+                                    <a href="{% url 'tg_variacion_historico' concepto.pk %}" class="btn btn-info btn-sm">Histórico</a>
+                                    <form method="post" action="{% url 'tg_variacion_estado' concepto.pk %}" class="d-inline">{% csrf_token %}<button class="btn btn-outline-secondary btn-sm" type="submit">{% if concepto.CVT_BHABILITADO %}Inhabilitar{% else %}Habilitar{% endif %}</button></form>
+                                </td>
+                            </tr>
+                            {% empty %}
+                            <tr><td colspan="6" class="text-center text-muted">No existen conceptos para la empresa activa.</td></tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="col-lg-4">
+        <div class="card h-100 border-warning">
+            <div class="card-header"><h5 class="mb-0"><i class="fas fa-undo mr-2"></i>Último ajuste aplicado</h5></div>
+            <div class="card-body">
+                {% if ultimo_ajuste %}
+                    <p class="mb-1"><strong>{% if ultimo_ajuste.CVT_NID %}{{ ultimo_ajuste.CVT_NID.CVT_CNOMBRE }}{% else %}ICT {{ ultimo_ajuste.AJT_CPERIODOICT }}{% endif %}</strong></p>
+                    <p class="mb-1">{{ ultimo_ajuste.AJT_NPORCENTAJE }} % · {{ ultimo_ajuste.AJT_FFECHAAPLICACION|date:'d/m/Y H:i' }}</p>
+                    {% if ultimo_ajuste.AJT_CTIPO == 'ICT_ACUMULADO_6_MESES' %}
+                    <div class="small border rounded p-2 mb-2">
+                        <div><strong>ICT calculado:</strong> {{ ultimo_ajuste.AJT_NPORCENTAJECALCULADO }} %</div>
+                        <div><strong>Ajuste manual:</strong> {% if ultimo_ajuste.AJT_CORIGENPORCENTAJE == 'MANUAL' %}{{ ultimo_ajuste.AJT_NPORCENTAJEMANUAL }} %{% else %}No informado{% endif %}</div>
+                        <div><strong>Aplicado / origen:</strong> {{ ultimo_ajuste.AJT_NPORCENTAJE }} % / {{ ultimo_ajuste.AJT_CORIGENPORCENTAJE|default:'ICT' }}</div>
+                        {% if ultimo_ajuste.AJT_CMOTIVOMANUAL %}<div><strong>Motivo:</strong> {{ ultimo_ajuste.AJT_CMOTIVOMANUAL }}</div>{% endif %}
+                    </div>
+                    {% endif %}
+                    <p class="mb-1">{{ ultimo_ajuste.detalles.count }} tarifas · {{ ultimo_ajuste.US_NID.get_full_name|default:ultimo_ajuste.US_NID.username }}</p>
+                    <p><span class="badge {% if ultimo_ajuste.AJT_CESTADO == 'REVERSADO' %}badge-secondary{% elif ultimo_ajuste.AJT_CESTADO == 'VENCIDO' %}badge-warning{% else %}badge-success{% endif %}">{{ ultimo_ajuste.AJT_CESTADO }}</span></p>
+                    {% if ultimo_ajuste_reversible %}<a href="{% url 'tg_reversar_ajuste' %}" class="btn btn-warning">Reversar último ajuste</a>{% else %}<button class="btn btn-warning" disabled>Reversar último ajuste</button>{% endif %}
+                {% else %}
+                    <p class="text-muted">No existen ajustes auditados para la empresa activa.</p>
+                    <button class="btn btn-warning" disabled>Reversar último ajuste</button>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="modal fade" id="modalCrearVariacion" tabindex="-1" role="dialog" aria-labelledby="tituloCrearVariacion" aria-hidden="true">
+    <div class="modal-dialog" role="document"><div class="modal-content">
+        <form method="post" action="{% url 'tg_variacion_crear' %}">
+            {% csrf_token %}
+            <div class="modal-header"><h5 class="modal-title" id="tituloCrearVariacion">Crear variación de tarifa</h5><button type="button" class="close" data-dismiss="modal" aria-label="Cerrar"><span aria-hidden="true">&times;</span></button></div>
+            <div class="modal-body">
+                <div class="form-group"><label>Nombre variación *</label><input class="form-control" name="nombre" maxlength="128" required placeholder="Alza de combustible"></div>
+                <div class="form-group"><label>Porcentaje *</label><input class="form-control" name="porcentaje" type="number" step="0.0001" required placeholder="2.00"></div>
+                <div class="form-row">
+                    <div class="form-group col-md-6"><label>Fecha inicio *</label><input class="form-control" name="fecha_inicio" type="date" value="{% now 'Y-m-d' %}" required></div>
+                    <div class="form-group col-md-6"><label>Fecha vencimiento *</label><input class="form-control" name="fecha_vencimiento" type="date" required></div>
+                </div>
+                <div class="form-group"><label>Descripción / observación</label><textarea class="form-control" name="descripcion" rows="3"></textarea></div>
+                <div class="alert alert-info mb-0">Empresa: se utilizará exclusivamente la empresa activa.</div>
+            </div>
+            <div class="modal-footer"><button type="button" class="btn btn-secondary" data-dismiss="modal">Cancelar</button><button type="submit" class="btn btn-primary">Crear variación</button></div>
+        </form>
+    </div></div>
+</div>

@@ -10,6 +10,7 @@
     {% load humanize %}
     {% load i18n %}
     {% load l10n %}
+    {% load permission_filters %}
 {% endblock stylesheets %}
 
 {% block content %}	
@@ -56,7 +57,7 @@
                                         <tr>
                                             <th>ACCIONES</th>
                                             <th>ESTADO DOCUMENTOS</th>
-                                            <th>PROVEEDOR</th>
+                                            <th>{% if request.user|has_perfil:'CONTROL_FLOTA' or request.user|es_planificador %}TRANSPORTE{% else %}PROVEEDOR{% endif %}</th>
                                             <th>NOMBRE</th>
                                             <th>RUT</th>
                                             <th>EMAIL</th>
@@ -106,7 +107,7 @@
                                                 <td>{{ object.CON_CEMAIL|default:'-' }}</td>
                                                 <td>{{ object.CON_CTELEFONO|default:'-' }}</td>
                                                 <td>{{ object.CON_FFECHAREGISTRO|date:'d/m/Y H:i' }}</td>
-                                                <td>{{ object.US_NID.first_name }} {{ object.US_NID.last_name }}</td>
+                                                <td>{{ object.US_NID|nombre_usuario_visible }}</td>
                                             </tr>
                                         {% endfor %}
                                     </tbody>

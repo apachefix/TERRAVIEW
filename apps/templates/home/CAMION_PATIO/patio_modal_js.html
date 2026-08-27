@@ -60,14 +60,49 @@
         patioAplicarFiltroCitaciones('');
     }
 
-    function patioField(name, label, value, required) {
-        return '<div class="form-group mb-0">' +
+    function patioField(name, label, value, required, wrapperClass) {
+        return '<div class="form-group mb-0 ' + patioEscape(wrapperClass || '') + '">' +
             '<label>' + patioEscape(label) + (required ? ' *' : '') + '</label>' +
             '<input type="text" class="form-control" name="' + patioEscape(name) + '" value="' + patioEscape(value || '') + '"' + (required ? ' required' : '') + '>' +
             '</div>';
     }
 
+    function patioTipoRecepcionField(camion) {
+        return '<div class="form-group mb-0">' +
+            '<label>Tipo de recepci\u00f3n *</label>' +
+            '<select class="form-control" id="patioEditTipoRecepcion" name="tipo_recepcion" required>' +
+            '<option value="">Seleccione...</option>' +
+            '<option value="NACIONAL"' + (camion.tipo_recepcion === 'NACIONAL' ? ' selected' : '') + '>Nacional</option>' +
+            '<option value="EXTRANJERO"' + (camion.tipo_recepcion === 'EXTRANJERO' ? ' selected' : '') + '>Extranjero</option>' +
+            '</select></div>';
+    }
+
+    function patioActualizarCamposRecepcionEdicion(limpiar) {
+        const select = $('#patioEditTipoRecepcion');
+        if (!select.length) return;
+        const esExtranjero = select.val() === 'EXTRANJERO';
+        $('.patio-edit-extranjero').toggle(esExtranjero).find(':input').prop('disabled', !esExtranjero);
+        if (limpiar && !esExtranjero) $('.patio-edit-extranjero :input').val('');
+    }
+
     function patioRenderFormEdicion(camion) {
+        let camposRecepcion = '';
+        if (camion.es_recepcion_sbh) {
+            camposRecepcion =
+                patioTipoRecepcionField(camion) +
+                patioField('bl', 'BL', camion.bl, false, 'patio-edit-extranjero') +
+                patioField('lote_contenedor', 'Contenedor', camion.lote_contenedor, false, 'patio-edit-extranjero') +
+                patioField('fecha_produccion', 'Fecha producci\u00f3n', camion.fecha_produccion_display || camion.fecha_produccion, false) +
+                patioField('fecha_vencimiento', 'Fecha vencimiento (DD/MM/AAAA)', camion.fecha_vencimiento_display || camion.fecha_vencimiento, false) +
+                patioField('cda', 'CDA', camion.cda, false, 'patio-edit-extranjero') +
+                patioField('di', 'DI', camion.di, false, 'patio-edit-extranjero') +
+                patioField('nave_naviera', 'Nave / Naviera', camion.nave_naviera, false, 'patio-edit-extranjero') +
+                patioField('sui', 'SUI', camion.sui, false, 'patio-edit-extranjero');
+        } else {
+            camposRecepcion =
+                patioField('bl', 'BL', camion.bl, false) +
+                patioField('lote_contenedor', 'Lote/contenedor', camion.lote_contenedor, false);
+        }
         return '<form id="patioEditForm">' +
             '<div class="patio-edit-form-grid">' +
             patioField('transportista', 'Empresa transporte', camion.transportista, true) +
@@ -79,8 +114,7 @@
             patioField('cliente', 'Cliente declarado', camion.cliente, true) +
             patioField('numero_guia', 'Numero guia/documento', camion.guia, true) +
             patioField('insumo_declarado_guia', 'Insumo declarado en guia', camion.insumo_declarado_guia, true) +
-            patioField('bl', 'BL', camion.bl, false) +
-            patioField('lote_contenedor', 'Lote/contenedor', camion.lote_contenedor, false) +
+            camposRecepcion +
             '</div>' +
             '<div class="form-group mt-3 mb-0">' +
             '<label>Observacion</label>' +
@@ -190,11 +224,22 @@
             ['Conductor', camion.conductor], ['RUT', camion.rut_conductor], ['Telefono', camion.telefono],
             ['Transportista', camion.transportista], ['Proveedor declarado', camion.proveedor],
             ['Insumo declarado en guia', camion.insumo_declarado_guia],
-            ['Cliente declarado', camion.cliente], ['Guia/documento', camion.guia], ['BL', camion.bl],
-            ['Lote/contenedor', camion.lote_contenedor],
-            ['Guardia', camion.guardia], ['Llegada', camion.llegada],
-            ['Observacion', camion.observacion]
+            ['Cliente declarado', camion.cliente], ['Guia/documento', camion.guia]
         ];
+        if (camion.es_recepcion_sbh) {
+            fields.push(
+                ['Tipo recepci\u00f3n', camion.tipo_recepcion_label || camion.tipo_recepcion],
+                ['BL', camion.bl], ['Contenedor', camion.lote_contenedor],
+                ['Fecha producci\u00f3n', camion.fecha_produccion_display || camion.fecha_produccion],
+                ['Fecha vencimiento', camion.fecha_vencimiento_display || camion.fecha_vencimiento]
+            );
+            [['CDA', camion.cda], ['DI', camion.di], ['Nave / Naviera', camion.nave_naviera], ['SUI', camion.sui]].forEach(function (field) {
+                if (field[1]) fields.push(field);
+            });
+        } else {
+            fields.push(['BL', camion.bl], ['Lote/contenedor', camion.lote_contenedor]);
+        }
+        fields.push(['Guardia', camion.guardia], ['Llegada', camion.llegada], ['Observacion', camion.observacion]);
         $('#patioModalContent').html(
             '<div id="patioDataView"><div class="patio-detail-grid">' + fields.map(function (field) {
                 return '<div class="patio-detail-item"><div class="patio-detail-label">' + patioEscape(field[0]) + '</div><div>' + patioEscape(field[1] || '-') + '</div></div>';
@@ -229,6 +274,21 @@
                 }
                 patenteBloque = '<div><span class="patio-muted">Patente</span><br>' + patenteEstado + '</div>';
             }
+            let blBloque = '';
+            if (cit.bl) {
+                let blEstado = '';
+                if (cit.bl_estado === 'coincide') {
+                    blEstado = ' <span class="badge badge-success">BL coincide</span>';
+                } else if (cit.bl_estado === 'similar') {
+                    blEstado = ' <span class="badge badge-warning">BL similar &mdash; revisar dato</span>';
+                }
+                blBloque = '<div><span class="patio-muted">BL planificaci\u00f3n</span><br><strong>' + patioEscape(cit.bl) + '</strong>' + blEstado + '</div>';
+            }
+            const datosDespachoSbh = cit.es_despacho_sbh
+                ? '<div><span class="patio-muted">Tipo documento</span><br>' + patioEscape(cit.salida_documento_label || '-') + '</div>' +
+                  '<div><span class="patio-muted">Destino</span><br>' + patioEscape(cit.destino || '-') + '</div>' +
+                  '<div><span class="patio-muted">Ventana horaria</span><br>' + patioEscape(cit.ventana_horaria || '-') + '</div>'
+                : '';
             return '<div class="patio-citation-option citacion-sugerida-card' + aprobadaClass + '" data-citacion-id="' + patioEscape(cit.id) + '" data-tipo-citacion="' + patioEscape(tipoNormalizado) + '">' +
                 '<div class="d-flex justify-content-between align-items-start flex-wrap" style="gap:8px;">' +
                 '<div class="patio-citation-heading"><strong>Citacion #' + patioEscape(cit.id) + '</strong><span class="badge ' + tipoClass + '">' + patioEscape(tipo) + '</span>' + aprobadaBadge + '</div>' +
@@ -239,6 +299,8 @@
                 '<div><span class="patio-muted">Proveedor</span><br>' + patioEscape(cit.proveedor || '-') + '</div>' +
                 '<div><span class="patio-muted">Cliente</span><br>' + patioEscape(cit.cliente || '-') + '</div>' +
                 '<div><span class="patio-muted">Pedido SAP</span><br>' + patioEscape(cit.pedido_sap || '-') + '</div>' +
+                datosDespachoSbh +
+                blBloque +
                 '<div><span class="patio-muted">Planificacion</span><br>' + patioEscape(cit.planificacion || '-') + '</div>' +
                 '<div><span class="patio-muted">Secuencia operacional</span><br><strong class="patio-sequence-value">' + patioEscape(secuenciaNombre) + '</strong></div>' +
                 patenteBloque +
@@ -405,9 +467,13 @@
     $(document).on('click', '#btnEditarCamionPatio', function () {
         $('#patioDataView').hide();
         $('#patioEditView').show();
+        patioActualizarCamposRecepcionEdicion(false);
         $(this).hide();
     });
 
+    $(document).on('change', '#patioEditTipoRecepcion', function () {
+        patioActualizarCamposRecepcionEdicion(true);
+    });
     $(document).on('click', '#btnCancelarEdicionPatio', function () {
         $('#patioEditView').hide();
         $('#patioDataView').show();

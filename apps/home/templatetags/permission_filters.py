@@ -23,12 +23,6 @@ PERFILES_GUARDIA = {
 }
 
 PERFILES_ASISTENTE_RECEPCION = {
-    'ASISTENTE DE RECEPCION',
-    'ASISTENTE RECEPCION',
-    'AR',
-}
-
-USUARIOS_ASISTENTE_RECEPCION = {
     'ASISTENTE RECEPCION',
 }
 
@@ -173,6 +167,35 @@ def has_perfil(user, perfiles):
     return False
 
 
+@register.filter(name='nombre_usuario_visible')
+def nombre_usuario_visible(user):
+    """Nombre legible para UI, conservando username como respaldo."""
+    if not getattr(user, 'is_authenticated', False):
+        return ''
+
+    nombre_completo = ' '.join(
+        parte.strip()
+        for parte in (
+            getattr(user, 'first_name', ''),
+            getattr(user, 'last_name', ''),
+        )
+        if parte and parte.strip()
+    )
+    return nombre_completo or getattr(user, 'username', '')
+
+
+@register.filter(name='es_proveedor_legacy')
+def es_proveedor_legacy(user):
+    userv = getattr(user, 'userv', None)
+    return bool(userv and getattr(userv, 'UX_IS_PROVEEDOR', False))
+
+
+@register.filter(name='es_admin_conductor_legacy')
+def es_admin_conductor_legacy(user):
+    userv = getattr(user, 'userv', None)
+    return bool(userv and getattr(userv, 'UX_IS_ADMINISTRADOR_CONDUCTOR', False))
+
+
 @register.filter(name='es_ingreso_camion')
 def es_ingreso_camion(user):
     """
@@ -266,9 +289,6 @@ def es_asistente_recepcion(user):
     if getattr(user, 'is_superuser', False):
         return False
 
-    if _normalizar_texto(getattr(user, 'username', '')) in USUARIOS_ASISTENTE_RECEPCION:
-        return True
-
     perfiles_usuario = PERFIL_USUARIO.objects.select_related('PR_NID').filter(
         US_NID=user.id,
         PE_BHABILITADO=True,
@@ -283,6 +303,25 @@ def es_asistente_recepcion(user):
             return True
 
     return False
+
+
+@register.filter(name='es_asistente_recepcion_rbac')
+def es_asistente_recepcion_rbac(user):
+    """Perfil real de Asistente de Recepcion; no acepta usernames legacy."""
+    if not getattr(user, 'is_authenticated', False) or getattr(user, 'is_superuser', False):
+        return False
+    return any(
+        _normalizar_texto(valor) in PERFILES_ASISTENTE_RECEPCION
+        for perfil_usuario in PERFIL_USUARIO.objects.select_related('PR_NID').filter(
+            US_NID=user.id,
+            PE_BHABILITADO=True,
+            PR_NID__PR_BHABILITADO=True,
+        )
+        for valor in (
+            perfil_usuario.PR_NID.PR_CNOMBRE,
+            perfil_usuario.PR_NID.PR_CCODIGO,
+        )
+    )
 
 
 @register.filter(name='es_asistente_cd')
@@ -358,6 +397,25 @@ def puede_gestionar_planificaciones(user):
         getattr(userv, 'UX_IS_ADMINISTRADOR_SECUENCIA', False),
         getattr(userv, 'UX_IS_OPERADOR', False),
     ])
+
+
+@register.filter(name='es_asistente_despacho_terramar')
+def es_asistente_despacho_terramar(user):
+    if not getattr(user, 'is_authenticated', False):
+        return False
+    if not USERS_EMPRESA.objects.filter(US_NID=user, EP_NID_id=1).exists():
+        return False
+    if _normalizar_texto(getattr(user, 'username', '')) == 'ASISTENTE DESPACHO':
+        return True
+    return any(
+        _normalizar_texto(valor) == 'ASISTENTE DESPACHO'
+        for perfil in PERFIL_USUARIO.objects.select_related('PR_NID').filter(
+            US_NID=user.id,
+            PE_BHABILITADO=True,
+            PR_NID__PR_BHABILITADO=True,
+        )
+        for valor in (perfil.PR_NID.PR_CNOMBRE, perfil.PR_NID.PR_CCODIGO)
+    )
 
 
 @register.filter(name='es_operacion_planta')

@@ -1,0 +1,11 @@
+{% load formats %}
+<div class="table-responsive" style="max-height:500px;overflow-y:auto"><table class="table table-striped table-bordered">
+    <thead><tr><th>ID citación</th><th>Fecha</th><th>Transporte</th><th>Ruta</th><th>Tarifa</th><th>Valor citación</th><th>Valor maestro previo</th>{% if mostrar_nuevo %}<th>Nuevo propuesto</th><th>Diferencia</th>{% endif %}<th>Clasificación</th></tr></thead>
+    <tbody{% if tabla_id %} id="{{ tabla_id }}" data-count="{{ filas|length }}"{% endif %}>{% for linea in filas %}<tr>
+        <td>{{ linea.citacion_id }}</td><td>{{ linea.fecha|date:'d/m/Y H:i' }}</td><td>{{ linea.transporte }}</td><td>{{ linea.ruta }}</td><td>{{ linea.tarifa_id|default:'-' }}</td>
+        <td class="text-right">{% if linea.valor_actual is not None %}$ {{ linea.valor_actual|custom_number_format }}{% else %}-{% endif %}</td>
+        <td class="text-right">{% if linea.valor_tarifa_anterior is not None %}$ {{ linea.valor_tarifa_anterior|custom_number_format }}{% else %}-{% endif %}</td>
+        {% if mostrar_nuevo %}<td class="text-right">{% if linea.valor_nuevo is not None %}$ {{ linea.valor_nuevo|custom_number_format }}{% else %}-{% endif %}</td><td class="text-right">{% if linea.diferencia is not None %}{% if linea.diferencia >= 0 %}+{% endif %}$ {{ linea.diferencia|custom_number_format }}{% else %}-{% endif %}</td>{% endif %}
+        <td>{{ linea.motivo }}</td>
+    </tr>{% empty %}<tr><td colspan="10" class="text-center text-muted">No existen citaciones en esta clasificación.</td></tr>{% endfor %}</tbody>
+</table></div>

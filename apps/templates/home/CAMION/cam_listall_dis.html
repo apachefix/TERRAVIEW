@@ -10,6 +10,7 @@
     {% load humanize %}
     {% load i18n %}
     {% load l10n %}
+    {% load permission_filters %}
 {% endblock stylesheets %}
 
 {% block content %}	
@@ -56,7 +57,7 @@
                                         <tr>
                                             <th>ACCIONES</th>
                                             <th>ESTADO DOCUMENTOS</th>
-                                            <th>PROVEEDOR</th>
+                                            <th>{% if request.user|has_perfil:'CONTROL_FLOTA' %}TRANSPORTE{% else %}PROVEEDOR{% endif %}</th>
                                             <th>PATENTE</th>
                                             <th>MARCA</th>
                                             <th>MODELO</th>
@@ -114,7 +115,7 @@
                                                 <td>{{ object.CAM_NMETROS3|default:'-' }}</td>
                                                 <td>{{ object.CAM_CCARGA|default:'-' }}</td>
                                                 <td>{{ object.CAM_FFECHAREGISTRO|date:'d/m/Y H:i' }}</td>
-                                                <td>{{ object.US_NID.first_name }} {{ object.US_NID.last_name }}</td>
+                                                <td>{{ object.US_NID|nombre_usuario_visible }}</td>
                                             </tr>
                                         {% endfor %}
                                     </tbody>

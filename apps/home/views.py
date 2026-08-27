@@ -1,8 +1,8 @@
 from collections import OrderedDict
 
 from django import template
-from django.http import HttpResponse, HttpResponseRedirect, JsonResponse, FileResponse
-from django.views.decorators.http import require_POST
+from django.http import Http404, HttpResponse, HttpResponseRedirect, JsonResponse, FileResponse
+from django.views.decorators.http import require_GET, require_POST
 from django.views.decorators.csrf import csrf_protect
 from django.template import loader
 from django.urls import reverse, reverse_lazy
@@ -18,7 +18,7 @@ from django.contrib.auth import update_session_auth_hash, authenticate, logout
 from django.contrib.auth.decorators import login_required
 from django.conf import settings
 from django.template.loader import render_to_string
-from django.db.models import Q, Subquery, OuterRef, Count, F, Value, Exists, CharField
+from django.db.models import Q, Subquery, OuterRef, Count, F, Value, Exists, CharField, Prefetch
 from django.core.cache import cache
 from django.db import connection, transaction, models, IntegrityError, DatabaseError
 from django.db.models.deletion import ProtectedError
@@ -28,12 +28,54 @@ from django.db.models.functions import Replace, Upper, Cast
 
 from .models import *
 from .vars import *
+from .recepcion_sbh_destinos import (
+    ALMACENES_DESTINO_RECEPCION_SBH,
+    ALMACENES_RECEPCION_SBH_ETAPA_0,
+    validar_destino_recepcion_sbh,
+)
 from .forms import *
 from .cypher import *
 from .general_postgres import *
 from .general_hana import *
+from .sap_di_proforma import (
+    OPOR,
+    disconnect_sap_company,
+    get_sap_company_db,
+    get_sap_proforma_series,
+    normalize_sap_environment,
+    sapConnect,
+    validate_sap_di_company,
+)
 from .general_sql_server import *
 from .general_postgres import QueryParam
+from .services.proforma_mensual import (
+    EMPRESA_TERRAMAR,
+    categoria_proforma,
+    crear_o_ampliar_proforma_mensual,
+    continuar_borrador_desde_terminadas,
+    periodo_mensual,
+    periodo_citacion,
+    tipo_operacion_proforma,
+)
+from .services.proforma_terramar import (
+    ProformaTerramarError,
+    agregar_extra as agregar_extra_terramar,
+    aprobar_borrador as aprobar_borrador_terramar,
+    borrar_carpeta_borrador as borrar_carpeta_terramar,
+    contexto_detalle_proforma,
+    contexto_pdf_proforma,
+    detalle_operacional_citacion,
+    editar_extra as editar_extra_terramar,
+    eliminar_extra as eliminar_extra_terramar,
+    estado_permite_autorizar_sap,
+    firma_borrado_carpeta,
+    es_proforma_mensual_terramar,
+    obtener_proforma_terramar,
+    proforma_editable,
+    usuario_puede_aprobar_borrador,
+    usuario_puede_borrar_carpeta,
+    usuario_puede_proforma_terramar,
+)
 from .services.proforma_service import (
     PERMISO_INICIAR_PROFORMA,
     PERMISO_PROFORMA_CITACIONES,
@@ -43,7 +85,14 @@ from .services.proforma_service import (
     usuario_tiene_empresa as usuario_pro_cit_tiene_empresa,
     usuario_tiene_permiso_pro_cit,
 )
+from .services.padron_conductores import (
+    asignar_transporte_operacional_sbh,
+    queryset_conductores_operativos as _queryset_conductores_operativos,
+    queryset_conductores_por_transporte_sbh,
+)
 from .sap_despacho import (
+    LOG_BORRADOR_SAP_DESPACHO_ENVIO,
+    _sap_error_short_message as sap_despacho_error_corto,
     actualizar_borrador_sap_despacho as sap_despacho_actualizar_borrador,
     construir_payload_draft_despacho as sap_despacho_construir_payload_draft,
     crear_borrador_sap_despacho as sap_despacho_crear_borrador,
@@ -69,6 +118,7 @@ from .sap_recepcion import (
     consultar_pedidos_por_producto_sap,
     consultar_producto_sap,
     consultar_productos_sap,
+    consultar_productos_recepcion_transferencia_sap,
     consultar_proveedores_sap,
     get_goods_receipt_draft_guide_status,
     get_goods_receipt_draft_status,
@@ -106,7 +156,36 @@ from .services.calidad_service import (
     procesar_resultado_calidad,
     serializar_resultado_calidad,
 )
-from datetime import datetime, time
+from .services.terramar_documentos import (
+    STAMP_VERSION,
+    exportar_documentos_timbrados,
+    formato_timbrable,
+    mime_archivo,
+    sha256_archivo,
+    sanitizar_patente_exportacion,
+    timbrar_documento,
+    validar_archivo_fuente,
+)
+from .services.control_flota_documental import (
+    LOG_ALERTA_CAMION,
+    LOG_ALERTA_CONDUCTOR,
+    buscar_camiones_terramar,
+    evaluar_documentos_camion,
+    evaluar_documentos_conductor,
+    licencia_conducir_estado,
+    patentes_historicas_conductor,
+    registrar_alertas_documentales,
+)
+from .conductor_utils import RutChilenoInvalido, normalizar_rut_chileno
+from .services.conductor_operacional import (
+    AltaConductorOperacionalError,
+    actualizar_conductor_operacional,
+    crear_conductor_operacional,
+    diagnostico_duplicidad_rut,
+    formulario_conductor_operacional,
+    formulario_edicion_conductor_operacional,
+)
+from datetime import date, datetime, time
 from decimal import Decimal, InvalidOperation, ROUND_HALF_UP
 from io import BytesIO
 from urllib.parse import urlencode
@@ -115,6 +194,8 @@ from PIL import Image
 from pypdf import PdfReader
 
 import base64
+import fitz
+import hashlib
 import math
 import os
 import uuid
@@ -126,7 +207,10 @@ import requests
 import logging
 import unicodedata
 import re
+import secrets
 import shutil
+import pywintypes
+
 
 logger = logging.getLogger(__name__)
 
@@ -136,6 +220,7 @@ SYSLOGGER_OP_CONFIRMA_DATOS_REV = 'CONFIRMA_DATOS_REV'
 SYSLOGGER_OP_MODIFICA_RUTA_PLANIF = 'MODIFICA_RUTA_PLANIF'
 SYSLOGGER_OP_ENVIA_ASIST_BODEGA = 'ENVIA_ASIST_BODEGA'
 SYSLOGGER_OP_ENVIA_BODEGA_GUARDIA = 'ENVIA_BOD_GUARDIA'
+SYSLOGGER_OP_REG_PATENTE_CONDUCTOR = 'REG_PATENTE_CONDUCTOR'
 
 try:
     from weasyprint import HTML, CSS
@@ -161,12 +246,135 @@ CODIGOS_INSUMOS_RECEPCION_TERRAMAR = (
 def queryset_insumos_recepcion_terramar(empresa_id):
     return ITEM.objects.filter(EP_NID_id=empresa_id, IT_CCODIGO__in=CODIGOS_INSUMOS_RECEPCION_TERRAMAR).order_by('IT_CCODIGO')
 
+def queryset_insumos_despacho_terramar(empresa_id):
+    return ITEM.objects.filter(EP_NID_id=empresa_id).order_by('IT_CCODIGO')
+
 def es_citacion_recepcion_terramar(citacion):
     return bool(citacion and citacion.EP_NID_id == 1 and str(citacion.CI_CTIPO or '').upper() == 'RECEPCION' and citacion.SC_NID and citacion.SC_NID.SE_CCODIGO in {'RECEPCION_TERRAMAR', 'RECEPCION_TERRAMAR_BODEGA_EXTERNA'})
 
 
+def es_recepcion_terramar_principal(citacion):
+    """Alcance estricto del flujo de recepcion interna de Terramar."""
+    return bool(
+        citacion
+        and citacion.EP_NID_id == 1
+        and str(citacion.CI_CTIPO or '').strip().upper() == 'RECEPCION'
+        and citacion.SC_NID
+        and str(citacion.SC_NID.SE_CCODIGO or '').strip().upper() == 'RECEPCION_TERRAMAR'
+    )
+
+SECUENCIA_RECEPCION_ESTANQUE_SBH = 'RECEPCION_ESTANQUE_SBH'
+SECUENCIA_RECEPCION_TRANSFERENCIA_SBH = 'RECEPCION_TRANSFERENCIA_SBH'
+FLUJOS_NAVEGACION_RECEPCION_SBH = {'INGRESO_MERCADERIA', 'TRANSFERENCIA'}
+
+
+def normalizar_flujo_recepcion_sbh(valor, predeterminado='INGRESO_MERCADERIA'):
+    """Obtiene el flujo de navegación válido de Recepción SBH."""
+    flujo = str(valor or '').strip().upper()
+    return flujo if flujo in FLUJOS_NAVEGACION_RECEPCION_SBH else predeterminado
+
+
+def queryset_secuencias_recepcion_sbh_por_flujo(empresa_id, flujo):
+    """Secuencias activas permitidas para cada flujo de Recepción SBH.
+
+    La separación se basa en SE_CCODIGO, que es la identidad persistente de la
+    secuencia, y no en el nombre que se muestra en el selector.
+    """
+    secuencias = SECUENCIA.objects.filter(
+        EP_NID_id=empresa_id,
+        SE_CTIPO=CIT_RECEPCION,
+        SE_BHABILITADO=True,
+    )
+    if normalizar_flujo_recepcion_sbh(flujo) == 'TRANSFERENCIA':
+        return secuencias.filter(SE_CCODIGO=SECUENCIA_RECEPCION_TRANSFERENCIA_SBH)
+    return secuencias.exclude(SE_CCODIGO=SECUENCIA_RECEPCION_TRANSFERENCIA_SBH)
+
+
+def es_flujo_recepcion_transferencia_sbh(citacion):
+    """Identificación persistente, independiente de los parámetros GET."""
+    tipo = str(
+        getattr(citacion, 'CI_CTIPO', '')
+        or (getattr(getattr(citacion, 'PL_NID', None), 'PL_CTIPOCUPO', '') if citacion else '')
+        or ''
+    ).upper()
+    secuencia = str(getattr(getattr(citacion, 'SC_NID', None), 'SE_CCODIGO', '') or '').upper()
+    return bool(
+        citacion
+        and getattr(citacion, 'EP_NID_id', None) == ID_ACEITES_SBH
+        and tipo == CIT_RECEPCION
+        and secuencia == SECUENCIA_RECEPCION_TRANSFERENCIA_SBH
+    )
+
+
+def es_flujo_recepcion_estanque_sbh(citacion):
+    tipo = str(
+        getattr(citacion, 'CI_CTIPO', '')
+        or (getattr(getattr(citacion, 'PL_NID', None), 'PL_CTIPOCUPO', '') if citacion else '')
+        or ''
+    ).upper()
+    secuencia = getattr(getattr(citacion, 'SC_NID', None), 'SE_CCODIGO', '')
+    return bool(
+        citacion
+        and getattr(citacion, 'EP_NID_id', None) == ID_ACEITES_SBH
+        and tipo == CIT_RECEPCION
+        and secuencia == SECUENCIA_RECEPCION_ESTANQUE_SBH
+    )
+
+def es_citacion_despacho_terramar(citacion):
+    return bool(
+        citacion
+        and citacion.EP_NID_id == 1
+        and str(citacion.CI_CTIPO or '').upper() == CIT_DESPACHO
+        and citacion.SC_NID
+        and citacion.SC_NID.SE_CCODIGO in {'DESPACHO_TERRAMAR', 'DESPACHO_TERRAMAR_BODEGA_EXTERNA'}
+    )
+
+def es_flujo_preoperacional_terramar(citacion):
+    """Flujo común de ingreso físico Terramar, aislado de los datos de Recepción."""
+    return es_citacion_recepcion_terramar(citacion) or es_citacion_despacho_terramar(citacion)
+
+
+def _empresa_timbre_recepcion(citacion):
+    """Identifica la empresa legal a partir de la relación real de la citación."""
+    empresa = getattr(citacion, 'EP_NID', None)
+    nombre = normalizar_nombre_flujo_operacion(getattr(empresa, 'EP_CRAZONSOCIAL', ''))
+    if empresa and empresa.id == ID_TERRAMAR and 'TERRAMAR' in nombre:
+        return 'TERRAMAR'
+    if empresa and empresa.id == ID_ACEITES_SBH and {'ACEITES', 'SBH'} <= set(nombre.split()):
+        return 'SBH'
+    return ''
+
+
+def aplica_timbraje_recepcion(citacion):
+    """El timbraje documental sólo existe para recepciones reales de Terramar y SBH."""
+    return bool(
+        citacion
+        and str(getattr(citacion, 'CI_CTIPO', '') or '').strip().upper() == CIT_RECEPCION
+        and _empresa_timbre_recepcion(citacion) in {'TERRAMAR', 'SBH'}
+    )
+
+
+def _datos_empresa_timbre(citacion):
+    datos = {
+        'TERRAMAR': ('Terramar Chile SpA', '77.620.020-4'),
+        'SBH': ('Aceites SBH SpA', '76.957.638-K'),
+    }
+    empresa = _empresa_timbre_recepcion(citacion)
+    if empresa not in datos:
+        raise ValueError('La empresa de la citación no está habilitada para timbraje de recepción.')
+    return datos[empresa]
+
+def _pk_corresponde_recepcion_terramar(pk):
+    return CITACION.objects.filter(
+        pk=pk,
+        EP_NID_id=1,
+        CI_CTIPO='RECEPCION',
+        SC_NID__SE_CCODIGO__in={'RECEPCION_TERRAMAR', 'RECEPCION_TERRAMAR_BODEGA_EXTERNA'},
+    ).exists()
+
+
 def operacion_envio_guardia_para_citacion(citacion):
-    if es_citacion_recepcion_terramar(citacion):
+    if es_flujo_preoperacional_terramar(citacion):
         return SYSLOGGER_OP_ENVIA_BODEGA_GUARDIA
     return 'ENVIA_CD_NEXT'
 
@@ -209,6 +417,49 @@ def queryset_secuencias_recepcion_terramar(empresa_id):
         ),
         'id',
     )
+
+
+TIPOS_RECEPCION_SBH = {'NACIONAL', 'EXTRANJERO'}
+
+ESTANQUES_RECEPCION_TRANSFERENCIA_SBH = ('PROCESA', 'PROSEG10', 'PROSE_G2', 'PROSE_G4', 'PROSE_G9', 'PROSE_T3', 'PROSE_T4', 'PROSE_T5', 'PROSE_T8')
+
+
+def obtener_snapshot_recepcion_transferencia_sap(estanque, codigo_sap):
+    """Reconsulta SAP para no confiar en los campos readonly del navegador."""
+    estanque = str(estanque or '').strip()
+    codigo_sap = str(codigo_sap or '').strip()
+    if estanque not in ESTANQUES_RECEPCION_TRANSFERENCIA_SBH:
+        raise ValueError('El estanque origen no es válido para Recepción de Transferencia SBH.')
+    if not codigo_sap:
+        raise ValueError('Debe seleccionar un producto SAP para la transferencia.')
+
+    resultado = consultar_productos_recepcion_transferencia_sap(estanque)
+    for producto in resultado['productos']:
+        if str(producto.get('codigo_sap') or '').strip() == codigo_sap:
+            return producto
+    raise ValueError('El producto seleccionado no está disponible en el estanque origen indicado.')
+
+
+def validar_cantidad_camiones_transferencia(valor):
+    texto = str(valor or '').strip()
+    try:
+        cantidad = int(texto)
+    except (TypeError, ValueError):
+        return None, 'La cantidad de camiones debe ser un número entero positivo.'
+    if cantidad < 1:
+        return None, 'La cantidad de camiones debe ser mayor o igual a 1.'
+    return cantidad, ''
+
+
+def validar_tipo_recepcion_sbh(valor):
+    texto = str(valor or '').strip()
+    if not texto:
+        return '', 'Debe seleccionar si la recepción es Nacional o Extranjera.'
+
+    codigo = texto.upper()
+    if codigo not in TIPOS_RECEPCION_SBH:
+        return '', 'Tipo de recepción inválido.'
+    return codigo, ''
 
 
 @transaction.atomic
@@ -286,7 +537,68 @@ def CREAR_PLANIFICACION_CITACION(request):
             and str(primera_citacion.get('tipo_operacion') or '').upper() == 'RECEPCION'
             and bool(primera_citacion.get('recepcion_terramar'))
         )
-        if es_recepcion_terramar:
+        es_despacho_terramar = (
+            empresa_es_terramar_chile(Empresa)
+            and str(primera_citacion.get('tipo_operacion') or '').upper() == CIT_DESPACHO
+            and bool(primera_citacion.get('despacho_terramar'))
+        )
+        es_recepcion_sbh = (
+            Empresa == ID_ACEITES_SBH
+            and str(primera_citacion.get('tipo_operacion') or '').strip().upper() == CIT_RECEPCION
+        )
+        flujo_recepcion_sbh = ''
+        if es_recepcion_sbh:
+            flujo_recibido = str(request.POST.get('flujo') or '').strip().upper()
+            if flujo_recibido and flujo_recibido not in FLUJOS_NAVEGACION_RECEPCION_SBH:
+                return JsonResponse({
+                    'success': False,
+                    'message': 'El flujo de Recepción SBH no es válido.',
+                }, status=400)
+            # Las integraciones previas que no enviaban el parámetro continúan
+            # siendo ingreso de mercadería; el formulario actual siempre lo envía.
+            flujo_recepcion_sbh = normalizar_flujo_recepcion_sbh(flujo_recibido)
+            secuencias_permitidas = queryset_secuencias_recepcion_sbh_por_flujo(
+                Empresa,
+                flujo_recepcion_sbh,
+            )
+            secuencia_transferencia = None
+            if flujo_recepcion_sbh == 'TRANSFERENCIA':
+                secuencia_transferencia = secuencias_permitidas.filter(
+                    SE_CCODIGO=SECUENCIA_RECEPCION_TRANSFERENCIA_SBH,
+                ).first()
+                if not secuencia_transferencia:
+                    return JsonResponse({
+                        'success': False,
+                        'message': 'No existe una secuencia activa para Recepción de Transferencia SBH.',
+                    }, status=400)
+            for item in citaciones_data:
+                flujo_item = str(item.get('flujo') or '').strip().upper()
+                if flujo_item and flujo_item != flujo_recepcion_sbh:
+                    return JsonResponse({
+                        'success': False,
+                        'message': 'El flujo informado en la citación no coincide con el flujo de guardado.',
+                    }, status=400)
+                item['flujo'] = flujo_recepcion_sbh
+                if secuencia_transferencia:
+                    item['secuencia_id'] = secuencia_transferencia.pk
+                    continue
+                secuencia_item_id = str(item.get('secuencia_id') or '').strip()
+                if not secuencia_item_id.isdigit() or not secuencias_permitidas.filter(
+                    pk=secuencia_item_id
+                ).exists():
+                    etiqueta_flujo = (
+                        'Transferencia' if flujo_recepcion_sbh == 'TRANSFERENCIA'
+                        else 'Ingreso de mercadería'
+                    )
+                    return JsonResponse({
+                        'success': False,
+                        'message': f'La secuencia seleccionada no es válida para {etiqueta_flujo}.',
+                    }, status=400)
+
+        es_recepcion_transferencia_sbh = (
+            es_recepcion_sbh and flujo_recepcion_sbh == 'TRANSFERENCIA'
+        )
+        if es_recepcion_terramar or es_despacho_terramar:
             hora_citacion = str(primera_citacion.get('hora_citacion') or '').strip()
             try:
                 hora_citacion_obj = datetime.strptime(hora_citacion, '%H:%M').time()
@@ -297,13 +609,134 @@ def CREAR_PLANIFICACION_CITACION(request):
                 fecha_llegada_obj = timezone.make_aware(fecha_llegada_obj, timezone.get_current_timezone())
         fecha_termino_obj = fecha_llegada_obj.replace(hour=23, minute=59, second=0)
 
-        if es_recepcion_terramar:
+        if es_recepcion_terramar or es_despacho_terramar:
             for item in citaciones_data:
                 item_id = str(item.get('item_id') or '').strip()
-                if not item_id.isdigit() or not queryset_insumos_recepcion_terramar(Empresa).filter(pk=int(item_id)).exists():
+                if not item_id.isdigit() or not (queryset_insumos_despacho_terramar(Empresa) if es_despacho_terramar else queryset_insumos_recepcion_terramar(Empresa)).filter(pk=int(item_id)).exists():
                     return JsonResponse({
                         'success': False,
-                        'message': 'Debe seleccionar un insumo válido del catálogo de Recepción Terramar.'
+                        'message': 'Debe seleccionar un insumo válido del catálogo Terramar.'
+                    }, status=400)
+        if es_despacho_terramar:
+            try:
+                clientes_sap_despacho_terramar = {
+                    str(cliente.get('cardcode') or '').strip(): cliente
+                    for cliente in consultar_clientes_sap().get('clientes', [])
+                    if str(cliente.get('cardcode') or '').strip()
+                }
+            except SapDiApiError as exc:
+                return JsonResponse({'success': False, 'message': str(exc)}, status=503)
+
+            for item in citaciones_data:
+                cliente_codigo_sap = str(item.get('cliente_codigo') or item.get('cliente') or '').strip()
+                cliente_nombre_sap = str(item.get('cliente_nombre') or '').strip()
+                cliente_sap = clientes_sap_despacho_terramar.get(cliente_codigo_sap)
+                if not cliente_codigo_sap or not cliente_nombre_sap or not cliente_sap:
+                    return JsonResponse({
+                        'success': False,
+                        'message': 'Debe seleccionar un cliente válido del catálogo SAP.'
+                    }, status=400)
+                item.update({
+                    'cliente': cliente_sap['cardcode'],
+                    'cliente_codigo': cliente_sap['cardcode'],
+                    'cliente_nombre': cliente_sap['cardname'],
+                })
+                conductor_pendiente = (
+                    str(item.get('transporte_a_cargo') or '').strip() == 'Terramar'
+                    and str(item.get('conductor_pendiente') or '').strip().lower() in {'1', 'true', 'on', 'yes', 'si', 'sí'}
+                )
+                if conductor_pendiente:
+                    transportista_id = str(item.get('empresa_transporte_id') or '').strip()
+                    if not transportista_id.isdigit() or not SOCIONEGOCIO.objects.filter(
+                        pk=transportista_id,
+                        EP_NID_id=Empresa,
+                        SN_CTIPO='S',
+                        SN_BHABILITADO=True,
+                    ).exists():
+                        return JsonResponse({
+                            'success': False,
+                            'message': 'Debe seleccionar un transportista válido.'
+                        }, status=400)
+
+        if es_recepcion_transferencia_sbh:
+            for item in citaciones_data:
+                if str(item.get('tipo_operacion', tipo_operacion) or '').strip().upper() != CIT_RECEPCION or str(item.get('flujo') or '').strip().upper() != 'TRANSFERENCIA':
+                    return JsonResponse({'success': False, 'message': 'La planificación de transferencia sólo permite Recepción de Transferencia.'}, status=400)
+                faltantes = [nombre for nombre, valor in {
+                    'fecha': item.get('fecha_llegada'),
+                    'estanque origen': item.get('estanque_origen'),
+                    'producto SAP': item.get('codigo_sap') or item.get('codigo'),
+                    'cantidad de camiones': item.get('cantidad_camion'),
+                    'almacén destino': item.get('almacen_destino'),
+                    'estanque destino': item.get('estanque_destino'),
+                }.items() if str(valor or '').strip() == '']
+                if faltantes:
+                    return JsonResponse({'success': False, 'message': 'Debe completar: ' + ', '.join(faltantes) + '.'}, status=400)
+                if str(item.get('estanque_origen') or '').strip() not in ESTANQUES_RECEPCION_TRANSFERENCIA_SBH:
+                    return JsonResponse({'success': False, 'message': 'El estanque origen no es válido para Recepción de Transferencia SBH.'}, status=400)
+                cantidad_camiones, mensaje_cantidad_camiones = validar_cantidad_camiones_transferencia(
+                    item.get('cantidad_camion')
+                )
+                if mensaje_cantidad_camiones:
+                    return JsonResponse({'success': False, 'message': mensaje_cantidad_camiones}, status=400)
+                if cantidad_camiones != 1:
+                    return JsonResponse({'success': False, 'message': 'Cada borrador de transferencia debe representar exactamente un camión.'}, status=400)
+                destino_valido, mensaje_destino = validar_destino_recepcion_sbh(
+                    str(item.get('almacen_destino') or '').strip(),
+                    str(item.get('estanque_destino') or '').strip(),
+                )
+                if not destino_valido:
+                    return JsonResponse({'success': False, 'message': mensaje_destino}, status=400)
+                try:
+                    snapshot_sap = obtener_snapshot_recepcion_transferencia_sap(
+                        item.get('estanque_origen'),
+                        item.get('codigo_sap') or item.get('codigo'),
+                    )
+                except ValueError as exc:
+                    return JsonResponse({'success': False, 'message': str(exc)}, status=400)
+                except SapDiApiError as exc:
+                    return JsonResponse({'success': False, 'message': str(exc)}, status=503)
+
+                item.update({
+                    'codigo': snapshot_sap['codigo_sap'],
+                    'codigo_sap': snapshot_sap['codigo_sap'],
+                    'insumo': snapshot_sap['insumo'],
+                    'codigo_propietario': snapshot_sap['codigo_propietario'],
+                    'propiedad_producto': snapshot_sap['propiedad_producto'],
+                    'cantidad_disponible': snapshot_sap['stock_disponible'],
+                    'stock_disponible_snapshot': snapshot_sap['stock_disponible'],
+                    'unidad_inventario_snapshot': snapshot_sap['unidad'],
+                    'cantidad_camion': 1,
+                    'cantidad_a_mover': None,
+                })
+        elif Empresa == ID_ACEITES_SBH:
+            for item in citaciones_data:
+                if str(item.get('tipo_operacion', tipo_operacion) or '').strip().upper() != CIT_RECEPCION:
+                    continue
+                tipo_recepcion_sbh, mensaje_tipo_recepcion = validar_tipo_recepcion_sbh(
+                    item.get('tipo_origen_recepcion')
+                )
+                if mensaje_tipo_recepcion:
+                    return JsonResponse({
+                        'success': False,
+                        'message': mensaje_tipo_recepcion,
+                    }, status=400)
+                item['tipo_origen_recepcion'] = tipo_recepcion_sbh
+                almacen_destino = str(item.get('almacen_destino') or '').strip()
+                estanque_destino = str(item.get('estanque_destino') or '').strip()
+                if not almacen_destino or not estanque_destino:
+                    return JsonResponse({
+                        'success': False,
+                        'message': 'Debe seleccionar almacén y estanque de destino.'
+                    }, status=400)
+                destino_valido, mensaje_destino = validar_destino_recepcion_sbh(
+                    almacen_destino,
+                    estanque_destino,
+                )
+                if not destino_valido:
+                    return JsonResponse({
+                        'success': False,
+                        'message': mensaje_destino,
                     }, status=400)
         secuencia_id = primera_citacion.get('secuencia_id')
         secuencia = None
@@ -329,10 +762,24 @@ def CREAR_PLANIFICACION_CITACION(request):
                 'message': f'No existe una secuencia activa para el tipo {tipo_operacion}.'
             })
 
+        if es_recepcion_transferencia_sbh:
+            secuencia = SECUENCIA.objects.filter(
+                EP_NID_id=Empresa, SE_CTIPO=CIT_RECEPCION,
+                SE_CCODIGO=SECUENCIA_RECEPCION_TRANSFERENCIA_SBH,
+                SE_BHABILITADO=True,
+            ).first()
+            if not secuencia:
+                return JsonResponse({'success': False, 'message': 'No existe una secuencia activa para Recepción de Transferencia SBH.'}, status=400)
+
         if es_recepcion_terramar and not queryset_secuencias_recepcion_terramar(Empresa).filter(pk=secuencia.pk).exists():
             return JsonResponse({
                 'success': False,
                 'message': 'Debe seleccionar una secuencia de Recepción de Harinas habilitada para Terramar.'
+            }, status=400)
+        if es_despacho_terramar and secuencia.SE_CCODIGO not in {'DESPACHO_TERRAMAR', 'DESPACHO_TERRAMAR_BODEGA_EXTERNA'}:
+            return JsonResponse({
+                'success': False,
+                'message': 'La secuencia seleccionada no es válida para Despacho Terramar.'
             }, status=400)
         calendario = CALENDARIO.objects.filter(
             EP_NID_id=Empresa,
@@ -375,8 +822,115 @@ def CREAR_PLANIFICACION_CITACION(request):
 
         for i, item in enumerate(citaciones_data):
             tipo_item_citacion = str(item.get('tipo_operacion', tipo_operacion)).strip().upper()
-            es_item_recepcion_terramar = empresa_es_terramar_chile(Empresa) and tipo_item_citacion == 'RECEPCION' and bool(item.get('recepcion_terramar'))
+            es_item_recepcion_terramar = empresa_es_terramar_chile(Empresa) and tipo_item_citacion == CIT_RECEPCION and bool(item.get('recepcion_terramar'))
+            es_item_despacho_terramar = empresa_es_terramar_chile(Empresa) and tipo_item_citacion == CIT_DESPACHO and bool(item.get('despacho_terramar'))
+
             tarifa_planificacion = None
+            conductor_planificacion = None
+            if es_item_despacho_terramar:
+                requeridos = {
+                    'cliente': item.get('cliente') or item.get('cliente_codigo'),
+                    'código cliente SAP': item.get('cliente_codigo'),
+                    'nombre cliente SAP': item.get('cliente_nombre'),
+                    'destino': item.get('destino'),
+                    'contenedor / CRT': item.get('contenedor_crt'),
+                    'insumo': item.get('insumo'),
+                    'bodega': item.get('bodega'),
+                    'tipo camion': item.get('tipo_camion'),
+                    'pallet': item.get('pallet'),
+                    'relleno': item.get('relleno'),
+                    'transporte a cargo de': item.get('transporte_a_cargo'),
+                    'hora citacion': item.get('hora_citacion'),
+                    'flujo operacional': item.get('secuencia_id'),
+                }
+                faltantes = [nombre for nombre, valor in requeridos.items() if str(valor or '').strip() == '']
+                if faltantes:
+                    return JsonResponse({'success': False, 'message': 'Debe completar: ' + ', '.join(faltantes) + '.'}, status=400)
+                if str(item.get('tipo_camion') or '').strip() not in {'Plano', 'Cortina'}:
+                    return JsonResponse({'success': False, 'message': 'Tipo de camión inválido para Despacho Terramar.'}, status=400)
+                for campo in ('pallet', 'relleno'):
+                    if str(item.get(campo) or '').strip().upper() not in {'SI', 'NO'}:
+                        return JsonResponse({'success': False, 'message': f'El valor de {campo} debe ser Sí o No.'}, status=400)
+                try:
+                    datetime.strptime(str(item.get('hora_citacion') or '').strip(), '%H:%M')
+                except ValueError:
+                    return JsonResponse({'success': False, 'message': 'Debe ingresar una hora de citación válida.'}, status=400)
+                item['patente'] = re.sub(r'\s+', ' ', str(item.get('patente') or '')).strip().upper()
+                item['conductor'] = re.sub(r'\s+', ' ', str(item.get('conductor') or '')).strip()
+                item['empresa_transporte'] = re.sub(r'\s+', ' ', str(item.get('empresa_transporte') or '')).strip()
+                transporte_a_cargo = str(item.get('transporte_a_cargo') or '').strip()
+                if transporte_a_cargo not in {'Terramar', 'Cliente'}:
+                    return JsonResponse({'success': False, 'message': 'Transporte a cargo de inválido.'}, status=400)
+                conductor_pendiente = (
+                    transporte_a_cargo == 'Terramar'
+                    and str(item.get('conductor_pendiente') or '').strip().lower() in {'1', 'true', 'on', 'yes', 'si', 'sí'}
+                )
+                item['conductor_pendiente'] = conductor_pendiente
+                if transporte_a_cargo == 'Terramar':
+                    transportista_id = str(item.get('empresa_transporte_id') or '').strip()
+                    conductor_id = str(item.get('conductor_id') or '').strip()
+                    if not transportista_id.isdigit() or (not conductor_pendiente and not conductor_id.isdigit()):
+                        mensaje = 'Debe seleccionar un transportista válido.' if conductor_pendiente else 'Debe seleccionar un transportista y conductor válidos.'
+                        return JsonResponse({'success': False, 'message': mensaje}, status=400)
+                    transportista = SOCIONEGOCIO.objects.filter(pk=transportista_id, EP_NID_id=Empresa, SN_CTIPO='S', SN_BHABILITADO=True).first()
+                    conductor = None
+                    if transportista and not conductor_pendiente:
+                        conductor = CONDUCTOR.objects.filter(pk=conductor_id, CON_BHABILITADO=True).first()
+                    if not transportista or (not conductor_pendiente and not conductor):
+                        return JsonResponse({'success': False, 'message': 'El transportista no pertenece a la empresa activa o el conductor no está habilitado.'}, status=400)
+                    conductor_planificacion = conductor
+                    tarifa_planificacion, error_ruta = validar_tarifa_transportista(Empresa, transportista.id, item.get('tarifa_id'), item.get('ruta_id'))
+                    if error_ruta:
+                        return JsonResponse({'success': False, 'message': error_ruta}, status=400)
+                    item.update({
+                        'empresa_transporte': transportista.SN_CRAZONSOCIAL,
+                        'empresa_transporte_id': str(transportista.id),
+                        'ruta_id': str(tarifa_planificacion.RUT_NID_id),
+                        'tarifa_id': str(tarifa_planificacion.id),
+                    })
+                    if conductor_pendiente:
+                        item.update({
+                            'conductor': '',
+                            'conductor_id': '',
+                            'telefono_codigo_pais': '',
+                            'telefono_conductor': '',
+                            'patente': '',
+                        })
+                    else:
+                        if not item['patente']:
+                            return JsonResponse({'success': False, 'message': 'Debe ingresar la patente del camión.'}, status=400)
+                        try:
+                            telefono = normalize_international_phone(item.get('telefono_codigo_pais'), item.get('telefono_conductor'))
+                        except ValueError as exc:
+                            return JsonResponse({'success': False, 'message': str(exc)}, status=400)
+                        item.update({
+                            'conductor': f'{conductor.CON_CNOMBRE or ""} {conductor.CON_CAPELLIDO or ""}'.strip(),
+                            'telefono_codigo_pais': telefono['country_code'],
+                            'telefono_conductor': telefono['local_number'],
+                            'conductor_id': str(conductor.id),
+                        })
+                else:
+                    item['conductor_pendiente'] = False
+                    manuales = {
+                        'empresa transporte': item.get('empresa_transporte'),
+                        'conductor': item.get('conductor'),
+                        'código país': item.get('telefono_codigo_pais'),
+                        'celular conductor': item.get('telefono_conductor'),
+                        'patente camión': item.get('patente'),
+                    }
+                    faltantes_manuales = [nombre for nombre, valor in manuales.items() if not str(valor or '').strip()]
+                    if faltantes_manuales:
+                        return JsonResponse({'success': False, 'message': 'Debe completar: ' + ', '.join(faltantes_manuales) + '.'}, status=400)
+                    try:
+                        telefono = normalize_international_phone(item.get('telefono_codigo_pais'), item.get('telefono_conductor'))
+                    except ValueError as exc:
+                        return JsonResponse({'success': False, 'message': str(exc)}, status=400)
+                    item.update({
+                        'telefono_codigo_pais': telefono['country_code'],
+                        'telefono_conductor': telefono['local_number'],
+                        'empresa_transporte_id': '',
+                        'conductor_id': '',
+                    })
             if es_item_recepcion_terramar:
                 requeridos = {
                     'insumo': item.get('insumo'),
@@ -405,9 +959,9 @@ def CREAR_PLANIFICACION_CITACION(request):
                     transportista = SOCIONEGOCIO.objects.filter(pk=transportista_id, EP_NID_id=Empresa, SN_CTIPO='S', SN_BHABILITADO=True).first()
                     if not transportista:
                         return JsonResponse({'success': False, 'message': 'El transportista no pertenece a la empresa activa.'}, status=400)
-                    conductor = CONDUCTOR.objects.filter(pk=conductor_id, EP_NID_id=Empresa, SN_NID=transportista, CON_BHABILITADO=True).first()
+                    conductor = CONDUCTOR.objects.filter(pk=conductor_id, CON_BHABILITADO=True).first()
                     if not conductor:
-                        return JsonResponse({'success': False, 'message': 'El conductor no pertenece al transportista indicado.'}, status=400)
+                        return JsonResponse({'success': False, 'message': 'El conductor no está habilitado en el maestro.'}, status=400)
                     if not item['patente']:
                         return JsonResponse({'success': False, 'message': 'Debe ingresar la patente del camión.'}, status=400)
                     tarifa_planificacion, error_ruta = validar_tarifa_transportista(
@@ -466,15 +1020,27 @@ def CREAR_PLANIFICACION_CITACION(request):
                 else:
                     item['empresa_transporte'] = limpiar_texto_despacho(item.get('empresa_transporte'))
                     item['empresa_transporte_manual'] = ''
-                    item['conductor'] = limpiar_texto_despacho(item.get('conductor'))
-                    item['conductor_manual'] = ''
                     item['ingreso_manual_transporte'] = False
-
-                    campos_transporte_terramar = {
-                        'empresa transporte': item.get('empresa_transporte'),
-                        'conductor': item.get('conductor'),
-                        'patente': item.get('patente'),
-                    }
+                    if es_item_despacho_terramar and item.get('conductor_pendiente'):
+                        item.update({
+                            'conductor': '',
+                            'conductor_manual': '',
+                            'conductor_id': '',
+                            'telefono_codigo_pais': '',
+                            'telefono_conductor': '',
+                            'patente': '',
+                        })
+                        campos_transporte_terramar = {
+                            'empresa transporte': item.get('empresa_transporte'),
+                        }
+                    else:
+                        item['conductor'] = limpiar_texto_despacho(item.get('conductor'))
+                        item['conductor_manual'] = ''
+                        campos_transporte_terramar = {
+                            'empresa transporte': item.get('empresa_transporte'),
+                            'conductor': item.get('conductor'),
+                            'patente': item.get('patente'),
+                        }
                     faltantes_transporte = [
                         etiqueta for etiqueta, valor in campos_transporte_terramar.items()
                         if not str(valor or '').strip()
@@ -484,7 +1050,6 @@ def CREAR_PLANIFICACION_CITACION(request):
                             'success': False,
                             'message': 'Debe completar los campos de transporte Terramar: ' + ', '.join(faltantes_transporte) + '.'
                         }, status=400)
-
             cliente_codigo = item.get('cliente_codigo', '').strip()
             proveedor_codigo = item.get('proveedor', '').strip()
             proveedor_codigo_hidden = item.get('proveedor_codigo', '').strip()
@@ -496,7 +1061,7 @@ def CREAR_PLANIFICACION_CITACION(request):
             secuencia_item_id = item.get('secuencia_id') or secuencia_id
             secuencia_item = secuencia
 
-            if secuencia_item_id:
+            if secuencia_item_id and not es_recepcion_transferencia_sbh:
                 secuencia_item = SECUENCIA.objects.filter(
                     pk=secuencia_item_id,
                     EP_NID_id=Empresa,
@@ -504,6 +1069,11 @@ def CREAR_PLANIFICACION_CITACION(request):
                     SE_BHABILITADO=True
                 ).first() or secuencia
 
+            if es_item_despacho_terramar and (not secuencia_item or secuencia_item.SE_CCODIGO not in {'DESPACHO_TERRAMAR', 'DESPACHO_TERRAMAR_BODEGA_EXTERNA'}):
+                return JsonResponse({
+                    'success': False,
+                    'message': 'La secuencia seleccionada no es válida para Despacho Terramar.'
+                }, status=400)
             if es_item_recepcion_terramar and not queryset_secuencias_recepcion_terramar(Empresa).filter(pk=secuencia_item_id).exists():
                 return JsonResponse({
                     'success': False,
@@ -516,6 +1086,7 @@ def CREAR_PLANIFICACION_CITACION(request):
                 codigo=cliente_codigo,
                 nombre=item.get('cliente_nombre')
             )
+
 
             proveedor_sn = None if (
                 tipo_item_citacion == 'DESPACHO'
@@ -543,6 +1114,7 @@ def CREAR_PLANIFICACION_CITACION(request):
                 PL_NID=planificacion,
                 SN_NID=cliente_sn,
                 PRO_NID=proveedor_sn,
+                CON_NID=conductor_planificacion,
                 SC_NID=secuencia_item,
                 CI_FFECHAREGISTRO=timezone.now(),
                 CI_FFECHACITACION=fecha_llegada_obj,
@@ -589,7 +1161,12 @@ def CREAR_PLANIFICACION_CITACION(request):
                 {**item, 'proveedor_sap': proveedor_sap},
                 usuario=usuario
             )
+            if es_item_despacho_terramar:
+                guardar_detalle_despacho_terramar_citacion(citacion, item, usuario)
+                guardar_cliente_planificacion_despacho_terramar(citacion, item, usuario)
             guardar_datos_planificacion_operacional(citacion, {**item, 'proveedor_sap': proveedor_sap}, usuario, proveedor_sn=proveedor_sn)
+            if Empresa == 2 and tipo_item_citacion == CIT_RECEPCION:
+                guardar_cliente_planificacion_recepcion_sbh(citacion, item, usuario)
 
             if es_item_recepcion_terramar:
                 citacion.CI_CNUMERODOCUMENTO = str(item.get('numero_guia') or '').strip()
@@ -1723,11 +2300,131 @@ def _normalizar_match_texto(valor):
     return ' '.join(re.sub(r'[^A-Z0-9]+', ' ', texto).split())
 
 
+def _normalizar_bl_match(valor):
+    """Normaliza BL solo para comparar; nunca altera el dato persistido."""
+    return re.sub(r'[^A-Z0-9]', '', str(valor or '').strip().upper())
+
+
+def _distancia_edicion_bl(valor_a, valor_b):
+    """Distancia Levenshtein acotada a la regla de un caracter."""
+    if valor_a == valor_b:
+        return 0
+    if abs(len(valor_a) - len(valor_b)) > 1:
+        return 2
+    anterior = list(range(len(valor_b) + 1))
+    for indice_a, caracter_a in enumerate(valor_a, 1):
+        actual = [indice_a]
+        for indice_b, caracter_b in enumerate(valor_b, 1):
+            actual.append(min(
+                actual[-1] + 1,
+                anterior[indice_b] + 1,
+                anterior[indice_b - 1] + (caracter_a != caracter_b),
+            ))
+        if min(actual) > 1:
+            return 2
+        anterior = actual
+    return anterior[-1]
+
+
+def _es_camion_recepcion_sbh_patio(camion):
+    return bool(
+        getattr(camion, 'EP_NID_id', None) == 2
+        and str(getattr(camion, 'CPA_CTIPO_RECEPCION', '') or '').upper() in {'NACIONAL', 'EXTRANJERO'}
+    )
+
+
 def _detalle_operacional_citacion(citacion):
     try:
         return citacion.detalle_operacional
     except (CITACION_DETALLE_OPERACIONAL.DoesNotExist, AttributeError):
         return None
+
+
+PLAN_CODIGO_CLIENTE_SAP = 'PLAN_CODIGO_CLIENTE_SAP'
+PLAN_CLIENTE_SAP = 'PLAN_CLIENTE_SAP'
+
+
+def es_citacion_recepcion_sbh(citacion):
+    return bool(
+        citacion
+        and citacion.EP_NID_id == 2
+        and str(citacion.CI_CTIPO or '').upper() == CIT_RECEPCION
+    )
+
+
+def obtener_cliente_planificacion_citacion(citacion):
+    """Obtiene el cliente de planificación, priorizando el detalle SAP en Despacho."""
+    cache = getattr(citacion, '_cliente_planificacion_cache', None)
+    if cache is not None:
+        return cache
+
+    fallback = {
+        'codigo': citacion.SN_NID.SN_CCODIGO_SAP if citacion and citacion.SN_NID else '',
+        'nombre': citacion.SN_NID.SN_CRAZONSOCIAL if citacion and citacion.SN_NID else '',
+    }
+    tipo_citacion = str(
+        citacion.CI_CTIPO or (citacion.PL_NID.PL_CTIPOCUPO if citacion.PL_NID else '') or ''
+    ).upper()
+    es_despacho = tipo_citacion == CIT_DESPACHO
+    if not es_despacho and not es_citacion_recepcion_sbh(citacion):
+        setattr(citacion, '_cliente_planificacion_cache', fallback)
+        return fallback
+
+    registros = getattr(citacion, '_datos_cliente_planificacion', None)
+    if registros is None:
+        filtros = {
+            'CI_NID': citacion,
+            'CAMP_NID__CA_CCODIGO__in': [PLAN_CODIGO_CLIENTE_SAP, PLAN_CLIENTE_SAP],
+        }
+        if not es_despacho:
+            filtros['SC_NID'] = citacion.SC_NID
+        registros = DATO_OPERACION.objects.filter(**filtros).select_related('CAMP_NID').order_by('-id')
+
+    valores = {}
+    for dato in registros:
+        codigo = dato.CAMP_NID.CA_CCODIGO
+        if codigo not in valores:
+            valores[codigo] = str(dato.DO_CVALOR or '').strip()
+
+    detalle_despacho = _detalle_despacho_citacion_patio(citacion) if es_despacho else None
+    resultado = {
+        'codigo': (
+            str(getattr(detalle_despacho, 'CDD_CSAP_CLIENTE_CODIGO', '') or '').strip()
+            or valores.get(PLAN_CODIGO_CLIENTE_SAP)
+            or fallback['codigo']
+        ),
+        'nombre': (
+            str(getattr(detalle_despacho, 'CDD_CSAP_CLIENTE_NOMBRE', '') or '').strip()
+            or valores.get(PLAN_CLIENTE_SAP)
+            or fallback['nombre']
+        ),
+    }
+    setattr(citacion, '_cliente_planificacion_cache', resultado)
+    return resultado
+
+
+def obtener_contrato_planificacion_citacion(citacion):
+    """Obtiene el contrato SAP persistido para una citación de Despacho."""
+    if _tipo_citacion_patio(citacion) != CIT_DESPACHO:
+        return ''
+
+    detalle_despacho = _detalle_despacho_citacion_patio(citacion)
+    contrato_detalle = str(
+        getattr(detalle_despacho, 'CDD_CSAP_NUMERO_ACUERDO', '') or ''
+    ).strip()
+    if contrato_detalle:
+        return contrato_detalle
+
+    registros = getattr(citacion, '_datos_cliente_planificacion', None)
+    if registros is None:
+        registros = DATO_OPERACION.objects.filter(
+            CI_NID=citacion,
+            CAMP_NID__CA_CCODIGO='PLAN_CONTRATO_SAP',
+        ).select_related('CAMP_NID').order_by('-id')
+    for dato in registros:
+        if dato.CAMP_NID.CA_CCODIGO == 'PLAN_CONTRATO_SAP':
+            return str(dato.DO_CVALOR or '').strip()
+    return ''
 
 
 def _normalizar_patente_camion_patio(valor):
@@ -1751,6 +2448,15 @@ def _detalle_despacho_citacion_patio(citacion):
         return citacion.detalle_despacho
     except (CITACION_DESPACHO_DETALLE.DoesNotExist, AttributeError):
         return None
+
+
+def _etiqueta_salida_documento_despacho(valor):
+    codigo = str(valor or '').strip().upper()
+    return {
+        'FE': 'Factura de cliente',
+        'GD': 'Guía de despacho',
+        'FE_RESERVA': 'Factura reserva',
+    }.get(codigo, codigo)
 
 
 def _patente_planificada_despacho_patio(citacion, valores_ingreso=None):
@@ -1790,7 +2496,28 @@ def _score_citacion_camion_patio(camion, citacion):
     cliente_camion = _normalizar_match_texto(camion.CPA_CCLIENTE_DECLARADO)
     producto_citacion = _normalizar_match_texto(detalle.CDO_CINSUMO if detalle else '')
     proveedor_citacion = _normalizar_match_texto((detalle.CDO_CPRODUCTOR if detalle else '') or (citacion.PRO_NID.SN_CRAZONSOCIAL if citacion.PRO_NID else ''))
-    cliente_citacion = _normalizar_match_texto(citacion.SN_NID.SN_CRAZONSOCIAL if citacion.SN_NID else '')
+    cliente_citacion = _normalizar_match_texto(obtener_cliente_planificacion_citacion(citacion)['nombre'])
+
+    bl_camion = str(getattr(camion, 'CPA_CBL', '') or '').strip()
+    bl_citacion = str(getattr(detalle, 'CDO_CBL', '') or '').strip() if detalle else ''
+    bl_camion_normalizado = _normalizar_bl_match(bl_camion)
+    bl_citacion_normalizado = _normalizar_bl_match(bl_citacion)
+    bl_estado = ''
+    comparar_bl = _es_camion_recepcion_sbh_patio(camion) and es_citacion_recepcion_sbh(citacion)
+    if comparar_bl and bl_camion_normalizado and bl_citacion_normalizado:
+        if bl_camion_normalizado == bl_citacion_normalizado:
+            score += 40
+            razones.append('BL coincide')
+            bl_estado = 'coincide'
+        elif (
+            min(len(bl_camion_normalizado), len(bl_citacion_normalizado)) >= 6
+            and _distancia_edicion_bl(bl_camion_normalizado, bl_citacion_normalizado) == 1
+        ):
+            score += 15
+            razones.append('BL similar \u2014 revisar dato')
+            bl_estado = 'similar'
+        else:
+            bl_estado = 'distinto'
 
     if tipo == CIT_DESPACHO and patente_coincide:
         score += 100
@@ -1819,7 +2546,16 @@ def _score_citacion_camion_patio(camion, citacion):
         'patente_normalizada': patente_normalizada if tipo == CIT_DESPACHO else '',
         'patente_coincide': patente_coincide if tipo == CIT_DESPACHO else False,
         'patente_estado': patente_estado if tipo == CIT_DESPACHO else '',
+        'bl': bl_citacion if comparar_bl else '',
+        'bl_normalizado': bl_citacion_normalizado if comparar_bl else '',
+        'bl_estado': bl_estado if comparar_bl else '',
     }
+
+def _fecha_planificacion_sugerida_patio(citacion):
+    if not citacion.PL_NID or not citacion.PL_NID.PL_FFECHAINICIO:
+        return ''
+    formato = '%d/%m/%Y' if es_citacion_recepcion_sbh(citacion) else '%d/%m/%Y %H:%M'
+    return timezone.localtime(citacion.PL_NID.PL_FFECHAINICIO).strftime(formato)
 
 
 def _serializar_citacion_patio(camion, citacion, citacion_aprobada_id=None):
@@ -1837,6 +2573,10 @@ def _serializar_citacion_patio(camion, citacion, citacion_aprobada_id=None):
             f'&tipo={tipo}'
         )
     secuencia = citacion.SC_NID
+    cliente_planificacion = obtener_cliente_planificacion_citacion(citacion)
+    es_despacho_sbh = tipo == CIT_DESPACHO and getattr(citacion, 'EP_NID_id', None) == 2
+    detalle_despacho = sap_despacho_detalle_resumen_dict(citacion) if es_despacho_sbh else {}
+    salida_documento = detalle_despacho.get('salida_documento') or ''
     return {
         'id': citacion.id,
         'es_citacion_aprobada': citacion.id == citacion_aprobada_id,
@@ -1851,18 +2591,30 @@ def _serializar_citacion_patio(camion, citacion, citacion_aprobada_id=None):
             'codigo': secuencia.SE_CCODIGO or '',
             'nombre': secuencia.SE_CNOMBRE or '',
         } if secuencia else None,
-        'fecha_planificacion': timezone.localtime(citacion.PL_NID.PL_FFECHAINICIO).strftime('%d/%m/%Y %H:%M') if citacion.PL_NID and citacion.PL_NID.PL_FFECHAINICIO else '',
-        'cliente': citacion.SN_NID.SN_CRAZONSOCIAL if citacion.SN_NID else '',
+        'fecha_planificacion': _fecha_planificacion_sugerida_patio(citacion),
+        'cliente': cliente_planificacion['nombre'],
+        'cliente_nombre': cliente_planificacion['nombre'],
+        'cliente_codigo': cliente_planificacion['codigo'],
         'proveedor': (detalle.CDO_CPRODUCTOR if detalle else '') or (citacion.PRO_NID.SN_CRAZONSOCIAL if citacion.PRO_NID else ''),
         'producto': detalle.CDO_CINSUMO if detalle else '',
         'pedido_sap': detalle.CDO_CPEDIDO_SAP if detalle else '',
-        'contrato_sap': detalle.CDO_CCONTRATO_SAP if detalle and hasattr(detalle, 'CDO_CCONTRATO_SAP') else '',
+        'contrato_sap': (obtener_contrato_planificacion_citacion(citacion) if tipo == CIT_DESPACHO else (detalle.CDO_CCONTRATO_SAP if detalle and hasattr(detalle, 'CDO_CCONTRATO_SAP') else '')),
         'docentry': detalle.CDO_CDOCENTRY if detalle else '',
         'estado': citacion.CI_CESTADO,
         'patente': patente_info.get('patente', ''),
         'patente_normalizada': patente_info.get('patente_normalizada', ''),
         'patente_coincide': patente_info.get('patente_coincide', False),
         'patente_estado': patente_info.get('patente_estado', ''),
+        'bl': patente_info.get('bl', ''),
+        'bl_normalizado': patente_info.get('bl_normalizado', ''),
+        'bl_estado': patente_info.get('bl_estado', ''),
+        **({
+            'es_despacho_sbh': True,
+            'salida_documento': salida_documento,
+            'salida_documento_label': _etiqueta_salida_documento_despacho(salida_documento),
+            'destino': detalle_despacho.get('destino') or '',
+            'ventana_horaria': detalle_despacho.get('ventana_horaria_despacho') or '',
+        } if es_despacho_sbh else {}),
     }
 
 
@@ -1945,7 +2697,15 @@ def _citaciones_disponibles_para_patio(camion):
         CPA_CESTADO=CAMION_PATIO.ESTADO_ASOCIADO_CITACION
     ).values_list('CI_NID_id', flat=True)
     citaciones = CITACION.objects.select_related(
-        'PL_NID', 'SN_NID', 'PRO_NID', 'SC_NID', 'detalle_despacho'
+        'PL_NID', 'SN_NID', 'PRO_NID', 'SC_NID', 'detalle_despacho', 'detalle_operacional'
+    ).prefetch_related(
+        Prefetch(
+            'dato_operacion_set',
+            queryset=DATO_OPERACION.objects.filter(
+                CAMP_NID__CA_CCODIGO__in=[PLAN_CODIGO_CLIENTE_SAP, PLAN_CLIENTE_SAP, 'PLAN_CONTRATO_SAP'],
+            ).select_related('CAMP_NID').order_by('-id'),
+            to_attr='_datos_cliente_planificacion',
+        )
     ).filter(
         EP_NID=camion.EP_NID,
         CI_BHABILITADO=True,
@@ -1962,7 +2722,15 @@ def _citaciones_disponibles_para_patio(camion):
 
     if citacion_aprobada_id and not any(citacion.id == citacion_aprobada_id for citacion in citaciones):
         citacion_aprobada = CITACION.objects.select_related(
-            'PL_NID', 'SN_NID', 'PRO_NID', 'SC_NID', 'detalle_despacho'
+            'PL_NID', 'SN_NID', 'PRO_NID', 'SC_NID', 'detalle_despacho', 'detalle_operacional'
+        ).prefetch_related(
+            Prefetch(
+                'dato_operacion_set',
+                queryset=DATO_OPERACION.objects.filter(
+                    CAMP_NID__CA_CCODIGO__in=[PLAN_CODIGO_CLIENTE_SAP, PLAN_CLIENTE_SAP, 'PLAN_CONTRATO_SAP'],
+                ).select_related('CAMP_NID').order_by('-id'),
+                to_attr='_datos_cliente_planificacion',
+            )
         ).filter(
             pk=citacion_aprobada_id,
             EP_NID=camion.EP_NID,
@@ -1985,6 +2753,15 @@ def _citaciones_disponibles_para_patio(camion):
     return data
 
 
+def _formatear_fecha_documental_camion_patio(valor):
+    texto = str(valor or '').strip()
+    if len(texto) == 8 and texto.isdigit():
+        try:
+            return datetime.strptime(texto, '%d%m%Y').strftime('%d/%m/%Y')
+        except ValueError:
+            pass
+    return texto
+
 def _serializar_camion_patio(camion):
     solicitud = _solicitud_no_planificado_visible(camion)
     data = {
@@ -2002,6 +2779,17 @@ def _serializar_camion_patio(camion):
         'transportista': camion.CPA_CTRANSPORTISTA_DECLARADO or '',
         'proveedor': camion.CPA_CPROVEEDOR_DECLARADO or '',
         'insumo_declarado_guia': camion.CPA_CINSUMO_DECLARADO_GUIA or '',
+        'tipo_recepcion': camion.CPA_CTIPO_RECEPCION or '',
+        'tipo_recepcion_label': {'NACIONAL': 'Nacional', 'EXTRANJERO': 'Extranjero'}.get(camion.CPA_CTIPO_RECEPCION, ''),
+        'es_recepcion_sbh': _es_camion_recepcion_sbh_patio(camion),
+        'cda': camion.CPA_CCDA or '',
+        'di': camion.CPA_CDI or '',
+        'nave_naviera': camion.CPA_CNAVE_NAVIERA or '',
+        'fecha_produccion': camion.CPA_CFECHAPRODUCCION or '',
+        'fecha_produccion_display': _formatear_fecha_documental_camion_patio(camion.CPA_CFECHAPRODUCCION),
+        'fecha_vencimiento': camion.CPA_CFECHAVENCIMIENTOPRODUCTO or '',
+        'fecha_vencimiento_display': _formatear_fecha_documental_camion_patio(camion.CPA_CFECHAVENCIMIENTOPRODUCTO),
+        'sui': camion.CPA_CSUI or '',
         'cliente': camion.CPA_CCLIENTE_DECLARADO or '',
         'guia': camion.CPA_CNUMERO_GUIA or '',
         'bl': camion.CPA_CBL or '',
@@ -2498,6 +3286,60 @@ def _detalle_camion_patio_response(camion, request):
     })
 
 
+TIPOS_RECEPCION_CAMION_PATIO_SBH = {'NACIONAL', 'EXTRANJERO'}
+
+
+def _normalizar_tipo_recepcion_camion_patio_sbh(valor):
+    texto = str(valor or '').strip()
+    if not texto:
+        raise ValueError('Debe seleccionar si la recepción es Nacional o Extranjera.')
+    normalizado = texto.upper()
+    if normalizado not in TIPOS_RECEPCION_CAMION_PATIO_SBH:
+        raise ValueError('Tipo de recepción inválido.')
+    return normalizado
+
+
+def _normalizar_fecha_documental_sbh(valor, etiqueta):
+    """Valida una fecha real opcional y devuelve el formato operacional DDMMAAAA."""
+    texto = str(valor or '').strip()
+    if not texto:
+        return ''
+    partes = None
+    for separador in ('/', '-', '.'):
+        if separador in texto:
+            partes = texto.split(separador)
+            break
+    if (
+        partes
+        and len(partes) == 3
+        and len(partes[0]) != 4
+        and len(partes[-1]) == 2
+    ):
+        raise ValueError('Ingrese la fecha con año de cuatro dígitos.')
+
+    formatos = ('%d/%m/%Y', '%d-%m-%Y', '%d.%m.%Y', '%d%m%Y', '%Y-%m-%d')
+    fecha = None
+    for formato in formatos:
+        try:
+            fecha = datetime.strptime(texto, formato).date()
+            break
+        except ValueError:
+            continue
+    if fecha is None:
+        raise ValueError(f'{etiqueta} inválida.')
+    normalizada = fecha.strftime('%d%m%Y')
+    if len(normalizada) != 8:
+        raise ValueError(f'{etiqueta} inválida.')
+    return normalizada
+
+
+def _normalizar_fecha_vencimiento_producto_sbh(valor):
+    return _normalizar_fecha_documental_sbh(valor, 'Fecha de vencimiento de producto')
+
+
+def _normalizar_fecha_produccion_producto_sbh(valor):
+    return _normalizar_fecha_documental_sbh(valor, 'Fecha de producción')
+
 def _render_camiones_patio_registrar(request, empresa_id, form_data=None, status=200):
     camiones_pendientes = CAMION_PATIO.objects.filter(
         EP_NID_id=empresa_id,
@@ -2519,7 +3361,11 @@ def _normalizar_guia_planificacion(valor):
 
 def _citacion_terramar_disponible_para_llegada(citacion, ahora=None):
     ahora = ahora or timezone.now()
-    if not es_citacion_recepcion_terramar(citacion) or not citacion.CI_BHABILITADO or _estado_citacion_no_vigente(citacion):
+    if (
+        not (es_citacion_recepcion_terramar(citacion) or es_citacion_despacho_terramar(citacion))
+        or not citacion.CI_BHABILITADO
+        or _estado_citacion_no_vigente(citacion)
+    ):
         return False
     if not citacion.CI_FFECHACITACION or abs((citacion.CI_FFECHACITACION - ahora).total_seconds()) > 24 * 60 * 60:
         return False
@@ -2528,7 +3374,76 @@ def _citacion_terramar_disponible_para_llegada(citacion, ahora=None):
     return not ETAPA_LOG.objects.filter(CI_NID=citacion).exists() and not OPERACION_PLANTA_LOG.objects.filter(CI_NID=citacion).exists()
 
 
+def _resolver_conductor_planificado_despacho_patio(citacion, detalle):
+    conductor_fk = getattr(citacion, 'CON_NID', None)
+    if (
+        conductor_fk
+        and conductor_fk.EP_NID_id == ID_TERRAMAR
+        and conductor_fk.CON_BHABILITADO
+    ):
+        return conductor_fk
+
+    nombre_planificado = str(getattr(detalle, 'CDD_CCONDUCTOR', '') or '').strip()
+    nombre_normalizado = _normalizar_match_texto(nombre_planificado)
+    if not nombre_normalizado:
+        return None
+
+    candidatos = [
+        conductor for conductor in CONDUCTOR.objects.filter(
+            EP_NID_id=ID_TERRAMAR,
+            CON_BHABILITADO=True,
+        ).order_by('id')
+        if _normalizar_match_texto(
+            f'{conductor.CON_CNOMBRE or ""} {conductor.CON_CAPELLIDO or ""}'
+        ) == nombre_normalizado
+    ]
+    return candidatos[0] if len(candidatos) == 1 else None
+
 def _payload_citacion_terramar_patio(citacion):
+    if es_citacion_despacho_terramar(citacion):
+        detalle = CITACION_DESPACHO_DETALLE.objects.filter(CI_NID=citacion, EP_NID_id=1).first()
+        item_rel = CITACION_ITEM.objects.select_related('IT_NID').filter(CI_NID=citacion, EP_NID_id=1).order_by('id').first()
+        empresa_transporte_nombre = str(getattr(detalle, 'CDD_CEMPRESA_TRANSPORTE', '') or '').strip()
+        empresa_transporte = queryset_transportistas_validos_ingreso_camion(1, estrictamente_empresa=True).filter(
+            SN_CRAZONSOCIAL__iexact=empresa_transporte_nombre
+        ).first() if empresa_transporte_nombre else None
+        conductor_planificado = str(getattr(detalle, 'CDD_CCONDUCTOR', '') or '').strip()
+        patente_planificada = str(getattr(detalle, 'CDD_CPATENTE', '') or '').strip()
+        conductor_pendiente = not conductor_planificado and not patente_planificada
+        conductor = _resolver_conductor_planificado_despacho_patio(citacion, detalle)
+        conductor_nombre = (
+            f'{conductor.CON_CNOMBRE or ""} {conductor.CON_CAPELLIDO or ""}'.strip()
+            if conductor else conductor_planificado
+        )
+        telefono_maestro = split_legacy_phone(
+            getattr(conductor, 'CON_CCODIGO_PAIS_TELEFONO', ''),
+            getattr(conductor, 'CON_CTELEFONO', ''),
+        ) if conductor else {'country_code': '+56', 'local_number': ''}
+        datos_cliente = {}
+        for dato in DATO_OPERACION.objects.select_related('CAMP_NID').filter(
+            CI_NID=citacion,
+            CAMP_NID__CA_CCODIGO__in=[PLAN_CODIGO_CLIENTE_SAP, PLAN_CLIENTE_SAP, 'PLAN_CONTRATO_SAP'],
+        ).order_by('-id'):
+            datos_cliente.setdefault(dato.CAMP_NID.CA_CCODIGO, str(dato.DO_CVALOR or '').strip())
+        cliente_codigo = getattr(detalle, 'CDD_CSAP_CLIENTE_CODIGO', '') or datos_cliente.get(PLAN_CODIGO_CLIENTE_SAP, '') or (citacion.SN_NID.SN_CCODIGO_SAP if citacion.SN_NID else '')
+        cliente_nombre = getattr(detalle, 'CDD_CSAP_CLIENTE_NOMBRE', '') or datos_cliente.get(PLAN_CLIENTE_SAP, '') or (citacion.SN_NID.SN_CRAZONSOCIAL if citacion.SN_NID else '')
+        return {
+            'citacion_id': citacion.id, 'citacion_numero': citacion.id, 'numero_citacion': citacion.id, 'planificacion_id': citacion.PL_NID_id,
+            'fecha_citacion': timezone.localtime(citacion.CI_FFECHACITACION).strftime('%d/%m/%Y %H:%M'), 'estado': citacion.CI_CESTADO or '', 'tipo_citacion': CIT_DESPACHO,
+            'empresa_transporte_id': empresa_transporte.id if empresa_transporte else None, 'empresa_transporte_nombre': empresa_transporte_nombre,
+            'transporte_id': empresa_transporte.id if empresa_transporte else None, 'transporte_nombre': empresa_transporte_nombre,
+            'conductor_pendiente': conductor_pendiente, 'conductor_id': conductor.id if conductor else None,
+            'conductor_registrado': bool(conductor), 'conductor_nombre': conductor_nombre,
+            'conductor_rut': str(getattr(conductor, 'CON_CRUT', '') or '').strip(),
+            'conductor_telefono': getattr(detalle, 'CDD_CTELEFONO_CONDUCTOR', '') or telefono_maestro['local_number'],
+            'codigo_pais': getattr(detalle, 'CDD_CCODIGO_PAIS_TELEFONO', '') or telefono_maestro['country_code'],
+            'patente': getattr(detalle, 'CDD_CPATENTE', '') or '', 'transporte_a_cargo': getattr(detalle, 'CDD_CTRANSPORTE_A_CARGO', '') or 'Terramar',
+            'proveedor': citacion.PRO_NID.SN_CRAZONSOCIAL if citacion.PRO_NID else '', 'cliente': cliente_nombre, 'cliente_codigo': cliente_codigo,
+            'insumo': getattr(detalle, 'CDD_CSAP_NOMBRE_PRODUCTO', '') or (item_rel.IT_NID.IT_CNOMBRE if item_rel else ''),
+            'tipo_documento': citacion.CI_CTIPODOCUMENTO or '', 'guia_esperada': '', 'bl': '',
+            'contenedor_crt': getattr(detalle, 'CDD_CCONTENEDOR_CRT', '') or '', 'lote_contenedor': getattr(detalle, 'CDD_CCONTENEDOR_CRT', '') or '',
+            'secuencia': citacion.SC_NID.SE_CNOMBRE if citacion.SC_NID else '',
+        }
     detalle = CITACION_RECEPCION_TERRAMAR_DETALLE.objects.select_related('SN_NID_TRANSPORTISTA', 'CON_NID').filter(CI_NID=citacion).first()
     item_rel = CITACION_ITEM.objects.select_related('IT_NID').filter(CI_NID=citacion, EP_NID_id=1).order_by('id').first()
     conductor = detalle.CON_NID if detalle else None
@@ -2559,8 +3474,24 @@ def consultar_citacion_patente_patio(request):
     patente = _normalizar_patente_busqueda(request.GET.get('patente'))
     if not patente:
         return JsonResponse({'ok': False, 'status': 'INVALID_PLATE', 'matches': []}, status=400)
-    detalles = _queryset_patente_normalizada(CITACION_RECEPCION_TERRAMAR_DETALLE.objects.filter(EP_NID_id=1), 'RTD_CPATENTE', patente).select_related('CI_NID__PL_NID', 'CI_NID__SC_NID', 'CI_NID__SN_NID', 'CI_NID__PRO_NID')
-    matches = [d.CI_NID for d in detalles if _citacion_terramar_disponible_para_llegada(d.CI_NID)]
+    detalles_recepcion = _queryset_patente_normalizada(CITACION_RECEPCION_TERRAMAR_DETALLE.objects.filter(EP_NID_id=1), 'RTD_CPATENTE', patente).select_related('CI_NID__PL_NID', 'CI_NID__SC_NID', 'CI_NID__SN_NID', 'CI_NID__PRO_NID')
+    detalles_despacho = _queryset_patente_normalizada(CITACION_DESPACHO_DETALLE.objects.filter(EP_NID_id=1), 'CDD_CPATENTE', patente).select_related('CI_NID__PL_NID', 'CI_NID__SC_NID', 'CI_NID__SN_NID', 'CI_NID__PRO_NID')
+    citaciones = {detalle.CI_NID_id: detalle.CI_NID for detalle in detalles_recepcion}
+    citaciones.update({detalle.CI_NID_id: detalle.CI_NID for detalle in detalles_despacho})
+    matches = [citacion for citacion in citaciones.values() if _citacion_terramar_disponible_para_llegada(citacion)]
+    if not matches:
+        detalles_pendientes = CITACION_DESPACHO_DETALLE.objects.filter(
+            EP_NID_id=1,
+        ).filter(
+            (Q(CDD_CCONDUCTOR__isnull=True) | Q(CDD_CCONDUCTOR=''))
+            & (Q(CDD_CPATENTE__isnull=True) | Q(CDD_CPATENTE=''))
+        ).select_related(
+            'CI_NID__PL_NID', 'CI_NID__SC_NID', 'CI_NID__SN_NID', 'CI_NID__PRO_NID'
+        )
+        matches = [
+            detalle.CI_NID for detalle in detalles_pendientes
+            if _citacion_terramar_disponible_para_llegada(detalle.CI_NID)
+        ]
     payload = [_payload_citacion_terramar_patio(c) for c in matches]
     status = 'NO_MATCH' if not payload else ('MATCH' if len(payload) == 1 else 'MULTIPLE_MATCHES')
     return JsonResponse({'ok': True, 'status': status, 'matches': payload})
@@ -2579,7 +3510,7 @@ def _validar_carga_planificada_patio(request, empresa_id):
         raise ValueError('La citación seleccionada ya no está disponible para registrar llegada.')
     if str(request.POST.get('planificacion_planificada_id') or '') != str(citacion.PL_NID_id):
         raise ValueError('La planificación seleccionada no corresponde a la citación.')
-    guia_esperada = citacion.CI_CNUMERODOCUMENTO or ''
+    guia_esperada = (citacion.CI_CNUMERODOCUMENTO or '') if es_citacion_recepcion_terramar(citacion) else ''
     guia_recibida = str(request.POST.get('numero_guia') or '').strip()
     coinciden = not guia_esperada or _normalizar_guia_planificacion(guia_esperada) == _normalizar_guia_planificacion(guia_recibida)
     acepta = str(request.POST.get('acepta_diferencia_guia') or '') == '1'
@@ -2598,36 +3529,132 @@ def CAMIONES_PATIO_REGISTRAR(request):
         return redirect('/')
     empresa = EMPRESA.objects.filter(pk=Empresa).first()
     if request.method == 'POST':
+        es_despacho = str(request.POST.get('es_despacho') or '').strip().lower() in {
+            '1', 'true', 'on', 'yes', 'si', 'sí'
+        }
         try:
             citacion_planificada, trazabilidad_guia = _validar_carga_planificada_patio(request, Empresa)
         except ValueError as exc:
             messages.error(request, str(exc))
             return _render_camiones_patio_registrar(request, Empresa, request.POST, status=400)
-        transporte_a_cargo = str(request.POST.get('transporte_a_cargo') or '').strip().upper()
+        datos_planificados = (
+            _payload_citacion_terramar_patio(citacion_planificada)
+            if citacion_planificada and es_citacion_despacho_terramar(citacion_planificada)
+            else None
+        )
+        transporte_a_cargo = str(
+            (datos_planificados or {}).get('transporte_a_cargo')
+            or request.POST.get('transporte_a_cargo')
+            or ''
+        ).strip().upper()
         if transporte_a_cargo not in {'TERRAMAR', 'CLIENTE'}:
             messages.error(request, 'Debe seleccionar quien esta a cargo del transporte.')
             return _render_camiones_patio_registrar(request, Empresa, request.POST, status=400)
 
         transporte_cliente = transporte_a_cargo == 'CLIENTE'
-        conductor_manual = transporte_cliente or str(request.POST.get('conductor_manual') or '').strip().lower() in {
-            '1', 'true', 'on', 'yes'
-        }
+        conductor_no_registrado = (
+            not transporte_cliente
+            and str(request.POST.get('conductor_manual') or '').strip().lower() in {
+                '1', 'true', 'on', 'yes'
+            }
+        )
+        if conductor_no_registrado:
+            messages.error(
+                request,
+                'Debe registrar al conductor en el maestro antes de continuar con Transporte Terramar.',
+            )
+            return _render_camiones_patio_registrar(request, Empresa, request.POST, status=400)
+        conductor_manual = transporte_cliente
         patente = str(request.POST.get('patente') or '').strip().upper()
         rut_conductor = str(request.POST.get('rut_conductor') or '').strip()
         telefono_conductor = str(request.POST.get('telefono_conductor') or '').strip()
-        telefono_codigo_pais = str(request.POST.get('telefono_codigo_pais') or '+56').strip()
+        telefono_codigo_pais = str(
+            request.POST.get('telefono_codigo_pais')
+            or ('' if es_despacho else '+56')
+        ).strip()
         conductor = str(
             (request.POST.get('conductor_nombre_manual') or '')
             if conductor_manual
             else (request.POST.get('conductor') or '')
         ).strip()
-        transportista = 'CLIENTE' if transporte_cliente else str(request.POST.get('transportista') or '').strip()
+        transportista = 'CLIENTE' if transporte_cliente else str(
+            (datos_planificados or {}).get('empresa_transporte_nombre')
+            or request.POST.get('transportista')
+            or ''
+        ).strip()
+        if Empresa == ID_ACEITES_SBH and transporte_a_cargo == 'TERRAMAR':
+            transportista_id = str(request.POST.get('transportista_id') or '').strip()
+            if not transportista_id.isdigit():
+                messages.error(request, 'Debe seleccionar un transportista válido de SBH.')
+                return _render_camiones_patio_registrar(request, Empresa, request.POST, status=400)
+            transportista_sbh = queryset_transportistas_validos_ingreso_camion(
+                Empresa, estrictamente_empresa=True,
+            ).filter(pk=transportista_id).first()
+            if not transportista_sbh:
+                messages.error(request, 'El transportista seleccionado no pertenece al maestro habilitado de SBH.')
+                return _render_camiones_patio_registrar(request, Empresa, request.POST, status=400)
+            transportista = transportista_sbh.SN_CRAZONSOCIAL
+        if not transporte_cliente:
+            conductor_id = str(request.POST.get('conductor_id') or '').strip()
+            if not conductor_id.isdigit():
+                messages.error(request, 'Debe seleccionar un conductor registrado del maestro.')
+                return _render_camiones_patio_registrar(request, Empresa, request.POST, status=400)
+            conductores_maestro = CONDUCTOR.objects.filter(
+                pk=conductor_id,
+                CON_BHABILITADO=True,
+            )
+            conductor_maestro = conductores_maestro.first()
+            if not conductor_maestro:
+                messages.error(request, 'El conductor seleccionado no está habilitado en el maestro.')
+                return _render_camiones_patio_registrar(request, Empresa, request.POST, status=400)
+            conductor = ' '.join(
+                parte for parte in (
+                    str(conductor_maestro.CON_CNOMBRE or '').strip(),
+                    str(conductor_maestro.CON_CAPELLIDO or '').strip(),
+                ) if parte
+            )
+            rut_conductor = str(conductor_maestro.CON_CRUT or '').strip()
         proveedor = str(request.POST.get('proveedor') or '').strip()
         cliente = str(request.POST.get('cliente') or '').strip()
         tipo_documento = str(request.POST.get('tipo_documento') or '').strip().upper()
         numero_guia = str(request.POST.get('numero_guia') or '').strip()
         insumo_declarado_guia = str(request.POST.get('insumo_declarado_guia') or '').strip()
-
+        observacion = str(request.POST.get('observacion') or '').strip()
+        es_recepcion_sbh = Empresa == 2 and not es_despacho
+        tipo_recepcion = ''
+        cda = ''
+        di = ''
+        nave_naviera = ''
+        fecha_produccion = ''
+        fecha_vencimiento_producto = ''
+        sui = ''
+        bl = str(request.POST.get('bl') or '').strip()
+        lote_contenedor = str(request.POST.get('lote_contenedor') or '').strip()
+        if es_recepcion_sbh:
+            try:
+                tipo_recepcion = _normalizar_tipo_recepcion_camion_patio_sbh(
+                    request.POST.get('tipo_recepcion')
+                )
+                fecha_produccion = _normalizar_fecha_produccion_producto_sbh(
+                    request.POST.get('fecha_produccion')
+                )
+                fecha_vencimiento_producto = _normalizar_fecha_vencimiento_producto_sbh(
+                    request.POST.get('fecha_vencimiento_producto')
+                )
+            except ValueError as exc:
+                messages.error(request, str(exc))
+                return _render_camiones_patio_registrar(request, Empresa, request.POST, status=400)
+            if tipo_recepcion == 'EXTRANJERO':
+                cda = str(request.POST.get('cda') or '').strip()
+                di = str(request.POST.get('di') or '').strip()
+                nave_naviera = str(request.POST.get('nave_naviera') or '').strip()
+                sui = str(request.POST.get('sui') or '').strip()
+            else:
+                bl = ''
+                lote_contenedor = ''
+            if len(observacion) > 250:
+                messages.error(request, 'La observación no puede superar los 250 caracteres.')
+                return _render_camiones_patio_registrar(request, Empresa, request.POST, status=400)
         errores_validacion = []
         if transporte_a_cargo == 'TERRAMAR' and not transportista:
             errores_validacion.append('Empresa transporte')
@@ -2639,16 +3666,18 @@ def CAMIONES_PATIO_REGISTRAR(request):
             errores_validacion.append('RUT conductor')
         if not telefono_conductor:
             errores_validacion.append('Celular conductor')
-        if not proveedor:
+        if es_despacho and not telefono_codigo_pais:
+            errores_validacion.append('Codigo pais')
+        if not es_despacho and not proveedor:
             errores_validacion.append('Proveedor declarado')
-        if not cliente:
+        if not es_despacho and not cliente:
             errores_validacion.append('Cliente declarado')
-        if tipo_documento not in {'GD', 'FE'}:
+        if tipo_documento not in {'GD', 'FE'} and (not es_despacho or tipo_documento):
             messages.error(request, 'Tipo de documento inválido.')
             return _render_camiones_patio_registrar(request, Empresa, request.POST, status=400)
-        if not numero_guia:
+        if not es_despacho and not numero_guia:
             errores_validacion.append('Numero guia/documento')
-        if not insumo_declarado_guia:
+        if not es_despacho and not insumo_declarado_guia:
             errores_validacion.append('Insumo declarado en guia')
         if errores_validacion:
             messages.error(request, 'Debe completar los campos obligatorios: ' + ', '.join(errores_validacion) + '.')
@@ -2668,14 +3697,18 @@ def CAMIONES_PATIO_REGISTRAR(request):
                     EP_NID_id=Empresa,
                     CI_BHABILITADO=True,
                 )
-                detalle_planificado = CITACION_RECEPCION_TERRAMAR_DETALLE.objects.filter(CI_NID=citacion_planificada).first()
-                patente_planificada = _normalizar_patente_busqueda(detalle_planificado.RTD_CPATENTE if detalle_planificado else '')
+                if es_citacion_recepcion_terramar(citacion_planificada):
+                    detalle_planificado = CITACION_RECEPCION_TERRAMAR_DETALLE.objects.filter(CI_NID=citacion_planificada).first()
+                    patente_planificada = _normalizar_patente_busqueda(detalle_planificado.RTD_CPATENTE if detalle_planificado else '')
+                else:
+                    detalle_planificado = CITACION_DESPACHO_DETALLE.objects.filter(CI_NID=citacion_planificada).first()
+                    patente_planificada = _normalizar_patente_busqueda(detalle_planificado.CDD_CPATENTE if detalle_planificado else '')
                 if (
                     not (getattr(request.user, 'is_superuser', False) or _usuario_tiene_acceso_empresa(request.user, Empresa))
                     or not _citacion_terramar_disponible_para_llegada(citacion_planificada)
-                    or not es_citacion_recepcion_terramar(citacion_planificada)
+                    or not (es_citacion_recepcion_terramar(citacion_planificada) or es_citacion_despacho_terramar(citacion_planificada))
                     or citacion_planificada.PL_NID_id != int(request.POST.get('planificacion_planificada_id') or 0)
-                    or patente_planificada != _normalizar_patente_busqueda(patente)
+                    or (patente_planificada and patente_planificada != _normalizar_patente_busqueda(patente))
                 ):
                     raise ValueError('La citación planificada ya no es válida para asociar automáticamente el camión.')
             camion = CAMION_PATIO.objects.create(
@@ -2690,17 +3723,28 @@ def CAMIONES_PATIO_REGISTRAR(request):
             CPA_CTRANSPORTISTA_DECLARADO=transportista,
             CPA_CPROVEEDOR_DECLARADO=proveedor,
             CPA_CINSUMO_DECLARADO_GUIA=insumo_declarado_guia,
+            CPA_CTIPO_RECEPCION=tipo_recepcion,
+            CPA_CCDA=cda,
+            CPA_CDI=di,
+            CPA_CNAVE_NAVIERA=nave_naviera,
+            CPA_CFECHAPRODUCCION=fecha_produccion,
+            CPA_CFECHAVENCIMIENTOPRODUCTO=fecha_vencimiento_producto,
+            CPA_CSUI=sui,
             CPA_CCLIENTE_DECLARADO=cliente,
             CPA_CTIPO_DOCUMENTO=tipo_documento,
             CPA_CNUMERO_GUIA=numero_guia,
-            CPA_CBL=str(request.POST.get('bl') or '').strip(),
-            CPA_CLOTE_CONTENEDOR=str(request.POST.get('lote_contenedor') or '').strip(),
-            CPA_COBSERVACION=str(request.POST.get('observacion') or '').strip(),
+            CPA_CBL=bl,
+            CPA_CLOTE_CONTENEDOR=lote_contenedor,
+            CPA_COBSERVACION=observacion,
                 US_GUARDIA_ID=request.user,
             )
             if citacion_planificada:
                 detalle_planificado = getattr(citacion_planificada, 'detalle_recepcion_terramar', None)
-                CAMION_PATIO_TRAZABILIDAD_PLANIFICACION.objects.create(CPA_NID=camion, CI_NID=citacion_planificada, PL_NID=citacion_planificada.PL_NID, EP_NID=empresa, CPTR_CPATENTE_CONSULTADA=_normalizar_patente_busqueda(request.POST.get('patente_consultada') or patente), CPTR_CRESULTADO_BUSQUEDA='MATCH', CPTR_BCARGADO_DESDE_PLANIFICACION=True, CPTR_CPATENTE_PLANIFICADA=(detalle_planificado.RTD_CPATENTE if detalle_planificado else ''), CPTR_CPATENTE_LLEGADA=patente, CPTR_CGUIA_ESPERADA=trazabilidad_guia['guia_esperada'], CPTR_CGUIA_RECIBIDA=trazabilidad_guia['guia_recibida'], CPTR_CRESULTADO_GUIA=trazabilidad_guia['resultado_guia'], CPTR_BDIFERENCIA_ACEPTADA=trazabilidad_guia['acepta_diferencia'], CPTR_COBSERVACION_DIFERENCIA=trazabilidad_guia['observacion'], US_NID=request.user, CPTR_FFECHACONSULTA=timezone.now())
+                patente_planificada = detalle_planificado.RTD_CPATENTE if detalle_planificado else ''
+                if es_citacion_despacho_terramar(citacion_planificada):
+                    detalle_planificado = CITACION_DESPACHO_DETALLE.objects.filter(CI_NID=citacion_planificada).first()
+                    patente_planificada = detalle_planificado.CDD_CPATENTE if detalle_planificado else ''
+                CAMION_PATIO_TRAZABILIDAD_PLANIFICACION.objects.create(CPA_NID=camion, CI_NID=citacion_planificada, PL_NID=citacion_planificada.PL_NID, EP_NID=empresa, CPTR_CPATENTE_CONSULTADA=_normalizar_patente_busqueda(request.POST.get('patente_consultada') or patente), CPTR_CRESULTADO_BUSQUEDA='MATCH', CPTR_BCARGADO_DESDE_PLANIFICACION=True, CPTR_CPATENTE_PLANIFICADA=patente_planificada, CPTR_CPATENTE_LLEGADA=patente, CPTR_CGUIA_ESPERADA=trazabilidad_guia['guia_esperada'], CPTR_CGUIA_RECIBIDA=trazabilidad_guia['guia_recibida'], CPTR_CRESULTADO_GUIA=trazabilidad_guia['resultado_guia'], CPTR_BDIFERENCIA_ACEPTADA=trazabilidad_guia['acepta_diferencia'], CPTR_COBSERVACION_DIFERENCIA=trazabilidad_guia['observacion'], US_NID=request.user, CPTR_FFECHACONSULTA=timezone.now())
             for archivo in request.FILES.getlist('archivos_documentos'):
                 CAMION_PATIO_ADJUNTO.objects.create(
                     CPA_NID=camion,
@@ -3125,10 +4169,34 @@ def _normalizar_datos_edicion_camion_patio(post, camion):
         'CPA_CCLIENTE_DECLARADO': valor('cliente', 'CPA_CCLIENTE_DECLARADO'),
         'CPA_CNUMERO_GUIA': valor('numero_guia', 'CPA_CNUMERO_GUIA'),
         'CPA_CINSUMO_DECLARADO_GUIA': valor('insumo_declarado_guia', 'CPA_CINSUMO_DECLARADO_GUIA'),
-        'CPA_CBL': valor('bl', 'CPA_CBL'),
-        'CPA_CLOTE_CONTENEDOR': valor('lote_contenedor', 'CPA_CLOTE_CONTENEDOR'),
         'CPA_COBSERVACION': valor('observacion', 'CPA_COBSERVACION'),
     }
+    if _es_camion_recepcion_sbh_patio(camion):
+        tipo_recepcion_post = str(post.get('tipo_recepcion') or '').strip()
+        tipo_recepcion = _normalizar_tipo_recepcion_camion_patio_sbh(
+            tipo_recepcion_post or camion.CPA_CTIPO_RECEPCION
+        )
+        datos.update({
+            'CPA_CTIPO_RECEPCION': tipo_recepcion,
+            'CPA_CFECHAPRODUCCION': _normalizar_fecha_produccion_producto_sbh(valor('fecha_produccion', 'CPA_CFECHAPRODUCCION')),
+            'CPA_CFECHAVENCIMIENTOPRODUCTO': _normalizar_fecha_vencimiento_producto_sbh(valor('fecha_vencimiento', 'CPA_CFECHAVENCIMIENTOPRODUCTO')),
+        })
+        campos_extranjero = {
+            'CPA_CCDA': 'cda',
+            'CPA_CDI': 'di',
+            'CPA_CBL': 'bl',
+            'CPA_CNAVE_NAVIERA': 'nave_naviera',
+            'CPA_CLOTE_CONTENEDOR': 'lote_contenedor',
+            'CPA_CSUI': 'sui',
+        }
+        for campo, nombre in campos_extranjero.items():
+            datos[campo] = valor(nombre, campo) if tipo_recepcion == 'EXTRANJERO' else ''
+    else:
+        datos.update({
+            'CPA_CBL': valor('bl', 'CPA_CBL'),
+            'CPA_CLOTE_CONTENEDOR': valor('lote_contenedor', 'CPA_CLOTE_CONTENEDOR'),
+        })
+
     obligatorios = [
         ('CPA_CTRANSPORTISTA_DECLARADO', 'Empresa transporte'),
         ('CPA_CNOMBRE_CONDUCTOR', 'Nombre conductor'),
@@ -3147,7 +4215,6 @@ def _normalizar_datos_edicion_camion_patio(post, camion):
     datos['CPA_CTELEFONO_CONDUCTOR'] = telefono['local_number']
     datos['CPA_CCODIGO_PAIS_TELEFONO'] = telefono['country_code']
     return datos
-
 
 def _actualizar_datos_operacionales_desde_camion_patio(camion, citacion, usuario):
     datos_operacion = [
@@ -3367,6 +4434,13 @@ def CAMION_PATIO_ADJUNTO_VER(request, pk):
     return FileResponse(open(adjunto.CPA_FARCHIVO.path, 'rb'), as_attachment=False, filename=os.path.basename(adjunto.CPA_FARCHIVO.name))
 
 
+def _bl_planificacion_asociacion_recepcion_sbh(citacion):
+    if not es_citacion_recepcion_sbh(citacion):
+        return ''
+    detalle_operacional = _detalle_operacional_citacion(citacion)
+    return str(getattr(detalle_operacional, 'CDO_CBL', '') or '').strip()
+
+
 def CAMIONES_PATIO_PENDIENTES_CITACION(request, pk):
     if not usuario_puede_revisar_camion_patio(request.user):
         return JsonResponse({'success': False, 'message': 'No tiene permisos.'}, status=403)
@@ -3374,7 +4448,7 @@ def CAMIONES_PATIO_PENDIENTES_CITACION(request, pk):
     if Empresa is None:
         return JsonResponse({'success': False, 'message': 'Debe seleccionar una empresa.'}, status=400)
     try:
-        citacion = CITACION.objects.select_related('EP_NID', 'PL_NID', 'SN_NID', 'PRO_NID', 'SC_NID').get(pk=pk, EP_NID_id=Empresa, CI_BHABILITADO=True)
+        citacion = CITACION.objects.select_related('EP_NID', 'PL_NID', 'SN_NID', 'PRO_NID', 'SC_NID', 'detalle_despacho', 'detalle_operacional').get(pk=pk, EP_NID_id=Empresa, CI_BHABILITADO=True)
     except CITACION.DoesNotExist:
         return JsonResponse({'success': False, 'message': 'Citacion no encontrada.'}, status=404)
     if not citacion_disponible_para_asociar_camion_patio(citacion):
@@ -3395,17 +4469,30 @@ def CAMIONES_PATIO_PENDIENTES_CITACION(request, pk):
             Q(CPA_CNUMERO_GUIA__icontains=q) |
             Q(CPA_CBL__icontains=q)
         )
-    detalle = _detalle_operacional_citacion(citacion)
+    citacion_payload = _serializar_citacion_patio(CAMION_PATIO(EP_NID=citacion.EP_NID), citacion)
     return JsonResponse({
         'success': True,
-        'citacion': _serializar_citacion_patio(CAMION_PATIO(EP_NID=citacion.EP_NID), citacion),
+        'citacion': citacion_payload,
         'citacion_resumen': {
             'id': citacion.id,
-            'producto': detalle.CDO_CINSUMO if detalle else '',
-            'proveedor': (detalle.CDO_CPRODUCTOR if detalle else '') or (citacion.PRO_NID.SN_CRAZONSOCIAL if citacion.PRO_NID else ''),
-            'cliente': citacion.SN_NID.SN_CRAZONSOCIAL if citacion.SN_NID else '',
-            'pedido_sap': detalle.CDO_CPEDIDO_SAP if detalle else '',
-            'contrato_sap': getattr(detalle, 'CDO_CCONTRATO_SAP', '') if detalle else '',
+            'producto': citacion_payload['producto'],
+            'proveedor': citacion_payload['proveedor'],
+            'cliente': citacion_payload['cliente'],
+            'cliente_nombre': citacion_payload['cliente_nombre'],
+            'cliente_codigo': citacion_payload['cliente_codigo'],
+            'pedido_sap': citacion_payload['pedido_sap'],
+            'contrato_sap': citacion_payload['contrato_sap'],
+            **({
+                'es_recepcion_sbh': True,
+                'bl': _bl_planificacion_asociacion_recepcion_sbh(citacion),
+            } if es_citacion_recepcion_sbh(citacion) else {}),
+            **({
+                'es_despacho_sbh': True,
+                'salida_documento': citacion_payload['salida_documento'],
+                'salida_documento_label': citacion_payload['salida_documento_label'],
+                'destino': citacion_payload['destino'],
+                'ventana_horaria': citacion_payload['ventana_horaria'],
+            } if citacion_payload.get('es_despacho_sbh') else {}),
         },
         'camiones': [
             dict(_serializar_camion_patio(camion), adjuntos=[
@@ -3458,6 +4545,16 @@ def _copiar_datos_camion_patio_a_citacion(camion, citacion, usuario):
                 citacion.id, 'ING_TELEFONO_CONDUCTOR_RAW', len(str(camion.CPA_CTELEFONO_CONDUCTOR))
             )
             datos_guardados.append(guardar_dato_operacion_codigo(citacion, 'ING_TELEFONO_CONDUCTOR_RAW', camion.CPA_CTELEFONO_CONDUCTOR, usuario, etiqueta='Celular conductor informado'))
+    if citacion.EP_NID_id == 2 and str(citacion.CI_CTIPO or '').strip().upper() == CIT_RECEPCION:
+        fecha_vencimiento = str(camion.CPA_CFECHAVENCIMIENTOPRODUCTO or '').strip()
+        if fecha_vencimiento:
+            fecha_vencimiento = _normalizar_fecha_vencimiento_producto_sbh(fecha_vencimiento)
+        citacion.CI_CFECHAVENCIMIENTOPRODUCTO = fecha_vencimiento or None
+        citacion.CI_CCOMENTARIO = str(camion.CPA_COBSERVACION or '').strip()
+        citacion.save(update_fields=[
+            'CI_CFECHAVENCIMIENTOPRODUCTO',
+            'CI_CCOMENTARIO',
+        ])
     if camion.CPA_CNUMERO_GUIA or camion.CPA_CTIPO_DOCUMENTO:
         logger.info(
             'CAMION_PATIO_ASOCIAR actualizando CITACION citacion_id=%s campos=CI_CTIPODOCUMENTO,CI_CNUMERODOCUMENTO tipo=%s numero_len=%s',
@@ -3543,12 +4640,13 @@ def _preparar_citacion_patio_para_revision_ar(citacion, camion, usuario):
         camion.CPA_CPATENTE
     )
     logger.info('CAMION_PATIO_ASOCIAR creando log AVANZA_AR citacion_id=%s', citacion.id)
+    destino_revision = 'Despacho Terramar' if es_citacion_despacho_terramar(citacion) else 'Asistente Recepcion'
     registrar_log_camion_no_planificado(
         usuario,
         citacion.EP_NID,
         'AVANZA_AR',
         (
-            f'Citacion #{citacion.id} preparada para revision de Asistente Recepcion desde Camion en Patio. '
+            f'Citacion #{citacion.id} preparada para revision de {destino_revision} desde Camion en Patio. '
             f'Etapa {etapa_actual.ET_CCODIGO} a {siguiente_etapa.ET_NID.ET_CCODIGO}. '
             f'Camion patio #{camion.id}; patente {camion.CPA_CPATENTE}.'
         ),
@@ -3784,11 +4882,17 @@ def PLANIFICACION_CITACION_INGRESO_CAMION(request, pk):
 
 def queryset_transportistas_validos_ingreso_camion(empresa_id, estrictamente_empresa=False):
     """Transportistas habilitados propios o respaldados por conductor/camion habilitado de la empresa."""
+    es_sbh = str(empresa_id) == str(ID_ACEITES_SBH)
     relacionados_conductor = CONDUCTOR.objects.filter(EP_NID_id=empresa_id, CON_BHABILITADO=True, SN_NID__isnull=False).values_list('SN_NID_id', flat=True)
     relacionados_camion = CAMION.objects.filter(EP_NID_id=empresa_id, CAM_BHABILITADO=True, SN_NID__isnull=False).values_list('SN_NID_id', flat=True)
     base = SOCIONEGOCIO.objects.filter(SN_BHABILITADO=True, SN_CTIPO='S')
-    if estrictamente_empresa:
-        return base.filter(EP_NID_id=empresa_id)
+    if estrictamente_empresa or es_sbh:
+        propios = base.filter(EP_NID_id=empresa_id)
+        if es_sbh:
+            # Registro histórico ficticio: se maneja como transporte a cargo
+            # del cliente y nunca como transportista seleccionable.
+            propios = propios.exclude(SN_CRUT='55555555-5')
+        return propios
     return base.filter(
         Q(EP_NID_id=empresa_id) | Q(id__in=relacionados_conductor) | Q(id__in=relacionados_camion)
     ).distinct()
@@ -3897,7 +5001,7 @@ def obtener_ids_transportistas_equivalentes(transportista):
 
 
 def obtener_camiones_inequivocos_por_conductor(conductores_ids, transportistas_ids, empresa_id):
-    if not conductores_ids or not transportistas_ids or not empresa_id:
+    if not conductores_ids or not empresa_id:
         return {}
 
     historial = CITACION.objects.filter(
@@ -3906,13 +5010,14 @@ def obtener_camiones_inequivocos_por_conductor(conductores_ids, transportistas_i
         CI_BHABILITADO=True,
         CA_NID__isnull=False,
         CA_NID__CAM_BHABILITADO=True,
-        CA_NID__SN_NID_id__in=transportistas_ids,
     ).order_by('CON_NID_id', '-CI_FFECHACITACION', '-id').values(
         'CON_NID_id',
         'CA_NID_id',
         'CA_NID__CAM_CPATENTE',
         'CA_NID__CAM_CCARGA',
     )
+    if transportistas_ids:
+        historial = historial.filter(CA_NID__SN_NID_id__in=transportistas_ids)
 
     camiones_por_conductor = {}
     patentes_por_conductor = {}
@@ -3950,44 +5055,50 @@ def AJAX_CONDUCTORES_INGRESO_CAMION(request):
     transportista_id = str(request.GET.get('transportista_id') or '').strip()
     transportista_nombre = str(request.GET.get('transportista') or '').strip()
     query = str(request.GET.get('q') or '').strip()
+    estricto = str(request.GET.get('estricto_empresa') or '') == '1'
+    es_sbh = str(empresa_id) == str(ID_ACEITES_SBH)
 
-    if not empresa_id or (not transportista_id and not transportista_nombre):
+    if not empresa_id:
         return JsonResponse({'results': []})
 
-    transportistas_validos = queryset_transportistas_validos_ingreso_camion(empresa_id)
     transportista = None
-    if transportista_id.isdigit():
-        transportista = transportistas_validos.filter(id=transportista_id).first()
-    if not transportista and transportista_nombre:
-        transportista_nombre_limpio = transportista_nombre.split('(')[0].strip()
-        transportista = transportistas_validos.filter(SN_CRAZONSOCIAL__iexact=transportista_nombre_limpio).first()
-    if not transportista:
-        return JsonResponse({'results': []})
-
-    if transportista_id.isdigit() or estricto:
-        transportistas_ids = [transportista.id]
+    if es_sbh or (not transportista_id and not transportista_nombre):
+        # Para SBH el conductor es un padrón operacional global. El
+        # transportista es otra referencia del viaje y no restringe esta lista.
+        transportistas_ids = []
+        conductores = CONDUCTOR.objects.filter(CON_BHABILITADO=True)
     else:
-        transportistas_ids = obtener_ids_transportistas_equivalentes(transportista)
+        transportistas_validos = queryset_transportistas_validos_ingreso_camion(empresa_id)
+        if transportista_id.isdigit():
+            transportista = transportistas_validos.filter(id=transportista_id).first()
+        if not transportista and transportista_nombre:
+            transportista_nombre_limpio = transportista_nombre.split('(')[0].strip()
+            transportista = transportistas_validos.filter(SN_CRAZONSOCIAL__iexact=transportista_nombre_limpio).first()
+        if transportista and (transportista_id.isdigit() or estricto):
+            transportistas_ids = [transportista.id]
+        elif transportista:
+            transportistas_ids = obtener_ids_transportistas_equivalentes(transportista)
+        else:
+            transportistas_ids = []
+        conductores = CONDUCTOR.objects.filter(CON_BHABILITADO=True)
 
-    conductores = CONDUCTOR.objects.filter(
-        EP_NID_id=empresa_id,
-        SN_NID_id__in=transportistas_ids,
-        CON_BHABILITADO=True
-    )
+    es_terramar = str(empresa_id) == str(ID_TERRAMAR)
+    transportistas_historial = [] if (es_terramar or es_sbh) else transportistas_ids
 
     if query:
-        conductores = conductores.filter(
-            Q(CON_CNOMBRE__icontains=query) |
-            Q(CON_CAPELLIDO__icontains=query) |
-            Q(CON_CRUT__icontains=query)
-        )
+        for token in query.split():
+            conductores = conductores.filter(
+                Q(CON_CNOMBRE__icontains=token) |
+                Q(CON_CAPELLIDO__icontains=token) |
+                Q(CON_CRUT__icontains=token)
+            )
 
     conductores = list(
-        conductores.order_by('-EP_NID_id', 'CON_CNOMBRE', 'CON_CAPELLIDO')[:300]
+        conductores.order_by('-EP_NID_id', 'CON_CNOMBRE', 'CON_CAPELLIDO')
     )
-    camion_por_conductor = obtener_camiones_inequivocos_por_conductor(
+    camion_por_conductor = {} if es_sbh else obtener_camiones_inequivocos_por_conductor(
         [conductor.id for conductor in conductores],
-        transportistas_ids,
+        transportistas_historial,
         empresa_id,
     )
     results = []
@@ -4006,7 +5117,7 @@ def AJAX_CONDUCTORES_INGRESO_CAMION(request):
                 'AJAX_CONDUCTORES_INGRESO_CAMION transportista_id=%s conductor_id=%s '
                 'rut=%s telefono=%s patente=%s criterio=historial_citacion_inequivoco'
             ),
-            transportista.id,
+            transportista.id if transportista else None,
             conductor.id,
             rut_visual or None,
             conductor.CON_CTELEFONO or None,
@@ -4026,12 +5137,13 @@ def AJAX_CONDUCTORES_INGRESO_CAMION(request):
             'camiones': camiones_conductor,
         })
 
+    camiones_disponibles = obtener_camiones_transportista_ingreso(transportistas_ids, empresa_id)
     return JsonResponse({
         'results': results,
         'patente_sugerida': '',
         'camion_id': '',
         'patente': '',
-        'camiones': [],
+        'camiones': camiones_disponibles,
     })
 
 
@@ -4488,6 +5600,24 @@ def es_citacion_despacho(citacion):
     return str(citacion.CI_CTIPO or (citacion.PL_NID.PL_CTIPOCUPO if citacion.PL_NID else '') or '').upper() == CIT_DESPACHO
 
 
+def es_citacion_despacho_sbh(citacion):
+    return citacion.EP_NID_id == 2 and es_citacion_despacho(citacion)
+
+
+FLUJOS_DESPACHO_SBH_SAP_UPDATE = {
+    'EST_SBH_CLIENTE',
+    'TRASVASIJE_CLIENTE',
+    'BODEGA_PATIO_CLIENTE',
+}
+
+
+def es_despacho_sbh_operacion(citacion):
+    secuencia_codigo = str(
+        citacion.SC_NID.SE_CCODIGO if getattr(citacion, 'SC_NID', None) else ''
+    ).strip().upper()
+    return es_citacion_despacho_sbh(citacion) and secuencia_codigo in FLUJOS_DESPACHO_SBH_SAP_UPDATE
+
+
 def datos_asistente_cd_despacho(citacion, datos_operacion=None, detalle_operacional=None):
     datos_operacion = datos_operacion or {}
     detalle_operacional = detalle_operacional or detalle_operacional_dict(citacion)
@@ -4501,6 +5631,10 @@ def datos_asistente_cd_despacho(citacion, datos_operacion=None, detalle_operacio
         return str(dato.DO_CVALOR or '').strip() if dato else ''
 
     peso_detalle = getattr(detalle_despacho, 'CDD_NPESO_INFORMADO', None) if detalle_despacho else None
+    cantidad_intentada = (
+        getattr(detalle_despacho, 'CDD_NCANTIDAD_INTENTADA_DESPACHAR', None)
+        if detalle_despacho else None
+    )
 
     return {
         'zona_carga': valor_codigo('ACD_ZONA_CARGA'),
@@ -4508,6 +5642,7 @@ def datos_asistente_cd_despacho(citacion, datos_operacion=None, detalle_operacio
         'codigo_sap': valor_codigo('ACD_CODIGO_SAP') or str(detalle_operacional.get('codigo') or '').strip(),
         'numero_bach': valor_codigo('ACD_NUMERO_BACH'),
         'peso_informado': valor_codigo('ACD_PESO_INFORMADO') or (format(peso_detalle, 'f') if peso_detalle is not None else ''),
+        'cantidad_intentada_despachar': format(cantidad_intentada.normalize(), 'f') if cantidad_intentada is not None else '',
         'intermes_id': valor_codigo('ACD_INTERMES_ID') or valor_codigo('AR_INTERMES_ID'),
         'lote_quantity': valor_codigo('ACD_LOTE_QUANTITY'),
         'lote_indate': valor_codigo('ACD_LOTE_INDATE'),
@@ -4518,11 +5653,148 @@ def datos_asistente_cd_despacho(citacion, datos_operacion=None, detalle_operacio
 
 def datos_asistente_cd_despacho_guardados(citacion, datos_operacion=None):
     datos = datos_asistente_cd_despacho(citacion, datos_operacion)
-    return all(str(datos.get(campo) or '').strip() for campo in ['zona_carga', 'estanque_origen', 'codigo_sap', 'numero_bach', 'intermes_id', 'peso_informado'])
+    campos_requeridos = ['zona_carga', 'estanque_origen', 'codigo_sap', 'numero_bach', 'intermes_id']
+    campos_requeridos.append(
+        'cantidad_intentada_despachar' if es_citacion_despacho_sbh(citacion) else 'peso_informado'
+    )
+    return all(str(datos.get(campo) or '').strip() for campo in campos_requeridos)
+
+
+def mensaje_error_sap_despacho_usuario(sap_error):
+    if not isinstance(sap_error, dict) or not isinstance(sap_error.get('data'), dict):
+        return ''
+    return sap_despacho_error_corto({'data': sap_error['data']})
+
+
+def estado_draft_sap_despacho_modal(citacion):
+    estado = dict(get_sap_despacho_draft_status(citacion) or {})
+    if estado.get('created'):
+        estado['is_error'] = False
+        return estado
+    ultimo_intento = OPERACION_PLANTA_LOG.objects.filter(
+        CI_NID=citacion,
+        OPL_CPASO=LOG_BORRADOR_SAP_DESPACHO_ENVIO,
+    ).order_by('-OPL_FFECHAREGISTRO', '-id').first()
+    if not ultimo_intento or ultimo_intento.OPL_CESTADO == OPERACION_PLANTA_LOG.ESTADO_COMPLETADO:
+        estado['is_error'] = False
+        return estado
+    try:
+        metadata = json.loads(ultimo_intento.OPL_COBSERVACION or '{}')
+    except (TypeError, ValueError):
+        metadata = {}
+    estado.update({
+        'is_error': True,
+        'label': 'Error al crear Draft SAP',
+        'error_message': mensaje_error_sap_despacho_usuario(metadata.get('sap_error')) or 'SAP no pudo crear el Draft.',
+    })
+    return estado
+
+
+def guardar_datos_y_crear_draft_despacho_sbh(citacion, data, usuario):
+    if not es_citacion_despacho_sbh(citacion):
+        return False, {
+            'success': False,
+            'message': 'La creación automática del Draft SAP solo aplica a Despacho SBH.',
+            'datos_guardados': False,
+            'draft_sap': {},
+            'sap_despacho_draft': {},
+            'puede_avanzar': False,
+        }
+    estado_inicial = get_sap_despacho_draft_status(citacion)
+    if estado_inicial.get('created'):
+        datos_operacion, _ = obtener_datos_operacion_citacion(citacion)
+        if not datos_asistente_cd_despacho_guardados(citacion, datos_operacion):
+            return False, {
+                'success': False,
+                'message': 'El Draft SAP existe, pero faltan datos operacionales guardados.',
+                'datos_guardados': False,
+                'draft_sap': estado_inicial,
+                'sap_despacho_draft': estado_inicial,
+                'puede_avanzar': False,
+            }
+        return True, {
+            'success': True,
+            'message': 'Datos guardados. Draft SAP creado correctamente.',
+            'datos_guardados': True,
+            'draft_sap': estado_inicial,
+            'sap_despacho_draft': estado_inicial,
+            'puede_avanzar': True,
+            'already_created': True,
+        }
+
+    ok, mensaje = guardar_datos_asistente_cd_despacho(citacion, data, usuario)
+    if not ok:
+        return False, {
+            'success': False,
+            'message': mensaje,
+            'datos_guardados': False,
+            'draft_sap': estado_inicial,
+            'sap_despacho_draft': estado_inicial,
+            'puede_avanzar': False,
+        }
+
+    resultado_sap = sap_despacho_crear_borrador(citacion, usuario)
+    estado_modelo = getattr(citacion, '_state', None)
+    if estado_modelo is not None:
+        estado_modelo.fields_cache.pop('detalle_despacho', None)
+    estado_final = get_sap_despacho_draft_status(citacion)
+    if estado_final.get('created'):
+        return True, {
+            'success': True,
+            'message': 'Datos guardados. Draft SAP creado correctamente.',
+            'datos_guardados': True,
+            'draft_sap': estado_final,
+            'sap_despacho_draft': estado_final,
+            'puede_avanzar': True,
+            'already_created': not bool(resultado_sap.get('success')),
+        }
+
+    sap_message = (
+        mensaje_error_sap_despacho_usuario(resultado_sap.get('sap_error'))
+        or 'Revise el detalle informado por SAP e intente nuevamente.'
+    )
+    return False, {
+        'success': False,
+        'message': 'Datos guardados, pero SAP no pudo crear el Draft.',
+        'datos_guardados': True,
+        'draft_sap': estado_final,
+        'sap_despacho_draft': estado_final,
+        'puede_avanzar': False,
+        'sap_message': sap_message,
+    }
+
+
+def respuesta_guardado_despacho_sbh_operador(ok, resultado):
+    """Reduce la respuesta del guardado SBH a datos funcionales para el operador."""
+    datos_guardados = bool(resultado.get('datos_guardados'))
+    puede_avanzar = bool(resultado.get('puede_avanzar'))
+    if ok:
+        return {
+            'success': True,
+            'message': 'Datos guardados correctamente.',
+            'datos_guardados': datos_guardados,
+            'puede_avanzar': puede_avanzar,
+        }
+    if datos_guardados:
+        return {
+            'success': False,
+            'message': 'No fue posible completar el guardado. Intente nuevamente o contacte a soporte.',
+            'datos_guardados': True,
+            'puede_avanzar': False,
+        }
+    return {
+        'success': False,
+        'message': resultado.get('message') or 'No fue posible guardar los datos.',
+        'datos_guardados': False,
+        'puede_avanzar': False,
+    }
 
 
 DESPACHO_CIERRE_NRO_SELLOS = 'DESPACHO_CIERRE_NRO_SELLOS'
 DESPACHO_CIERRE_TEMPERATURA = 'DESPACHO_CIERRE_TEMPERATURA'
+DESPACHO_SELLO_EXTENSIONES = {'.jpg', '.jpeg', '.png'}
+DESPACHO_SELLO_MIME = {'image/jpeg', 'image/png'}
+DESPACHO_SELLO_MAX_BYTES = 10 * 1024 * 1024
 
 
 def _documentos_sellos_despacho(citacion):
@@ -4541,6 +5813,7 @@ def _documentos_sellos_despacho(citacion):
             'usuario': documento.US_SUBE_NID.username if documento.US_SUBE_NID else '',
             'dato_operacion_id': documento.DO_NID_id,
             'download_url': reverse('expediente_citacion_documento_ver', args=[documento.id]),
+            'etapa': PASO_CIERRE_CARGA,
         }
         for documento in documentos
     ]
@@ -4573,6 +5846,37 @@ def _payload_cierre_carga_despacho(citacion, datos_operacion=None):
     }
 
 
+def _validar_imagen_sello_despacho(archivo):
+    extension = os.path.splitext(str(getattr(archivo, 'name', '') or ''))[1].lower()
+    content_type = str(getattr(archivo, 'content_type', '') or '').lower()
+    if extension not in DESPACHO_SELLO_EXTENSIONES or content_type not in DESPACHO_SELLO_MIME:
+        raise ValueError('Las imagenes de sellos deben ser archivos JPG, JPEG o PNG.')
+    if getattr(archivo, 'size', 0) > DESPACHO_SELLO_MAX_BYTES:
+        raise ValueError('Cada imagen de sello debe pesar como maximo 10 MB.')
+
+
+def _guardar_imagenes_sellos_despacho(citacion, archivos, usuario):
+    documentos = []
+    for archivo in archivos:
+        _validar_imagen_sello_despacho(archivo)
+        nombre_original = get_valid_filename(os.path.basename(archivo.name or 'imagen_sello'))
+        ruta_archivo, _ = guardar_archivo_expediente_citacion(
+            citacion,
+            CITACION_DOCUMENTO.TIPO_IMAGEN_SELLO_DESPACHO,
+            archivo,
+        )
+        documentos.append(CITACION_DOCUMENTO.objects.create(
+            CI_NID=citacion,
+            EP_NID=citacion.EP_NID,
+            CD_CTIPO=CITACION_DOCUMENTO.TIPO_IMAGEN_SELLO_DESPACHO,
+            CD_CRUTA_ARCHIVO=ruta_archivo,
+            CD_CNOMBRE_ARCHIVO=nombre_original,
+            US_SUBE_NID=usuario,
+            CD_BACTIVO=True,
+        ))
+    return documentos
+
+
 def guardar_cierre_carga_despacho(citacion, data, usuario):
     nro_sellos = str(data.get('despacho_cierre_nro_sellos') or '').strip()
     temperatura = str(data.get('despacho_cierre_temperatura') or '').strip()
@@ -4581,6 +5885,12 @@ def guardar_cierre_carga_despacho(citacion, data, usuario):
         return False, 'Debe ingresar Nro. Sellos.'
     if not temperatura:
         return False, 'Debe ingresar Temperatura.'
+
+    if es_despacho_sbh_operacion(citacion):
+        if not get_sap_despacho_update_status(citacion).get('updated'):
+            return False, 'No se puede continuar: SAP no pudo actualizar el Draft con el peso de salida.'
+        if not _documentos_sellos_despacho(citacion):
+            return False, 'Debe cargar al menos una imagen de los sellos antes de cerrar el proceso de carga.'
 
     dato_sellos = guardar_dato_operacion_codigo(
         citacion,
@@ -4604,12 +5914,27 @@ def guardar_cierre_carga_despacho(citacion, data, usuario):
         'temperatura': temperatura,
         'nro_sellos_dato_id': dato_sellos.id,
         'tipo_imagen_sello': CITACION_DOCUMENTO.TIPO_IMAGEN_SELLO_DESPACHO,
+        'imagenes_sellos': _documentos_sellos_despacho(citacion),
     }
 
 
 def guardar_datos_asistente_cd_despacho(citacion, data, usuario):
+    es_despacho_sbh = es_citacion_despacho_sbh(citacion)
+    detalle_despacho = None
+    if es_despacho_sbh:
+        try:
+            detalle_despacho = citacion.detalle_despacho
+        except CITACION_DESPACHO_DETALLE.DoesNotExist:
+            return False, 'No existe el detalle de despacho definido en la planificacion.'
+
+        cantidad_intentada = detalle_despacho.CDD_NCANTIDAD_INTENTADA_DESPACHAR
+        if cantidad_intentada is None or cantidad_intentada <= 0:
+            return False, 'La planificacion no tiene una cantidad intentada a despachar valida.'
+
     valores = {}
     for key, (codigo, etiqueta) in ACD_CAMPOS_DESPACHO.items():
+        if es_despacho_sbh and key == 'peso_informado':
+            continue
         valor = str(data.get(key) or '').strip()
         if not valor:
             return False, f'Debe ingresar {etiqueta}.'
@@ -4661,15 +5986,16 @@ def guardar_datos_asistente_cd_despacho(citacion, data, usuario):
         detalle.CDO_CCODIGO_SAP = valores['codigo_sap']
         detalle.save(update_fields=['CDO_CCODIGO_SAP'])
 
-    detalle_despacho, _ = CITACION_DESPACHO_DETALLE.objects.get_or_create(
-        CI_NID=citacion,
-        defaults={
-            'EP_NID': citacion.EP_NID,
-            'US_NID': usuario,
-        }
-    )
-    detalle_despacho.CDD_NPESO_INFORMADO = Decimal(valores['peso_informado'])
-    detalle_despacho.save(update_fields=['CDD_NPESO_INFORMADO', 'CDD_FFECHAACTUALIZACION'])
+    if not es_despacho_sbh:
+        detalle_despacho, _ = CITACION_DESPACHO_DETALLE.objects.get_or_create(
+            CI_NID=citacion,
+            defaults={
+                'EP_NID': citacion.EP_NID,
+                'US_NID': usuario,
+            }
+        )
+        detalle_despacho.CDD_NPESO_INFORMADO = Decimal(valores['peso_informado'])
+        detalle_despacho.save(update_fields=['CDD_NPESO_INFORMADO', 'CDD_FFECHAACTUALIZACION'])
 
     return True, ''
 
@@ -4961,8 +6287,107 @@ def valor_dato_operacion(datos_operacion, codigo):
     return dato.DO_CVALOR if dato else ''
 
 
+def es_recepcion_sbh_snapshot(citacion):
+    tipo_citacion = str(
+        citacion.CI_CTIPO
+        or (citacion.PL_NID.PL_CTIPOCUPO if citacion.PL_NID else '')
+        or ''
+    ).strip().upper()
+    return citacion.EP_NID_id == 2 and tipo_citacion == CIT_RECEPCION
+
+
+def valor_snapshot_operacional(valor):
+    if valor is None:
+        return 'Sin información'
+    texto = str(valor).strip()
+    return texto if texto else 'Sin información'
+
+
+def fecha_snapshot_operacional(valor):
+    if valor is None or str(valor).strip() == '':
+        return 'Sin información'
+    if hasattr(valor, 'strftime'):
+        return valor.strftime('%d/%m/%Y')
+
+    texto = str(valor).strip()
+    fecha = None
+    try:
+        fecha = parse_datetime(texto)
+    except (TypeError, ValueError):
+        fecha = None
+    if fecha is None:
+        try:
+            fecha = parse_date(texto[:10])
+        except (TypeError, ValueError):
+            fecha = None
+    return fecha.strftime('%d/%m/%Y') if fecha else texto
+
+
+def datos_snapshot_recepcion_sbh_presentacion(citacion, detalle_operacional, datos_operacion=None):
+    if not es_recepcion_sbh_snapshot(citacion):
+        return None
+
+    datos_operacion = datos_operacion or {}
+    proveedor_citacion = (
+        citacion.PRO_NID.SN_CRAZONSOCIAL
+        if getattr(citacion, 'PRO_NID', None)
+        else ''
+    )
+    proveedor_sap = (
+        detalle_operacional.get('proveedor_sap')
+        or valor_dato_operacion(datos_operacion, 'PLAN_PROVEEDOR_SAP')
+        or proveedor_citacion
+    )
+    codigo_proveedor = (
+        detalle_operacional.get('proveedor_codigo')
+        or valor_dato_operacion(datos_operacion, 'PLAN_CODIGO_PROVEEDOR_SAP')
+    )
+
+    return {
+        'Origen': valor_snapshot_operacional(detalle_operacional.get('origen')),
+        'Tipo recepción': {
+            'NACIONAL': 'Nacional',
+            'EXTRANJERO': 'Extranjero',
+        }.get(
+            str(detalle_operacional.get('tipo_origen_recepcion') or '').strip().upper(),
+            valor_snapshot_operacional(detalle_operacional.get('tipo_origen_recepcion')),
+        ),
+        'Inf 24 hrs': valor_snapshot_operacional(detalle_operacional.get('inf_24hrs')),
+        'Código SAP': valor_snapshot_operacional(detalle_operacional.get('codigo')),
+        'Insumo': valor_snapshot_operacional(detalle_operacional.get('insumo')),
+        'Pedido SAP': valor_snapshot_operacional(detalle_operacional.get('pedido')),
+        'Proveedor SAP': valor_snapshot_operacional(proveedor_sap),
+        'Código proveedor SAP': valor_snapshot_operacional(codigo_proveedor),
+        'Contrato SAP': valor_snapshot_operacional(valor_dato_operacion(datos_operacion, 'PLAN_CONTRATO_SAP')),
+        'Cantidad disponible': valor_snapshot_operacional(detalle_operacional.get('cantidad_disponible')),
+        'DocEntry SAP': valor_snapshot_operacional(detalle_operacional.get('docentry') or detalle_operacional.get('sap_opor_id')),
+        'Guía': valor_snapshot_operacional(detalle_operacional.get('guia')),
+        'CDA': valor_snapshot_operacional(detalle_operacional.get('cda')),
+        'DI': valor_snapshot_operacional(detalle_operacional.get('di')),
+        'BL': valor_snapshot_operacional(detalle_operacional.get('bl')),
+        'Nave / Naviera': valor_snapshot_operacional(detalle_operacional.get('nave_naviera')),
+        'Booking': valor_snapshot_operacional(detalle_operacional.get('booking')),
+        'Contenedor': valor_snapshot_operacional(detalle_operacional.get('contenedor')),
+        'Fecha producción': fecha_snapshot_operacional(detalle_operacional.get('fecha_produccion')),
+        'Fecha vencimiento': fecha_snapshot_operacional(detalle_operacional.get('fecha_vencimiento')),
+        'SUI': valor_snapshot_operacional(detalle_operacional.get('sui')),
+        'Almacén destino': valor_snapshot_operacional(detalle_operacional.get('almacen_destino')),
+        'Estanque destino': valor_snapshot_operacional(detalle_operacional.get('estanque_destino')),
+        'Observación planificación': valor_snapshot_operacional(observacion_planificacion_visible(detalle_operacional.get('observacion'))),
+    }
+
 def datos_operacionales_resumen_planificacion(citacion, detalle_operacional, datos_operacion=None):
     datos_operacion = datos_operacion or {}
+    snapshot_recepcion_sbh = datos_snapshot_recepcion_sbh_presentacion(
+        citacion,
+        detalle_operacional,
+        datos_operacion,
+    )
+    if snapshot_recepcion_sbh is not None:
+        return [
+            {'label': etiqueta, 'value': valor}
+            for etiqueta, valor in snapshot_recepcion_sbh.items()
+        ]
     contrato_sap = (
         valor_dato_operacion(datos_operacion, 'PLAN_CONTRATO_SAP')
         or obtener_contrato_sap_visible_por_pedido(detalle_operacional.get('pedido'))
@@ -5004,7 +6429,16 @@ def guardar_detalle_operacional_citacion(citacion, data, usuario=None, origen_de
         or data.get('cardname')
         or ''
     )
-    bl_contenedor = '' if es_citacion_despacho(citacion) else (data.get('bl') or data.get('bl_contenedor') or '')
+    es_recepcion_sbh = citacion.EP_NID_id == 2 and str(citacion.CI_CTIPO or '').upper() == CIT_RECEPCION
+    if es_citacion_despacho(citacion):
+        contenedor = ''
+        bl = ''
+    elif es_recepcion_sbh:
+        contenedor = data.get('contenedor') or ''
+        bl = data.get('bl') or ''
+    else:
+        contenedor = data.get('contenedor') or data.get('bl') or data.get('bl_contenedor') or ''
+        bl = data.get('bl') or ''
     detalle, _ = CITACION_DETALLE_OPERACIONAL.objects.update_or_create(
         CI_NID=citacion,
         defaults={
@@ -5017,15 +6451,35 @@ def guardar_detalle_operacional_citacion(citacion, data, usuario=None, origen_de
             'CDO_CPEDIDO_SAP': data.get('pedido') or data.get('pedido_sap') or '',
             'CDO_CSAP_OPOR_ID': data.get('sap_opor_id') or '',
             'CDO_CPROVEEDOR_CODIGO': data.get('codigo_proveedor_sap') or data.get('proveedor_codigo') or '',
-            'CDO_CBL_CONTENEDOR': bl_contenedor,
+            'CDO_CBL_CONTENEDOR': contenedor,
+            'CDO_CBL': bl,
+            'CDO_CGUIA': data.get('guia') or '',
+            'CDO_CFECHA_PRODUCCION': data.get('fecha_produccion') or '',
+            'CDO_CFECHA_VENCIMIENTO': data.get('fecha_vencimiento') or '',
+            'CDO_CCDA': data.get('cda') or '',
+            'CDO_CDI': data.get('di') or '',
+            'CDO_CSUI': data.get('sui') or '',
+            'CDO_CNAVE_NAVIERA': data.get('nave_naviera') or '',
+            'CDO_CBOOKING': data.get('booking') or '',
             'CDO_NCANTIDAD_DISPONIBLE': decimal_or_none(data.get('cantidad_disponible')),
             'CDO_CDOCENTRY': data.get('docentry') or '',
             'CDO_CPRODUCTOR': proveedor_sap,
             'CDO_CALMACEN_DESTINO': data.get('almacen_destino') or data.get('estanque_destino') or '',
+            'CDO_CESTANQUE_ORIGEN': data.get('estanque_origen') or '',
+            'CDO_CCODIGO_PROPIETARIO': data.get('codigo_propietario'),
+            'CDO_CPROPIEDAD_PRODUCTO': data.get('propiedad_producto'),
+            'CDO_CUNIDAD_INVENTARIO': data.get('unidad_inventario_snapshot'),
+            'CDO_NCANTIDAD_CAMION': decimal_or_none(data.get('cantidad_camion')),
+            'CDO_NCANTIDAD_A_MOVER': decimal_or_none(data.get('cantidad_a_mover')),
             'CDO_CESTANQUE_DESTINO': data.get('estanque_destino') or '',
             'CDO_COBSERVACION': observacion_con_metadata_sap(data),
         }
     )
+    if es_recepcion_sbh and 'tipo_origen_recepcion' in data:
+        detalle.CDO_CTIPO_RECEPCION = str(
+            data.get('tipo_origen_recepcion') or ''
+        ).strip().upper()
+        detalle.save(update_fields=['CDO_CTIPO_RECEPCION'])
     return detalle
 
 
@@ -5072,7 +6526,8 @@ def detalle_operacional_dict(citacion):
     detalle = obtener_detalle_operacional_citacion(citacion)
     if not detalle:
         return {}
-    bl_contenedor = '' if es_citacion_despacho(citacion) else detalle.CDO_CBL_CONTENEDOR
+    contenedor = '' if es_citacion_despacho(citacion) else detalle.CDO_CBL_CONTENEDOR
+    bl = '' if es_citacion_despacho(citacion) else detalle.CDO_CBL
     return {
         'origen': detalle.CDO_CORIGEN,
         'inf_24hrs': detalle.CDO_CINF_24HRS,
@@ -5082,7 +6537,18 @@ def detalle_operacional_dict(citacion):
         'sap_opor_id': detalle.CDO_CSAP_OPOR_ID,
         'proveedor_codigo': detalle.CDO_CPROVEEDOR_CODIGO,
         'proveedor_sap': detalle.CDO_CPRODUCTOR,
-        'bl': bl_contenedor,
+        'tipo_origen_recepcion': detalle.CDO_CTIPO_RECEPCION,
+        'contenedor': contenedor,
+        'bl': bl,
+        'bl_contenedor': contenedor,
+        'guia': detalle.CDO_CGUIA,
+        'fecha_produccion': detalle.CDO_CFECHA_PRODUCCION,
+        'fecha_vencimiento': detalle.CDO_CFECHA_VENCIMIENTO,
+        'cda': detalle.CDO_CCDA,
+        'di': detalle.CDO_CDI,
+        'sui': detalle.CDO_CSUI,
+        'nave_naviera': detalle.CDO_CNAVE_NAVIERA,
+        'booking': detalle.CDO_CBOOKING,
         'cantidad_disponible': detalle.CDO_NCANTIDAD_DISPONIBLE,
         'docentry': detalle.CDO_CDOCENTRY,
         'almacen_destino': detalle.CDO_CALMACEN_DESTINO,
@@ -5126,6 +6592,29 @@ def normalizar_salida_documento_despacho(valor):
 def guardar_detalle_despacho_citacion(citacion, data, usuario=None):
     return sap_despacho_guardar_detalle_citacion(citacion, data, usuario)
 
+
+def guardar_detalle_despacho_terramar_citacion(citacion, data, usuario=None):
+    """Completa únicamente las columnas nuevas de Despacho Terramar."""
+    if not (
+        empresa_es_terramar_chile(citacion.EP_NID_id)
+        and str(citacion.CI_CTIPO or '').upper() == CIT_DESPACHO
+        and bool(data.get('despacho_terramar'))
+    ):
+        return None
+    detalle = CITACION_DESPACHO_DETALLE.objects.get(CI_NID=citacion)
+    detalle.CDD_CCONTENEDOR_CRT = str(data.get('contenedor_crt') or '').strip()
+    detalle.CDD_CTIPO_CAMION = str(data.get('tipo_camion') or '').strip()
+    detalle.CDD_BPALLET = str(data.get('pallet') or '').strip().upper() == 'SI'
+    detalle.CDD_BRELLENO = str(data.get('relleno') or '').strip().upper() == 'SI'
+    detalle.CDD_CCODIGO_PAIS_TELEFONO = str(data.get('telefono_codigo_pais') or '').strip()
+    detalle.CDD_CHORA_CITACION = str(data.get('hora_citacion') or '').strip()
+    detalle.CDD_CTRANSPORTE_A_CARGO = str(data.get('transporte_a_cargo') or '').strip()
+    detalle.save(update_fields=[
+        'CDD_CCONTENEDOR_CRT', 'CDD_CTIPO_CAMION', 'CDD_BPALLET',
+        'CDD_BRELLENO', 'CDD_CCODIGO_PAIS_TELEFONO', 'CDD_CHORA_CITACION',
+        'CDD_CTRANSPORTE_A_CARGO', 'CDD_FFECHAACTUALIZACION',
+    ])
+    return detalle
 
 def detalle_despacho_resumen_dict(citacion, detalle_operacional=None):
     return sap_despacho_detalle_resumen_dict(citacion, detalle_operacional)
@@ -5216,6 +6705,7 @@ def PLANIFICACION_CITACION_RESUMEN(request, pk):
 
         if str(citacion.CI_CTIPO or citacion.PL_NID.PL_CTIPOCUPO or '').upper() == 'DESPACHO':
             detalle_despacho = detalle_despacho_resumen_dict(citacion, detalle_operacional)
+            es_despacho_sbh = citacion.EP_NID_id == 2
             cliente_despacho = (
                 detalle_despacho.get('sap_cliente_nombre')
                 or socio_texto(citacion.SN_NID)
@@ -5226,14 +6716,20 @@ def PLANIFICACION_CITACION_RESUMEN(request, pk):
                     'citacion': 'Datos despacho',
                     'datos_operacionales': 'Datos SAP',
                 },
-                'planificacion': [
+                'planificacion': (_datos_planificacion_items(build_datos_planificacion_terramar(
+                    citacion,
+                    detalle_operacional=detalle_operacional,
+                    valores_ingreso=valores_ingreso,
+                    citacion_item=citacion_item,
+                    detalle_despacho=detalle_despacho,
+                )) if citacion.EP_NID_id == ID_TERRAMAR else [
                     {'label': 'Planificacion', 'value': f'#{citacion.PL_NID_id}'},
                     {'label': 'Tipo planificacion', 'value': 'DESPACHO'},
                     {'label': 'Fecha ingreso', 'value': fmt_fecha(citacion.PL_NID.PL_FFECHAINICIO, '%d/%m/%Y')},
                     {'label': 'Cupos planificados', 'value': citacion.PL_NID.PL_NCANTIDADCUPOS},
                     {'label': 'Cupos utilizados', 'value': citacion.PL_NID.TOTAL_CITACIONES},
                     {'label': 'Sobrecupos disponibles', 'value': citacion.PL_NID.TOTAL_SOBRECUPOS_DISPONIBLES},
-                ],
+                ]),
                 'citacion': [
                     {'label': 'Numero citacion', 'value': citacion.id},
                     {'label': 'Estado', 'value': citacion.CI_CESTADO},
@@ -5245,7 +6741,7 @@ def PLANIFICACION_CITACION_RESUMEN(request, pk):
                     {'label': 'Destino', 'value': detalle_despacho.get('destino')},
                     {'label': 'Bodega', 'value': detalle_despacho.get('bodega')},
                     {'label': 'Condicion de entrega', 'value': detalle_despacho.get('condicion_entrega')},
-                    {'label': 'Salida de documento', 'value': detalle_despacho.get('salida_documento')},
+                    {'label': 'Salida de documento', 'value': (_etiqueta_salida_documento_despacho(detalle_despacho.get('salida_documento')) if es_despacho_sbh else detalle_despacho.get('salida_documento'))},
                     {'label': 'Empresa transporte', 'value': detalle_despacho.get('empresa_transporte')},
                     {'label': 'Patente', 'value': detalle_despacho.get('patente')},
                     {'label': 'Conductor', 'value': detalle_despacho.get('conductor')},
@@ -5270,7 +6766,10 @@ def PLANIFICACION_CITACION_RESUMEN(request, pk):
             }
             return JsonResponse({'success': True, 'data': data})
 
-        if es_citacion_recepcion_terramar(citacion):
+        if (
+            citacion.EP_NID_id == ID_TERRAMAR
+            and str(citacion.CI_CTIPO or '').strip().upper() == CIT_RECEPCION
+        ):
             rtd = CITACION_RECEPCION_TERRAMAR_DETALLE.objects.select_related('SN_NID_TRANSPORTISTA', 'CON_NID').filter(CI_NID=citacion).first()
             item = citacion_item.IT_NID if citacion_item and citacion_item.IT_NID else None
             def informado(valor): return valor if valor not in [None, ''] else 'No informado'
@@ -5279,7 +6778,13 @@ def PLANIFICACION_CITACION_RESUMEN(request, pk):
             ruta_nombre = citacion.RUT_NID.RUT_CNOMBRE if citacion.RUT_NID else 'Sin ruta asignada'
             data = {
                 'titulos': {'planificacion': 'Datos planificación', 'citacion': 'Datos citación', 'datos_operacionales': 'Datos Recepción Terramar'},
-                'planificacion': [{'label':'Planificación','value':f'#{citacion.PL_NID_id}'},{'label':'Tipo planificación','value':citacion.PL_NID.PL_CTIPOCUPO},{'label':'Fecha ingreso','value':fmt_fecha(citacion.PL_NID.PL_FFECHAINICIO,'%d/%m/%Y')},{'label':'Cupos planificados','value':citacion.PL_NID.PL_NCANTIDADCUPOS},{'label':'Sobrecupos disponibles','value':citacion.PL_NID.TOTAL_SOBRECUPOS_DISPONIBLES}],
+                'planificacion': _datos_planificacion_items(build_datos_planificacion_terramar(
+                    citacion,
+                    detalle_operacional=detalle_operacional,
+                    valores_ingreso=valores_ingreso,
+                    citacion_item=citacion_item,
+                    detalle_recepcion_terramar=rtd,
+                )),
                 'citacion': [{'label':'Número citación','value':citacion.id},{'label':'Fecha citación','value':fmt_fecha(citacion.CI_FFECHACITACION)},{'label':'Estado','value':informado(citacion.CI_CESTADO)},{'label':'Secuencia','value':informado(citacion.SC_NID.SE_CNOMBRE if citacion.SC_NID else '')},{'label':'Etapa actual','value':informado(obtener_etapa_recepcion_terramar(citacion))},{'label':'Código SAP','value':informado(item.IT_CCODIGO if item else detalle_operacional.get('codigo'))},{'label':'Insumo','value':informado(item.IT_CNOMBRE if item else detalle_operacional.get('insumo'))},{'label':'N° guía despacho','value':informado(citacion.CI_CNUMERODOCUMENTO)}],
                 'datos_operacionales': [{'label':'Bodega','value':informado(rtd.RTD_CBODEGA if rtd else '')},{'label':'Contenedor / CRT','value':informado(rtd.RTD_CCONTENEDOR_CRT if rtd else '')},{'label':'Transporte a cargo de','value':informado(rtd.RTD_CTRANSPORTE_A_CARGO if rtd else '')},{'label':'Empresa transporte','value':informado(transportista)},{'label':'Conductor','value':informado(conductor)},{'label':'Código país','value':informado(rtd.RTD_CCODIGO_PAIS_TELEFONO if rtd else '')},{'label':'Celular conductor','value':informado(rtd.RTD_CTELEFONO_CONDUCTOR if rtd else '')},{'label':'Patente','value':informado(rtd.RTD_CPATENTE if rtd else '')},{'label':'Ruta del transportista','value':ruta_nombre}],
                 'ingreso_camion': [], 'documentos': documentos, 'contacto_operacional': {'mostrar': False}, 'es_recepcion_terramar': True,
@@ -5377,14 +6882,71 @@ def obtener_datos_operacion_citacion(citacion):
             datos[codigo] = dato
 
         if campo.CA_CTIPO.lower() == 'archivo':
+            valor_archivo = dato.DO_CVALOR or ''
+            nombre_archivo = os.path.basename(valor_archivo) if valor_archivo else ''
+            try:
+                metadata_archivo = json.loads(valor_archivo)
+            except (TypeError, ValueError):
+                metadata_archivo = None
+            if isinstance(metadata_archivo, dict):
+                nombre_archivo = str(metadata_archivo.get('nombre') or nombre_archivo)
+            es_ticket_mop = codigo == CAMPO_TICKET_MOP_SAL_DESP_TERRAMAR
+            etapa_documento = dato.ET_NID.ET_CNOMBRE if dato.ET_NID else ''
+            download_url = reverse('cit_download_file', args=[dato.id]) if dato.DO_CVALOR else ''
+            if es_ticket_mop and isinstance(metadata_archivo, dict):
+                nombre_archivo = str(metadata_archivo.get('nombre') or nombre_archivo)
+                etapa_documento = str(metadata_archivo.get('paso') or 'Pesaje Salida')
+                if _ticket_mop_guardado_valido(citacion, metadata_archivo):
+                    download_url = (
+                        f"{reverse('ajax_operacion_planta_descargar_ticket_pesaje')}?dato_id={dato.id}"
+                    )
+            if codigo == CAMPO_DESP_TERR_GUIA_SALIDA and isinstance(metadata_archivo, dict):
+                nombre_archivo = str(metadata_archivo.get('nombre') or nombre_archivo)
+                etapa_documento = str(metadata_archivo.get('paso') or PASO_DOCUMENTACION_TERRAMAR)
+                ruta_guia = str(metadata_archivo.get('ruta') or '')
+                if ruta_guia and os.path.isfile(ruta_guia) and _ruta_dentro_de_raiz(ruta_guia, obtener_base_folder_campo(citacion.EP_NID_id)):
+                    download_url = reverse('ajax_operacion_planta_documentacion_despacho_terramar_guia_ver', args=[citacion.id])
             documentos.append({
                 'label': campo.CA_CETIQUETA or codigo,
-                'etapa': dato.ET_NID.ET_CNOMBRE if dato.ET_NID else '',
+                'etapa': etapa_documento,
                 'valor': dato.DO_CVALOR,
-                'nombre_archivo': os.path.basename(dato.DO_CVALOR) if dato.DO_CVALOR else '',
-                'download_url': reverse('cit_download_file', args=[dato.id]) if dato.DO_CVALOR else '',
+                'nombre_archivo': nombre_archivo,
+                'download_url': download_url,
                 'fecha_carga': timezone.localtime(dato.DO_FFECHAREGISTRO).strftime('%d/%m/%Y %H:%M') if dato.DO_FFECHAREGISTRO else '',
                 'usuario': dato.US_NID.username if dato.US_NID_id else '',
+                'estado': 'Registrado',
+            })
+
+    for paso, etiqueta in (('Pesaje Salida', 'Ticket de Pesaje de Salida'),):
+        dato_ticket = _dato_ticket_pesaje(citacion, paso)
+        metadata_ticket = _leer_metadata_ticket_dato(dato_ticket)
+        if not dato_ticket or not metadata_ticket or not _ticket_pesaje_obligatorio_guardado(citacion, paso):
+            continue
+        documentos.append({
+            'label': etiqueta,
+            'etapa': str(metadata_ticket.get('paso_operacion') or paso),
+            'valor': dato_ticket.DO_CVALOR,
+            'nombre_archivo': str(
+                metadata_ticket.get('nombre_archivo_pdf')
+                or os.path.basename(metadata_ticket.get('ruta_real_pdf') or '')
+            ),
+            'download_url': (
+                f"{reverse('ajax_operacion_planta_descargar_ticket_pesaje')}?dato_id={dato_ticket.id}"
+            ),
+            'fecha_carga': timezone.localtime(dato_ticket.DO_FFECHAREGISTRO).strftime('%d/%m/%Y %H:%M') if dato_ticket.DO_FFECHAREGISTRO else '',
+            'usuario': dato_ticket.US_NID.username if dato_ticket.US_NID_id else '',
+            'estado': 'Registrado',
+        })
+    if es_despacho_sbh_operacion(citacion):
+        for imagen in _documentos_sellos_despacho(citacion):
+            documentos.append({
+                'label': 'Imagen de sellos',
+                'etapa': imagen['etapa'],
+                'valor': '',
+                'nombre_archivo': imagen['nombre'],
+                'download_url': imagen['download_url'],
+                'fecha_carga': imagen['fecha'],
+                'usuario': imagen['usuario'],
                 'estado': 'Registrado',
             })
 
@@ -5474,6 +7036,43 @@ def guardar_dato_operacion_codigo(citacion, codigo, valor, usuario, etiqueta=Non
         DO_CVALOR=valor,
         DO_FFECHAREGISTRO=timezone.now(),
     )
+
+
+def guardar_cliente_planificacion_recepcion_sbh(citacion, data, usuario):
+    if not es_citacion_recepcion_sbh(citacion):
+        return
+    codigo = str(data.get('cliente_codigo') or data.get('cliente') or '').strip()
+    nombre = str(data.get('cliente_nombre') or '').strip()
+    if codigo:
+        guardar_dato_operacion_codigo(
+            citacion, PLAN_CODIGO_CLIENTE_SAP, codigo, usuario,
+            etiqueta='Código cliente SAP'
+        )
+    if nombre:
+        guardar_dato_operacion_codigo(
+            citacion, PLAN_CLIENTE_SAP, nombre, usuario,
+            etiqueta='Cliente SAP'
+        )
+
+def guardar_cliente_planificacion_despacho_terramar(citacion, data, usuario):
+    if not (
+        empresa_es_terramar_chile(citacion.EP_NID_id)
+        and str(citacion.CI_CTIPO or '').upper() == CIT_DESPACHO
+        and bool(data.get('despacho_terramar'))
+    ):
+        return
+    codigo = str(data.get('cliente_codigo') or data.get('cliente') or '').strip()
+    nombre = str(data.get('cliente_nombre') or '').strip()
+    if codigo:
+        guardar_dato_operacion_codigo(
+            citacion, PLAN_CODIGO_CLIENTE_SAP, codigo, usuario,
+            etiqueta='Código cliente SAP'
+        )
+    if nombre:
+        guardar_dato_operacion_codigo(
+            citacion, PLAN_CLIENTE_SAP, nombre, usuario,
+            etiqueta='Cliente SAP'
+        )
 
 
 def guardar_datos_planificacion_operacional(citacion, data, usuario, proveedor_sn=None):
@@ -5791,6 +7390,21 @@ def AJAX_RUTAS_TRANSPORTISTA_PLANIFICACION(request):
     rutas = [serializar_tarifa_revision(tarifa) for tarifa in obtener_rutas_tarifas_transportista(empresa_id, transportista.id)]
     return JsonResponse({'success': True, 'rutas': rutas, 'message': '' if rutas else 'No existen rutas vigentes para este transportista.'})
 
+def AJAX_RUTAS_TRANSPORTISTA_DESPACHO_TERRAMAR(request):
+    if request.method != 'GET':
+        return JsonResponse({'success': False, 'message': 'Método no permitido.'}, status=405)
+    empresa_id = Verificar_empresa(request)
+    if not empresa_es_terramar_chile(empresa_id):
+        return JsonResponse({'success': False, 'message': 'Este catálogo aplica solo a Despacho Terramar.'}, status=403)
+    if not (usuario_es_planificador(request.user) or validar_perfiles_activos(request.user.id, 'pla_addone') or getattr(request.user, 'is_superuser', False)):
+        return JsonResponse({'success': False, 'message': 'No tiene permisos para consultar rutas.'}, status=403)
+    transportista_id = request.GET.get('transportista_id')
+    transportista = queryset_transportistas_validos_ingreso_camion(empresa_id, estrictamente_empresa=True).filter(pk=transportista_id).first()
+    if not transportista:
+        return JsonResponse({'success': False, 'message': 'El transportista no pertenece a Terramar Chile.'}, status=400)
+    rutas = [serializar_tarifa_revision(tarifa) for tarifa in obtener_rutas_tarifas_transportista(empresa_id, transportista.id)]
+    return JsonResponse({'success': True, 'rutas': rutas, 'message': '' if rutas else 'No existen rutas vigentes para este transportista.'})
+
 def serializar_tarifa_revision(tarifa, selected=False):
     ruta_nombre = tarifa.RUT_NID.RUT_CNOMBRE if tarifa.RUT_NID else tarifa.TAR_CNOMBRETARIFA
     return {
@@ -6089,6 +7703,147 @@ def obtener_devolucion_guardia_pendiente(citacion):
     }
 
 
+def build_datos_planificacion_terramar(
+    citacion,
+    detalle_operacional=None,
+    valores_ingreso=None,
+    citacion_item=None,
+    detalle_recepcion_terramar=None,
+    detalle_despacho=None,
+):
+    """Arma el bloque visual comun Datos planificacion para Terramar."""
+    tipo = str(getattr(citacion, 'CI_CTIPO', '') or '').strip().upper()
+    es_terramar = getattr(citacion, 'EP_NID_id', None) == ID_TERRAMAR
+    if not es_terramar or tipo not in {CIT_RECEPCION, CIT_DESPACHO}:
+        return None
+
+    detalle_operacional = detalle_operacional or {}
+    valores_ingreso = valores_ingreso or {}
+    detalle_despacho = detalle_despacho or {}
+    planificacion = getattr(citacion, 'PL_NID', None)
+    empresa = getattr(citacion, 'EP_NID', None)
+    item = getattr(citacion_item, 'IT_NID', None) if citacion_item else None
+    ruta = getattr(citacion, 'RUT_NID', None)
+    tarifa = getattr(citacion, 'TAR_NID', None)
+    if not ruta and tarifa:
+        ruta = getattr(tarifa, 'RUT_NID', None)
+
+    fecha_planificacion = getattr(planificacion, 'PL_FFECHAINICIO', None)
+    fecha_citacion = getattr(citacion, 'CI_FFECHACITACION', None)
+    insumo = (
+        detalle_despacho.get('sap_nombre_producto')
+        if tipo == CIT_DESPACHO else ''
+    ) or getattr(item, 'IT_CNOMBRE', '') or detalle_operacional.get('insumo', '')
+
+    transportista = str(valores_ingreso.get('transportista') or '').strip()
+    if tipo == CIT_RECEPCION and detalle_recepcion_terramar:
+        socio_transportista = getattr(detalle_recepcion_terramar, 'SN_NID_TRANSPORTISTA', None)
+        transportista = (
+            getattr(socio_transportista, 'SN_CRAZONSOCIAL', '')
+            or getattr(detalle_recepcion_terramar, 'RTD_CEMPRESA_TRANSPORTE', '')
+            or transportista
+        )
+    elif tipo == CIT_DESPACHO:
+        transportista = detalle_despacho.get('empresa_transporte') or transportista
+
+    datos = {
+        'Planificación': f'#{getattr(citacion, "PL_NID_id", "")}',
+        'Fecha planificación': (
+            fecha_planificacion.strftime('%d/%m/%Y')
+            if fecha_planificacion else ''
+        ),
+        'Hora citación': (
+            fecha_citacion.strftime('%H:%M')
+            if fecha_citacion else 'No registrada'
+        ),
+        'Tipo planificación': getattr(planificacion, 'PL_CTIPOCUPO', '') or tipo,
+        'Empresa': getattr(empresa, 'EP_CRAZONSOCIAL', ''),
+        'Transportista': transportista,
+        'Insumo': insumo,
+    }
+
+    if tipo == CIT_RECEPCION:
+        datos.update({
+            'Bodega': (
+                getattr(detalle_recepcion_terramar, 'RTD_CBODEGA', '')
+                if detalle_recepcion_terramar else ''
+            ),
+            'Contenedor / CRT': (
+                getattr(detalle_recepcion_terramar, 'RTD_CCONTENEDOR_CRT', '')
+                if detalle_recepcion_terramar else ''
+            ),
+            'Ruta': getattr(ruta, 'RUT_CNOMBRE', ''),
+            'Código SAP': detalle_operacional.get('codigo', ''),
+            'Pedido SAP': detalle_operacional.get('pedido', ''),
+            'DocEntry SAP': detalle_operacional.get('docentry', ''),
+        })
+        return datos
+
+    try:
+        detalle_despacho_modelo = citacion.detalle_despacho
+    except (CITACION_DESPACHO_DETALLE.DoesNotExist, AttributeError):
+        detalle_despacho_modelo = None
+    cliente = (
+        detalle_despacho.get('sap_cliente_nombre')
+        or getattr(getattr(citacion, 'SN_NID', None), 'SN_CRAZONSOCIAL', '')
+    )
+    conductor = str(valores_ingreso.get('conductor') or detalle_despacho.get('conductor') or '').strip()
+    patente = str(valores_ingreso.get('patente') or detalle_despacho.get('patente') or '').strip()
+    pendiente_ingreso = not conductor and not patente
+    texto_pendiente = 'Pendiente de confirmar en ingreso'
+    datos.update({
+        'Cliente': cliente,
+        'Destino': detalle_despacho.get('destino', ''),
+        'Ruta': getattr(ruta, 'RUT_CNOMBRE', ''),
+        'Contenedor / CRT': getattr(detalle_despacho_modelo, 'CDD_CCONTENEDOR_CRT', '') or detalle_despacho.get('contenedor_crt', ''),
+        'Bodega': getattr(detalle_despacho_modelo, 'CDD_CBODEGA', '') or detalle_despacho.get('bodega', ''),
+        'Código SAP': detalle_despacho.get('sap_codigo_producto') or detalle_operacional.get('codigo', ''),
+        'OC cliente': detalle_despacho.get('sap_oc_cliente') or detalle_despacho.get('oc_cliente', ''),
+        'Tipo camión': getattr(detalle_despacho_modelo, 'CDD_CTIPO_CAMION', '') or detalle_despacho.get('tipo_camion', ''),
+        'Pallet': (
+            'Sí' if getattr(detalle_despacho_modelo, 'CDD_BPALLET', None) is True
+            else ('No' if getattr(detalle_despacho_modelo, 'CDD_BPALLET', None) is False else detalle_despacho.get('pallet', ''))
+        ),
+        'Relleno': (
+            'Sí' if getattr(detalle_despacho_modelo, 'CDD_BRELLENO', None) is True
+            else ('No' if getattr(detalle_despacho_modelo, 'CDD_BRELLENO', None) is False else detalle_despacho.get('relleno', ''))
+        ),
+        'Transporte a cargo de': getattr(detalle_despacho_modelo, 'CDD_CTRANSPORTE_A_CARGO', '') or detalle_despacho.get('transporte_a_cargo', ''),
+        'Conductor': texto_pendiente if pendiente_ingreso else conductor,
+        'Patente': texto_pendiente if pendiente_ingreso else patente,
+    })
+    return datos
+
+
+def _datos_planificacion_items(datos):
+    return [
+        {'label': label, 'value': value}
+        for label, value in (datos or {}).items()
+    ]
+
+
+def _campos_presentacion_planificacion_revision_camion(
+    citacion,
+    detalle_operacional,
+    detalle_recepcion_terramar=None,
+):
+    """Compatibilidad temporal para consumidores del ajuste inicial."""
+    datos = build_datos_planificacion_terramar(
+        citacion,
+        detalle_operacional=detalle_operacional,
+        detalle_recepcion_terramar=detalle_recepcion_terramar,
+    )
+    if datos is not None:
+        return {
+            key: datos[key]
+            for key in ('Hora citación', 'Bodega')
+            if key in datos
+        }
+    return {
+        'Estanque destino': detalle_operacional.get('estanque_destino', ''),
+    }
+
+
 def PLANIFICACION_CITACION_REVISION_ASISTENTE(request, pk):
     if request.method != 'GET':
         return JsonResponse({'success': False, 'message': 'Metodo no permitido.'}, status=405)
@@ -6143,8 +7898,20 @@ def PLANIFICACION_CITACION_REVISION_ASISTENTE(request, pk):
             return ''
 
         bl = dato('ING_BL') or obtener_bl_inicial_citacion(citacion) or detalle_operacional.get('bl', '')
-        es_despacho = str(citacion.CI_CTIPO or (citacion.PL_NID.PL_CTIPOCUPO if citacion.PL_NID else '') or '').upper() == CIT_DESPACHO
-        es_flujo_terramar = es_flujo_revision_recepcion_terramar(citacion) and not es_despacho
+        tipo_citacion_actual = str(
+            citacion.CI_CTIPO
+            or (citacion.PL_NID.PL_CTIPOCUPO if citacion.PL_NID else '')
+            or ''
+        ).upper()
+        es_despacho = tipo_citacion_actual == CIT_DESPACHO
+        es_recepcion = tipo_citacion_actual == CIT_RECEPCION
+        es_recepcion_estanque_sbh = es_flujo_recepcion_estanque_sbh(citacion)
+        es_flujo_terramar = es_flujo_preoperacional_terramar(citacion)
+        snapshot_recepcion_sbh = datos_snapshot_recepcion_sbh_presentacion(
+            citacion,
+            detalle_operacional,
+            datos_operacion,
+        )
         detalle_despacho = detalle_despacho_resumen_dict(citacion, detalle_operacional) if es_despacho else {}
         ruta_seleccionada_texto = ''
         if citacion.RUT_NID:
@@ -6154,10 +7921,17 @@ def PLANIFICACION_CITACION_REVISION_ASISTENTE(request, pk):
         else:
             ruta_seleccionada_texto = ruta_tarifa_transportista.get('rutas_texto', '')
         tarifa_seleccionada_texto = citacion.TAR_NID.TAR_CNOMBRETARIFA if citacion.TAR_NID else ruta_tarifa_transportista.get('tarifa_texto', '')
-        detalle_recepcion_terramar = CITACION_RECEPCION_TERRAMAR_DETALLE.objects.select_related('SN_NID_TRANSPORTISTA').filter(CI_NID=citacion, EP_NID=citacion.EP_NID).first()
+        detalle_recepcion_terramar = (
+            CITACION_RECEPCION_TERRAMAR_DETALLE.objects.select_related('SN_NID_TRANSPORTISTA').filter(CI_NID=citacion, EP_NID=citacion.EP_NID).first()
+            if es_recepcion else None
+        )
+        transportista_planificado = (
+            detalle_despacho.get('empresa_transporte') if es_despacho else
+            (detalle_recepcion_terramar.SN_NID_TRANSPORTISTA.SN_CRAZONSOCIAL if detalle_recepcion_terramar and detalle_recepcion_terramar.SN_NID_TRANSPORTISTA else (detalle_recepcion_terramar.RTD_CEMPRESA_TRANSPORTE if detalle_recepcion_terramar else 'No informado'))
+        )
         ruta_transportista_resumen = {
             'Ruta': ruta_seleccionada_texto or dato('AR_RUTA_TRANSPORTISTA') or 'No hay ruta registrada desde planificación.',
-            'Transportista': (detalle_recepcion_terramar.SN_NID_TRANSPORTISTA.SN_CRAZONSOCIAL if detalle_recepcion_terramar and detalle_recepcion_terramar.SN_NID_TRANSPORTISTA else (detalle_recepcion_terramar.RTD_CEMPRESA_TRANSPORTE if detalle_recepcion_terramar else 'No informado')),
+            'Transportista': transportista_planificado or 'No informado',
             'Tarifa': tarifa_seleccionada_texto or 'No informada',
             'Valor tarifa': str(citacion.CI_NVALORTARIFA) if citacion.CI_NVALORTARIFA is not None else 'No informado',
         }
@@ -6186,7 +7960,7 @@ def PLANIFICACION_CITACION_REVISION_ASISTENTE(request, pk):
             EL_FFECHAFIN=None
         ).exists()
         aprobado_asistente = citacion.CI_CESTADO == CIT_TERMINADO or not etapa_abierta or bool(detalle_actual and detalle_actual.SE_NPASO > 2)
-        if contexto_ingreso['requiere_ruta_transportista']:
+        if es_recepcion_estanque_sbh or contexto_ingreso['requiere_ruta_transportista']:
             validacion_asistente_guardada = bool(
                 dato('AR_RUTA_TRANSPORTISTA')
                 or dato('AR_RUTA_ID')
@@ -6203,13 +7977,16 @@ def PLANIFICACION_CITACION_REVISION_ASISTENTE(request, pk):
                 'BL validado': dato('AR_BL_VALIDADO') or bl,
                 'Lote / Contenedor validado': dato('AR_LOTE_CONTENEDOR') or dato('ING_LOTE_CONTENEDOR'),
             }
-            if contexto_ingreso['requiere_ruta_transportista']:
+            if es_recepcion_estanque_sbh or contexto_ingreso['requiere_ruta_transportista']:
                 validacion_asistente.update({
                     'Ruta seleccionada': dato('AR_RUTA_TRANSPORTISTA') or ruta_seleccionada_texto,
                     'RUT_NID': dato('AR_RUTA_ID') or (str(citacion.RUT_NID_id) if citacion.RUT_NID_id else ''),
                     'TAR_NID': dato('AR_TARIFA_ID') or (str(citacion.TAR_NID_id) if citacion.TAR_NID_id else ''),
                     'Tarifa transportista': tarifa_seleccionada_texto,
                 })
+        peso_informado_guia_revision = dato(CAMPO_PESO_INFORMADO_GUIA)
+        if es_recepcion_estanque_sbh and peso_informado_guia_revision:
+            validacion_asistente['Peso informado en guia'] = f'{peso_informado_guia_revision} kg'
 
         transportista_actual = None
         conductor_actual = None
@@ -6223,20 +8000,32 @@ def PLANIFICACION_CITACION_REVISION_ASISTENTE(request, pk):
                     EP_NID_id=Empresa, SN_NID=transportista_actual, CON_BHABILITADO=True,
                     CON_CNOMBRE__iexact=(contexto_ingreso['camion'].CPA_CNOMBRE_CONDUCTOR or '').split(' ')[0],
                 ).first()
+        cliente_planificacion = citacion.SN_NID.SN_CRAZONSOCIAL if citacion.SN_NID else ''
+        if es_citacion_despacho_terramar(citacion):
+            detalle_cliente_despacho = CITACION_DESPACHO_DETALLE.objects.filter(CI_NID=citacion).first()
+            cliente_planificacion = (
+                (detalle_cliente_despacho.CDD_CSAP_CLIENTE_NOMBRE if detalle_cliente_despacho else '')
+                or DATO_OPERACION.objects.filter(CI_NID=citacion, CAMP_NID__CA_CCODIGO=PLAN_CLIENTE_SAP).order_by('-id').values_list('DO_CVALOR', flat=True).first()
+                or cliente_planificacion
+            )
         payload = {
             'success': True,
             'citacion_id': citacion.id,
             'tipo_citacion': CIT_DESPACHO if es_despacho else (citacion.CI_CTIPO or (citacion.PL_NID.PL_CTIPOCUPO if citacion.PL_NID else '')),
             'es_flujo_terramar': es_flujo_terramar,
+            'es_sbh_recepcion': _empresa_timbre_recepcion(citacion) == 'SBH' and es_recepcion,
+            'es_flujo_recepcion_estanque_sbh': es_recepcion_estanque_sbh,
+            'requiere_peso_informado_guia': es_recepcion_estanque_sbh,
+            'peso_informado_guia': peso_informado_guia_revision,
             'requiere_confirmacion_datos': es_flujo_terramar,
             'mostrar_validacion_asistente_recepcion': not es_flujo_terramar,
             'aprobado_asistente': aprobado_asistente,
             'usuario_ingreso_nombre': contexto_ingreso['usuario_ingreso_nombre'],
             'transporte_a_cargo': contexto_ingreso['transporte_a_cargo'],
             'transporte_a_cargo_display': contexto_ingreso['transporte_a_cargo_display'],
-            'requiere_ruta_transportista': contexto_ingreso['requiere_ruta_transportista'],
+            'requiere_ruta_transportista': es_recepcion_estanque_sbh or contexto_ingreso['requiere_ruta_transportista'],
             'ruta_transportista_guardada': (
-                not contexto_ingreso['requiere_ruta_transportista']
+                not (es_recepcion_estanque_sbh or contexto_ingreso['requiere_ruta_transportista'])
                 or ruta_transportista_asistente_guardada(citacion, datos_operacion)
             ),
             'puede_editar_revision_asistente': (
@@ -6258,15 +8047,37 @@ def PLANIFICACION_CITACION_REVISION_ASISTENTE(request, pk):
                 'numero_guia': contexto_ingreso['camion'].CPA_CNUMERO_GUIA if contexto_ingreso['camion'] else '',
                 'bl': contexto_ingreso['camion'].CPA_CBL if contexto_ingreso['camion'] else '',
                 'lote_contenedor': contexto_ingreso['camion'].CPA_CLOTE_CONTENEDOR if contexto_ingreso['camion'] else '',
+                **({
+                    'es_recepcion_sbh': True,
+                    'tipo_recepcion': contexto_ingreso['camion'].CPA_CTIPO_RECEPCION or '',
+                    'cda': contexto_ingreso['camion'].CPA_CCDA or '',
+                    'di': contexto_ingreso['camion'].CPA_CDI or '',
+                    'nave_naviera': contexto_ingreso['camion'].CPA_CNAVE_NAVIERA or '',
+                    'fecha_produccion': _formatear_fecha_documental_camion_patio(contexto_ingreso['camion'].CPA_CFECHAPRODUCCION),
+                    'fecha_vencimiento': _formatear_fecha_documental_camion_patio(contexto_ingreso['camion'].CPA_CFECHAVENCIMIENTOPRODUCTO),
+                    'sui': contexto_ingreso['camion'].CPA_CSUI or '',
+                } if contexto_ingreso['camion'] and es_citacion_recepcion_sbh(citacion) else {}),
             },
             'guardia_puede_enviar_porteria': usuario_es_guardia(request.user) and not usuario_es_guardia_porteria(request.user) and bool(log_envio_estanque) and not bool(log_guardia_porteria),
             'guardia_porteria_puede_autorizar': usuario_es_guardia_porteria(request.user) and bool(log_guardia_porteria) and not bool(log_autoriza_planta),
             'guardia_porteria_enviado': bool(log_guardia_porteria),
             'guardia_porteria_autorizado': bool(log_autoriza_planta),
-            'planificacion': {
+            'planificacion': build_datos_planificacion_terramar(
+                citacion,
+                detalle_operacional=detalle_operacional,
+                valores_ingreso=valores_ingreso,
+                citacion_item=citacion_item,
+                detalle_recepcion_terramar=detalle_recepcion_terramar,
+                detalle_despacho=detalle_despacho,
+            ) or {
                 'Numero planificacion': citacion.PL_NID_id,
                 'Fecha planificacion': citacion.PL_NID.PL_FFECHAINICIO.strftime('%d/%m/%Y %H:%M') if citacion.PL_NID and citacion.PL_NID.PL_FFECHAINICIO else '',
-                'Cliente': citacion.SN_NID.SN_CRAZONSOCIAL if citacion.SN_NID else '',
+                **_campos_presentacion_planificacion_revision_camion(
+                    citacion,
+                    detalle_operacional,
+                    detalle_recepcion_terramar,
+                ),
+                'Cliente': cliente_planificacion,
                 'Transportista': texto_sin_informacion(valores_ingreso.get('transportista')),
                 'Insumo': citacion_item.IT_NID.IT_CNOMBRE if citacion_item and citacion_item.IT_NID else detalle_operacional.get('insumo', ''),
                 'Pedido': detalle_operacional.get('pedido', ''),
@@ -6274,7 +8085,6 @@ def PLANIFICACION_CITACION_REVISION_ASISTENTE(request, pk):
                 'Tipo planificacion': citacion.PL_NID.PL_CTIPOCUPO if citacion.PL_NID else '',
                 'Empresa': citacion.EP_NID.EP_CRAZONSOCIAL if citacion.EP_NID else '',
                 'DocEntry SAP': detalle_operacional.get('docentry', ''),
-                'Estanque destino': detalle_operacional.get('estanque_destino', ''),
             },
             'citacion': {
                 'Numero citacion': citacion.id,
@@ -6322,7 +8132,7 @@ def PLANIFICACION_CITACION_REVISION_ASISTENTE(request, pk):
                 'bl': bl,
                 'lote_contenedor': dato('ING_LOTE_CONTENEDOR'),
             },
-            'datos_operacionales': {
+            'datos_operacionales': snapshot_recepcion_sbh or {
                 'Origen': valor_detalle('origen'),
                 'Inf 24 hrs': valor_detalle('inf_24hrs'),
                 'Codigo SAP': valor_detalle('codigo'),
@@ -6334,7 +8144,11 @@ def PLANIFICACION_CITACION_REVISION_ASISTENTE(request, pk):
                 'Cantidad disponible': valor_detalle('cantidad_disponible'),
                 'DocEntry SAP': valor_detalle('docentry'),
                 'Planta destino': valor_detalle('almacen_destino'),
-                'Estanque destino': valor_detalle('estanque_destino'),
+                **({
+                    'Bodega': getattr(detalle_recepcion_terramar, 'RTD_CBODEGA', '')
+                } if citacion.EP_NID_id == ID_TERRAMAR and es_recepcion else {
+                    'Estanque destino': valor_detalle('estanque_destino')
+                }),
                 'Observacion planificacion': valor_detalle('observacion'),
             },
             'documentos': documentos,
@@ -6353,7 +8167,11 @@ def PLANIFICACION_CITACION_REVISION_ASISTENTE(request, pk):
                 'Ventana horaria': valor_revision(detalle_despacho.get('ventana_horaria_despacho')),
                 'Bodega': valor_revision(detalle_despacho.get('bodega')),
                 'Condicion de entrega': valor_revision(detalle_despacho.get('condicion_entrega')),
-                'Salida de documento': valor_revision(detalle_despacho.get('salida_documento')),
+                'Salida de documento': valor_revision(
+                    _etiqueta_salida_documento_despacho(detalle_despacho.get('salida_documento'))
+                    if citacion.EP_NID_id == 2
+                    else detalle_despacho.get('salida_documento')
+                ),
                 'Empresa transporte': valor_revision(detalle_despacho.get('empresa_transporte')),
                 'Patente': valor_revision(detalle_despacho.get('patente')),
                 'Conductor': valor_revision(detalle_despacho.get('conductor')),
@@ -6425,18 +8243,19 @@ def PLANIFICACION_CITACION_EDITAR_INGRESO_ASISTENTE(request, pk):
                 if not transportista:
                     raise ValueError('El transportista seleccionado no pertenece a la empresa activa.')
                 datos['CPA_CTRANSPORTISTA_DECLARADO'] = transportista.SN_CRAZONSOCIAL
-                if not conductor_manual:
-                    if not conductor_id.isdigit():
-                        raise ValueError('Debe seleccionar un conductor o marcar Conductor no registrado.')
-                    conductor = CONDUCTOR.objects.filter(
-                        pk=conductor_id, EP_NID_id=Empresa, SN_NID=transportista, CON_BHABILITADO=True
-                    ).first()
-                    if not conductor:
-                        raise ValueError('El conductor seleccionado no pertenece al transportista indicado.')
-                    datos['CPA_CNOMBRE_CONDUCTOR'] = f'{conductor.CON_CNOMBRE or ""} {conductor.CON_CAPELLIDO or ""}'.strip()
-                    datos['CPA_CRUT_CONDUCTOR'] = str(conductor.CON_CRUT or '').strip()
-                    # Nombre y RUT provienen del maestro; telefono y patente son
-                    # datos operacionales editables del viaje y no se sobrescriben.
+                if conductor_manual:
+                    raise ValueError('Debe registrar el conductor en el maestro antes de continuar con Transporte Terramar.')
+                if not conductor_id.isdigit():
+                    raise ValueError('Debe seleccionar un conductor o marcar Conductor no registrado.')
+                conductor = CONDUCTOR.objects.filter(
+                    pk=conductor_id, CON_BHABILITADO=True
+                ).first()
+                if not conductor:
+                    raise ValueError('El conductor seleccionado no está habilitado en el maestro.')
+                datos['CPA_CNOMBRE_CONDUCTOR'] = f'{conductor.CON_CNOMBRE or ""} {conductor.CON_CAPELLIDO or ""}'.strip()
+                datos['CPA_CRUT_CONDUCTOR'] = str(conductor.CON_CRUT or '').strip()
+                # Nombre y RUT provienen del maestro; telefono y patente son
+                # datos operacionales editables del viaje y no se sobrescriben.
             cambios = []
             anteriores = {}
             for campo, valor in datos.items():
@@ -6613,7 +8432,7 @@ def GUARDAR_RUTA_CAMION_ASISTENTE(request, pk):
     try:
         citacion = CITACION.objects.select_related('EP_NID', 'PL_NID', 'SC_NID', 'PRO_NID', 'TAR_NID__RUT_NID').get(pk=pk, EP_NID_id=Empresa, CI_BHABILITADO=True)
         contexto_ingreso = _contexto_ingreso_camion_patio(citacion)
-        if not contexto_ingreso['requiere_ruta_transportista']:
+        if not contexto_ingreso['requiere_ruta_transportista'] and not es_flujo_recepcion_estanque_sbh(citacion):
             return JsonResponse({
                 'success': False,
                 'message': 'La ruta del transportista no corresponde cuando el transporte esta a cargo del Cliente.'
@@ -6680,7 +8499,8 @@ def APROBAR_CAMION_ASISTENTE(request, pk):
                 'EP_NID', 'PL_NID', 'SC_NID', 'PRO_NID', 'TAR_NID__RUT_NID', 'RUT_NID'
             ).get(pk=pk, EP_NID_id=Empresa, CI_BHABILITADO=True)
             es_despacho = str(citacion.CI_CTIPO or citacion.PL_NID.PL_CTIPOCUPO or '').upper() == CIT_DESPACHO
-            es_flujo_terramar = es_flujo_revision_recepcion_terramar(citacion) and not es_despacho
+            es_flujo_terramar = es_flujo_preoperacional_terramar(citacion)
+            es_recepcion_estanque_sbh = es_flujo_recepcion_estanque_sbh(citacion)
             datos_validados = str(request.POST.get('datos_validados') or '').strip().lower() == 'true'
             if es_flujo_terramar and not datos_validados:
                 return JsonResponse({
@@ -6706,7 +8526,14 @@ def APROBAR_CAMION_ASISTENTE(request, pk):
                 }, status=409)
 
             contexto_ingreso = _contexto_ingreso_camion_patio(citacion)
-            requiere_ruta_transportista = contexto_ingreso['requiere_ruta_transportista']
+            requiere_ruta_transportista = es_recepcion_estanque_sbh or contexto_ingreso['requiere_ruta_transportista']
+            peso_informado_guia = None
+            if es_recepcion_estanque_sbh:
+                peso_informado_guia, error_peso = _validar_peso_informado_guia(
+                    request.POST.get('peso_informado_guia')
+                )
+                if error_peso:
+                    return JsonResponse({'success': False, 'message': error_peso}, status=400)
             es_despacho_aprobacion = es_citacion_despacho(citacion)
             bl_validado = '' if es_despacho_aprobacion else str(request.POST.get('bl') or '').strip()
             lote_contenedor_validado = str(request.POST.get('lote_contenedor') or '').strip()
@@ -6753,6 +8580,11 @@ def APROBAR_CAMION_ASISTENTE(request, pk):
                 citacion, 'AR_LOTE_CONTENEDOR', lote_contenedor_validado, request.user,
                 etiqueta='Lote / Contenedor validado Asistente Recepcion', etapa=citacion.ETAPA_ACTUAL
             )
+            if es_recepcion_estanque_sbh:
+                guardar_dato_operacion_codigo(
+                    citacion, CAMPO_PESO_INFORMADO_GUIA, format(peso_informado_guia, 'f'), request.user,
+                    etiqueta='Peso informado en guia', etapa=citacion.ETAPA_ACTUAL
+                )
             if es_flujo_terramar:
                 guardar_dato_operacion_codigo(
                     citacion, 'REV_DATOS_VALIDADOS', 'true', request.user,
@@ -7083,18 +8915,42 @@ def PLANIFICACION_CITACION_ESTANQUE(request, pk):
             LOG_COPERACION='ENVIA_CD_NEXT',
             LOG_CADD1=str(citacion.id)
         ).exists()
-        es_recepcion_terramar = es_citacion_recepcion_terramar(citacion)
-        if es_recepcion_terramar:
+        es_flujo_preoperacional = es_flujo_preoperacional_terramar(citacion)
+        if es_flujo_preoperacional:
             enviado_siguiente = citacion.CI_CESTADO == CIT_TERMINADO or SYSLOGGER.objects.filter(
                 LOG_COPERACION=SYSLOGGER_OP_ENVIA_BODEGA_GUARDIA,
                 LOG_CADD1=str(citacion.id),
             ).exists()
 
         es_despacho = es_citacion_despacho(citacion)
+        es_despacho_sbh = es_citacion_despacho_sbh(citacion)
+        tipo_citacion_actual = str(
+            citacion.CI_CTIPO
+            or (citacion.PL_NID.PL_CTIPOCUPO if citacion.PL_NID else '')
+            or ''
+        ).upper()
+        es_recepcion_sbh = citacion.EP_NID_id == 2 and tipo_citacion_actual == CIT_RECEPCION
+        es_flujo_recepcion_sbh = es_flujo_recepcion_estanque_sbh(citacion)
+        detalle_planificacion = obtener_detalle_operacional_citacion(citacion)
+        estanque_planificacion = str(
+            detalle_planificacion.CDO_CESTANQUE_DESTINO
+            if detalle_planificacion else ''
+        ).strip()
 
         almacen = obtener_almacen_planificacion(citacion)
         opciones_estanque = ESTANQUES_POR_ALMACEN.get(almacen, [])
         dato_estanque = obtener_dato_estanque_operacional(citacion)
+        estado_borrador_recepcion = (
+            get_goods_receipt_draft_guide_status(citacion)
+            if es_flujo_recepcion_sbh else {}
+        )
+        estanque_confirmado = bool(
+            es_flujo_recepcion_sbh
+            and dato_estanque
+            and str(dato_estanque.DO_CVALOR or '').strip()
+            and estado_borrador_recepcion.get('sent')
+            and estado_borrador_recepcion.get('docentry')
+        )
         valores_ingreso = obtener_valores_ingreso_camion(citacion)
         patente = texto_sin_informacion(valores_ingreso.get('patente'))
 
@@ -7120,13 +8976,32 @@ def PLANIFICACION_CITACION_ESTANQUE(request, pk):
             if enviado_siguiente:
                 return JsonResponse({'success': False, 'message': 'Esta citacion ya fue enviada a la siguiente etapa.'}, status=409)
 
-            if es_recepcion_terramar:
+            if es_flujo_preoperacional:
                 return JsonResponse({
                     'success': False,
-                    'message': 'La recepcion Terramar se confirma mediante la solicitud de ingreso a descarga.'
+                    'message': 'El flujo Terramar se confirma mediante la solicitud de ingreso a planta.'
                 }, status=400)
 
             if es_despacho:
+                if es_despacho_sbh:
+                    ok, resultado = guardar_datos_y_crear_draft_despacho_sbh(
+                        citacion, request.POST, request.user
+                    )
+                    if resultado.get('datos_guardados') and not resultado.get('already_created'):
+                        registrar_log_camion_no_planificado(
+                            request.user,
+                            citacion.EP_NID,
+                            'DATOS_ACD_DESPACHO',
+                            f'Asistente_C_D guarda datos de carga y descarga para citacion #{citacion.id}.',
+                            citacion.id,
+                            request.POST.get('zona_carga') or ''
+                        )
+                    status_code = 200 if ok else (502 if resultado.get('datos_guardados') else 400)
+                    return JsonResponse(
+                        respuesta_guardado_despacho_sbh_operador(ok, resultado),
+                        status=status_code,
+                    )
+
                 ok, mensaje = guardar_datos_asistente_cd_despacho(citacion, request.POST, request.user)
                 if not ok:
                     return JsonResponse({'success': False, 'message': mensaje}, status=400)
@@ -7148,7 +9023,7 @@ def PLANIFICACION_CITACION_ESTANQUE(request, pk):
                 })
 
             almacen_anterior = almacen
-            almacen_post = normalizar_almacen_planificacion(request.POST.get('almacen') or almacen)
+            almacen_post = almacen if es_recepcion_sbh else normalizar_almacen_planificacion(request.POST.get('almacen') or almacen)
             if not almacen_post:
                 return JsonResponse({'success': False, 'message': 'Debe seleccionar un almacen valido.'}, status=400)
             if almacen_post not in ESTANQUES_POR_ALMACEN:
@@ -7157,13 +9032,22 @@ def PLANIFICACION_CITACION_ESTANQUE(request, pk):
             opciones_estanque = ESTANQUES_POR_ALMACEN.get(almacen, [])
 
             estanque = str(request.POST.get('estanque') or '').strip()
-            peso_raw = str(request.POST.get('peso_informado') or '').strip()
+            peso_raw = (
+                obtener_peso_informado_guia(citacion)
+                if es_flujo_recepcion_sbh
+                else str(request.POST.get('peso_informado') or '').strip()
+            )
             documentos_revisados = str(request.POST.get('documentos_revisados') or '').lower() in ['1', 'true', 'on', 'si', 'sí', 'sí']
             if almacen == 'TRASVASIJE':
                 estanque = 'Trasvasije'
 
             if not documentos_revisados:
-                return JsonResponse({'success': False, 'message': 'Debe confirmar que reviso los documentos y los datos de recepcion.'}, status=400)
+                mensaje_documentos = (
+                    'Debe confirmar que revisó los documentos antes de continuar.'
+                    if es_flujo_recepcion_sbh else
+                    'Debe confirmar que reviso los documentos y los datos de recepcion.'
+                )
+                return JsonResponse({'success': False, 'message': mensaje_documentos}, status=400)
             if not estanque:
                 return JsonResponse({'success': False, 'message': 'Debe seleccionar estanque.'}, status=400)
             if not peso_raw:
@@ -7177,8 +9061,33 @@ def PLANIFICACION_CITACION_ESTANQUE(request, pk):
             if peso_informado > Decimal('1000000'):
                 return JsonResponse({'success': False, 'message': 'Peso informado supera el limite razonable permitido.'}, status=400)
 
+            if es_flujo_recepcion_sbh and not ruta_transportista_asistente_guardada(citacion):
+                return JsonResponse({
+                    'success': False,
+                    'message': 'Debe guardar la ruta del transportista antes de confirmar el estanque.',
+                }, status=400)
+
             if estanque not in opciones_estanque:
                 return JsonResponse({'success': False, 'message': 'El estanque seleccionado no corresponde al almacen definido.'}, status=400)
+
+            if estanque_confirmado:
+                estanque_guardado = str(dato_estanque.DO_CVALOR or '').strip()
+                if estanque != estanque_guardado:
+                    return JsonResponse({
+                        'success': False,
+                        'message': 'El estanque ya fue confirmado y no puede modificarse.',
+                        'estanque_confirmado': True,
+                        'sap_status': estado_borrador_recepcion,
+                    }, status=409)
+                return JsonResponse({
+                    'success': True,
+                    'message': 'Estanque confirmado correctamente.',
+                    'estanque': estanque_guardado,
+                    'estanque_confirmado': True,
+                    'peso_informado_guia': format(peso_informado, 'f'),
+                    'sap_recepcion_draft': estado_borrador_recepcion,
+                    'borrador_sap_interno': True,
+                })
 
             estanque_anterior = dato_estanque.DO_CVALOR if dato_estanque else ''
             with transaction.atomic():
@@ -7223,7 +9132,7 @@ def PLANIFICACION_CITACION_ESTANQUE(request, pk):
                     EP_NID=citacion.EP_NID,
                     PL_NID=citacion.PL_NID,
                     CI_NID=citacion,
-                    OPL_CPASO='MODIFICACION_DATOS_RECEPCION',
+                    OPL_CPASO='EDITA_DATOS_RECEPCION',
                     OPL_CPERFIL_RESPONSABLE='ASISTENTE C_D',
                     OPL_CESTADO=OPERACION_PLANTA_LOG.ESTADO_COMPLETADO,
                     OPL_COBSERVACION=json.dumps({
@@ -7248,23 +9157,49 @@ def PLANIFICACION_CITACION_ESTANQUE(request, pk):
                         'EP_NID': citacion.EP_NID,
                         'US_NID': request.user,
                         'DO_CVALOR': estanque,
-                        'DO_FFECHAREGISTRO': datetime.now(),
+                        'DO_FFECHAREGISTRO': timezone.now(),
                     }
                 )
-                guardar_dato_operacion_codigo(
-                    citacion,
-                    CAMPO_PESO_INFORMADO_GUIA,
-                    format(peso_informado, 'f'),
-                    request.user,
-                    etiqueta='Peso informado',
-                    etapa=citacion.ETAPA_ACTUAL,
-                )
+                if not es_flujo_recepcion_sbh:
+                    guardar_dato_operacion_codigo(
+                        citacion,
+                        CAMPO_PESO_INFORMADO_GUIA,
+                        format(peso_informado, 'f'),
+                        request.user,
+                        etiqueta='Peso informado',
+                        etapa=citacion.ETAPA_ACTUAL,
+                    )
+
+            resultado_borrador_recepcion = None
+            if es_flujo_recepcion_sbh:
+                # Serializa por citación la comprobación y eventual POST a SAP.
+                with transaction.atomic():
+                    citacion_bloqueada = CITACION.objects.select_for_update().get(pk=citacion.pk)
+                    resultado_borrador_recepcion = crear_borrador_sap_recepcion_interno(
+                        citacion_bloqueada, request.user
+                    )
+                if not resultado_borrador_recepcion.get('success'):
+                    detalle_error_sap = detalle_error_borrador_sap_recepcion(
+                        resultado_borrador_recepcion
+                    )
+                    return JsonResponse({
+                        'success': False,
+                        'estanque_guardado': True,
+                        'message': (
+                            'Estanque guardado, pero no fue posible crear el borrador SAP: '
+                            f'{detalle_error_sap}'
+                        ),
+                        'sap_message': detalle_error_sap,
+                        'sap_status': resultado_borrador_recepcion.get('status') or get_goods_receipt_draft_guide_status(citacion),
+                        'estanque': estanque,
+                        'peso_informado_guia': format(peso_informado, 'f'),
+                    }, status=502)
 
             ocupacion_info = descripcion_reserva_estanque_ocupada(reserva_ocupada) if reserva_ocupada else ''
             registrar_log_camion_no_planificado(
                 request.user,
                 citacion.EP_NID,
-                'MODIFICACION_DATOS_RECEPCION',
+                'EDITA_DATOS_RECEPCION',
                 json.dumps({
                     'almacen_anterior': etiqueta_almacen_operacional(almacen_anterior),
                     'almacen_nuevo': etiqueta_almacen_operacional(almacen),
@@ -7278,6 +9213,18 @@ def PLANIFICACION_CITACION_ESTANQUE(request, pk):
                 citacion.id,
                 etiqueta_almacen_operacional(almacen)
             )
+            if es_recepcion_sbh and estanque_planificacion and estanque != estanque_planificacion:
+                registrar_log_camion_no_planificado(
+                    request.user,
+                    citacion.EP_NID,
+                    'ESTANQUE_CD_EDITADO',
+                    (
+                        f'Asistente_C_D modifica estanque planificado para citación #{citacion.id}. '
+                        f'Anterior: {estanque_planificacion}. Nuevo: {estanque}.'
+                    ),
+                    citacion.id,
+                    f'{estanque_planificacion} -> {estanque}'
+                )
             registrar_log_camion_no_planificado(
                 request.user,
                 citacion.EP_NID,
@@ -7298,6 +9245,8 @@ def PLANIFICACION_CITACION_ESTANQUE(request, pk):
             return JsonResponse({
                 'success': True,
                 'message': (
+                    'Estanque confirmado correctamente.'
+                    if es_flujo_recepcion_sbh else
                     'Datos guardados. Borrador SAP pendiente.'
                     if es_recepcion else
                     'Destino confirmado correctamente.'
@@ -7315,17 +9264,37 @@ def PLANIFICACION_CITACION_ESTANQUE(request, pk):
                 'ocupacion_info': ocupacion_info,
                 'peso_informado_guia': format(peso_informado, 'f'),
                 'sap_recepcion_draft': get_goods_receipt_draft_guide_status(citacion) if es_recepcion else {},
+                'borrador_sap_interno': es_flujo_recepcion_sbh,
+                'estanque_confirmado': es_flujo_recepcion_sbh,
             })
 
         detalle_operacional = detalle_operacional_dict(citacion)
         tipo_citacion_actual = str(citacion.CI_CTIPO or (citacion.PL_NID.PL_CTIPOCUPO if citacion.PL_NID else '') or '').upper()
         es_recepcion = tipo_citacion_actual == CIT_RECEPCION
         detalle_despacho = detalle_despacho_resumen_dict(citacion, detalle_operacional) if es_despacho else {}
-        sap_despacho_draft = get_sap_despacho_draft_status(citacion) if es_despacho else {}
+        sap_despacho_draft = (
+            estado_draft_sap_despacho_modal(citacion)
+            if es_despacho_sbh
+            else (get_sap_despacho_draft_status(citacion) if es_despacho else {})
+        )
         sap_recepcion_draft = get_goods_receipt_draft_guide_status(citacion) if es_recepcion else {}
-        insumo_planificado = obtener_insumo_sap_planificado(citacion, detalle_operacional)
+        insumo_planificado = (
+            {
+                'codigo': detalle_operacional.get('codigo') or '',
+                'insumo': detalle_operacional.get('insumo') or '',
+            }
+            if es_recepcion_sbh
+            else obtener_insumo_sap_planificado(citacion, detalle_operacional)
+        )
         datos_operacion, documentos = obtener_datos_operacion_citacion(citacion)
+        snapshot_recepcion_sbh = datos_snapshot_recepcion_sbh_presentacion(
+            citacion,
+            detalle_operacional,
+            datos_operacion,
+        )
         datos_acd = datos_asistente_cd_despacho(citacion, datos_operacion, detalle_operacional) if es_despacho else {}
+        datos_acd_guardados = datos_asistente_cd_despacho_guardados(citacion, datos_operacion) if es_despacho else False
+        draft_despacho_listo = bool(datos_acd_guardados and sap_despacho_draft.get('created'))
         log_aprobacion = SYSLOGGER.objects.select_related('US_NID').filter(
             LOG_COPERACION='APRUEBA_AR',
             LOG_CADD1=str(citacion.id)
@@ -7357,7 +9326,7 @@ def PLANIFICACION_CITACION_ESTANQUE(request, pk):
             or dato('ING_INSUMO_DECLARADO_GUIA')
         )
         reserva_actual = obtener_reserva_ocupada_citacion(citacion)
-        estanque_actual = dato_estanque.DO_CVALOR if dato_estanque else (reserva_actual.ER_CESTANQUE if reserva_actual else '')
+        estanque_actual = estanque_planificacion if es_recepcion_sbh and estanque_planificacion else (dato_estanque.DO_CVALOR if dato_estanque else (reserva_actual.ER_CESTANQUE if reserva_actual else ''))
         opciones_estanque_reserva = [] if almacen == 'TRASVASIJE' else construir_opciones_estanque_reserva(
             citacion,
             almacen,
@@ -7369,6 +9338,28 @@ def PLANIFICACION_CITACION_ESTANQUE(request, pk):
             if opcion_estanque['seleccionado']:
                 estanque_actual_disponible = opcion_estanque['disponible']
                 break
+        cliente_planificacion = citacion.SN_NID.SN_CRAZONSOCIAL if citacion.SN_NID else ''
+        if es_citacion_despacho_terramar(citacion):
+            detalle_cliente_despacho = CITACION_DESPACHO_DETALLE.objects.filter(CI_NID=citacion).first()
+            cliente_planificacion = (
+                (detalle_cliente_despacho.CDD_CSAP_CLIENTE_NOMBRE if detalle_cliente_despacho else '')
+                or DATO_OPERACION.objects.filter(CI_NID=citacion, CAMP_NID__CA_CCODIGO=PLAN_CLIENTE_SAP).order_by('-id').values_list('DO_CVALOR', flat=True).first()
+                or cliente_planificacion
+            )
+        detalle_recepcion_terramar = (
+            CITACION_RECEPCION_TERRAMAR_DETALLE.objects.select_related(
+                'SN_NID_TRANSPORTISTA'
+            ).filter(CI_NID=citacion, EP_NID=citacion.EP_NID).first()
+            if citacion.EP_NID_id == ID_TERRAMAR and es_recepcion else None
+        )
+        datos_planificacion_terramar = build_datos_planificacion_terramar(
+            citacion,
+            detalle_operacional=detalle_operacional,
+            valores_ingreso=valores_ingreso,
+            detalle_recepcion_terramar=detalle_recepcion_terramar,
+            detalle_despacho=detalle_despacho,
+        )
+
         payload = {
             'success': True,
             'citacion_id': citacion.id,
@@ -7376,6 +9367,11 @@ def PLANIFICACION_CITACION_ESTANQUE(request, pk):
             'tipo_citacion': CIT_DESPACHO if es_despacho else (citacion.CI_CTIPO or (citacion.PL_NID.PL_CTIPOCUPO if citacion.PL_NID else '')),
             'almacen': etiqueta_almacen_operacional(almacen),
             'almacen_codigo': almacen,
+            'almacen_destino': almacen,
+            'estanque_destino': estanque_planificacion if es_recepcion_sbh else estanque_actual,
+            'es_recepcion_sbh': es_recepcion_sbh,
+            'es_despacho_sbh': es_despacho_sbh,
+            'es_flujo_recepcion_estanque_sbh': es_flujo_recepcion_sbh,
             'opciones_almacen': opciones_almacen_recepcion_operacional(citacion),
             'peso_unidad': 'kg',
             'opciones_estanque': opciones_estanque_reserva,
@@ -7383,13 +9379,19 @@ def PLANIFICACION_CITACION_ESTANQUE(request, pk):
             'estanque_actual': estanque_actual,
             'estanque_actual_disponible': estanque_actual_disponible,
             'datos_acd': datos_acd,
-            'datos_acd_guardados': datos_asistente_cd_despacho_guardados(citacion, datos_operacion) if es_despacho else False,
-            'sap_despacho_draft': sap_despacho_draft,
+            'datos_acd_guardados': datos_acd_guardados,
+            'sap_despacho_draft': {} if es_despacho_sbh else sap_despacho_draft,
             'sap_recepcion_draft': sap_recepcion_draft,
+            'estanque_confirmado': estanque_confirmado,
             'peso_informado_guia': peso_informado_recepcion,
             'enviado_siguiente': enviado_siguiente,
             'es_trasvasije': almacen == 'TRASVASIJE',
-'puede_editar': (not enviado_siguiente) if es_despacho else (not enviado_siguiente and bool(almacen)),
+            'puede_editar': (
+                not enviado_siguiente and not (es_despacho_sbh and draft_despacho_listo)
+                if es_despacho
+                else (not enviado_siguiente and bool(almacen))
+            ),
+            'puede_avanzar': bool(not enviado_siguiente and (draft_despacho_listo if es_despacho_sbh else True)),
             'puede_editar_datos_camion': (
                 not enviado_siguiente
                 and bool(camion_patio_asociado)
@@ -7407,12 +9409,23 @@ def PLANIFICACION_CITACION_ESTANQUE(request, pk):
                 'numero_guia': camion_patio_asociado.CPA_CNUMERO_GUIA if camion_patio_asociado else '',
                 'bl': camion_patio_asociado.CPA_CBL if camion_patio_asociado else '',
                 'lote_contenedor': camion_patio_asociado.CPA_CLOTE_CONTENEDOR if camion_patio_asociado else '',
+                **({
+                    'es_recepcion_sbh': True,
+                    'tipo_recepcion': camion_patio_asociado.CPA_CTIPO_RECEPCION or '',
+                    'cda': camion_patio_asociado.CPA_CCDA or '',
+                    'di': camion_patio_asociado.CPA_CDI or '',
+                    'nave_naviera': camion_patio_asociado.CPA_CNAVE_NAVIERA or '',
+                    'fecha_produccion': _formatear_fecha_documental_camion_patio(camion_patio_asociado.CPA_CFECHAPRODUCCION),
+                    'fecha_vencimiento': _formatear_fecha_documental_camion_patio(camion_patio_asociado.CPA_CFECHAVENCIMIENTOPRODUCTO),
+                    'sui': camion_patio_asociado.CPA_CSUI or '',
+                } if camion_patio_asociado and es_citacion_recepcion_sbh(citacion) else {}),
             },
+            'datos_operacionales': snapshot_recepcion_sbh or {},
             'mensaje_bloqueo': '' if (almacen or es_despacho) else 'No existe almacen definido en planificacion',
-            'planificacion': {
+            'planificacion': datos_planificacion_terramar or {
                 'Planificacion': citacion.PL_NID_id,
                 'Fecha planificacion': citacion.PL_NID.PL_FFECHAINICIO.strftime('%d/%m/%Y %H:%M') if citacion.PL_NID and citacion.PL_NID.PL_FFECHAINICIO else '',
-                'Cliente': citacion.SN_NID.SN_CRAZONSOCIAL if citacion.SN_NID else '',
+                'Cliente': cliente_planificacion,
                 'Transportista': texto_sin_informacion(valores_ingreso.get('transportista')),
                 'Codigo SAP': insumo_planificado.get('codigo') or 'Sin informacion',
                 'Insumo': insumo_planificado.get('insumo') or 'Sin informacion',
@@ -7461,7 +9474,7 @@ def PLANIFICACION_CITACION_ESTANQUE(request, pk):
         if es_despacho:
             payload['guardia'].pop('BL', None)
 
-        if es_recepcion_terramar:
+        if es_flujo_preoperacional:
             log_envio_bodega = SYSLOGGER.objects.select_related('US_NID').filter(
                 LOG_COPERACION=SYSLOGGER_OP_ENVIA_ASIST_BODEGA,
                 LOG_CADD1=str(citacion.id),
@@ -7481,7 +9494,8 @@ def PLANIFICACION_CITACION_ESTANQUE(request, pk):
                 (citacion.TAR_NID.RUT_NID.RUT_CNOMBRE if citacion.TAR_NID and citacion.TAR_NID.RUT_NID else '')
             )
             payload.update({
-                'es_recepcion_terramar': True,
+                'es_recepcion_terramar': es_citacion_recepcion_terramar(citacion),
+                'es_flujo_preoperacional_terramar': True,
                 'puede_editar': not enviado_siguiente,
                 'mensaje_bloqueo': '',
                 'ruta_transportista': {
@@ -7566,6 +9580,107 @@ def _validar_borrador_sap_peso_guia_disponible(citacion, usuario):
         return 'La citacion ya fue enviada a la siguiente etapa.'
     return ''
 
+
+def _validar_peso_informado_guia(valor):
+    texto = str(valor or '').strip().replace(',', '.')
+    if not texto:
+        return None, 'Debe ingresar el peso informado en guia antes de continuar.'
+    try:
+        peso = Decimal(texto)
+    except (InvalidOperation, ValueError):
+        return None, 'El peso informado en guia debe ser numerico.'
+    if peso <= 0:
+        return None, 'El peso informado en guia debe ser mayor a 0.'
+    if peso > Decimal('1000000'):
+        return None, 'El peso informado en guia supera el limite razonable permitido.'
+    return peso, ''
+
+
+def obtener_peso_informado_guia(citacion):
+    return str(
+        DATO_OPERACION.objects.filter(
+            CI_NID=citacion,
+            CAMP_NID__CA_CCODIGO=CAMPO_PESO_INFORMADO_GUIA,
+        ).order_by('-id').values_list('DO_CVALOR', flat=True).first()
+        or ''
+    ).strip()
+
+
+def detalle_error_borrador_sap_recepcion(resultado):
+    resultado = resultado if isinstance(resultado, dict) else {}
+    estado = resultado.get('status') if isinstance(resultado.get('status'), dict) else {}
+    sap_error = resultado.get('sap_error') if isinstance(resultado.get('sap_error'), dict) else {}
+    sap_data = sap_error.get('data') if isinstance(sap_error.get('data'), dict) else {}
+    sap_error_data = sap_data.get('error') if isinstance(sap_data.get('error'), dict) else {}
+    sap_message = sap_error_data.get('message')
+    if isinstance(sap_message, dict):
+        sap_message = sap_message.get('value') or sap_message.get('lang')
+
+    candidatos = (
+        resultado.get('sap_error_message'),
+        estado.get('sap_error_message'),
+        sap_message,
+        sap_data.get('message'),
+        sap_error.get('error'),
+        resultado.get('message'),
+    )
+    for candidato in candidatos:
+        if candidato and not isinstance(candidato, (dict, list)):
+            return str(candidato).strip()
+    return 'Error SAP no informado.'
+
+
+def crear_borrador_sap_recepcion_interno(citacion, usuario):
+    estado = get_goods_receipt_draft_guide_status(citacion)
+    if estado.get('sent') and estado.get('docentry'):
+        return {
+            'success': True,
+            'message': 'El borrador SAP ya estaba creado.',
+            'status': estado,
+            'reused': True,
+        }
+
+    try:
+        resultado = send_goods_receipt_draft_from_peso_guia_to_sap(citacion, usuario)
+    except Exception as exc:
+        resultado = {'success': False, 'message': str(exc), 'sap_error': {'error': str(exc)}}
+    # Un estado persistido con DocEntry es la evidencia definitiva del draft.
+    estado_posterior = get_goods_receipt_draft_guide_status(citacion)
+    if estado_posterior.get('sent') and estado_posterior.get('docentry'):
+        if resultado.get('success'):
+            resultado['status'] = estado_posterior
+            return resultado
+        return {
+            'success': True,
+            'message': 'El borrador SAP ya estaba creado.',
+            'status': estado_posterior,
+            'reused': True,
+            'recovered_after_error': True,
+        }
+
+    if resultado.get('success'):
+        resultado['success'] = False
+        resultado['message'] = 'SAP respondió sin dejar un borrador válido con DocEntry.'
+        resultado['status'] = estado_posterior
+
+    detalle_error = {
+        'citacion': citacion.id,
+        'planificacion': citacion.PL_NID_id,
+        'usuario': getattr(usuario, 'username', ''),
+        'status_http': resultado.get('status_code'),
+        'mensaje': str(resultado.get('message') or 'Error no informado')[:1000],
+        'error_sap': str(resultado.get('sap_error') or '')[:2000],
+    }
+    logger.error('ERROR BORRADOR SAP RECEPCION SBH: %s', detalle_error)
+    registrar_log_camion_no_planificado(
+        usuario,
+        citacion.EP_NID,
+        'ERROR_BORRADOR_SAP',
+        json.dumps(detalle_error, ensure_ascii=False),
+        citacion.id,
+        'RECEPCION_SBH',
+    )
+    return resultado
 
 def _resolver_ruta_archivo_citacion(ruta):
     ruta = str(ruta or '').strip()
@@ -7783,6 +9898,12 @@ def PLANIFICACION_BORRADOR_SAP_PESO_GUIA_ENVIAR(request, pk):
     if tipo_citacion != CIT_RECEPCION:
         return JsonResponse({'success': False, 'message': 'Este borrador SAP solo aplica para citaciones de RECEPCION.'}, status=400)
 
+    if es_flujo_recepcion_estanque_sbh(citacion):
+        return JsonResponse({
+            'success': False,
+            'message': 'El borrador SAP se crea internamente al guardar el estanque.',
+        }, status=409)
+
     dato_estanque = obtener_dato_estanque_operacional(citacion)
     if not dato_estanque or not str(dato_estanque.DO_CVALOR or '').strip():
         return JsonResponse({'success': False, 'message': 'No se puede crear Borrador SAP: primero debe guardar el estanque.'}, status=400)
@@ -7872,13 +9993,15 @@ def SAP_DESPACHO_CREAR_DRAFT(request, pk):
 
 
 def avanzar_recepcion_terramar_a_guardia(request, citacion):
-    confirmado = str(request.POST.get('solicitud_ingreso_descarga') or '').strip().lower() in {
-        '1', 'true', 'on', 'si', 's?'
-    }
+    es_despacho_terramar = es_citacion_despacho_terramar(citacion)
+    campo_solicitud = 'BOD_SOLICITUD_INGRESO_CARGA' if es_despacho_terramar else 'BOD_SOLICITUD_INGRESO_DESCARGA'
+    clave_post = 'solicitud_ingreso_carga' if es_despacho_terramar else 'solicitud_ingreso_descarga'
+    texto_operacion = 'carga' if es_despacho_terramar else 'descarga'
+    confirmado = str(request.POST.get(clave_post) or '').strip().lower() in {'1', 'true', 'on', 'si', 's?'}
     if not confirmado:
         return JsonResponse({
             'success': False,
-            'message': 'Debe confirmar la solicitud de ingreso a descarga antes de enviar a Guardia.',
+            'message': f'Debe confirmar la solicitud de ingreso a {texto_operacion} antes de enviar a Guardia.',
         }, status=400)
 
     with transaction.atomic():
@@ -7899,17 +10022,17 @@ def avanzar_recepcion_terramar_a_guardia(request, citacion):
 
         guardar_dato_operacion_codigo(
             citacion,
-            'BOD_SOLICITUD_INGRESO_DESCARGA',
+            campo_solicitud,
             'true',
             request.user,
-            etiqueta='Solicitud de ingreso a descarga confirmada',
+            etiqueta=f'Solicitud de ingreso a {texto_operacion} confirmada',
             etapa=citacion.ETAPA_ACTUAL,
         )
         etapa_origen, etapa_destino = avanzar_citacion_a_siguiente_etapa(
             citacion,
             usuario=request.user,
             accion='ENVIA_BODEGA_GUARDIA',
-            observacion='Solicitud de ingreso a descarga confirmada por Asistente_bodega.',
+            observacion=f'Solicitud de ingreso a {texto_operacion} confirmada por Asistente_bodega.',
         )
         valores_ingreso = obtener_valores_ingreso_camion(citacion)
         patente = texto_sin_informacion(valores_ingreso.get('patente'))
@@ -7958,7 +10081,7 @@ def AVANZAR_ESTANQUE_SIGUIENTE_ETAPA(request, pk):
 
     try:
         citacion = CITACION.objects.select_related('EP_NID', 'SC_NID', 'PL_NID').get(pk=pk, EP_NID_id=Empresa, CI_BHABILITADO=True)
-        if es_citacion_recepcion_terramar(citacion):
+        if es_flujo_preoperacional_terramar(citacion):
             with transaction.atomic():
                 CITACION.objects.select_for_update().get(
                     pk=pk,
@@ -7989,9 +10112,16 @@ def AVANZAR_ESTANQUE_SIGUIENTE_ETAPA(request, pk):
         es_recepcion = tipo_citacion_actual == CIT_RECEPCION
         if es_despacho:
             datos_operacion, _ = obtener_datos_operacion_citacion(citacion)
-            if not datos_asistente_cd_despacho_guardados(citacion, datos_operacion):
+            datos_guardados = datos_asistente_cd_despacho_guardados(citacion, datos_operacion)
+            draft_creado = get_sap_despacho_draft_status(citacion).get('created')
+            if es_citacion_despacho_sbh(citacion) and (not datos_guardados or not draft_creado):
+                return JsonResponse({
+                    'success': False,
+                    'message': 'Debe guardar correctamente los datos antes de avanzar.'
+                }, status=409)
+            if not datos_guardados:
                 return JsonResponse({'success': False, 'message': 'Debe guardar los datos de Asistente Carga y Descarga antes de enviar.'}, status=400)
-            if not get_sap_despacho_draft_status(citacion).get('created'):
+            if not draft_creado:
                 return JsonResponse({'success': False, 'message': 'Debe crear el borrador SAP de despacho antes de enviar a la siguiente etapa.'}, status=400)
         else:
             datos_operacion = None
@@ -8000,6 +10130,11 @@ def AVANZAR_ESTANQUE_SIGUIENTE_ETAPA(request, pk):
         if not es_despacho and (not dato_estanque or not str(dato_estanque.DO_CVALOR or '').strip()):
             return JsonResponse({'success': False, 'message': 'Debe guardar un estanque antes de enviar.'}, status=400)
         if es_recepcion:
+            if es_flujo_recepcion_estanque_sbh(citacion) and not ruta_transportista_asistente_guardada(citacion):
+                return JsonResponse({
+                    'success': False,
+                    'message': 'Debe guardar la ruta del transportista antes de continuar.',
+                }, status=400)
             peso_guardado = DATO_OPERACION.objects.filter(
                 CI_NID=citacion,
                 CAMP_NID__CA_CCODIGO=CAMPO_PESO_INFORMADO_GUIA
@@ -8009,6 +10144,10 @@ def AVANZAR_ESTANQUE_SIGUIENTE_ETAPA(request, pk):
                     'success': False,
                     'message': 'Debe guardar el peso informado antes de enviar a la siguiente etapa.',
                 }, status=400)
+            if es_flujo_recepcion_estanque_sbh(citacion):
+                _, error_peso = _validar_peso_informado_guia(peso_guardado.DO_CVALOR)
+                if error_peso:
+                    return JsonResponse({'success': False, 'message': error_peso}, status=400)
             estado_borrador_recepcion = get_goods_receipt_draft_guide_status(citacion)
             if not estado_borrador_recepcion.get('sent') or not estado_borrador_recepcion.get('docentry'):
                 return JsonResponse({
@@ -8185,20 +10324,7 @@ PERFILES_GUARDIA_PORTERIA = {
 }
 
 PERFILES_ASISTENTE_RECEPCION = {
-    'ASISTENTE DE RECEPCION',
     'ASISTENTE RECEPCION',
-    'ASISTENTE_RECEPCION',
-    'ASISTENTE_RECEPCIÓN',
-    'ASISTENTE RECEPCIÓN',
-    'AR',
-}
-
-USUARIOS_ASISTENTE_RECEPCION = {
-    'ASISTENTE RECEPCION',
-    'ASISTENTE DE RECEPCION',
-    'ASISTENTE_RECEPCION',
-    'ASISTENTE_RECEPCIÓN',
-    'ASISTENTE RECEPCIÓN',
 }
 
 PERFILES_ASISTENTE_CD = {
@@ -8229,6 +10355,7 @@ PERFILES_OPERACION_PLANTA = {
     'ASISTENTE CD',
     'ASISTENTE DE RECEPCION',
     'ASISTENTE RECEPCION',
+    'ASISTENTE DESPACHO',
     'CALIDAD',
     'SALA CONTROL',
     'GUARDIA PORTERIA',
@@ -8240,6 +10367,7 @@ RECEPCION_BORRADOR_SAP_TEMPORALMENTE_DESACTIVADO = True
 DESPACHO_EMISION_DOCUMENTOS_TEMPORALMENTE_DESACTIVADA = True
 
 FLUJOS_RECEPCION_ETAPA_0 = (
+    (SECUENCIA_RECEPCION_TRANSFERENCIA_SBH, 'Recepción de Transferencia SBH', 'RECEPCION ESTANQUES ( ALMACENAJE)'),
     ('RECEPCION_ESTANQUE_SBH', 'Estanque SBH', 'RECEPCION ESTANQUES ( ALMACENAJE)'),
     ('RECEPCION_BODEGA_EXTERNA', 'Bodega Externa', 'RECEPCION DE ACEITES V-3'),
     ('RECEPCION_TRASVASIJE', 'Trasvasije', 'TRASVASIJES A PROSESA'),
@@ -8247,6 +10375,20 @@ FLUJOS_RECEPCION_ETAPA_0 = (
     ('RECEPCION_PATIO_LF_SIN_CALIDAD', 'Patio LF sin Calidad', 'ACEITES A PISO V_2'),
 )
 
+FLUJOS_DESPACHO_TERRAMAR_ETAPA_0 = (
+    ('DESPACHO_TERRAMAR', 'Despacho Terramar', (
+        'Despacho Programado', 'Ingreso Planta', 'Autorización Ingreso',
+        'Enviar a Romana Inicio Ciclo', 'Inicio Carga', 'Pesaje Romana',
+        'Cierre Proceso de Carga', 'Emisión Guía / Factura',
+        'Autorización Salida', 'Confirmar Salida',
+    )),
+    ('DESPACHO_TERRAMAR_BODEGA_EXTERNA', 'Despacho Bodega externa', (
+        'Despacho Programado', 'Ingreso Planta', 'Autorización Ingreso',
+        'Enviar a Romana Inicio Ciclo', 'Inicio Carga Bodega Externa',
+        'Cierre Proceso de Carga', 'Emisión Guía / Factura',
+        'Autorización Salida', 'Confirmar Salida',
+    )),
+)
 FLUJOS_DESPACHO_ETAPA_0 = (
     (
         'EST_SBH_CLIENTE',
@@ -8344,9 +10486,17 @@ PASOS_RECEPCION_SIN_CALIDAD = [
     ('Confirmar Salida', ['GUARDIA PORTERIA']),
 ]
 
+PASO_DOCUMENTACION_TERRAMAR = 'Documentación'
+PERFIL_TERRAMAR_ASISTENTE_BODEGA = 'ASISTENTE CD'
+PERFIL_TERRAMAR_ASISTENTE_RECEPCION = 'ASISTENTE RECEPCION'
+PERFIL_TERRAMAR_ASISTENTE_DESPACHO = 'ASISTENTE DESPACHO'
+
 PASOS_RECEPCION_TERRAMAR = [
-    ('Ciclo Descarga', ['SALA CONTROL']),
-    ('Autorizar Salida', ['ASISTENTE DE RECEPCION']),
+    ('Pesaje Entrada', ['OPERADOR ROMANA']),
+    ('Ciclo Descarga', [PERFIL_TERRAMAR_ASISTENTE_BODEGA]),
+    ('Pesaje Salida', ['OPERADOR ROMANA']),
+    (PASO_DOCUMENTACION_TERRAMAR, [PERFIL_TERRAMAR_ASISTENTE_RECEPCION]),
+    ('Autorizar Salida', [PERFIL_TERRAMAR_ASISTENTE_DESPACHO]),
     ('Confirmar Salida', ['GUARDIA PORTERIA']),
 ]
 
@@ -8366,10 +10516,23 @@ PASOS_DESPACHO_CARGA = [
     ('Confirmar Salida', ['GUARDIA PORTERIA']),
 ]
 
+# Flujo aislado: no reutiliza los pasos ni responsables de Despacho SBH.
+PASO_CICLO_CARGA_TERRAMAR = 'Ciclo Carga'
+PASOS_DESPACHO_TERRAMAR = [
+    ('Pesaje Entrada', ['OPERADOR ROMANA']),
+    (PASO_CICLO_CARGA_TERRAMAR, [PERFIL_TERRAMAR_ASISTENTE_BODEGA]),
+    ('Pesaje Salida', ['OPERADOR ROMANA']),
+    (PASO_DOCUMENTACION_TERRAMAR, [PERFIL_TERRAMAR_ASISTENTE_RECEPCION]),
+    ('Autorizar Salida', [PERFIL_TERRAMAR_ASISTENTE_DESPACHO]),
+    ('Confirmar Salida', ['GUARDIA PORTERIA']),
+]
+
 FLUJOS_DESPACHO_OPERACION_PLANTA = {
     'EST_SBH_CLIENTE': PASOS_DESPACHO_CARGA,
     'TRASVASIJE_CLIENTE': PASOS_DESPACHO_CARGA,
     'BODEGA_PATIO_CLIENTE': PASOS_DESPACHO_CARGA,
+    'DESPACHO_TERRAMAR': PASOS_DESPACHO_TERRAMAR,
+    'DESPACHO_TERRAMAR_BODEGA_EXTERNA': PASOS_DESPACHO_TERRAMAR,
     'BODEGA_EXTERNA_CLIENTE': [
         ('Pesaje Entrada', ['OPERADOR ROMANA']),
         (PASO_AUTORIZACION_SALIDA_INICIAL, ['ASISTENTE DE RECEPCION']),
@@ -8495,6 +10658,8 @@ def expandir_aliases_perfiles_operacion(perfiles):
         perfiles_expandidos.update({'ASISTENTE C D', 'ASISTENTE CD'})
     if perfiles_expandidos & {'GUARDIA PORTERIA'}:
         perfiles_expandidos.add('GUARDIA PORTERIA')
+    if perfiles_expandidos & {'ASISTENTE DESPACHO'}:
+        perfiles_expandidos.add('ASISTENTE DESPACHO')
     return perfiles_expandidos
 
 
@@ -8595,26 +10760,30 @@ def usuario_es_guardia_porteria(user):
 
 
 def usuario_es_asistente_recepcion(user):
+    """Compatibilidad interna: la autorización es siempre RBAC canónico."""
+    return usuario_tiene_perfil_asistente_recepcion(user)
+
+
+def usuario_tiene_perfil_asistente_recepcion(user):
+    """RBAC estricto del Asistente de Recepcion, sin inferencias por username."""
+    if not user or not getattr(user, 'is_authenticated', False):
+        return False
     if getattr(user, 'is_superuser', False):
         return False
-
-    if normalizar_nombre_perfil(getattr(user, 'username', '')) in USUARIOS_ASISTENTE_RECEPCION:
-        return True
 
     perfiles_usuario = PERFIL_USUARIO.objects.select_related('PR_NID').filter(
         US_NID=user.id,
         PE_BHABILITADO=True,
-        PR_NID__PR_BHABILITADO=True
+        PR_NID__PR_BHABILITADO=True,
     )
-
-    for perfil_usuario in perfiles_usuario:
-        nombre = normalizar_nombre_perfil(perfil_usuario.PR_NID.PR_CNOMBRE)
-        codigo = normalizar_nombre_perfil(perfil_usuario.PR_NID.PR_CCODIGO)
-
-        if nombre in PERFILES_ASISTENTE_RECEPCION or codigo in PERFILES_ASISTENTE_RECEPCION:
-            return True
-
-    return False
+    return any(
+        normalizar_nombre_perfil(valor) in PERFILES_ASISTENTE_RECEPCION
+        for perfil_usuario in perfiles_usuario
+        for valor in (
+            perfil_usuario.PR_NID.PR_CNOMBRE,
+            perfil_usuario.PR_NID.PR_CCODIGO,
+        )
+    )
 
 
 def usuario_es_asistente_cd(user):
@@ -8624,8 +10793,12 @@ def usuario_es_asistente_cd(user):
     if normalizar_nombre_perfil(getattr(user, 'username', '')) in USUARIOS_ASISTENTE_CD:
         return True
 
+    user_id = getattr(user, 'id', None)
+    if not user_id:
+        return False
+
     perfiles_usuario = PERFIL_USUARIO.objects.select_related('PR_NID').filter(
-        US_NID=user.id,
+        US_NID=user_id,
         PE_BHABILITADO=True,
         PR_NID__PR_BHABILITADO=True
     )
@@ -8705,6 +10878,31 @@ def usuario_puede_paso_operacion(user, responsables):
         return True
     responsables_normalizados = expandir_aliases_perfiles_operacion(responsables)
     return bool(perfiles_normalizados_usuario(user) & responsables_normalizados)
+
+
+def usuario_puede_reabrir_cierre_carga(user):
+    if getattr(user, 'is_superuser', False):
+        return True
+    identidad = normalizar_nombre_perfil(getattr(user, 'username', ''))
+    return identidad == 'ADMIN DESARROLLO' or 'ADMIN DESARROLLO' in perfiles_normalizados_usuario(user)
+
+
+def usuario_puede_actualizar_borrador_sap_recepcion(citacion, user):
+    """Permiso funcional; no concede acceso al detalle técnico SAP."""
+    if getattr(user, 'is_superuser', False) or usuario_es_asistente_cd(user):
+        return True
+    return bool(
+        aplica_timbraje_recepcion(citacion)
+        and _empresa_timbre_recepcion(citacion) == 'SBH'
+        and usuario_es_asistente_recepcion(user)
+    )
+
+def usuario_es_asistente_despacho_terramar(user):
+    return bool(
+        getattr(user, 'is_authenticated', False)
+        and _usuario_tiene_acceso_empresa(user, 1)
+        and usuario_puede_paso_operacion(user, [PERFIL_TERRAMAR_ASISTENTE_DESPACHO])
+    )
 
 
 def citacion_habilitada_operacion(citacion):
@@ -8853,7 +11051,11 @@ def nombre_visible_paso_operacion(citacion, nombre_paso):
 def resolver_estado_operacional_visible(citacion, pasos_config, pasos_completados=None):
     pasos_completados = pasos_completados or set()
     nombres_pasos = [paso for paso, _ in pasos_config]
-    boton_desde_etapa_tecnica = obtener_boton_operacional_desde_etapa_tecnica(citacion)
+    es_flujo_terramar = es_flujo_preoperacional_terramar(citacion)
+    boton_desde_etapa_tecnica = (
+        '' if es_flujo_terramar
+        else obtener_boton_operacional_desde_etapa_tecnica(citacion)
+    )
     tipo_citacion = str(
         citacion.CI_CTIPO
         or (citacion.PL_NID.PL_CTIPOCUPO if citacion.PL_NID else '')
@@ -8872,6 +11074,7 @@ def resolver_estado_operacional_visible(citacion, pasos_config, pasos_completado
 
     if (
         not es_recepcion_bodega_externa
+        and not es_flujo_terramar
         and tipo_citacion != CIT_DESPACHO
         and boton_desde_etapa_tecnica in nombres_pasos
         and 'Confirmar Salida' not in pasos_completados
@@ -8919,6 +11122,12 @@ def construir_estado_pasos_operacion(nombres_pasos, paso_actual, pasos_completad
 TICKET_PESAJE_SHARED_PATH = r'\\172.16.1.144\ticket_pesaje'
 TICKET_PESAJE_LOCAL_PATH = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'tickets')
 TICKET_PESAJE_REQUIRED_MESSAGE = 'Debe obtener y guardar el ticket de pesaje antes de continuar.'
+CAMPO_TICKET_MOP_SAL_DESP_TERRAMAR = 'OP_TICKET_MOP_SAL_DESP_TERRAMAR'
+TICKET_MOP_MAX_DIFERENCIA_MINUTOS = 10
+TICKET_MOP_REQUIRED_MESSAGE = (
+    'No es posible finalizar Pesaje Salida. '
+    'Falta el Ticket MOP / Ejes asociado a este pesaje.'
+)
 PASO_TOMA_MUESTRA = 'Toma de muestra'
 PASO_ANALISIS_CALIDAD = 'Analisis y calidad'
 PASO_RESULTADO_CALIDAD = 'Resultado Calidad'
@@ -8932,12 +11141,19 @@ CAMPO_VALIDACION_CALIDAD = 'OP_VALIDACION_CALIDAD'
 CAMPO_RESULTADO_CALIDAD = 'OP_RESULTADO_CALIDAD'
 CAMPO_PREPARACION_DESCARGA = 'OP_PREPARACION_DESCARGA'
 CAMPO_CICLO_DESCARGA = 'OP_CICLO_DESCARGA'
+EVENTO_ESPERA_DESCARGA_INICIO = 'RECEPCION_TERRAMAR_ESPERA_DESCARGA_INICIO'
+EVENTO_ESPERA_DESCARGA_FIN = 'RECEPCION_TERRAMAR_ESPERA_DESCARGA_FIN'
 CAMPO_AUTORIZAR_SALIDA = 'OP_AUTORIZAR_SALIDA'
 CAMPO_OBSERVACION_ETAPA = 'OP_OBSERVACION_ETAPA'
 EVENTO_RECEPCION_BODEGA_EXTERNA_SALIDA = 'RECEPCION_BODEGA_EXTERNA_SALIDA_AUTORIZADA'
 EVENTO_RECEPCION_BODEGA_EXTERNA_REGRESO = 'RECEPCION_BODEGA_EXTERNA_REGRESO_REGISTRADO'
 SYSLOG_RECEPCION_BODEGA_EXTERNA_SALIDA = 'REC_BEXT_SALIDA'
 SYSLOG_RECEPCION_BODEGA_EXTERNA_REGRESO = 'REC_BEXT_REGRESO'
+EVENTO_TERRAMAR_BODEGA_EXTERNA_SALIDA = 'TERRAMAR_BODEGA_EXTERNA_SALIDA'
+EVENTO_TERRAMAR_BODEGA_EXTERNA_REGRESO = 'TERRAMAR_BODEGA_EXTERNA_REGRESO'
+SYSLOG_TERRAMAR_BODEGA_EXTERNA_SALIDA = 'INICIA_BOD_EXT_TER'
+SYSLOG_TERRAMAR_BODEGA_EXTERNA_REGRESO = 'CIERRA_BOD_EXT_TER'
+TIPO_CICLO_TERRAMAR_BODEGA_EXTERNA = 'RECEPCION_TERRAMAR_BODEGA_EXTERNA'
 TOMA_MUESTRA_ACCION_REQUIRED_MESSAGE = 'Debe registrar la accion principal antes de finalizar Toma de muestra.'
 TIPOS_CICLO_DESCARGA = (
     'Descarga Estanque',
@@ -8945,6 +11161,7 @@ TIPOS_CICLO_DESCARGA = (
     'Descarga en Cisterna',
     'Descarga Patio LF',
 )
+TIPO_DESCARGA_TERRAMAR = 'PROCESO_DESCARGA_TERRAMAR'
 TIPO_DESCARGA_INICIO_TRASVASIJE = 'INICIO_TRASVASIJE'
 ETIQUETA_DESCARGA_INICIO_TRASVASIJE = 'Inicio Trasvasije'
 PUNTOS_DESPACHO_CARGA = (
@@ -8988,6 +11205,18 @@ PROCESOS_CICLO_CARGA_DESPACHO = (
     },
 )
 
+
+
+def es_recepcion_terramar_bodega_externa_operacion(citacion):
+    if not citacion:
+        return False
+    tipo = str(getattr(citacion, 'CI_CTIPO', '') or '').strip().upper()
+    codigo = str(citacion.SC_NID.SE_CCODIGO if citacion.SC_NID else '').strip().upper()
+    return (
+        citacion.EP_NID_id == 1
+        and tipo == CIT_RECEPCION
+        and codigo == 'RECEPCION_TERRAMAR_BODEGA_EXTERNA'
+    )
 
 
 def es_recepcion_bodega_externa_operacion(citacion):
@@ -9037,6 +11266,15 @@ PASOS_OPERACION_PLANTA_TICKET = {
 
 def opciones_tipos_ciclo_descarga(nombre_flujo):
     flujo_normalizado = normalizar_nombre_flujo_operacion(nombre_flujo)
+    if flujo_normalizado in {
+        normalizar_nombre_flujo_operacion('RECEPCION_TERRAMAR'),
+        normalizar_nombre_flujo_operacion('RECEPCION_TERRAMAR_BODEGA_EXTERNA'),
+    }:
+        return [{
+            'codigo': TIPO_DESCARGA_TERRAMAR,
+            'etiqueta': 'Proceso de descarga',
+            'etiqueta_tarjeta': 'Proceso de descarga',
+        }]
     es_recepcion_trasvasije = flujo_normalizado == normalizar_nombre_flujo_operacion('RECEPCION TRASVASIJE')
     opciones = []
     for tipo_descarga in TIPOS_CICLO_DESCARGA:
@@ -9104,6 +11342,199 @@ def _fecha_ticket_desde_nombre(nombre_archivo):
     except ValueError:
         return None
 
+
+def es_pesaje_salida_mop_despacho_terramar(citacion, paso_actual, tipo_ticket):
+    return bool(
+        citacion
+        and citacion.EP_NID_id == 1
+        and str(citacion.CI_CTIPO or '').strip().upper() == CIT_DESPACHO
+        and citacion.SC_NID
+        and str(citacion.SC_NID.SE_CCODIGO or '').strip().upper() == 'DESPACHO_TERRAMAR'
+        and str(paso_actual or '').strip() == 'Pesaje Salida'
+        and str(tipo_ticket or '').strip().upper() == 'SAL'
+    )
+
+
+def _timestamp_base_ticket_salida(nombre_archivo):
+    nombre = os.path.basename(str(nombre_archivo or ''))
+    match = re.match(
+        r'^COM_SAL_(.+?)_(\d{2})_(\d{2})_(\d{2})_(\d{2})_(\d{2})(?:_\d{8}_\d{6})?\.pdf$',
+        nombre,
+        re.IGNORECASE,
+    )
+    if not match:
+        return None
+    try:
+        return datetime(
+            2000 + int(match.group(2)), int(match.group(3)), int(match.group(4)),
+            int(match.group(5)), int(match.group(6)),
+        )
+    except ValueError:
+        return None
+
+
+def _extraer_timestamp_ticket_ejes(nombre_archivo):
+    nombre = os.path.basename(str(nombre_archivo or ''))
+    match = re.match(
+        r'^EJES_(.+?)_(\d{2})_(\d{2})_(\d{2})_(\d{2})_(\d{2})\.pdf$',
+        nombre,
+        re.IGNORECASE,
+    )
+    if not match:
+        return None
+    try:
+        timestamp = datetime(
+            2000 + int(match.group(2)), int(match.group(3)), int(match.group(4)),
+            int(match.group(5)), int(match.group(6)),
+        )
+    except ValueError:
+        return None
+    return {'patente': _normalizar_patente(match.group(1)), 'timestamp': timestamp}
+
+
+def _seleccionar_candidato_ticket_mop(candidatos, timestamp_ticket_salida):
+    limite_segundos = TICKET_MOP_MAX_DIFERENCIA_MINUTOS * 60
+    validos = []
+    for candidato in candidatos:
+        timestamp = candidato.get('timestamp')
+        if not timestamp:
+            continue
+        diferencia = abs((timestamp - timestamp_ticket_salida).total_seconds())
+        if diferencia <= limite_segundos:
+            validos.append({**candidato, 'diferencia_segundos': int(diferencia)})
+    if not validos:
+        return None, 'MOP_NO_ENCONTRADO', []
+    validos.sort(key=lambda item: (item['diferencia_segundos'], -float(item.get('mtime') or 0)))
+    mejor_diferencia = validos[0]['diferencia_segundos']
+    empatados = [item for item in validos if item['diferencia_segundos'] == mejor_diferencia]
+    if len({item.get('nombre') or '' for item in empatados}) > 1:
+        return None, 'MOP_AMBIGUO', validos
+    return validos[0], 'MOP_ENCONTRADO', validos
+
+
+def _buscar_ticket_mop_ejes_despacho_terramar(patente, timestamp_ticket_salida):
+    patente_normalizada = _normalizar_patente(patente)
+    if not patente_normalizada or not timestamp_ticket_salida:
+        return None, 'MOP_NO_ENCONTRADO', []
+    candidatos_por_nombre = {}
+    for carpeta in (TICKET_PESAJE_SHARED_PATH, TICKET_PESAJE_LOCAL_PATH):
+        if not carpeta or not os.path.isdir(carpeta):
+            continue
+        try:
+            nombres = os.listdir(carpeta)
+        except OSError as exc:
+            logger.warning('[OP_TICKET_MOP] No fue posible listar carpeta | error=%s', exc)
+            continue
+        for nombre in nombres:
+            datos_nombre = _extraer_timestamp_ticket_ejes(nombre)
+            if not datos_nombre or datos_nombre['patente'] != patente_normalizada:
+                continue
+            ruta = os.path.join(carpeta, nombre)
+            if not os.path.isfile(ruta):
+                continue
+            try:
+                mtime = os.path.getmtime(ruta)
+            except OSError:
+                mtime = 0
+            candidato = {'nombre': nombre, 'ruta': ruta, 'timestamp': datos_nombre['timestamp'], 'mtime': mtime}
+            previo = candidatos_por_nombre.get(nombre.lower())
+            if not previo or mtime > previo.get('mtime', 0):
+                candidatos_por_nombre[nombre.lower()] = candidato
+    seleccionado, estado, candidatos = _seleccionar_candidato_ticket_mop(
+        list(candidatos_por_nombre.values()), timestamp_ticket_salida,
+    )
+    if estado == 'MOP_AMBIGUO':
+        logger.warning(
+            '[OP_TICKET_MOP] Candidatos ambiguos | patente=%s | candidatos=%s',
+            patente_normalizada,
+            [item.get('nombre') for item in candidatos],
+        )
+    return seleccionado, estado, candidatos
+
+
+def _copiar_ticket_mop_local(ruta_origen, citacion):
+    carpeta = os.path.join(TICKET_PESAJE_LOCAL_PATH, 'mop', str(citacion.id))
+    os.makedirs(carpeta, exist_ok=True)
+    nombre_original = os.path.basename(ruta_origen)
+    nombre_local = f'{uuid.uuid4().hex}_{get_valid_filename(nombre_original)}'
+    destino = os.path.join(carpeta, nombre_local)
+    shutil.copy2(ruta_origen, destino)
+    return destino
+
+
+def _obtener_campo_ticket_mop_despacho_terramar(citacion, usuario):
+    campo, _ = CAMPO.objects.get_or_create(
+        EP_NID=citacion.EP_NID,
+        CA_CCODIGO=CAMPO_TICKET_MOP_SAL_DESP_TERRAMAR,
+        defaults={
+            'US_NID': usuario,
+            'CA_CTIPO': 'ARCHIVO',
+            'CA_CETIQUETA': 'Ticket MOP Pesaje Salida Despacho Terramar',
+            'CA_CPLACEMARK': 'Ticket MOP / Ejes',
+            'CA_BOBLIGATORIO': True,
+            'CA_BHABILITADO': True,
+            'CA_BASIGNARVALOR': False,
+        },
+    )
+    return campo
+
+
+def _dato_ticket_mop_despacho_terramar(citacion):
+    return DATO_OPERACION.objects.filter(
+        CI_NID=citacion,
+        CAMP_NID__CA_CCODIGO=CAMPO_TICKET_MOP_SAL_DESP_TERRAMAR,
+    ).select_related('CAMP_NID').order_by('-id').first()
+
+
+def _metadata_ticket_mop_dato(dato):
+    if not dato:
+        return None
+    try:
+        metadata = json.loads(dato.DO_CVALOR or '{}')
+    except (TypeError, ValueError):
+        return None
+    return metadata if isinstance(metadata, dict) else None
+
+
+def _ticket_mop_guardado_valido(citacion, metadata=None, ticket_salida_metadata=None):
+    metadata = metadata or _metadata_ticket_mop_dato(_dato_ticket_mop_despacho_terramar(citacion))
+    if not es_pesaje_salida_mop_despacho_terramar(citacion, 'Pesaje Salida', 'SAL') or not metadata:
+        return False
+    if ticket_salida_metadata is None:
+        ticket_salida_metadata = _leer_metadata_ticket_dato(_dato_ticket_pesaje(citacion, 'Pesaje Salida'))
+    ruta = metadata.get('ruta_local')
+    datos_nombre = _extraer_timestamp_ticket_ejes(metadata.get('nombre'))
+    return bool(
+        ruta and os.path.isfile(ruta) and _ruta_ticket_permitida(ruta)
+        and datos_nombre
+        and datos_nombre['patente'] == _normalizar_patente(metadata.get('patente'))
+        and metadata.get('paso') == 'Pesaje Salida'
+        and ticket_salida_metadata
+        and metadata.get('ticket_salida_nombre') == ticket_salida_metadata.get('nombre_archivo_pdf')
+        and metadata.get('ticket_salida_timestamp')
+        == (_timestamp_base_ticket_salida(ticket_salida_metadata.get('nombre_archivo_pdf')).isoformat()
+            if _timestamp_base_ticket_salida(ticket_salida_metadata.get('nombre_archivo_pdf')) else '')
+    )
+
+
+def _payload_ticket_mop_guardado(citacion, request=None):
+    requerido = es_pesaje_salida_mop_despacho_terramar(citacion, 'Pesaje Salida', 'SAL')
+    if not requerido:
+        return {'requerido': False, 'ok': False, 'nombre': '', 'download_url': ''}
+    dato = _dato_ticket_mop_despacho_terramar(citacion)
+    metadata = _metadata_ticket_mop_dato(dato)
+    if not dato or not _ticket_mop_guardado_valido(citacion, metadata):
+        return {'requerido': True, 'ok': False, 'nombre': '', 'download_url': ''}
+    url = f"{reverse('ajax_operacion_planta_descargar_ticket_pesaje')}?dato_id={dato.id}"
+    if request:
+        url = request.build_absolute_uri(url)
+    return {
+        'requerido': True,
+        'ok': True,
+        'nombre': metadata.get('nombre') or '',
+        'download_url': url,
+        'dato_id': dato.id,
+    }
 
 def _buscar_ticket_pesaje_mas_reciente(patente, tipo_ticket):
     patente_normalizada = _normalizar_patente(patente)
@@ -9374,6 +11805,87 @@ def _payload_ticket_pesaje_guardado(citacion, paso, request=None):
     }
 
 
+def _resolver_ticket_mop_despacho_terramar(citacion, patente, ticket_salida_metadata, usuario, request=None):
+    payload_existente = _payload_ticket_mop_guardado(citacion, request)
+    if payload_existente.get('ok'):
+        return {
+            'estado': 'MOP_ENCONTRADO',
+            'ok': True,
+            'nombre': payload_existente.get('nombre') or '',
+            'download_url': payload_existente.get('download_url') or '',
+            'mensaje': 'Ticket MOP obtenido correctamente.',
+        }
+
+    ticket_salida_nombre = str(ticket_salida_metadata.get('nombre_archivo_pdf') or '').strip()
+    timestamp_ticket_salida = _timestamp_base_ticket_salida(ticket_salida_nombre)
+    if not timestamp_ticket_salida:
+        return {
+            'estado': 'MOP_NO_ENCONTRADO',
+            'ok': False,
+            'nombre': '',
+            'download_url': '',
+            'mensaje': 'No fue posible determinar la fecha y hora del ticket de salida congelado.',
+        }
+
+    candidato, estado, _ = _buscar_ticket_mop_ejes_despacho_terramar(
+        patente,
+        timestamp_ticket_salida,
+    )
+    if estado == 'MOP_AMBIGUO':
+        return {
+            'estado': estado,
+            'ok': False,
+            'nombre': '',
+            'download_url': '',
+            'mensaje': 'Se encontraron múltiples Ticket MOP candidatos para este pesaje.',
+        }
+    if not candidato:
+        return {
+            'estado': 'MOP_NO_ENCONTRADO',
+            'ok': False,
+            'nombre': '',
+            'download_url': '',
+            'mensaje': 'Ticket de pesaje obtenido. Ticket MOP pendiente.',
+        }
+
+    ruta_local = _copiar_ticket_mop_local(candidato['ruta'], citacion)
+    if not _ruta_ticket_permitida(ruta_local):
+        raise ValueError('La ruta local del Ticket MOP no está permitida.')
+    campo = _obtener_campo_ticket_mop_despacho_terramar(citacion, usuario)
+    metadata = {
+        'nombre': candidato['nombre'],
+        'ruta_local': os.path.abspath(ruta_local),
+        'patente': _normalizar_patente(patente),
+        'timestamp_archivo': candidato['timestamp'].isoformat(),
+        'ticket_salida_nombre': ticket_salida_nombre,
+        'ticket_salida_timestamp': timestamp_ticket_salida.isoformat(),
+        'diferencia_segundos': candidato['diferencia_segundos'],
+        'usuario': usuario.username,
+        'usuario_id': usuario.id,
+        'paso': 'Pesaje Salida',
+    }
+    dato, _ = DATO_OPERACION.objects.update_or_create(
+        CI_NID=citacion,
+        SC_NID=citacion.SC_NID,
+        CAMP_NID=campo,
+        defaults={
+            'EP_NID': citacion.EP_NID,
+            'ET_NID': citacion.ETAPA_ACTUAL,
+            'US_NID': usuario,
+            'DO_CVALOR': json.dumps(metadata, ensure_ascii=False),
+            'DO_FFECHAREGISTRO': timezone.now(),
+        },
+    )
+    payload = _payload_ticket_mop_guardado(citacion, request)
+    return {
+        'estado': 'MOP_ENCONTRADO',
+        'ok': True,
+        'nombre': candidato['nombre'],
+        'download_url': payload.get('download_url') or '',
+        'dato_id': dato.id,
+        'mensaje': 'Ticket MOP obtenido correctamente.',
+    }
+
 def _observacion_cierre_ticket_pesaje(citacion, paso):
     ticket = _payload_ticket_pesaje_guardado(citacion, paso)
     if not ticket:
@@ -9387,6 +11899,354 @@ def _observacion_cierre_ticket_pesaje(citacion, paso):
     if paso == 'Pesaje Entrada':
         return f'Pesaje entrada informado. Ticket: {folio} | Peso: {peso} | Archivo: {archivo}'
     return ''
+
+
+CAMPO_DOCUMENTACION_TERRAMAR = 'OP_DOCUMENTACION_TERRAMAR'
+CAMPO_TIMBRADO_TERRAMAR = 'OP_TIMBRADO_TERRAMAR'
+CAMPO_TIMBRADO_RECEPCION = 'OP_TIMBRADO_RECEPCION'
+CAMPO_REVISION_CONFORMIDAD_SBH = 'OP_REV_CONFORME_SBH'
+LOG_DOCUMENTACION_TERRAMAR = 'DOC_VALIDA_TER'
+LOG_TIMBRADO_TERRAMAR = 'TIMBRA_DOC_TER'
+LOG_AUTORIZA_SALIDA_TERRAMAR = 'AUT_SALIDA_TER'
+LOG_EXPORTA_DOCUMENTOS_TERRAMAR = 'EXPORTA_DOC_TER'
+
+
+def _campo_timbrado_recepcion(citacion):
+    return CAMPO_TIMBRADO_TERRAMAR if _empresa_timbre_recepcion(citacion) == 'TERRAMAR' else CAMPO_TIMBRADO_RECEPCION
+
+def _etapa_actual_operacion_segura(citacion):
+    try:
+        return citacion.ETAPA_ACTUAL
+    except (AttributeError, ETAPA.DoesNotExist):
+        return None
+
+
+def _obtener_campo_metadata_terramar(citacion, usuario, codigo, etiqueta):
+    campo, _ = CAMPO.objects.get_or_create(
+        EP_NID=citacion.EP_NID,
+        CA_CCODIGO=codigo,
+        defaults={
+            'US_NID': usuario,
+            'CA_CTIPO': 'TEXTO',
+            'CA_CETIQUETA': etiqueta,
+            'CA_CPLACEMARK': etiqueta,
+            'CA_BOBLIGATORIO': True,
+            'CA_BHABILITADO': True,
+            'CA_BASIGNARVALOR': False,
+        },
+    )
+    cambios = []
+    if not campo.CA_BHABILITADO:
+        campo.CA_BHABILITADO = True
+        cambios.append('CA_BHABILITADO')
+    if campo.CA_CTIPO != 'TEXTO':
+        campo.CA_CTIPO = 'TEXTO'
+        cambios.append('CA_CTIPO')
+    if cambios:
+        campo.save(update_fields=cambios)
+    return campo
+
+
+def _guardar_metadata_terramar(citacion, usuario, codigo, etiqueta, metadata):
+    campo = _obtener_campo_metadata_terramar(citacion, usuario, codigo, etiqueta)
+    ahora = timezone.now()
+    dato, _ = DATO_OPERACION.objects.update_or_create(
+        CI_NID=citacion,
+        CAMP_NID=campo,
+        defaults={
+            'EP_NID': citacion.EP_NID,
+            'US_NID': usuario,
+            'SC_NID': citacion.SC_NID,
+            'ET_NID': _etapa_actual_operacion_segura(citacion),
+            'DO_CVALOR': json.dumps(metadata, ensure_ascii=False),
+            'DO_NPESO': None,
+            'DO_FFECHAREGISTRO': ahora,
+        },
+    )
+    metadata['dato_id'] = dato.id
+    return metadata
+
+
+def _leer_metadata_terramar(citacion, codigo):
+    dato = DATO_OPERACION.objects.filter(
+        CI_NID=citacion,
+        CAMP_NID__CA_CCODIGO=codigo,
+    ).select_related('CAMP_NID').order_by('-id').first()
+    if not dato:
+        return {}
+    try:
+        metadata = json.loads(dato.DO_CVALOR or '{}')
+    except (TypeError, ValueError):
+        return {}
+    if not isinstance(metadata, dict):
+        return {}
+    metadata['dato_id'] = dato.id
+    return metadata
+
+
+def _ruta_dentro_de_raiz(ruta, raiz):
+    try:
+        ruta_real = os.path.realpath(os.path.abspath(ruta))
+        raiz_real = os.path.realpath(os.path.abspath(raiz))
+        return os.path.commonpath([ruta_real, raiz_real]) == raiz_real
+    except (TypeError, ValueError, OSError):
+        return False
+
+
+def _ruta_documento_terramar_permitida(ruta):
+    if not ruta:
+        return False
+    raices = (
+        settings.MEDIA_ROOT,
+        CAMPO_TERRAMAR_PATH,
+        TICKET_PESAJE_LOCAL_PATH,
+    )
+    return any(raiz and _ruta_dentro_de_raiz(ruta, raiz) for raiz in raices)
+
+
+def _clave_documento_terramar(origen, source_id):
+    raw = f'{origen}:{source_id}'.encode('utf-8')
+    return hashlib.sha256(raw).hexdigest()[:24]
+
+
+def _documentos_fuente_terramar(citacion):
+    documentos = []
+    deduplicados = set()
+
+    def agregar(origen, source_id, tipo, nombre, ruta, categoria='original', obligatorio=False):
+        ruta_resuelta = _resolver_ruta_archivo_citacion(ruta)
+        disponible = bool(
+            ruta_resuelta
+            and os.path.isfile(ruta_resuelta)
+            and _ruta_documento_terramar_permitida(ruta_resuelta)
+        )
+        size = os.path.getsize(ruta_resuelta) if disponible else None
+        source_hash = sha256_archivo(ruta_resuelta) if disponible else ''
+        ruta_normalizada = os.path.normcase(os.path.realpath(ruta_resuelta)) if ruta_resuelta else ''
+        nombre_seguro = os.path.basename(str(nombre or ruta or 'documento'))
+        if source_hash:
+            dedupe_key = f'{categoria}:hash:{source_hash}'
+        elif ruta_normalizada:
+            dedupe_key = f'{categoria}:ruta:{ruta_normalizada}'
+        elif size is not None:
+            dedupe_key = f'{categoria}:nombre:{nombre_seguro.lower()}:{size}'
+        else:
+            dedupe_key = f'{categoria}:origen:{origen}:{source_id}'
+        if dedupe_key in deduplicados:
+            return
+        deduplicados.add(dedupe_key)
+        documentos.append({
+            'key': _clave_documento_terramar(origen, source_id),
+            'source_ref': f'{origen}:{source_id}',
+            'source_id': source_id,
+            'origen': origen,
+            'tipo': tipo or 'Documento',
+            'nombre': nombre_seguro,
+            'categoria': categoria,
+            'obligatorio': bool(obligatorio),
+            'disponible': disponible,
+            'estado': 'Disponible' if disponible else 'Archivo no disponible',
+            'mime': mime_archivo(ruta_resuelta) if disponible else '',
+            'size': size,
+            'source_hash': source_hash,
+            'formato_timbrable': formato_timbrable(ruta_resuelta) if disponible else '',
+            '_ruta': ruta_resuelta if disponible else '',
+        })
+
+    labels = dict(EXPEDIENTE_TIPO_LABELS)
+    for documento in CITACION_DOCUMENTO.objects.filter(
+        CI_NID=citacion,
+        EP_NID=citacion.EP_NID,
+        CD_BACTIVO=True,
+    ).order_by('CD_CTIPO', '-CD_FFECHASUBIDA', '-id'):
+        agregar(
+            'CITACION_DOCUMENTO',
+            documento.id,
+            labels.get(documento.CD_CTIPO, documento.get_CD_CTIPO_display()),
+            documento.CD_CNOMBRE_ARCHIVO,
+            documento.CD_CRUTA_ARCHIVO,
+            obligatorio=documento.CD_CTIPO in {
+                CITACION_DOCUMENTO.TIPO_GUIA,
+                CITACION_DOCUMENTO.TIPO_TICKET_ORIGEN,
+                CITACION_DOCUMENTO.TIPO_SERNAPESCA,
+            },
+        )
+
+    for adjunto in CAMION_PATIO_ADJUNTO.objects.filter(
+        CPA_NID__CI_NID=citacion,
+        CPA_NID__EP_NID=citacion.EP_NID,
+    ).select_related('CPA_NID').order_by('CPA_CTIPO_DOCUMENTO', '-CPA_FFECHACARGA', '-id'):
+        agregar(
+            'CAMION_PATIO_ADJUNTO',
+            adjunto.id,
+            adjunto.get_CPA_CTIPO_DOCUMENTO_display(),
+            os.path.basename(adjunto.CPA_FARCHIVO.name),
+            adjunto.CPA_FARCHIVO.name,
+            obligatorio=adjunto.CPA_CTIPO_DOCUMENTO != CAMION_PATIO_ADJUNTO.TIPO_OTRO,
+        )
+
+    for dato in DATO_OPERACION.objects.select_related('CAMP_NID').filter(
+        CI_NID=citacion,
+        EP_NID=citacion.EP_NID,
+        CAMP_NID__CA_CTIPO__iexact='archivo',
+    ).exclude(DO_CVALOR='').order_by('CAMP_NID_id', '-id'):
+        agregar(
+            'DATO_OPERACION',
+            dato.id,
+            dato.CAMP_NID.CA_CETIQUETA or dato.CAMP_NID.CA_CCODIGO,
+            os.path.basename(dato.DO_CVALOR),
+            dato.DO_CVALOR,
+            obligatorio=str(dato.CAMP_NID.CA_CCODIGO or '').startswith('ING_DOC_'),
+        )
+
+    for paso, etiqueta in (('Pesaje Entrada', 'Ticket Pesaje Entrada'), ('Pesaje Salida', 'Ticket Pesaje Salida')):
+        dato = _dato_ticket_pesaje(citacion, paso)
+        metadata = _leer_metadata_ticket_dato(dato)
+        if not dato or not metadata:
+            continue
+        agregar(
+            'TICKET_PESAJE',
+            dato.id,
+            etiqueta,
+            metadata.get('nombre_archivo_pdf') or os.path.basename(metadata.get('ruta_real_pdf') or ''),
+            metadata.get('ruta_real_pdf'),
+            categoria='ticket',
+            obligatorio=True,
+        )
+
+    return documentos
+
+
+def obtener_documentos_salida_recepcion(citacion):
+    """Paquete de salida para timbraje, exportación y envío manual de recepción."""
+    documentos = _documentos_fuente_terramar(citacion)
+    salida = [
+        documento for documento in documentos
+        if documento.get('origen') == 'CITACION_DOCUMENTO'
+        or (documento.get('origen') == 'TICKET_PESAJE' and documento.get('tipo') == 'Ticket Pesaje Salida')
+    ]
+    if _empresa_timbre_recepcion(citacion) == 'SBH':
+        salida = [
+            documento for documento in salida
+            if 'COM_ENT' not in ' '.join((str(documento.get(campo) or '') for campo in ('nombre', 'tipo'))).upper()
+        ]
+    return salida
+
+
+def obtener_documentos_salida_terramar(citacion):
+    """Alias de compatibilidad para el paquete documental de recepción."""
+    return obtener_documentos_salida_recepcion(citacion)
+
+
+def _documento_terramar_publico(citacion, documento, request=None):
+    base_url = reverse(
+        'ajax_operacion_planta_documento_terramar',
+        args=[citacion.id, documento['key']],
+    )
+    view_url = f'{base_url}?version=original&accion=ver'
+    download_url = f'{base_url}?version=original&accion=descargar'
+    if request:
+        view_url = request.build_absolute_uri(view_url)
+        download_url = request.build_absolute_uri(download_url)
+    return {
+        key: value
+        for key, value in {
+            **documento,
+            'view_url': view_url if documento.get('disponible') else '',
+            'download_url': download_url if documento.get('disponible') else '',
+        }.items()
+        if not key.startswith('_')
+    }
+
+
+def _estado_timbrado_documentos_terramar(citacion, fuentes=None):
+    fuentes = fuentes if fuentes is not None else obtener_documentos_salida_terramar(citacion)
+    metadata = _leer_metadata_terramar(citacion, _campo_timbrado_recepcion(citacion))
+    registros = metadata.get('documentos') if isinstance(metadata.get('documentos'), list) else []
+    por_clave = {item.get('key'): item for item in registros if isinstance(item, dict) and item.get('key')}
+    actuales = []
+    for fuente in fuentes:
+        registro = por_clave.get(fuente['key']) or {}
+        vigente = bool(
+            registro.get('source_hash')
+            and registro.get('source_hash') == fuente.get('source_hash')
+            and registro.get('stamp_version') == STAMP_VERSION
+            and bool(registro.get('codigo_validacion'))
+        )
+        ruta_timbrada = registro.get('stamped_path') if vigente else ''
+        timbrado_disponible = bool(
+            ruta_timbrada
+            and os.path.isfile(ruta_timbrada)
+            and _ruta_documento_terramar_permitida(ruta_timbrada)
+        )
+        estado = registro.get('estado') if vigente else ''
+        if timbrado_disponible:
+            estado = 'TIMBRADO'
+        elif fuente.get('disponible') and not fuente.get('formato_timbrable'):
+            estado = 'NO_COMPATIBLE'
+        elif not fuente.get('disponible'):
+            estado = 'NO_DISPONIBLE'
+        else:
+            estado = 'PENDIENTE'
+        actuales.append({
+            **fuente,
+            'estado_timbrado': estado,
+            'timbrado_disponible': timbrado_disponible,
+            'stamped_name': registro.get('stamped_name') if timbrado_disponible else '',
+            'stamped_path': ruta_timbrada if timbrado_disponible else '',
+            'stamped_hash': registro.get('stamped_hash') if timbrado_disponible else '',
+            'fecha_timbrado': registro.get('fecha_timbrado') if vigente else '',
+            'usuario_timbrado': registro.get('usuario') if vigente else '',
+        })
+    obligatorios_pendientes = [
+        item for item in actuales
+        if item.get('obligatorio') and item.get('estado_timbrado') != 'TIMBRADO'
+    ]
+    return {
+        'metadata': metadata,
+        'documentos': actuales,
+        'obligatorios_pendientes': obligatorios_pendientes,
+        'completo': bool(actuales) and not obligatorios_pendientes,
+    }
+
+
+def _payload_documentacion_terramar(citacion, request=None):
+    fuentes = obtener_documentos_salida_terramar(citacion)
+    estado_timbrado = _estado_timbrado_documentos_terramar(citacion, fuentes)
+    validacion = _leer_metadata_terramar(citacion, CAMPO_DOCUMENTACION_TERRAMAR)
+    documentos = []
+    for item in estado_timbrado['documentos']:
+        publico = _documento_terramar_publico(citacion, item, request)
+        if item.get('timbrado_disponible'):
+            stamped_url = reverse(
+                'ajax_operacion_planta_documento_terramar',
+                args=[citacion.id, item['key']],
+            )
+            stamped_url = f'{stamped_url}?version=timbrado&accion=descargar'
+            publico['stamped_download_url'] = request.build_absolute_uri(stamped_url) if request else stamped_url
+        else:
+            publico['stamped_download_url'] = ''
+        documentos.append(publico)
+    antecedentes = [
+        _documento_terramar_publico(citacion, item, request)
+        for item in _documentos_fuente_terramar(citacion)
+        if item.get('origen') == 'TICKET_PESAJE'
+        and item.get('tipo') == 'Ticket Pesaje Entrada'
+    ]
+    return {
+        'validada': bool(validacion.get('validada')),
+        'usuario_validacion': validacion.get('usuario') or '',
+        'fecha_validacion': validacion.get('fecha_hora') or '',
+        'observacion_validacion': validacion.get('observacion') or '',
+        'originales': [item for item in documentos if item.get('categoria') == 'original'],
+        'tickets': [item for item in documentos if item.get('categoria') == 'ticket'],
+        'antecedentes': antecedentes,
+        'timbrados': [item for item in documentos if item.get('timbrado_disponible')],
+        'obligatorios_pendientes': [item.get('nombre') for item in estado_timbrado['obligatorios_pendientes']],
+        'timbrado_completo': estado_timbrado['completo'],
+        'total_documentos': len(documentos),
+        'whatsapp_media_disponible': False,
+    }
 
 
 def _config_accion_toma_muestra(nombre_flujo):
@@ -10534,6 +13394,74 @@ def _formatear_hh_mm_ss_operacion(delta):
     return f'{horas:02d}:{minutos:02d}:{segundos:02d}'
 
 
+def _inicio_espera_descarga_desde_pesaje(citacion):
+    log = OPERACION_PLANTA_LOG.objects.filter(
+        CI_NID=citacion, OPL_CPASO='Pesaje Entrada',
+        OPL_CESTADO=OPERACION_PLANTA_LOG.ESTADO_COMPLETADO,
+    ).order_by('OPL_FFECHAREGISTRO', 'id').first()
+    return log.OPL_FFECHAREGISTRO if log else None
+
+
+def _payload_espera_descarga_terramar(citacion, metadata=None):
+    if not es_recepcion_terramar_principal(citacion):
+        return {'aplicable': False, 'iniciada': False, 'finalizada': False,
+                'inicio': '', 'inicio_legible': '', 'fin': '', 'fin_legible': '',
+                'duracion_segundos': None, 'duracion_legible': ''}
+    metadata = metadata if isinstance(metadata, dict) else (_leer_metadata_ciclo_descarga(citacion) or {})
+    inicio = _parse_iso_operacion(metadata.get('inicio_espera_descarga'))
+    # Compatibility never invents a timestamp: only the actual completed weigh-in log is valid.
+    if not inicio:
+        inicio = _inicio_espera_descarga_desde_pesaje(citacion)
+    fin = _parse_iso_operacion(metadata.get('fin_espera_descarga'))
+    delta = ((fin or timezone.now()) - inicio) if inicio else None
+    duracion_segundos = max(int(delta.total_seconds()), 0) if delta is not None else None
+    if fin and metadata.get('duracion_espera_descarga_segundos') is not None:
+        duracion_segundos = metadata.get('duracion_espera_descarga_segundos')
+    duracion_legible = (metadata.get('duracion_espera_descarga_legible') if fin else '') or (
+        _formatear_hh_mm_ss_operacion(delta) if delta is not None else ''
+    )
+    return {
+        'aplicable': True, 'iniciada': bool(inicio), 'finalizada': bool(inicio and fin),
+        'inicio': inicio.isoformat() if inicio else '',
+        'inicio_legible': timezone.localtime(inicio).strftime('%d/%m/%Y %H:%M') if inicio else '',
+        'fin': fin.isoformat() if fin else '',
+        'fin_legible': timezone.localtime(fin).strftime('%d/%m/%Y %H:%M') if fin else '',
+        'duracion_segundos': duracion_segundos, 'duracion_legible': duracion_legible,
+        'usuario_inicio': metadata.get('usuario_inicio_espera_descarga') or '',
+        'usuario_fin': metadata.get('usuario_fin_espera_descarga') or '',
+    }
+
+
+def _registrar_inicio_espera_descarga_terramar(citacion, usuario, fecha_inicio):
+    if not es_recepcion_terramar_principal(citacion):
+        return None
+    metadata = _leer_metadata_ciclo_descarga(citacion) or {}
+    if metadata.get('inicio_espera_descarga'):
+        return metadata
+    metadata.update({
+        'inicio_espera_descarga': fecha_inicio.isoformat(), 'fin_espera_descarga': '',
+        'duracion_espera_descarga': None, 'duracion_espera_descarga_segundos': None,
+        'duracion_espera_descarga_legible': '',
+        'usuario_inicio_espera_descarga': usuario.username,
+        'usuario_inicio_espera_descarga_id': usuario.id,
+        'usuario_fin_espera_descarga': '', 'usuario_fin_espera_descarga_id': None,
+        'inicio_espera_descarga_automatico': True, 'citacion_id': citacion.id,
+        'paso_operacion': PASO_CICLO_DESCARGA, 'flujo': 'RECEPCION_TERRAMAR',
+    })
+    metadata = _guardar_metadata_ciclo_descarga(citacion, usuario, metadata)
+    OPERACION_PLANTA_LOG.objects.get_or_create(
+        CI_NID=citacion, OPL_CPASO=EVENTO_ESPERA_DESCARGA_INICIO,
+        defaults={
+            'US_NID': usuario, 'EP_NID': citacion.EP_NID, 'PL_NID': citacion.PL_NID,
+            'OPL_CPERFIL_RESPONSABLE': 'AUTOMATICO / OPERADOR ROMANA',
+            'OPL_CESTADO': OPERACION_PLANTA_LOG.ESTADO_COMPLETADO,
+            'OPL_COBSERVACION': 'Inicio automatico al completar Pesaje Entrada.',
+            'OPL_FFECHAREGISTRO': fecha_inicio,
+        },
+    )
+    return metadata
+
+
 def _payload_ciclo_descarga(citacion):
     metadata = _leer_metadata_ciclo_descarga(citacion) or {}
     nombre_flujo, _ = obtener_pasos_operacion_citacion(citacion)
@@ -10552,6 +13480,7 @@ def _payload_ciclo_descarga(citacion):
     if not duracion_legible and inicio:
         duracion_legible = formatear_duracion_operacional((fin or timezone.now()) - inicio)
 
+    espera_descarga = _payload_espera_descarga_terramar(citacion, metadata)
     return {
         'tipo_descarga': tipo_descarga_guardado,
         'tipo_descarga_codigo': tipo_descarga_codigo,
@@ -10567,6 +13496,7 @@ def _payload_ciclo_descarga(citacion):
         'en_proceso': bool(inicio and not fin),
         'finalizada': bool(inicio and fin),
         'iniciada': bool(inicio),
+        'espera_descarga': espera_descarga,
     }
 
 
@@ -10882,7 +13812,190 @@ def _finalizar_ciclo_recepcion_bodega_externa(citacion, usuario, observacion_reg
         )
         return _payload_ciclo_recepcion_bodega_externa(citacion), True
 
+def _payload_ciclo_terramar_bodega_externa(citacion):
+    metadata = _leer_metadata_ciclo_descarga(citacion) or {}
+    if metadata.get('tipo_ciclo') != TIPO_CICLO_TERRAMAR_BODEGA_EXTERNA:
+        metadata = {}
+    inicio = _parse_iso_operacion(metadata.get('fecha_salida_iso'))
+    fin = _parse_iso_operacion(metadata.get('fecha_regreso_iso'))
+    duracion = ((fin or timezone.now()) - inicio) if inicio else None
+    duracion_segundos = metadata.get('duracion_segundos')
+    if inicio and duracion_segundos is None:
+        duracion_segundos = max(int(duracion.total_seconds()), 0)
+    valores_ingreso = obtener_valores_ingreso_camion(citacion)
+    return {
+        'tipo_ciclo': TIPO_CICLO_TERRAMAR_BODEGA_EXTERNA,
+        'es_terramar': True,
+        'iniciada': bool(inicio),
+        'en_proceso': bool(inicio and not fin),
+        'finalizada': bool(inicio and fin),
+        'estado': 'CICLO DESCARGA EXTERNA FINALIZADO' if inicio and fin else ('CAMIÓN EN DESCARGA EXTERNA' if inicio else 'PENDIENTE DE SALIDA'),
+        'estado_badge': 'is-done' if inicio and fin else ('is-active' if inicio else ''),
+        'patente': valores_ingreso.get('patente') or '',
+        'citacion': citacion.id,
+        'guia': citacion.CI_CNUMERODOCUMENTO or '',
+        'insumo': _insumo_operacion_planta(citacion),
+        'destino': 'Bodega Externa',
+        'inicio_iso': inicio.isoformat() if inicio else '',
+        'inicio_ms': _timestamp_ms_operacion(inicio),
+        'inicio_legible': timezone.localtime(inicio).strftime('%d/%m/%Y %H:%M') if inicio else '',
+        'fin_iso': fin.isoformat() if fin else '',
+        'fin_legible': timezone.localtime(fin).strftime('%d/%m/%Y %H:%M') if fin else '',
+        'duracion_segundos': duracion_segundos,
+        'duracion_legible': metadata.get('duracion_legible') or (formatear_duracion_hms(duracion) if duracion else '00:00:00'),
+        'usuario_inicio': metadata.get('usuario_autoriza') or '',
+        'usuario_fin': metadata.get('usuario_regreso') or '',
+        'observacion_inicio': metadata.get('observacion_inicio') or '',
+        'observacion_regreso': metadata.get('observacion_regreso') or '',
+        'evento_inicio': EVENTO_TERRAMAR_BODEGA_EXTERNA_SALIDA if inicio else '',
+        'evento_fin': EVENTO_TERRAMAR_BODEGA_EXTERNA_REGRESO if fin else '',
+    }
+
+
+def _validar_ciclo_terramar_bodega_externa(citacion):
+    if not es_recepcion_terramar_bodega_externa_operacion(citacion):
+        raise ValueError('Esta acción solo aplica a Recepción Terramar Bodega Externa.')
+    _, pasos_config = obtener_pasos_operacion_citacion(citacion)
+    paso_actual, _, pasos_completados = obtener_paso_activo_operacion(citacion, pasos_config)
+    if paso_actual != PASO_CICLO_DESCARGA:
+        raise ValueError(f'Solo puede operar durante la etapa activa: {PASO_CICLO_DESCARGA}.')
+    if 'Pesaje Entrada' not in pasos_completados:
+        raise ValueError('Debe completar Pesaje Entrada antes de iniciar la salida a Bodega Externa.')
+
+
+def _notificar_regreso_terramar_bodega_externa(citacion, usuario):
+    url = reverse('operacion_planta_citacion', args=[citacion.id])
+    contenido = f'Citación Terramar #{citacion.id}: camión en descarga externa. Pendiente confirmar regreso de Bodega Externa.'
+    usuarios_ids = USERS_EMPRESA.objects.filter(EP_NID_id=citacion.EP_NID_id).values_list('US_NID_id', flat=True)
+    for guardia in User.objects.filter(id__in=usuarios_ids, is_active=True):
+        if not usuario_es_guardia_porteria(guardia):
+            continue
+        if NOTIFICACION.objects.filter(USER_RECEIVER_ID=guardia, EP_NID=citacion.EP_NID, NOT_CURL=url, NOT_CCONTENIDO=contenido, NOT_BHABILITADO=True, NOT_BREAD=False).exists():
+            continue
+        crear_notificacion_interna(USER_SENDER_ID=usuario, USER_RECEIVER_ID=guardia, EP_NID=citacion.EP_NID, NOT_CCONTENIDO=contenido, NOT_CURL=url)
+
+
+def _iniciar_ciclo_terramar_bodega_externa(citacion, usuario, observacion_inicio=''):
+    observacion_inicio = str(observacion_inicio or '').strip()
+    with transaction.atomic():
+        citacion = _recargar_citacion_bloqueada_operacion(citacion)
+        _validar_ciclo_terramar_bodega_externa(citacion)
+        metadata = _leer_metadata_ciclo_descarga(citacion) or {}
+        if metadata.get('tipo_ciclo') == TIPO_CICLO_TERRAMAR_BODEGA_EXTERNA and metadata.get('fecha_salida_iso'):
+            raise OperacionPlantaDuplicada('La salida a Bodega Externa ya fue iniciada.')
+        ahora = timezone.now()
+        valores_ingreso = obtener_valores_ingreso_camion(citacion)
+        metadata = {
+            'tipo_ciclo': TIPO_CICLO_TERRAMAR_BODEGA_EXTERNA,
+            'evento_inicio': EVENTO_TERRAMAR_BODEGA_EXTERNA_SALIDA,
+            'citacion_id': citacion.id,
+            'empresa_id': citacion.EP_NID_id,
+            'paso_operacion': PASO_CICLO_DESCARGA,
+            'flujo': 'RECEPCION_TERRAMAR_BODEGA_EXTERNA',
+            'destino': 'BODEGA EXTERNA',
+            'estado_camion': 'EN_BODEGA_EXTERNA',
+            'patente': valores_ingreso.get('patente') or '',
+            'fecha_salida_iso': ahora.isoformat(),
+            'fecha_salida': timezone.localtime(ahora).strftime('%d/%m/%Y %H:%M'),
+            'usuario_autoriza': usuario.username,
+            'usuario_autoriza_id': usuario.id,
+            'observacion_inicio': observacion_inicio,
+            'fecha_regreso_iso': '',
+            'fecha_regreso': '',
+            'usuario_regreso': '',
+            'usuario_regreso_id': None,
+            'duracion_segundos': None,
+            'duracion_legible': '',
+            'ciclo_externo_activo': True,
+        }
+        _guardar_metadata_ciclo_descarga(citacion, usuario, metadata)
+        evento = dict(metadata, fecha_hora=metadata['fecha_salida'], fecha_hora_iso=ahora.isoformat())
+        OPERACION_PLANTA_LOG.objects.create(
+            US_NID=usuario, EP_NID=citacion.EP_NID, PL_NID=citacion.PL_NID, CI_NID=citacion,
+            OPL_CPASO=EVENTO_TERRAMAR_BODEGA_EXTERNA_SALIDA,
+            OPL_CPERFIL_RESPONSABLE=PERFIL_TERRAMAR_ASISTENTE_BODEGA,
+            OPL_CESTADO=OPERACION_PLANTA_LOG.ESTADO_PENDIENTE,
+            OPL_COBSERVACION=json.dumps(evento, ensure_ascii=False), OPL_FFECHAREGISTRO=ahora,
+        )
+        _registrar_syslog_operacion_planta(citacion, usuario, SYSLOG_TERRAMAR_BODEGA_EXTERNA_SALIDA, f"Camión inició salida a Bodega Externa. Patente: {metadata.get('patente')}.", 'BODEGA_EXTERNA')
+        _notificar_regreso_terramar_bodega_externa(citacion, usuario)
+        return _payload_ciclo_terramar_bodega_externa(citacion), True
+
+
+def _finalizar_ciclo_terramar_bodega_externa(citacion, usuario, observacion_regreso=''):
+    observacion_regreso = str(observacion_regreso or '').strip()
+    with transaction.atomic():
+        citacion = _recargar_citacion_bloqueada_operacion(citacion)
+        _validar_ciclo_terramar_bodega_externa(citacion)
+        metadata = _leer_metadata_ciclo_descarga(citacion) or {}
+        if metadata.get('tipo_ciclo') != TIPO_CICLO_TERRAMAR_BODEGA_EXTERNA or not metadata.get('fecha_salida_iso'):
+            raise ValueError('Debe iniciar la salida a Bodega Externa antes de registrar el regreso.')
+        if metadata.get('fecha_regreso_iso'):
+            raise OperacionPlantaDuplicada('El regreso desde Bodega Externa ya fue confirmado.')
+        inicio = _parse_iso_operacion(metadata.get('fecha_salida_iso'))
+        if not inicio:
+            raise ValueError('La fecha de salida a Bodega Externa no es válida.')
+        ahora = timezone.now()
+        if ahora < inicio:
+            raise ValueError('La fecha de regreso no puede ser anterior a la salida.')
+        duracion = ahora - inicio
+        duracion_segundos = int(duracion.total_seconds())
+        duracion_legible = formatear_duracion_hms(duracion)
+        metadata.update({
+            'evento_fin': EVENTO_TERRAMAR_BODEGA_EXTERNA_REGRESO,
+            'fecha_regreso_iso': ahora.isoformat(),
+            'fecha_regreso': timezone.localtime(ahora).strftime('%d/%m/%Y %H:%M'),
+            'usuario_regreso': usuario.username,
+            'usuario_regreso_id': usuario.id,
+            'duracion_segundos': duracion_segundos,
+            'duracion_legible': duracion_legible,
+            'observacion_regreso': observacion_regreso,
+            'ciclo_externo_activo': False,
+            'estado_camion': 'REGRESO_REGISTRADO',
+        })
+        _guardar_metadata_ciclo_descarga(citacion, usuario, metadata)
+        evento = dict(metadata, siguiente_etapa='PESAJE_SALIDA')
+        OPERACION_PLANTA_LOG.objects.filter(
+            CI_NID=citacion, OPL_CPASO=EVENTO_TERRAMAR_BODEGA_EXTERNA_SALIDA,
+            OPL_CESTADO=OPERACION_PLANTA_LOG.ESTADO_PENDIENTE,
+        ).update(OPL_CESTADO=OPERACION_PLANTA_LOG.ESTADO_COMPLETADO, OPL_COBSERVACION=json.dumps(evento, ensure_ascii=False))
+        OPERACION_PLANTA_LOG.objects.create(
+            US_NID=usuario, EP_NID=citacion.EP_NID, PL_NID=citacion.PL_NID, CI_NID=citacion,
+            OPL_CPASO=EVENTO_TERRAMAR_BODEGA_EXTERNA_REGRESO, OPL_CPERFIL_RESPONSABLE='GUARDIA PORTERIA',
+            OPL_CESTADO=OPERACION_PLANTA_LOG.ESTADO_COMPLETADO,
+            OPL_COBSERVACION=json.dumps(evento, ensure_ascii=False), OPL_FFECHAREGISTRO=ahora,
+        )
+        OPERACION_PLANTA_LOG.objects.create(
+            US_NID=usuario, EP_NID=citacion.EP_NID, PL_NID=citacion.PL_NID, CI_NID=citacion,
+            OPL_CPASO=PASO_CICLO_DESCARGA, OPL_CPERFIL_RESPONSABLE='GUARDIA PORTERIA',
+            OPL_CESTADO=OPERACION_PLANTA_LOG.ESTADO_COMPLETADO,
+            OPL_COBSERVACION=json.dumps(evento, ensure_ascii=False), OPL_FFECHAREGISTRO=ahora,
+        )
+        _registrar_syslog_operacion_planta(citacion, usuario, SYSLOG_TERRAMAR_BODEGA_EXTERNA_REGRESO, f'Camión regresó desde Bodega Externa. Duración: {duracion_legible}.', 'BODEGA_EXTERNA')
+        NOTIFICACION.objects.filter(
+            EP_NID=citacion.EP_NID, NOT_CURL=reverse('operacion_planta_citacion', args=[citacion.id]),
+            NOT_CCONTENIDO__icontains=f'Citación Terramar #{citacion.id}', NOT_BREAD=False,
+        ).update(NOT_BREAD=True, NOT_FFECHALEIDO=ahora)
+        return _payload_ciclo_terramar_bodega_externa(citacion), True
+
+class OperacionPlantaDuplicada(ValueError):
+    pass
+
+
+def _recargar_citacion_bloqueada_operacion(citacion):
+    CITACION.objects.select_for_update().only('pk').get(pk=citacion.pk)
+    return CITACION.objects.select_related('EP_NID', 'PL_NID', 'SC_NID').get(pk=citacion.pk)
+
+
 def _iniciar_ciclo_descarga(citacion, usuario, tipo_descarga):
+    if es_citacion_recepcion_terramar(citacion):
+        with transaction.atomic():
+            citacion = _recargar_citacion_bloqueada_operacion(citacion)
+            return _iniciar_ciclo_descarga_persistida(citacion, usuario, tipo_descarga)
+    return _iniciar_ciclo_descarga_persistida(citacion, usuario, tipo_descarga)
+
+
+def _iniciar_ciclo_descarga_persistida(citacion, usuario, tipo_descarga):
     tipo_descarga = str(tipo_descarga or '').strip()
     nombre_flujo, _ = obtener_pasos_operacion_citacion(citacion)
     opciones = opciones_tipos_ciclo_descarga(nombre_flujo)
@@ -10895,12 +14008,40 @@ def _iniciar_ciclo_descarga(citacion, usuario, tipo_descarga):
 
     metadata = _leer_metadata_ciclo_descarga(citacion) or {}
     if metadata.get('fin_descarga'):
+        if es_citacion_recepcion_terramar(citacion):
+            raise OperacionPlantaDuplicada('La descarga ya fue finalizada.')
         raise ValueError('La descarga ya fue finalizada.')
     if metadata.get('inicio_descarga'):
+        if es_citacion_recepcion_terramar(citacion):
+            raise OperacionPlantaDuplicada('La descarga ya fue iniciada.')
         return metadata
 
     ahora = timezone.now()
-    metadata = {
+    if es_recepcion_terramar_principal(citacion):
+        inicio_espera = _parse_iso_operacion(metadata.get('inicio_espera_descarga')) or _inicio_espera_descarga_desde_pesaje(citacion)
+        if not inicio_espera:
+            raise ValueError('No existe un Pesaje Entrada completado para iniciar la descarga.')
+        duracion_espera = ahora - inicio_espera
+        metadata.update({
+            'inicio_espera_descarga': inicio_espera.isoformat(),
+            'fin_espera_descarga': ahora.isoformat(),
+            'duracion_espera_descarga': max(int(duracion_espera.total_seconds()), 0),
+            'duracion_espera_descarga_segundos': max(int(duracion_espera.total_seconds()), 0),
+            'duracion_espera_descarga_legible': _formatear_hh_mm_ss_operacion(duracion_espera),
+            'usuario_fin_espera_descarga': usuario.username,
+            'usuario_fin_espera_descarga_id': usuario.id,
+        })
+        OPERACION_PLANTA_LOG.objects.get_or_create(
+            CI_NID=citacion, OPL_CPASO=EVENTO_ESPERA_DESCARGA_FIN,
+            defaults={
+                'US_NID': usuario, 'EP_NID': citacion.EP_NID, 'PL_NID': citacion.PL_NID,
+                'OPL_CPERFIL_RESPONSABLE': PERFIL_TERRAMAR_ASISTENTE_BODEGA,
+                'OPL_CESTADO': OPERACION_PLANTA_LOG.ESTADO_COMPLETADO,
+                'OPL_COBSERVACION': f'Espera finalizada al iniciar descarga. Duracion: {_formatear_hh_mm_ss_operacion(duracion_espera)}',
+                'OPL_FFECHAREGISTRO': ahora,
+            },
+        )
+    metadata.update({
         'tipo_descarga': opcion_seleccionada['etiqueta'],
         'tipo_descarga_codigo': opcion_seleccionada['codigo'],
         'tipo_descarga_label': opcion_seleccionada['etiqueta'],
@@ -10914,7 +14055,7 @@ def _iniciar_ciclo_descarga(citacion, usuario, tipo_descarga):
         'usuario_fin_id': None,
         'citacion_id': citacion.id,
         'paso_operacion': PASO_CICLO_DESCARGA,
-    }
+    })
     metadata = _guardar_metadata_ciclo_descarga(citacion, usuario, metadata)
     OPERACION_PLANTA_LOG.objects.create(
         US_NID=usuario,
@@ -10922,7 +14063,11 @@ def _iniciar_ciclo_descarga(citacion, usuario, tipo_descarga):
         PL_NID=citacion.PL_NID,
         CI_NID=citacion,
         OPL_CPASO='INICIA_DESCARGA',
-        OPL_CPERFIL_RESPONSABLE='SALA CONTROL',
+        OPL_CPERFIL_RESPONSABLE=(
+            PERFIL_TERRAMAR_ASISTENTE_BODEGA
+            if es_citacion_recepcion_terramar(citacion)
+            else 'SALA CONTROL'
+        ),
         OPL_CESTADO=OPERACION_PLANTA_LOG.ESTADO_COMPLETADO,
         OPL_COBSERVACION=f'Tipo descarga: {opcion_seleccionada["etiqueta"]}'
     )
@@ -11032,22 +14177,34 @@ def _finalizar_proceso_ciclo_carga_despacho(citacion, usuario, proceso_key):
     return metadata
 
 
-def _finalizar_ciclo_descarga(citacion, usuario):
+def _finalizar_ciclo_descarga(citacion, usuario, observacion=''):
+    if es_citacion_recepcion_terramar(citacion):
+        with transaction.atomic():
+            citacion = _recargar_citacion_bloqueada_operacion(citacion)
+            return _finalizar_ciclo_descarga_persistida(citacion, usuario, observacion)
+    return _finalizar_ciclo_descarga_persistida(citacion, usuario, observacion)
+
+
+def _finalizar_ciclo_descarga_persistida(citacion, usuario, observacion=''):
     metadata = _leer_metadata_ciclo_descarga(citacion)
     if not metadata or not metadata.get('inicio_descarga'):
         raise ValueError('Debe iniciar la descarga antes de finalizar.')
     if metadata.get('fin_descarga'):
+        if es_citacion_recepcion_terramar(citacion):
+            raise OperacionPlantaDuplicada('La descarga ya fue finalizada.')
         return metadata, None
 
     inicio = _parse_iso_operacion(metadata.get('inicio_descarga'))
     ahora = timezone.now()
     duracion = ahora - inicio if inicio else None
+    observacion_usuario = str(observacion or '').strip()
     metadata.update({
         'fin_descarga': ahora.isoformat(),
         'duracion_segundos': max(int(duracion.total_seconds()), 0) if duracion else None,
         'duracion_legible': formatear_duracion_operacional(duracion) if duracion else '',
         'usuario_fin': usuario.username,
         'usuario_fin_id': usuario.id,
+        'observacion': observacion_usuario,
     })
     metadata = _guardar_metadata_ciclo_descarga(citacion, usuario, metadata)
     observacion = (
@@ -11058,13 +14215,19 @@ def _finalizar_ciclo_descarga(citacion, usuario):
         f'Usuario inicio: {metadata.get("usuario_inicio") or ""} | '
         f'Usuario fin: {metadata.get("usuario_fin") or ""}'
     )
+    if observacion_usuario:
+        observacion = f'{observacion} | Observacion: {observacion_usuario}'
     log = OPERACION_PLANTA_LOG.objects.create(
         US_NID=usuario,
         EP_NID=citacion.EP_NID,
         PL_NID=citacion.PL_NID,
         CI_NID=citacion,
         OPL_CPASO=PASO_CICLO_DESCARGA,
-        OPL_CPERFIL_RESPONSABLE='SALA CONTROL',
+        OPL_CPERFIL_RESPONSABLE=(
+            PERFIL_TERRAMAR_ASISTENTE_BODEGA
+            if es_citacion_recepcion_terramar(citacion)
+            else 'SALA CONTROL'
+        ),
         OPL_CESTADO=OPERACION_PLANTA_LOG.ESTADO_COMPLETADO,
         OPL_COBSERVACION=observacion
     )
@@ -11135,8 +14298,24 @@ def _referencia_observacion_descarga_salida(citacion):
     return ''
 
 
+def _guardar_revision_conformidad_sbh(citacion, usuario, recepcion_conforme, observacion=''):
+    valor = str(recepcion_conforme or '').strip().upper()
+    if valor in {'SI', 'SÍ'}:
+        valor = 'SI'
+    elif valor != 'NO':
+        raise ValueError('Debe indicar si la recepción fue conforme.')
+    ahora = timezone.now()
+    fecha = timezone.localtime(ahora)
+    metadata = {'recepcion_conforme': valor, 'observacion': str(observacion or '').strip(), 'usuario_id': usuario.id, 'usuario': usuario.username, 'fecha_hora': fecha.strftime('%d/%m/%Y %H:%M'), 'fecha_iso': fecha.isoformat(), 'citacion_id': citacion.id, 'paso_operacion': PASO_AUTORIZAR_SALIDA}
+    return _guardar_metadata_terramar(citacion, usuario, CAMPO_REVISION_CONFORMIDAD_SBH, 'Revision conformidad recepcion SBH', metadata)
+
+
+def _leer_revision_conformidad_sbh(citacion):
+    return _leer_metadata_terramar(citacion, CAMPO_REVISION_CONFORMIDAD_SBH)
+
 def _payload_autorizar_salida(citacion):
     metadata = _leer_metadata_autorizar_salida(citacion)
+    revision = _leer_revision_conformidad_sbh(citacion) if _empresa_timbre_recepcion(citacion) == 'SBH' else {}
     referencia = _referencia_observacion_descarga_salida(citacion)
     if metadata:
         return {
@@ -11148,6 +14327,7 @@ def _payload_autorizar_salida(citacion):
             'usuario_id': metadata.get('usuario_id'),
             'fecha_hora': metadata.get('fecha_hora') or '',
             'fecha_iso': metadata.get('fecha_iso') or '',
+            'revision_conformidad': revision,
         }
     return {
         'registrada': False,
@@ -11158,6 +14338,7 @@ def _payload_autorizar_salida(citacion):
         'usuario_id': None,
         'fecha_hora': '',
         'fecha_iso': '',
+        'revision_conformidad': revision,
     }
 
 
@@ -11951,6 +15132,53 @@ def asegurar_flujos_despacho_etapa_0(empresa_id, usuario):
     return flujos
 
 
+def asegurar_flujos_despacho_terramar_etapa_0(empresa_id, usuario):
+    """Crea exclusivamente las secuencias nuevas de Despacho Terramar."""
+    if not empresa_es_terramar_chile(empresa_id):
+        return []
+    usuario_registro = usuario if getattr(usuario, 'is_authenticated', False) else None
+    secuencias = []
+    for codigo, nombre, etapas in FLUJOS_DESPACHO_TERRAMAR_ETAPA_0:
+        secuencia, _ = SECUENCIA.objects.get_or_create(
+            EP_NID_id=empresa_id,
+            SE_CCODIGO=codigo,
+            defaults={
+                'US_NID': usuario_registro,
+                'SE_CTIPO': CIT_DESPACHO,
+                'SE_CNOMBRE': nombre,
+                'SE_BHABILITADO': True,
+                'SE_FFECHAREGISTRO': timezone.now(),
+            },
+        )
+        campos = []
+        if secuencia.SE_CTIPO != CIT_DESPACHO:
+            secuencia.SE_CTIPO = CIT_DESPACHO
+            campos.append('SE_CTIPO')
+        if secuencia.SE_CNOMBRE != nombre:
+            secuencia.SE_CNOMBRE = nombre
+            campos.append('SE_CNOMBRE')
+        if not secuencia.SE_BHABILITADO:
+            secuencia.SE_BHABILITADO = True
+            campos.append('SE_BHABILITADO')
+        if campos:
+            secuencia.save(update_fields=campos)
+        if not DETALLE_SECUENCIA.objects.filter(SC_NID=secuencia, SE_BHABILITADO=True).exists():
+            for paso, nombre_etapa in enumerate(etapas, start=1):
+                etapa = obtener_o_crear_etapa_despacho(empresa_id, usuario, nombre_etapa, paso)
+                DETALLE_SECUENCIA.objects.get_or_create(
+                    EP_NID_id=empresa_id,
+                    SC_NID=secuencia,
+                    ET_NID=etapa,
+                    defaults={
+                        'US_NID': usuario_registro,
+                        'SE_NPASO': paso,
+                        'SE_BHABILITADO': True,
+                        'SE_BOBLIGATORIO': True,
+                    },
+                )
+        secuencias.append(secuencia)
+    return secuencias
+
 def PLANIFICACION_ADDONE(request):
     try:
         if usuario_es_ingreso_camion(request.user):
@@ -11971,6 +15199,10 @@ def PLANIFICACION_ADDONE(request):
         tipo_planificacion = str(request.GET.get('tipo') or '').strip().upper()
         if tipo_planificacion not in ['RECEPCION', 'DESPACHO']:
             tipo_planificacion = ''
+        flujo_navegacion = ''
+        if Empresa == ID_ACEITES_SBH and tipo_planificacion == CIT_RECEPCION:
+            flujo_solicitado = str(request.GET.get('flujo') or '').strip().upper()
+            flujo_navegacion = normalizar_flujo_recepcion_sbh(flujo_solicitado)
 
         solicitud_patio_inicial = None
         solicitud_patio_id = str(
@@ -12006,33 +15238,62 @@ def PLANIFICACION_ADDONE(request):
         form = formPLANIFICACION()
 
         avisos_desarrollo = []
+        es_recepcion_transferencia_sbh = (
+            Empresa == ID_ACEITES_SBH
+            and tipo_planificacion == CIT_RECEPCION
+            and flujo_navegacion == 'TRANSFERENCIA'
+        )
 
-        try:
-            clientes_sap = obtener_clientes_aceite(Empresa)
-        except Exception as e:
-            print(f'PLANIFICACION_ADDONE clientes_sap no disponibles: {e}')
+        if es_recepcion_transferencia_sbh:
             clientes_sap = []
-            avisos_desarrollo.append('Clientes SAP no disponibles. El modal se muestra con el selector vacio.')
+        else:
+            try:
+                clientes_sap = obtener_clientes_aceite(Empresa)
+            except Exception as e:
+                print(f'PLANIFICACION_ADDONE clientes_sap no disponibles: {e}')
+                clientes_sap = []
+                avisos_desarrollo.append('Clientes SAP no disponibles. El modal se muestra con el selector vacio.')
 
         proveedores_sap = []
 
+        es_despacho_terramar = (
+            empresa_es_terramar_chile(Empresa)
+            and tipo_planificacion == CIT_DESPACHO
+        )
         try:
             secuencias_recepcion = asegurar_flujos_recepcion_etapa_0(Empresa, request.user)
-            asegurar_flujos_despacho_etapa_0(Empresa, request.user)
-            secuencias_despacho = list(SECUENCIA.objects.filter(
-                EP_NID_id=Empresa,
-                SE_CTIPO='DESPACHO',
-                SE_BHABILITADO=True
-            ).order_by("SE_CNOMBRE"))
+            if es_despacho_terramar:
+                secuencias_despacho_terramar = asegurar_flujos_despacho_terramar_etapa_0(Empresa, request.user)
+                secuencias_despacho = secuencias_despacho_terramar
+            else:
+                asegurar_flujos_despacho_etapa_0(Empresa, request.user)
+                secuencias_despacho = list(SECUENCIA.objects.filter(
+                    EP_NID_id=Empresa,
+                    SE_CTIPO=CIT_DESPACHO,
+                    SE_BHABILITADO=True
+                ).order_by("SE_CNOMBRE"))
+                secuencias_despacho_terramar = []
+            if Empresa == ID_ACEITES_SBH and tipo_planificacion == CIT_RECEPCION:
+                secuencias_recepcion = list(
+                    queryset_secuencias_recepcion_sbh_por_flujo(
+                        Empresa,
+                        flujo_navegacion,
+                    ).order_by('SE_CNOMBRE', 'id')
+                )
             secuencias = secuencias_recepcion + secuencias_despacho
             secuencias_recepcion_terramar = list(queryset_secuencias_recepcion_terramar(Empresa)) if Empresa == 1 else []
-            insumos_recepcion_terramar = list(queryset_insumos_recepcion_terramar(Empresa)) if Empresa == 1 and tipo_planificacion == 'RECEPCION' else []
+            insumos_recepcion_terramar = list(queryset_insumos_recepcion_terramar(Empresa)) if Empresa == 1 and tipo_planificacion == CIT_RECEPCION else []
+            insumos_despacho_terramar = list(queryset_insumos_despacho_terramar(Empresa)) if es_despacho_terramar else []
         except Exception as e:
             print(f'PLANIFICACION_ADDONE secuencias no disponibles: {e}')
             secuencias = []
             secuencias_recepcion_terramar = []
+            secuencias_despacho_terramar = []
             insumos_recepcion_terramar = []
+            insumos_despacho_terramar = []
             avisos_desarrollo.append('Secuencias no disponibles. El modal se muestra con el selector vacio.')
+
+        es_recepcion_sbh = Empresa == 2 and tipo_planificacion == CIT_RECEPCION
 
         ctx = {
             'form': form,
@@ -12046,11 +15307,22 @@ def PLANIFICACION_ADDONE(request):
             'insumos_recepcion_terramar': insumos_recepcion_terramar,
             'empresa_id': Empresa,
             'tipo_planificacion': tipo_planificacion,
+            'flujo_navegacion': flujo_navegacion,
             'tipo_planificacion_label': {
                 'RECEPCION': 'Recepción',
                 'DESPACHO': 'Despacho',
             }.get(tipo_planificacion, ''),
-            'es_recepcion_terramar': Empresa == 1 and tipo_planificacion == 'RECEPCION',
+            'es_recepcion_terramar': empresa_es_terramar_chile(Empresa) and tipo_planificacion == CIT_RECEPCION,
+            'es_recepcion_sbh': es_recepcion_sbh,
+            'almacenes_recepcion_operacional': ALMACENES_RECEPCION_SBH_ETAPA_0 if es_recepcion_sbh else (),
+            'es_recepcion_transferencia_sbh': es_recepcion_transferencia_sbh,
+            'estanques_recepcion_transferencia_sbh': ESTANQUES_RECEPCION_TRANSFERENCIA_SBH,
+            'estanques_por_almacen_json': json.dumps(
+                ALMACENES_DESTINO_RECEPCION_SBH
+            ) if es_recepcion_sbh else '{}',
+            'es_despacho_terramar': es_despacho_terramar,
+            'secuencias_despacho_terramar': secuencias_despacho_terramar,
+            'insumos_despacho_terramar': insumos_despacho_terramar,
             'paises_telefono': country_options(),
             'solicitud_no_planificado_id': solicitud_patio_inicial.id if solicitud_patio_inicial else '',
             'camion_patio_inicial': ({
@@ -12077,6 +15349,23 @@ def PLANIFICACION_ADDONE(request):
 #####################  CONSULTA SAP OPOR NUEVO  ##########################
 ##########################################################################
 
+@require_GET
+def API_SAP_RECEPCION_TRANSFERENCIA_ESTANQUE(request):
+    estanque = str(request.GET.get('estanque') or '').strip()
+    if estanque not in ESTANQUES_RECEPCION_TRANSFERENCIA_SBH:
+        return JsonResponse({'success': False, 'message': 'Estanque origen inválido.'}, status=400)
+    try:
+        resultado = consultar_productos_recepcion_transferencia_sap(estanque)
+    except SapDiApiError as exc:
+        return JsonResponse({'success': False, 'message': str(exc)}, status=503)
+    except Exception as exc:
+        print('ERROR API_SAP_RECEPCION_TRANSFERENCIA_ESTANQUE:', exc)
+        return JsonResponse({'success': False, 'message': 'No fue posible consultar productos SAP para el estanque.'}, status=500)
+    return JsonResponse({
+        'success': True,
+        'estanque': resultado['estanque'],
+        'productos': resultado['productos'],
+    })
 def API_SAP_PRODUCTO(request):
     try:
         codigo = request.GET.get('codigo', '').strip()
@@ -12340,9 +15629,17 @@ def BUSCAR_OPOR_POR_PEDIDO(request):
             'codigo_proveedor_sap': resultado.get('codigo_proveedor_sap') or resultado.get('cardcode', ''),
             'proveedor_nombre': resultado.get('cardname', ''),
             'contrato_sap': resultado.get('contrato_sap', ''),
-            'bl': resultado.get('contenedor', '') or resultado.get('bl', ''),
+            'bl': resultado.get('bl', ''),
             'bl_contenedor': resultado.get('contenedor', '') or resultado.get('bl_contenedor', ''),
             'contenedor': resultado.get('contenedor', ''),
+            'guia': resultado.get('guia', ''),
+            'fecha_produccion': resultado.get('fecha_produccion', ''),
+            'fecha_vencimiento': resultado.get('fecha_vencimiento', ''),
+            'cda': resultado.get('cda', ''),
+            'di': resultado.get('di', ''),
+            'sui': resultado.get('sui', ''),
+            'nave_naviera': resultado.get('nave_naviera', ''),
+            'booking': resultado.get('booking', ''),
         }
 
         return JsonResponse({
@@ -12371,6 +15668,13 @@ def BUSCAR_OPOR_POR_PEDIDO(request):
 ##########################################################################
 
 def validar_perfiles_activos(id_user, template):
+    usuario_objeto = User.objects.filter(pk=id_user, is_active=True).first()
+    if usuario_objeto and usuario_tiene_perfil_asistente_recepcion(usuario_objeto):
+        if str(template or '').startswith(('pro_', 'con_', 'cam_', 'tg_', 'rt_')):
+            # El acceso acotado se resuelve con request + USERS_EMPRESA en las
+            # vistas permitidas. Los permisos legacy no pueden ampliarlo.
+            return False
+
     perfiles_activos = list(PERFIL.objects.filter(PR_BHABILITADO = True).values_list('id', flat=True))
     perfiles_usuario = list(PERFIL_USUARIO.objects.filter(
         US_NID=id_user,
@@ -12390,6 +15694,17 @@ def validar_perfiles_activos(id_user, template):
         return permisos
     except VISTA.DoesNotExist:
         return False
+
+
+def usuario_puede_autorizar_sap(user, empresa_id=None):
+    """Exige el permiso funcional y, cuando aplica, la empresa asignada."""
+    if not user or not getattr(user, 'is_authenticated', False):
+        return False
+    if user.is_superuser:
+        return True
+    if empresa_id and not usuario_pro_cit_tiene_empresa(user, empresa_id):
+        return False
+    return validar_perfiles_activos(user.id, 'proforma_autorizar')
 
 ##########################################################################
 #####################  VALIDACIÓN DE EMPRESA ACTIVA NUEVO #####################
@@ -12570,7 +15885,7 @@ def cambiar_empresa(request, empresa_id):
         print(e)
         messages.error(request, f'Error al cambiar empresa: {str(e)}')
         return redirect('/seleccionar_empresa/')
-    
+
 
 ###########################################
 ##### TRADUCTOR DE TEXTO ##################
@@ -12745,12 +16060,12 @@ def obtener_detalles_citacion(request, citacion_id):
                 "patente":detalle_citacion[0][0],
                 "marca":detalle_citacion[0][1],
                 "modelo":detalle_citacion[0][2],
-                "anio":detalle_citacion[0][3],        
+                "anio":detalle_citacion[0][3],
             }
             conductor = {
                 "nombre":detalle_citacion[0][4],
                 "apellido":detalle_citacion[0][5],
-                "rut":detalle_citacion[0][6],        
+                "rut":detalle_citacion[0][6],
                 "email":detalle_citacion[0][7],
             }
             proveedor = {
@@ -12787,7 +16102,7 @@ def obtener_detalles_citacion(request, citacion_id):
                     minutos = f'0{minutos}'
                 if segundos < 10:
                     segundos = f'0{segundos}'
-                
+
                 etapas_log.append({
                     'etapa': etapa_parts[0],
                     'fechainicio': etapa_parts[1] if etapa_parts[1] else '-',
@@ -12852,7 +16167,7 @@ def DASHBOARD_GRAFICO(request):
         zonas = get_list_zonas(Empresa)
         object_list = []
         object_list_zonas = []
-        
+
         if zonas:
             for tupla in zonas:
                 # Asegúrate de que el décimo elemento no sea None
@@ -12914,7 +16229,7 @@ class CambioContrasena(FormView):
             return redirect('home')
         messages.success(request, 'Contrase?a actualizada correctamente!.')
         return redirect('home')
-    
+
 ##########################################################################
 ############################   EMPRESA   #################################
 ##########################################################################
@@ -12940,7 +16255,7 @@ def EMPRESA_LISTALL(request):
 
 def EMPRESA_ADDONE(request):
     try:
-        if request.user.is_superuser == False:                     
+        if request.user.is_superuser == False:
             return redirect('/')
         if request.method == 'POST':
             form = formEMPRESA(request.POST)
@@ -12965,7 +16280,7 @@ def EMPRESA_ADDONE(request):
 
 def EMPRESA_UPDATE(request, pk):
     try:
-        if request.user.is_superuser == False:                     
+        if request.user.is_superuser == False:
             return redirect('/')
         empresa = EMPRESA.objects.get(id = pk)
         if request.method == 'POST':
@@ -12997,26 +16312,229 @@ def EMPRESA_UPDATE(request, pk):
 #############################  CONDUCTOR   ###############################
 ##########################################################################
 
+def _usuario_puede_tripulacion(user, vista):
+    return bool(
+        getattr(user, 'is_superuser', False)
+        or usuario_es_planificador(user)
+        or (
+            vista in {'con_listall', 'con_listone', 'con_addone'}
+            and usuario_tiene_perfil_asistente_recepcion(user)
+        )
+        or validar_perfiles_activos(user.id, vista)
+    )
+
+
+VISTAS_FLOTA_ASISTENTE_RECEPCION = {
+    'pro_listall', 'pro_listone',
+    'con_listall', 'con_listone', 'con_addone',
+}
+
+
+def _asistente_recepcion_puede_control_flota(request, vista):
+    if (
+        vista not in VISTAS_FLOTA_ASISTENTE_RECEPCION
+        or not usuario_tiene_perfil_asistente_recepcion(request.user)
+    ):
+        return False
+    empresa_id = Verificar_empresa(request)
+    return bool(
+        empresa_id in {ID_TERRAMAR, ID_ACEITES_SBH}
+        and USERS_EMPRESA.objects.filter(
+            US_NID=request.user,
+            EP_NID_id=empresa_id,
+        ).exists()
+    )
+
+
+def _empresa_terramar_tripulacion_o_error(request):
+    empresa_id = _empresa_control_flota_o_404(request)
+    if empresa_id != ID_TERRAMAR:
+        return None, JsonResponse({
+            'success': False,
+            'message': 'Esta funcion operacional aplica solamente a TERRAMAR.',
+        }, status=403)
+    return empresa_id, None
+
+
+@require_POST
+def CONDUCTOR_ALTA_RAPIDA_TRANSPORTE(request, pk):
+    if not _usuario_puede_tripulacion(request.user, 'con_addone'):
+        return JsonResponse({'success': False, 'message': 'No tiene permisos.'}, status=403)
+    empresa_id, error = _empresa_terramar_tripulacion_o_error(request)
+    if error:
+        return error
+    transporte = get_object_or_404(
+        SOCIONEGOCIO, pk=pk, EP_NID_id=empresa_id,
+        SN_CTIPO='S', SN_BHABILITADO=True,
+    )
+    retorno = f'/pro_listone/{transporte.pk}#ModalConductores'
+    try:
+        conductor, documento, estado, patente, formulario = crear_conductor_operacional(
+            post_data=request.POST, files=request.FILES,
+            usuario=request.user, empresa=transporte.EP_NID,
+            transporte=transporte,
+            base_folder=DOCUMENTOS_CONDUCTORES_TERRAMAR_PATH,
+        )
+    except AltaConductorOperacionalError as exc:
+        messages.error(request, exc.mensaje)
+        return redirect(retorno)
+
+    if estado == 'VENCIDO':
+        messages.warning(request, 'Conductor creado con licencia vencida. La advertencia no bloquea la operaciÃ³n.')
+    elif estado == 'POR VENCER':
+        messages.warning(request, 'Conductor creado con licencia por vencer. La advertencia no bloquea la operaciÃ³n.')
+    else:
+        messages.success(request, f'Conductor {conductor.CON_CNOMBRE} {conductor.CON_CAPELLIDO} creado correctamente.')
+    return redirect(retorno)
+
+def _patente_informada_conductor(conductor):
+    registro = SYSLOGGER.objects.filter(
+        EP_NID_id=conductor.EP_NID_id,
+        LOG_CMODULO='CONTROL_FLOTA',
+        LOG_COPERACION=SYSLOGGER_OP_REG_PATENTE_CONDUCTOR,
+        LOG_CADD1=str(conductor.pk),
+    ).order_by('-LOG_FFECHAREGISTRO', '-id').first()
+    if registro is None:
+        return None
+    patente = str(registro.LOG_CADD2 or '').strip().upper()
+    uso_confirmado = CITACION.objects.filter(
+        EP_NID_id=conductor.EP_NID_id, CON_NID=conductor,
+        CA_NID__CAM_CPATENTE__iexact=patente, CI_BHABILITADO=True,
+    ).exists()
+    camion = CAMION.objects.filter(
+        EP_NID_id=conductor.EP_NID_id,
+        CAM_CPATENTE__iexact=patente, CAM_BHABILITADO=True,
+    ).select_related('SN_NID').first()
+    return {
+        'patente': patente,
+        'fecha': registro.LOG_FFECHAREGISTRO.isoformat() if registro.LOG_FFECHAREGISTRO else None,
+        'uso_operacional_registrado': uso_confirmado,
+        'camion_existente': bool(camion),
+        'camion_id': camion.pk if camion else None,
+        'transporte': camion.SN_NID.SN_CRAZONSOCIAL if camion and camion.SN_NID else '',
+    }
+
+def CONDUCTOR_PATENTES_DOCUMENTOS(request, pk):
+    if not _usuario_puede_tripulacion(request.user, 'con_listone'):
+        return JsonResponse({'success': False, 'message': 'No tiene permisos.'}, status=403)
+    empresa_id, error = _empresa_terramar_tripulacion_o_error(request)
+    if error:
+        return error
+    conductor = get_object_or_404(CONDUCTOR, pk=pk, EP_NID_id=empresa_id, CON_BHABILITADO=True)
+    return JsonResponse({
+        'success': True,
+        'conductor': {
+            'id': conductor.pk,
+            'nombre': f'{conductor.CON_CNOMBRE or ""} {conductor.CON_CAPELLIDO or ""}'.strip(),
+            'rut': conductor.CON_CRUT,
+        },
+        'licencia': licencia_conducir_estado(conductor),
+        'documentos': evaluar_documentos_conductor(conductor),
+        'patentes': patentes_historicas_conductor(conductor),
+        'patente_informada': _patente_informada_conductor(conductor),
+    })
+
+
+def CAMION_BUSCAR_DOCUMENTOS_TERRAMAR(request):
+    if not _usuario_puede_tripulacion(request.user, 'con_listone'):
+        return JsonResponse({'success': False, 'message': 'No tiene permisos.'}, status=403)
+    empresa_id, error = _empresa_terramar_tripulacion_o_error(request)
+    if error:
+        return error
+    camiones = buscar_camiones_terramar(empresa_id=empresa_id, termino=request.GET.get('q', ''))
+    return JsonResponse({'success': True, 'results': [{
+        'id': camion.pk,
+        'text': camion.CAM_CPATENTE,
+        'patente': camion.CAM_CPATENTE,
+        'transporte': camion.SN_NID.SN_CRAZONSOCIAL if camion.SN_NID else '',
+    } for camion in camiones]})
+
+
+def CAMION_ESTADO_DOCUMENTAL_TERRAMAR(request, pk):
+    if not _usuario_puede_tripulacion(request.user, 'con_listone'):
+        return JsonResponse({'success': False, 'message': 'No tiene permisos.'}, status=403)
+    empresa_id, error = _empresa_terramar_tripulacion_o_error(request)
+    if error:
+        return error
+    camion = get_object_or_404(CAMION, pk=pk, EP_NID_id=empresa_id, CAM_BHABILITADO=True)
+    return JsonResponse({
+        'success': True,
+        'camion': {'id': camion.pk, 'patente': camion.CAM_CPATENTE},
+        'documentos': evaluar_documentos_camion(camion),
+    })
+
+
+@require_POST
+def REGISTRAR_ALERTA_DOCUMENTAL_TERRAMAR(request):
+    if not _usuario_puede_tripulacion(request.user, 'con_listone'):
+        return JsonResponse({'success': False, 'message': 'No tiene permisos.'}, status=403)
+    empresa_id, error = _empresa_terramar_tripulacion_o_error(request)
+    if error:
+        return error
+    tipo = str(request.POST.get('tipo') or '').strip().upper()
+    entidad_id = str(request.POST.get('entidad_id') or '').strip()
+    if not entidad_id.isdigit() or tipo not in {'CONDUCTOR', 'CAMION'}:
+        return JsonResponse({'success': False, 'message': 'Entidad invalida.'}, status=400)
+    citacion_id = str(request.POST.get('citacion_id') or '').strip()
+    if citacion_id and (
+        not citacion_id.isdigit()
+        or not CITACION.objects.filter(pk=citacion_id, EP_NID_id=empresa_id).exists()
+    ):
+        return JsonResponse({'success': False, 'message': 'Citacion invalida.'}, status=400)
+    modulo = str(request.POST.get('modulo') or 'PLANIFICACION').strip().upper()
+    modulo = modulo if modulo in {'PLANIFICACION', 'CONTROL_FLOTA'} else 'PLANIFICACION'
+    if tipo == 'CONDUCTOR':
+        entidad = get_object_or_404(CONDUCTOR, pk=entidad_id, EP_NID_id=empresa_id, CON_BHABILITADO=True)
+        documentos = evaluar_documentos_conductor(entidad)
+        operacion, patente = LOG_ALERTA_CONDUCTOR, ''
+    else:
+        entidad = get_object_or_404(CAMION, pk=entidad_id, EP_NID_id=empresa_id, CAM_BHABILITADO=True)
+        documentos = evaluar_documentos_camion(entidad)
+        operacion, patente = LOG_ALERTA_CAMION, entidad.CAM_CPATENTE
+    creados = registrar_alertas_documentales(
+        usuario=request.user, empresa=entidad.EP_NID, modulo=modulo,
+        operacion=operacion, entidad_id=entidad.pk, documentos=documentos,
+        citacion_id=citacion_id or None, patente=patente,
+    )
+    return JsonResponse({
+        'success': True, 'logs_creados': len(creados), 'operacion_permitida': True,
+    })
+
+
+def queryset_conductores_operativos(empresa_id, socio_negocio_id=None):
+    return _queryset_conductores_operativos(empresa_id, socio_negocio_id)
+
+
 def CONDUCTOR_LISTALL(request):
     try:
-        if request.user.is_superuser == False:                     
+        if request.user.is_superuser == False:
             usuario = request.user.id
-            if not validar_perfiles_activos(usuario, "con_listall"):
+            if not (
+                validar_perfiles_activos(usuario, "con_listall")
+                or _asistente_recepcion_puede_control_flota(request, 'con_listall')
+            ):
                 messages.error(request, 'No tiene permisos para acceder a esta sección')
                 return redirect('/')
         Empresa = Verificar_empresa(request)
-        if request.user.userv.UX_IS_PROVEEDOR:
+        userv = getattr(request.user, 'userv', None)
+        if getattr(userv, 'UX_IS_PROVEEDOR', False):
             usuario_socionegocio = USUARIO_SOCIONEGOCIO.objects.filter(US_NID_id=request.user.id).first()
         else:
             usuario_socionegocio = None
 
-        if usuario_socionegocio:
-            object_list = CONDUCTOR.objects.filter(CON_BHABILITADO = True, EP_NID_id = Empresa, SN_NID_id = usuario_socionegocio.SN_NID_id)
-        else:
-            object_list = CONDUCTOR.objects.filter(CON_BHABILITADO = True, EP_NID_id = Empresa) 
+        object_list = queryset_conductores_operativos(
+            Empresa,
+            socio_negocio_id=(
+                usuario_socionegocio.SN_NID_id if usuario_socionegocio else None
+            ),
+        )
+        es_sbh = Empresa == ID_ACEITES_SBH
+        if es_sbh:
+            object_list = asignar_transporte_operacional_sbh(object_list)
 
         ctx = {
-            'object_list': object_list
+            'object_list': object_list,
+            'es_sbh': es_sbh,
         }
 
         return render(request, 'home/CONDUCTOR/con_listall.html', ctx)
@@ -13045,15 +16563,151 @@ def CONDUCTOR_LISTALL_INHABILITADO(request):
         messages.error(request, f'Error, {str(e)}')
         return redirect('/')
 
+def _configurar_transportes_conductor(formulario, empresa_id):
+    transportes = SOCIONEGOCIO.objects.filter(
+        EP_NID_id=empresa_id, SN_CTIPO='S', SN_BHABILITADO=True,
+    ).order_by('SN_CRAZONSOCIAL', 'id')
+    formulario.fields['SN_NID'].queryset = transportes
+    formulario.fields['CON_CRUT'].widget.attrs.update({'placeholder': 'Ej. 247362584', 'autocomplete': 'off'})
+    formulario.fields['CON_CTELEFONO'].widget.attrs.update({'placeholder': 'Ej. 9239899118', 'inputmode': 'tel', 'autocomplete': 'tel'})
+    formulario.fields['CON_CEMAIL'].widget.input_type = 'email'
+    formulario.fields['CON_CEMAIL'].widget.attrs.update({'autocomplete': 'email'})
+    formulario.fields['SN_NID'].choices = [('', 'Seleccione Transporte')] + [
+        (objeto.pk, f'{objeto.SN_CRUT} - {objeto.SN_CRAZONSOCIAL}')
+        for objeto in transportes
+    ]
+    return formulario
+
+
+def _base_documentos_conductor(empresa_id):
+    if empresa_id == ID_TERRAMAR:
+        return DOCUMENTOS_CONDUCTORES_TERRAMAR_PATH
+    if empresa_id == ID_ACEITES_SBH:
+        return DOCUMENTOS_CONDUCTORE_ACEITESS_PATH
+    raise AltaConductorOperacionalError('La empresa activa no tiene configurada una ruta documental.')
+
+
+def _es_alta_operacional_conductor(user, empresa_id):
+    return bool(
+        empresa_id in {ID_TERRAMAR, ID_ACEITES_SBH}
+        and (
+            getattr(user, 'is_superuser', False)
+            or usuario_es_planificador(user)
+            or 'CONTROL FLOTA' in perfiles_normalizados_usuario(user)
+            or usuario_tiene_perfil_asistente_recepcion(user)
+        )
+    )
+
+
+def CONDUCTOR_VALIDAR_RUT(request):
+    if not _usuario_puede_tripulacion(request.user, 'con_addone'):
+        return JsonResponse({'success': False, 'message': 'No tiene permisos.'}, status=403)
+    empresa_id = _empresa_control_flota_o_404(request)
+    empresa = get_object_or_404(EMPRESA, pk=empresa_id)
+    try:
+        rut = normalizar_rut_chileno(request.GET.get('rut'))
+    except RutChilenoInvalido as exc:
+        return JsonResponse({
+            'success': True, 'valido': False, 'existe': False, 'message': str(exc),
+        })
+    excluir_id = str(request.GET.get('excluir_id') or '').strip()
+    excluir_pk = None
+    if excluir_id.isdigit() and CONDUCTOR.objects.filter(
+        pk=excluir_id, EP_NID=empresa,
+    ).exists():
+        excluir_pk = int(excluir_id)
+    diagnostico = diagnostico_duplicidad_rut(
+        empresa=empresa, rut_normalizado=rut, excluir_pk=excluir_pk,
+    )
+    mensaje = ''
+    if diagnostico['habilitados']:
+        mensaje = 'RUT ya existe. No se puede crear nuevamente el conductor.'
+    elif diagnostico['inhabilitados']:
+        mensaje = 'Este conductor ya existe en esta empresa pero se encuentra inhabilitado.'
+    return JsonResponse({
+        'success': True,
+        'valido': True,
+        'rut': rut,
+        'existe': diagnostico['existe'],
+        'empresa': empresa.EP_CRAZONSOCIAL,
+        'cantidad': diagnostico['cantidad'],
+        'duplicados_historicos': diagnostico['duplicados_historicos'],
+        'habilitado': bool(diagnostico['habilitados']),
+        'message': mensaje,
+    })
+
+
 def CONDUCTOR_ADDONE(request):
     try:
-        if request.user.is_superuser == False:                     
+        if request.user.is_superuser == False:
             usuario = request.user.id
-            if not validar_perfiles_activos(usuario, "con_addone"):
+            if not (
+                validar_perfiles_activos(usuario, "con_addone")
+                or _asistente_recepcion_puede_control_flota(request, 'con_addone')
+            ):
                 messages.error(request, 'No tiene permisos para acceder a esta sección')
                 return redirect('/')
-        Empresa = Verificar_empresa(request)                
+        Empresa = Verificar_empresa(request)
         documentos = LISTADO_DOCUMENTO.objects.filter(LIS_BHABILITADO = True, LIS_CGRUPO = 'Conductor',EP_NID_id = Empresa)
+        if _es_alta_operacional_conductor(request.user, Empresa):
+            empresa_objeto = get_object_or_404(EMPRESA, pk=Empresa)
+            transporte_id = str(request.POST.get('SN_NID') or '').strip() if request.method == 'POST' else None
+            transporte = None
+            if transporte_id and transporte_id.isdigit():
+                transporte = SOCIONEGOCIO.objects.filter(
+                    pk=transporte_id, EP_NID=empresa_objeto,
+                    SN_CTIPO='S', SN_BHABILITADO=True,
+                ).first()
+            formulario = formulario_conductor_operacional(
+                request.POST if request.method == 'POST' else None,
+                empresa_id=Empresa,
+                transporte_id=transporte.pk if transporte else None,
+                usuario_id=request.user.pk,
+            )
+            formulario = _configurar_transportes_conductor(formulario, Empresa)
+            errores_operacionales = {}
+            if request.method == 'POST':
+                if transporte is None:
+                    error = AltaConductorOperacionalError(
+                        'Debe seleccionar un Transporte vÃ¡lido.', campo='SN_NID',
+                    )
+                else:
+                    try:
+                        conductor, documento, estado, patente, formulario = crear_conductor_operacional(
+                            post_data=request.POST, files=request.FILES,
+                            usuario=request.user, empresa=empresa_objeto,
+                            transporte=transporte,
+                            base_folder=_base_documentos_conductor(Empresa),
+                        )
+                    except AltaConductorOperacionalError as exc:
+                        error = exc
+                    else:
+                        if estado == 'VENCIDO':
+                            messages.warning(request, 'Conductor creado con licencia vencida. La advertencia no bloquea la operaciÃ³n.')
+                        elif estado == 'POR VENCER':
+                            messages.warning(request, 'Conductor creado con licencia por vencer. La advertencia no bloquea la operaciÃ³n.')
+                        else:
+                            messages.success(request, 'Conductor y licencia guardados correctamente.')
+                        return redirect(f'/con_listone/{conductor.pk}')
+
+                logger.warning(
+                    'Alta /con_addone/ rechazada. usuario=%s empresa=%s campo=%s mensaje=%s campos_post=%s',
+                    request.user.pk, Empresa, error.campo, error.mensaje, sorted(request.POST.keys()),
+                )
+                if error.campo in formulario.fields:
+                    formulario.add_error(error.campo, error.mensaje)
+                elif error.campo:
+                    errores_operacionales[error.campo] = error.mensaje
+                else:
+                    formulario.add_error(None, error.mensaje)
+                messages.error(request, error.mensaje)
+            return render(request, 'home/CONDUCTOR/con_addone.html', {
+                'form': formulario,
+                'documentos': documentos,
+                'alta_operacional': True,
+                'errores_operacionales': errores_operacionales,
+            })
+
         if request.method == 'POST':
             # Establecer empresa en el formularios
             empresa_usuario = EMPRESA.objects.get(id = Empresa)
@@ -13061,10 +16715,19 @@ def CONDUCTOR_ADDONE(request):
             post_data['EP_NID'] = empresa_usuario
             form = formCONDUCTOR(post_data)
             if form.is_valid():
-                rut = form.instance.CON_CRUT.replace('.','').upper()
-                conductor_duplicado = CONDUCTOR.objects.filter(CON_CRUT=rut, CON_BHABILITADO = True, EP_NID_id = Empresa).exists()
-                if conductor_duplicado:
-                    messages.error(request, 'Error al guardar el conductor, RUT duplicado')
+                try:
+                    rut = normalizar_rut_chileno(form.instance.CON_CRUT)
+                except RutChilenoInvalido as exc:
+                    messages.error(request, str(exc))
+                    return redirect('/con_addone/')
+                duplicidad = diagnostico_duplicidad_rut(
+                    empresa=empresa_usuario, rut_normalizado=rut,
+                )
+                if duplicidad['habilitados']:
+                    messages.error(request, 'RUT ya existe. No se puede crear nuevamente el conductor.')
+                    return redirect('/con_addone/')
+                if duplicidad['inhabilitados']:
+                    messages.error(request, 'Este conductor ya existe en esta empresa pero se encuentra inhabilitado.')
                     return redirect('/con_addone/')
 
                 form.instance.CON_CRUT = rut
@@ -13098,7 +16761,7 @@ def CONDUCTOR_ADDONE(request):
                         with open(file_path, 'wb+') as destination:
                             for chunk in archivo.chunks():
                                 destination.write(chunk)
-                        
+
                         DOCUMENTO_CONDUCTOR.objects.create(
                             EP_NID_id = form.instance.EP_NID,
                             CON_NID_id = id_conductor,
@@ -13108,13 +16771,13 @@ def CONDUCTOR_ADDONE(request):
                             DCON_FFECHAVENCIMIENTO = fecha_vencimiento,
                             DCON_CRUTADOC = file_path,
                             DCON_FFECHAREGISTRO = datetime.now()
-                        )             
+                        )
                 messages.success(request, 'Conductor guardado correctamente')
                 return redirect('/con_listall/')
             else:
                 messages.error(request, 'Error al guardar el conductor')
                 return redirect('/con_addone/')
-        
+
         form = formCONDUCTOR()
         # Fetching choices for the form fields from the database
         form.fields['SN_NID'].choices = listarOpcionesTabla('CAST("id" AS text)', ''' "SN_CRUT" || ' - ' || "SN_CRAZONSOCIAL" ''', 'SOCIONEGOCIO', '', '', '''"SN_CTIPO" = 'S' AND "SN_BHABILITADO" = TRUE ''')
@@ -13128,15 +16791,101 @@ def CONDUCTOR_ADDONE(request):
         messages.error(request, f'Error, {str(e)}')
         return redirect('/con_listall/')
 
+def _usuario_puede_eliminar_conductor(user):
+    return bool(
+        getattr(user, 'is_superuser', False)
+        or 'CONTROL FLOTA' in perfiles_normalizados_usuario(user)
+    )
+
+
+def _usuario_puede_editar_conductor_moderno(user):
+    return bool(
+        getattr(user, 'is_superuser', False)
+        or usuario_es_planificador(user)
+        or 'CONTROL FLOTA' in perfiles_normalizados_usuario(user)
+    )
+
+
+def _estado_documental_general_conductor(conductor):
+    documentos = evaluar_documentos_conductor(conductor)
+    for estado in ('FALTANTE', 'VENCIDO', 'POR VENCER'):
+        if any(documento['estado'] == estado for documento in documentos):
+            return estado
+    return 'VIGENTE'
+
+
+def _contexto_edicion_moderna_conductor(request, conductor, formulario, errores=None):
+    licencia = DOCUMENTO_CONDUCTOR.objects.filter(
+        EP_NID=conductor.EP_NID, CON_NID=conductor,
+        DCON_CTIPO__iexact='LICENCIA DE CONDUCIR', DCON_BHABILITADO=True,
+    ).order_by('-DCON_FFECHAREGISTRO', '-id').first()
+    estado_licencia = licencia_conducir_estado(conductor)
+    return {
+        'form': _configurar_transportes_conductor(formulario, conductor.EP_NID_id),
+        'conductor': conductor,
+        'edicion_operacional': True,
+        'licencia_actual': licencia,
+        'licencia_estado': estado_licencia,
+        'licencia_fecha_emision': (
+            request.POST.get('licencia_fecha_emision')
+            if request.method == 'POST'
+            else (licencia.DCON_FFECHAEMISION.isoformat() if licencia else '')
+        ),
+        'licencia_fecha_vencimiento': (
+            request.POST.get('licencia_fecha_vencimiento')
+            if request.method == 'POST'
+            else (licencia.DCON_FFECHAVENCIMIENTO.isoformat() if licencia else '')
+        ),
+        'puede_deshabilitar_conductor': _usuario_puede_eliminar_conductor(request.user),
+        'errores_operacionales': errores or {},
+    }
+
+
+def _conductor_update_moderno(request, conductor):
+    puede_deshabilitar = _usuario_puede_eliminar_conductor(request.user)
+    formulario = formulario_edicion_conductor_operacional(
+        request.POST if request.method == 'POST' else None,
+        conductor=conductor, usuario=request.user,
+        puede_deshabilitar=puede_deshabilitar,
+    )
+    errores = {}
+    if request.method == 'POST':
+        try:
+            actualizado, estado, formulario = actualizar_conductor_operacional(
+                post_data=request.POST, files=request.FILES, usuario=request.user,
+                conductor=conductor, base_folder=_base_documentos_conductor(conductor.EP_NID_id),
+                puede_deshabilitar=puede_deshabilitar,
+            )
+        except AltaConductorOperacionalError as exc:
+            if exc.campo in formulario.fields:
+                formulario.add_error(exc.campo, exc.mensaje)
+            elif exc.campo:
+                errores[exc.campo] = exc.mensaje
+            else:
+                formulario.add_error(None, exc.mensaje)
+            messages.error(request, exc.mensaje)
+        else:
+            messages.success(request, 'Conductor y licencia actualizados correctamente.')
+            if estado in {'VENCIDO', 'POR VENCER'}:
+                messages.warning(request, f'La licencia quedÃ³ {estado.lower()}; la operaciÃ³n continÃºa permitida.')
+            return redirect(f'/con_listone/{actualizado.pk}')
+    return render(
+        request, 'home/CONDUCTOR/con_addone.html',
+        _contexto_edicion_moderna_conductor(request, conductor, formulario, errores),
+    )
+
+
 def CONDUCTOR_UPDATE(request, pk):
     try:
-        if request.user.is_superuser == False:                     
+        if request.user.is_superuser == False:
             usuario = request.user.id
             if not validar_perfiles_activos(usuario, "con_listone"):
                 messages.error(request, 'No tiene permisos para acceder a esta sección')
                 return redirect('/')
         Empresa = Verificar_empresa(request)
-        conductor = CONDUCTOR.objects.get(id = pk)
+        conductor = _objeto_control_flota_o_404(request, CONDUCTOR, id=pk)
+        if _usuario_puede_editar_conductor_moderno(request.user):
+            return _conductor_update_moderno(request, conductor)
         documentos = LISTADO_DOCUMENTO.objects.filter(LIS_BHABILITADO = True, LIS_CGRUPO = 'CONDUCTOR', EP_NID_id = Empresa)
         documentos_cargados = listar_documentos_conductor(pk)
         if request.method == 'POST':
@@ -13160,7 +16909,7 @@ def CONDUCTOR_UPDATE(request, pk):
                         # Create a new folder with CAM_CPATENTE if it doesn't exist
                         if conductor.EP_NID.id == ID_TERRAMAR:
                             base_folder = DOCUMENTOS_CONDUCTORES_TERRAMAR_PATH
-                        elif conductor.EP_NID.id == ID_ACEITES_SBH:                            
+                        elif conductor.EP_NID.id == ID_ACEITES_SBH:
                             base_folder = DOCUMENTOS_CONDUCTORE_ACEITESS_PATH
 
                         folder_path = os.path.join(base_folder, rut)
@@ -13174,7 +16923,7 @@ def CONDUCTOR_UPDATE(request, pk):
                         with open(file_path, 'wb+') as destination:
                             for chunk in archivo.chunks():
                                 destination.write(chunk)
-                        
+
                         DOCUMENTO_CONDUCTOR.objects.create(
                             EP_NID = conductor.EP_NID,
                             CON_NID_id = pk,
@@ -13203,13 +16952,16 @@ def CONDUCTOR_UPDATE(request, pk):
 
 def CONDUCTOR_LISTONE(request, pk):
     try:
-        if request.user.is_superuser == False:                     
+        if request.user.is_superuser == False:
             usuario = request.user.id
-            if not validar_perfiles_activos(usuario, "con_listone"):
+            if not (
+                validar_perfiles_activos(usuario, "con_listone")
+                or _asistente_recepcion_puede_control_flota(request, 'con_listone')
+            ):
                 messages.error(request, 'No tiene permisos para acceder a esta sección')
                 return redirect('/')
         Empresa = Verificar_empresa(request)
-        conductor = CONDUCTOR.objects.get(id = pk)
+        conductor = _conductor_control_flota_o_404(request, pk)
 
         listado_documentos = listado_y_estado_documentos_xconductor(pk)
         tipos_documentos = list(LISTADO_DOCUMENTO.objects.filter(LIS_BHABILITADO = True, LIS_CGRUPO = 'Conductor', EP_NID_id = Empresa).values_list('LIS_CNOMBREDOCUMENTO', flat=True))
@@ -13224,7 +16976,7 @@ def CONDUCTOR_LISTONE(request, pk):
                 if dias_venc < 31 and dias_venc > 0:
                     bool_dias = 1                       # bool_dias = 1 es para indicar que hay documentos que estan proximos a vencer
                 elif dias_venc <= 0:
-                    bool_dias = 2                        # bool_dias = 2 es que hay documentos que ya vencieron 
+                    bool_dias = 2                        # bool_dias = 2 es que hay documentos que ya vencieron
                     break
         form_doc = formDOCUMENTO_CONDUCTOR()
         count_list.append(len(documentos))
@@ -13246,10 +16998,25 @@ def CONDUCTOR_LISTONE(request, pk):
             'lista_documentos_faltantes': lista_documentos_faltantes,
             'lista_estado_documentos': lista_estado_documentos,
             'tipos_documentos': tipos_documentos,
+            'tipos_documentos_legacy': [
+                tipo for tipo in tipos_documentos
+                if str(tipo or '').strip().upper() != 'LICENCIA DE CONDUCIR'
+            ],
             'list_doc': listado_documentos,
-            'form_doc': form_doc
+            'form_doc': form_doc,
+            'puede_eliminar_conductor': _usuario_puede_eliminar_conductor(request.user),
+            'puede_agregar_documento_legacy': bool(
+                _usuario_puede_eliminar_conductor(request.user)
+                and LISTADO_DOCUMENTO.objects.filter(
+                    EP_NID_id=Empresa, LIS_CGRUPO__iexact='Conductor',
+                    LIS_BHABILITADO=True,
+                ).exclude(LIS_CNOMBREDOCUMENTO__iexact='LICENCIA DE CONDUCIR').exists()
+            ),
+            'estado_documental_general': _estado_documental_general_conductor(conductor),
         }
         return render(request, 'home/CONDUCTOR/con_listone.html', ctx)
+    except Http404:
+        raise
     except Exception as e:
         print(e)
         messages.error(request, f'Error, {str(e)}')
@@ -13257,9 +17024,10 @@ def CONDUCTOR_LISTONE(request, pk):
 
 def CONDUCTOR_DELETE(request, pk):
     try:
-        if request.user.is_superuser == False and request.user.userv.UX_IS_ADMINISTRADOR_CONDUCTOR == False:                     
-            return redirect('/')
-        conductor = CONDUCTOR.objects.get(id = pk)
+        if not _usuario_puede_eliminar_conductor(request.user):
+            messages.error(request, 'No tiene permisos para deshabilitar conductores.')
+            return redirect(f'/con_listone/{pk}')
+        conductor = _objeto_control_flota_o_404(request, CONDUCTOR, id=pk)
         conductor.CON_BHABILITADO = False
         conductor.save()
 
@@ -13272,9 +17040,9 @@ def CONDUCTOR_DELETE(request, pk):
 
 def CONDUCTOR_HABILITAR(request, pk):
     try:
-        if request.user.is_superuser == False:                     
+        if request.user.is_superuser == False:
             return redirect('/')
-        conductor = CONDUCTOR.objects.get(id = pk)
+        conductor = _objeto_control_flota_o_404(request, CONDUCTOR, id=pk)
         conductor.CON_BHABILITADO = True
         conductor.save()
 
@@ -13291,12 +17059,12 @@ def CONDUCTOR_HABILITAR(request, pk):
 
 def DOCUMENTO_CONDUCTOR_ADDONE(request, pk):
     try:
-        if request.user.is_superuser == False:                     
+        if request.user.is_superuser == False:
             usuario = request.user.id
             if not validar_perfiles_activos(usuario, "con_listone"):
                 messages.error(request, 'No tiene permisos para acceder a esta sección')
                 return redirect('/')
-        conductor = CONDUCTOR.objects.get(id = pk)
+        conductor = _objeto_control_flota_o_404(request, CONDUCTOR, id=pk)
 
         if request.method == 'POST':
             archivo = request.FILES['DCON_CRUTADOC']
@@ -13319,7 +17087,13 @@ def DOCUMENTO_CONDUCTOR_ADDONE(request, pk):
                 for chunk in archivo.chunks():
                     destination.write(chunk)
 
-            documentos_antiguos = actualizar_documentos_antiguos_xtipo(pk, request.POST.get('DCON_CTIPO'))
+            DOCUMENTO_CONDUCTOR.objects.filter(
+                EP_NID=conductor.EP_NID,
+                CON_NID=conductor,
+                DCON_CTIPO__iexact=request.POST.get('DCON_CTIPO'),
+                DCON_BHABILITADO=True,
+            ).update(DCON_BHABILITADO=False)
+            documentos_antiguos = True
             if not documentos_antiguos:
                 messages.error(request, 'Error al actualizar los documentos antiguos')
             else:
@@ -13328,10 +17102,11 @@ def DOCUMENTO_CONDUCTOR_ADDONE(request, pk):
                     CON_NID_id = pk,
                     US_NID_id = request.user.id,
                     DCON_CTIPO = request.POST.get('DCON_CTIPO'),
+                    DCON_CESTADO = ('VENCIDO' if parse_date(request.POST.get('DCON_FFECHAVENCIMIENTO')) <= timezone.localdate() else ('POR VENCER' if (parse_date(request.POST.get('DCON_FFECHAVENCIMIENTO')) - timezone.localdate()).days <= 30 else 'VIGENTE')),
                     DCON_FFECHAEMISION = request.POST.get('DCON_FFECHAEMISION'),
                     DCON_FFECHAVENCIMIENTO = request.POST.get('DCON_FFECHAVENCIMIENTO'),
                     DCON_CRUTADOC = file_path,
-                    DCON_FFECHAREGISTRO = datetime.now()
+                    DCON_FFECHAREGISTRO = timezone.now()
                 )
                 messages.success(request, 'Documento cargado correctamente')
             return redirect(f'/con_listone/{pk}')
@@ -13342,12 +17117,12 @@ def DOCUMENTO_CONDUCTOR_ADDONE(request, pk):
 
 def DOCUMENTO_CONDUCTOR_DOWNLOAD(request, pk):
     try:
-        if request.user.is_superuser == False:                     
+        if request.user.is_superuser == False:
             usuario = request.user.id
             if not validar_perfiles_activos(usuario, "con_listone"):
                 messages.error(request, 'No tiene permisos para acceder a esta sección')
                 return redirect('/')
-        documento = DOCUMENTO_CONDUCTOR.objects.get(id = pk)
+        documento = _objeto_control_flota_o_404(request, DOCUMENTO_CONDUCTOR, id=pk)
         file_path = documento.DCON_CRUTADOC
         if os.path.exists(file_path):
             response = FileResponse(open(file_path, 'rb'))
@@ -13363,12 +17138,22 @@ def DOCUMENTO_CONDUCTOR_DOWNLOAD(request, pk):
 
 def DOCUMENTO_CONDUCTOR_DELETE(request, pk):
     try:
-        if request.user.is_superuser == False:                     
+        if not _usuario_puede_eliminar_conductor(request.user):
+            messages.error(request, 'No tiene permisos para deshabilitar documentos.')
             return redirect('/')
-        documento = DOCUMENTO_CONDUCTOR.objects.get(id = pk)
-        documento.delete()
-        messages.success(request, 'Documento eliminado correctamente')
-        return redirect(f'/con_listone/{documento.CON_NID.pk}')
+        documento = _objeto_control_flota_o_404(request, DOCUMENTO_CONDUCTOR, id=pk)
+        conductor_id = documento.CON_NID_id
+        documento.DCON_BHABILITADO = False
+        documento.save(update_fields=['DCON_BHABILITADO'])
+        SYSLOGGER.objects.create(
+            US_NID=request.user, EP_NID=documento.EP_NID,
+            LOG_FFECHAREGISTRO=timezone.now(), LOG_CMODULO='CONTROL_FLOTA',
+            LOG_COPERACION='DESHABILITA_DOC_COND',
+            LOG_CADD1=str(conductor_id), LOG_CADD2=str(documento.pk),
+            LOG_CDESCRIPCION='Documento de conductor inhabilitado; histÃ³rico conservado.',
+        )
+        messages.success(request, 'Documento deshabilitado correctamente')
+        return redirect(f'/con_listone/{conductor_id}')
     except Exception as e:
         print(e)
         messages.error(request, f'Error, {str(e)}')
@@ -13379,12 +17164,15 @@ def DOCUMENTO_CONDUCTOR_DELETE(request, pk):
 
 def PROVEEDOR_LISTALL(request):
     try:
-        if request.user.is_superuser == False:                     
+        if request.user.is_superuser == False:
             usuario = request.user.id
-            if not validar_perfiles_activos(usuario, "pro_listall"):
+            if not (
+                validar_perfiles_activos(usuario, "pro_listall")
+                or _asistente_recepcion_puede_control_flota(request, 'pro_listall')
+            ):
                 messages.error(request, 'No tiene permisos para acceder a esta sección')
                 return redirect('/')
-                
+
         Empresa = Verificar_empresa(request)
         object_list = SOCIONEGOCIO.objects.filter(SN_BHABILITADO = True, SN_CTIPO = 'S', EP_NID_id = Empresa)
 
@@ -13392,7 +17180,7 @@ def PROVEEDOR_LISTALL(request):
 
             'object_list': object_list
         }
-        return render(request, 'home/PROVEEDOR/pro_listall.html', ctx)        
+        return render(request, 'home/PROVEEDOR/pro_listall.html', ctx)
     except Exception as e:
         print(e)
 
@@ -13404,7 +17192,7 @@ def PROVEEDOR_LISTALL_INHABILITADO(request):
         if request.user.is_superuser == False:
             usuario = request.user.id
             if not validar_perfiles_activos(usuario, "pro_listall_dis"):
-                messages.error(request, "No tiene permiso para acceder a esta sección")                     
+                messages.error(request, "No tiene permiso para acceder a esta sección")
                 return redirect('/')
         Empresa = Verificar_empresa(request)
         object_list = SOCIONEGOCIO.objects.filter(SN_BHABILITADO = False, SN_CTIPO = 'S', EP_NID_id = Empresa)
@@ -13421,16 +17209,19 @@ def PROVEEDOR_LISTALL_INHABILITADO(request):
 
 def PROVEEDOR_LISTONE(request, pk):
     try:
-        if request.user.is_superuser == False:                     
+        if request.user.is_superuser == False:
             usuario = request.user.id
-            if not validar_perfiles_activos(usuario, "pro_listone"):
+            if not (
+                validar_perfiles_activos(usuario, "pro_listone")
+                or _asistente_recepcion_puede_control_flota(request, 'pro_listone')
+            ):
                 messages.error(request, 'No tiene permisos para acceder a esta sección')
                 return redirect('/')
-        proveedor = SOCIONEGOCIO.objects.get(id = pk)
+        proveedor = _objeto_control_flota_o_404(request, SOCIONEGOCIO, id=pk, SN_CTIPO='S')
         list_doc = listado_y_estado_documentos_xproveedor(pk)
         tipos_documentos = list(LISTADO_DOCUMENTO.objects.filter(LIS_BHABILITADO = True, LIS_CGRUPO = 'Proveedor').values_list('LIS_CNOMBREDOCUMENTO', flat=True))
-        documentos = DOCUMENTO_SOCIONEGOCIO.objects.filter(SN_NID = proveedor, DSN_BHABILITADO = True)
-        tarifas = TARIFA_GLOBAL.objects.filter(SN_NID = proveedor)
+        documentos = DOCUMENTO_SOCIONEGOCIO.objects.filter(SN_NID=proveedor, DSN_BHABILITADO=True, EP_NID=proveedor.EP_NID)
+        tarifas = TARIFA_GLOBAL.objects.filter(SN_NID=proveedor, EP_NID=proveedor.EP_NID)
         bool_dias = 0
         count_list = []
         lista_documentos = []
@@ -13452,8 +17243,14 @@ def PROVEEDOR_LISTONE(request, pk):
             if i.DSN_CTIPO not in tipos_documentos:
                 lista_documentos.append(i.DSN_CTIPO)
 
-        conductores = CONDUCTOR.objects.filter(CON_BHABILITADO = True, SN_NID = proveedor)
-        camiones = CAMION.objects.filter(CAM_BHABILITADO = True, SN_NID = proveedor)
+        empresa_activa = _empresa_control_flota_o_404(request)
+        if empresa_activa == ID_ACEITES_SBH:
+            conductores = queryset_conductores_por_transporte_sbh(proveedor)
+        else:
+            conductores = CONDUCTOR.objects.filter(
+                CON_BHABILITADO=True, SN_NID=proveedor, EP_NID=proveedor.EP_NID,
+            )
+        camiones = CAMION.objects.filter(CAM_BHABILITADO=True, SN_NID=proveedor, EP_NID=proveedor.EP_NID)
         count_list.append(len(conductores))
         count_list.append(len(camiones))
         count_list.append(len(documentos))
@@ -13470,7 +17267,8 @@ def PROVEEDOR_LISTONE(request, pk):
             'lista_estado_documentos': lista_estado_documentos,
             'conductores': conductores,
             'camiones': camiones,
-            'tarifas': tarifas
+            'tarifas': tarifas,
+            'puede_alta_rapida_conductor': _usuario_puede_tripulacion(request.user, 'con_addone') and proveedor.EP_NID_id == ID_TERRAMAR,
 
         }
         return render(request, 'home/PROVEEDOR/pro_listone.html', ctx)
@@ -13481,9 +17279,9 @@ def PROVEEDOR_LISTONE(request, pk):
 
 def PROVEEDOR_DELETE(request, pk):
     try:
-        if request.user.is_superuser == False:                     
+        if request.user.is_superuser == False:
             return redirect('/')
-        proveedor = SOCIONEGOCIO.objects.get(id = pk)
+        proveedor = _objeto_control_flota_o_404(request, SOCIONEGOCIO, id=pk, SN_CTIPO='S')
         proveedor.SN_BHABILITADO = False
         proveedor.save()
 
@@ -13496,9 +17294,9 @@ def PROVEEDOR_DELETE(request, pk):
 
 def PROVEEDOR_HABILITAR(request, pk):
     try:
-        if request.user.is_superuser == False:                     
+        if request.user.is_superuser == False:
             return redirect('/')
-        proveedor = SOCIONEGOCIO.objects.get(id = pk)
+        proveedor = _objeto_control_flota_o_404(request, SOCIONEGOCIO, id=pk, SN_CTIPO='S')
         proveedor.SN_BHABILITADO = True
         proveedor.save()
 
@@ -13508,7 +17306,7 @@ def PROVEEDOR_HABILITAR(request, pk):
         print(e)
         messages.error(request, f'Error, {str(e)}')
         return redirect('/pro_listall/')
-    
+
 def ajax_data_proveedor(request, pk):
     try:
         id_ruta = request.GET.get('id_ruta')
@@ -13538,12 +17336,12 @@ def ajax_data_proveedor(request, pk):
 
 def DOCUMENTO_PROVEEDOR_ADDONE(request, pk):
     try:
-        if request.user.is_superuser == False:                     
+        if request.user.is_superuser == False:
             usuario = request.user.id
             if not validar_perfiles_activos(usuario, "pro_listone"):
                 messages.error(request, 'No tiene permisos para acceder a esta sección')
                 return redirect('/')
-        proveedor = SOCIONEGOCIO.objects.get(id = pk)
+        proveedor = _objeto_control_flota_o_404(request, SOCIONEGOCIO, id=pk, SN_CTIPO='S')
         if request.method == 'POST':
             archivo = request.FILES['DSN_CRUTADOC']
             # Create a new folder with CON_CRUT if it doesn't exist
@@ -13587,12 +17385,12 @@ def DOCUMENTO_PROVEEDOR_ADDONE(request, pk):
 
 def DOCUMENTO_PROVEEDOR_DOWNLOAD(request, pk):
     try:
-        if request.user.is_superuser == False:                     
+        if request.user.is_superuser == False:
             usuario = request.user.id
             if not validar_perfiles_activos(usuario, "pro_listone"):
                 messages.error(request, 'No tiene permisos para acceder a esta sección')
                 return redirect('/')
-        documento = DOCUMENTO_SOCIONEGOCIO.objects.get(id = pk)
+        documento = _objeto_control_flota_o_404(request, DOCUMENTO_SOCIONEGOCIO, id=pk)
         file_path = documento.DSN_CRUTADOC
         if os.path.exists(file_path):
             response = FileResponse(open(file_path, 'rb'))
@@ -13612,7 +17410,7 @@ def DOCUMENTO_PROVEEDOR_DOWNLOAD(request, pk):
 
 def CLIENTE_LISTALL(request):
     try:
-        if request.user.is_superuser == False:                     
+        if request.user.is_superuser == False:
             usuario = request.user.id
             if not validar_perfiles_activos(usuario, "cli_listall"):
                 messages.error(request, 'No tiene permisos para acceder a esta sección')
@@ -13632,13 +17430,13 @@ def CLIENTE_LISTALL(request):
 
 def CLIENTE_LISTALL_INHABILITADO(request):
     try:
-        if request.user.is_superuser == False:      
-            usuario = request.user.id     
+        if request.user.is_superuser == False:
+            usuario = request.user.id
             if not validar_perfiles_activos(usuario, "cli_listall_dis"):
-                messages.error(request, "No tiene permiso para acceder a esta sección")        
+                messages.error(request, "No tiene permiso para acceder a esta sección")
                 return redirect('/')
         Empresa = Verificar_empresa(request)
-        object_list = SOCIONEGOCIO.objects.filter(SN_BHABILITADO = False, SN_CTIPO = 'C', EP_NID_id = Empresa)        
+        object_list = SOCIONEGOCIO.objects.filter(SN_BHABILITADO = False, SN_CTIPO = 'C', EP_NID_id = Empresa)
 
         ctx = {
             'object_list': object_list
@@ -13652,7 +17450,7 @@ def CLIENTE_LISTALL_INHABILITADO(request):
 
 def CLIENTE_LISTONE(request, pk):
     try:
-        if request.user.is_superuser == False:                     
+        if request.user.is_superuser == False:
             usuario = request.user.id
             if not validar_perfiles_activos(usuario, "cli_listone"):
                 messages.error(request, 'No tiene permisos para acceder a esta sección')
@@ -13702,7 +17500,7 @@ def CLIENTE_LISTONE(request, pk):
 
 def CLIENTE_DELETE(request, pk):
     try:
-        if request.user.is_superuser == False:                     
+        if request.user.is_superuser == False:
             return redirect('/')
         cliente = SOCIONEGOCIO.objects.get(id = pk)
         cliente.SN_BHABILITADO = False
@@ -13717,7 +17515,7 @@ def CLIENTE_DELETE(request, pk):
 
 def CLIENTE_HABILITAR(request, pk):
     try:
-        if request.user.is_superuser == False:                     
+        if request.user.is_superuser == False:
             return redirect('/')
         cliente = SOCIONEGOCIO.objects.get(id = pk)
         cliente.SN_BHABILITADO = True
@@ -13745,7 +17543,7 @@ def ajax_get_data_cliente(request, pk):
 
 def DOCUMENTO_CLIENTE_ADDONE(request, pk):
     try:
-        if request.user.is_superuser == False:                     
+        if request.user.is_superuser == False:
             usuario = request.user.id
             if not validar_perfiles_activos(usuario, "cli_listone"):
                 messages.error(request, 'No tiene permisos para acceder a esta sección')
@@ -13793,7 +17591,7 @@ def DOCUMENTO_CLIENTE_ADDONE(request, pk):
 
 def DOCUMENTO_CLIENTE_DOWNLOAD(request, pk):
     try:
-        if request.user.is_superuser == False:                     
+        if request.user.is_superuser == False:
             usuario = request.user.id
             if not validar_perfiles_activos(usuario, "cli_listone"):
                 messages.error(request, 'No tiene permisos para acceder a esta sección')
@@ -13818,13 +17616,14 @@ def DOCUMENTO_CLIENTE_DOWNLOAD(request, pk):
 
 def CAMION_LISTALL(request):
     try:
-        if request.user.is_superuser == False:                     
+        if request.user.is_superuser == False:
             usuario = request.user.id
             if not validar_perfiles_activos(usuario, "cam_listall"):
                 messages.error(request, 'No tiene permisos para acceder a esta sección')
                 return redirect('/')
-        Empresa = Verificar_empresa(request) 
-        if request.user.userv.UX_IS_PROVEEDOR:
+        Empresa = Verificar_empresa(request)
+        userv = getattr(request.user, 'userv', None)
+        if getattr(userv, 'UX_IS_PROVEEDOR', False):
             usuario_socionegocio = USUARIO_SOCIONEGOCIO.objects.filter(US_NID_id=request.user.id).first()
         else:
             usuario_socionegocio = None
@@ -13854,7 +17653,7 @@ def CAMION_LISTALL(request):
             else:
                 tiene_vencidos = False
                 tiene_por_vencer = False
-                
+
                 for doc in camion.ESTADO_DOCUMENTOS:
                     if doc[1] <= 0:  # Documento vencido
                         tiene_vencidos = True
@@ -13894,9 +17693,10 @@ def CAMION_LISTALL_INHABILITADO(request):
         if request.user.is_superuser == False:
             usuario = request.user.id
             if not validar_perfiles_activos(usuario, "cam_listall_dis"):
-                messages.error(request, "No tiene permiso para acceder a esta sección")                
+                messages.error(request, "No tiene permiso para acceder a esta sección")
                 return redirect('/')
-        object_list = CAMION.objects.filter(CAM_BHABILITADO = False)
+        Empresa = _empresa_control_flota_o_404(request)
+        object_list = CAMION.objects.filter(CAM_BHABILITADO=False, EP_NID_id=Empresa)
 
         ctx = {
             'object_list': object_list
@@ -13908,14 +17708,14 @@ def CAMION_LISTALL_INHABILITADO(request):
         messages.error(request, f'Error, {str(e)}')
         return redirect('/')
 
-def CAMION_ADDONE(request):   
+def CAMION_ADDONE(request):
     try:
-        if request.user.is_superuser == False:                     
+        if request.user.is_superuser == False:
             usuario = request.user.id
             if not validar_perfiles_activos(usuario, "cam_addone"):
                 messages.error(request, 'No tiene permisos para acceder a esta sección')
                 return redirect('/')
-        Empresa = Verificar_empresa(request) 
+        Empresa = Verificar_empresa(request)
         if request.method == 'POST':
             empresa_user = EMPRESA.objects.get(id = Empresa)
             post_data = request.POST.copy()
@@ -13959,7 +17759,7 @@ def CAMION_ADDONE(request):
                         with open(file_path, 'wb+') as destination:
                             for chunk in archivo.chunks():
                                 destination.write(chunk)
-                        
+
                         DOCUMENTO_CAMION.objects.create(
                             EP_NID_id = form.instance.EP_NID,
                             CAM_NID_id = camion_id,
@@ -13976,7 +17776,7 @@ def CAMION_ADDONE(request):
             else:
                 messages.error(request, 'Error al guardar el camión')
                 return redirect('/cam_addone/')
-        
+
         form = formCAMION()
         form.fields['SN_NID'].choices = listarOpcionesTabla('CAST("id" AS text)', ''' "SN_CRUT" || ' - ' || "SN_CRAZONSOCIAL" ''', 'SOCIONEGOCIO', '', '', '''"SN_CTIPO" = 'S' AND "SN_BHABILITADO" = TRUE ''')
         documentos = LISTADO_DOCUMENTO.objects.filter(LIS_BHABILITADO = True, LIS_CGRUPO = 'Camion')
@@ -13992,12 +17792,12 @@ def CAMION_ADDONE(request):
 
 def CAMION_UPDATE(request, pk):
     try:
-        if request.user.is_superuser == False:                     
+        if request.user.is_superuser == False:
             usuario = request.user.id
             if not validar_perfiles_activos(usuario, "cam_listone"):
                 messages.error(request, 'No tiene permisos para acceder a esta sección')
                 return redirect('/')
-        camion = CAMION.objects.get(id = pk)
+        camion = _objeto_control_flota_o_404(request, CAMION, id=pk)
         documentos = LISTADO_DOCUMENTO.objects.filter(LIS_BHABILITADO = True, LIS_CGRUPO = 'Camion')
         if request.method == 'POST':
             form = formCAMION(request.POST, instance=camion)
@@ -14007,7 +17807,7 @@ def CAMION_UPDATE(request, pk):
             if camion_duplicado:
                 messages.error(request, 'Error al guardar el camión, patente duplicada')
                 return redirect(f'/cam_listone/{pk}')
-            
+
             form.instance.CAM_CPATENTE = patente
             if form.is_valid():
                 files = request.FILES
@@ -14035,7 +17835,7 @@ def CAMION_UPDATE(request, pk):
                         with open(file_path, 'wb+') as destination:
                             for chunk in archivo.chunks():
                                 destination.write(chunk)
-                        
+
                         DOCUMENTO_CAMION.objects.create(
                             EP_NID = camion.EP_NID,
                             CA_NID = camion,
@@ -14066,16 +17866,16 @@ def CAMION_UPDATE(request, pk):
 
 def CAMION_LISTONE(request, pk):
     try:
-        if request.user.is_superuser == False:                     
+        if request.user.is_superuser == False:
             usuario = request.user.id
             if not validar_perfiles_activos(usuario, "cam_listone"):
                 messages.error(request, 'No tiene permisos para acceder a esta sección')
                 return redirect('/')
-        camion = CAMION.objects.get(id = pk)
+        camion = _objeto_control_flota_o_404(request, CAMION, id=pk)
 
         listado_documentos = listado_y_estado_documentos_xcamion(pk)
         tipos_documentos = list(LISTADO_DOCUMENTO.objects.filter(LIS_BHABILITADO = True, LIS_CGRUPO = 'Camion').values_list('LIS_CNOMBREDOCUMENTO', flat=True))
-        documentos = DOCUMENTO_CAMION.objects.filter(CA_NID = pk, DCA_BHABILITADO = True)
+        documentos = DOCUMENTO_CAMION.objects.filter(CA_NID=pk, DCA_BHABILITADO=True, EP_NID=camion.EP_NID)
 
         count_list = []
         lista_documentos = []
@@ -14089,7 +17889,7 @@ def CAMION_LISTONE(request, pk):
                 elif dias_vencimiento <= 0:
                     bool_dias = 2
                     break
-        
+
         count_list.append(len(documentos))
         ###### LISTADO DE DOCUMENTOS FALTANTES PARA EL CONDUCTOR #####
         lista_documentos_faltantes = camion.LISTA_DOCUMENTOS
@@ -14109,6 +17909,10 @@ def CAMION_LISTONE(request, pk):
             'lista_documentos_faltantes': lista_documentos_faltantes,
             'lista_estado_documentos': lista_estado_documentos,
             'tipos_documentos': tipos_documentos,
+            'tipos_documentos_legacy': [
+                tipo for tipo in tipos_documentos
+                if str(tipo or '').strip().upper() != 'LICENCIA DE CONDUCIR'
+            ],
             'documentos': documentos
         }
         return render(request, 'home/CAMION/cam_listone.html', ctx)
@@ -14119,12 +17923,12 @@ def CAMION_LISTONE(request, pk):
 
 def CAMION_DELETE(request, pk):
     try:
-        if request.user.is_superuser == False:                     
+        if request.user.is_superuser == False:
             usuario = request.user.id
             if not validar_perfiles_activos(usuario, "cam_delete"):
                 messages.error(request, 'No tiene permisos para acceder a esta sección')
                 return redirect('/')
-        camion = CAMION.objects.get(id = pk)
+        camion = _objeto_control_flota_o_404(request, CAMION, id=pk)
         camion.CAM_BHABILITADO = False
         camion.save()
 
@@ -14137,9 +17941,10 @@ def CAMION_DELETE(request, pk):
 
 def CAMION_DELETE_SELECTED(request):
     try:
-        if request.user.is_superuser == False:                     
+        if request.user.is_superuser == False:
             return redirect('/')
-        camiones = CAMION.objects.filter(id__in = request.POST.getlist('selectedIds'))
+        empresa_id = _empresa_control_flota_o_404(request)
+        camiones = CAMION.objects.filter(id__in=request.POST.getlist('selectedIds'), EP_NID_id=empresa_id)
         for camion in camiones:
             camion.CAM_BHABILITADO = False
             camion.save()
@@ -14151,11 +17956,14 @@ def CAMION_DELETE_SELECTED(request):
         messages.error(request, f'Error, {str(e)}')
         return redirect('/cam_listall/')
 
+@require_POST
 def CONDUCTOR_DELETE_SELECTED(request):
     try:
-        if request.user.is_superuser == False:                     
-            return redirect('/')
-        conductores = CONDUCTOR.objects.filter(id__in = request.POST.getlist('selectedIds'))
+        if not _usuario_puede_eliminar_conductor(request.user):
+            messages.error(request, 'No tiene permisos para deshabilitar conductores.')
+            return redirect('/con_listall/')
+        empresa_id = _empresa_control_flota_o_404(request)
+        conductores = CONDUCTOR.objects.filter(id__in=request.POST.getlist('selectedIds'), EP_NID_id=empresa_id)
         for conductor in conductores:
             conductor.CON_BHABILITADO = False
             conductor.save()
@@ -14166,12 +17974,39 @@ def CONDUCTOR_DELETE_SELECTED(request):
         print(e)
         messages.error(request, f'Error, {str(e)}')
         return redirect('/con_listall/')
-    
+
+
+@require_POST
+def CONDUCTOR_LICENCIA_DESHABILITAR(request, pk):
+    if not _usuario_puede_eliminar_conductor(request.user):
+        messages.error(request, 'No tiene permisos para quitar la licencia activa.')
+        return redirect(f'/con_listone/{pk}')
+    conductor = _objeto_control_flota_o_404(request, CONDUCTOR, id=pk)
+    with transaction.atomic():
+        documentos = DOCUMENTO_CONDUCTOR.objects.select_for_update().filter(
+            EP_NID=conductor.EP_NID, CON_NID=conductor,
+            DCON_CTIPO__iexact='LICENCIA DE CONDUCIR', DCON_BHABILITADO=True,
+        )
+        ids = list(documentos.values_list('pk', flat=True))
+        documentos.update(DCON_BHABILITADO=False)
+        SYSLOGGER.objects.create(
+            US_NID=request.user, EP_NID=conductor.EP_NID,
+            LOG_FFECHAREGISTRO=timezone.now(), LOG_CMODULO='CONTROL_FLOTA',
+            LOG_COPERACION='DESHABILITA_LIC_COND',
+            LOG_CADD1=str(conductor.pk), LOG_CADD2=','.join(map(str, ids))[:128],
+            LOG_CDESCRIPCION=(
+                'Licencia activa inhabilitada; histÃ³rico conservado. '
+                'Estado documental FALTANTE; operaciÃ³n no bloqueada.'
+            ),
+        )
+    messages.success(request, 'Licencia activa quitada. El historial fue conservado.')
+    return redirect(f'/con_listone/{conductor.pk}')
+
 def CAMION_HABILITAR(request, pk):
     try:
-        if request.user.is_superuser == False:                     
+        if request.user.is_superuser == False:
             return redirect('/')
-        camion = CAMION.objects.get(id = pk)
+        camion = _objeto_control_flota_o_404(request, CAMION, id=pk)
         camion.CAM_BHABILITADO = True
         camion.save()
         messages.success(request, 'camión habilitado correctamente')
@@ -14196,12 +18031,12 @@ def ajax_get_data_conductor_xcamion(request, pk):
 
 def DOCUMENTO_CAMION_ADDONE(request, pk):
     try:
-        if request.user.is_superuser == False:                     
+        if request.user.is_superuser == False:
             usuario = request.user.id
             if not validar_perfiles_activos(usuario, "cam_listone"):
                 messages.error(request, 'No tiene permisos para acceder a esta sección')
                 return redirect('/')
-        camion = CAMION.objects.get(id = pk)
+        camion = _objeto_control_flota_o_404(request, CAMION, id=pk)
         if request.method == 'POST':
             archivo = request.FILES.get('DCA_CRUTADOC')
             # Create a new folder with CON_CRUT if it doesn't exist
@@ -14245,12 +18080,12 @@ def DOCUMENTO_CAMION_ADDONE(request, pk):
 
 def DOCUMENTO_CAMION_DOWNLOAD(request, pk):
     try:
-        if request.user.is_superuser == False:                     
+        if request.user.is_superuser == False:
             usuario = request.user.id
             if not validar_perfiles_activos(usuario, "cam_listone"):
                 messages.error(request, 'No tiene permisos para acceder a esta sección')
                 return redirect('/')
-        documento = DOCUMENTO_CAMION.objects.get(id = pk)
+        documento = _objeto_control_flota_o_404(request, DOCUMENTO_CAMION, id=pk)
         file_path = documento.DCA_CRUTADOC
         if os.path.exists(file_path):
             response = FileResponse(open(file_path, 'rb'))
@@ -14266,9 +18101,9 @@ def DOCUMENTO_CAMION_DOWNLOAD(request, pk):
 
 def DOCUMENTO_CAMION_DELETE(request, pk):
     try:
-        if request.user.is_superuser == False:                     
+        if request.user.is_superuser == False:
             return redirect('/')
-        documento = DOCUMENTO_CAMION.objects.get(id = pk)
+        documento = _objeto_control_flota_o_404(request, DOCUMENTO_CAMION, id=pk)
         documento.delete()
         messages.success(request, 'Documento eliminado correctamente')
         return redirect(f'/cam_listone/{documento.CA_NID.pk}')
@@ -14283,12 +18118,12 @@ def DOCUMENTO_CAMION_DELETE(request, pk):
 
 def DOCUMENTO_LISTALL(request):
     try:
-        if request.user.is_superuser == False:                     
+        if request.user.is_superuser == False:
             usuario = request.user.id
             if not validar_perfiles_activos(usuario, "doc_listall"):
-                messages.error(request, 'No tiene permisos para acceder a esta sección')                    
+                messages.error(request, 'No tiene permisos para acceder a esta sección')
                 return redirect('/')
-        Empresa = Verificar_empresa(request) 
+        Empresa = Verificar_empresa(request)
         tipos_documentos = LISTADO_DOCUMENTO.objects.filter(LIS_BHABILITADO = True, EP_NID_id = Empresa)
         ctx = {
             'object_list': tipos_documentos
@@ -14301,20 +18136,20 @@ def DOCUMENTO_LISTALL(request):
 
 def DOCUMENTO_ADDONE(request):
     try:
-        if request.user.is_superuser == False:                     
+        if request.user.is_superuser == False:
             return redirect('/')
         if request.method == 'POST':
-            Empresa = Verificar_empresa(request) 
+            Empresa = Verificar_empresa(request)
             empresa_user = EMPRESA.objects.get(id = Empresa)
             post_data = request.POST.copy()
-            post_data['EP_NID'] = empresa_user            
+            post_data['EP_NID'] = empresa_user
             form = formDOCUMENTO(post_data or None)
             if form.is_valid():
                 form.instance.US_NID = request.user
                 form.instance.LIS_FFECHAREGISTRO = datetime.now()
                 form.save()
                 messages.success(request, 'Documento guardado correctamente')
-                return redirect('/doc_listall/') 
+                return redirect('/doc_listall/')
             else:
                 messages.error(request, 'Error al guardar el documento')
                 return redirect('/doc_addone/')
@@ -14330,7 +18165,7 @@ def DOCUMENTO_ADDONE(request):
 
 def DOCUMENTO_UPDATE(request, pk):
     try:
-        if request.user.is_superuser == False:                     
+        if request.user.is_superuser == False:
             return redirect('/')
         documento = LISTADO_DOCUMENTO.objects.get(id = pk)
         if request.method == 'POST':
@@ -14354,7 +18189,7 @@ def DOCUMENTO_UPDATE(request, pk):
 
 def DOCUMENTO_DELETE(request, pk):
     try:
-        if request.user.is_superuser == False:                     
+        if request.user.is_superuser == False:
             return redirect('/')
         documento = LISTADO_DOCUMENTO.objects.get(id = pk)
         documento.LIS_BHABILITADO = False
@@ -14373,12 +18208,12 @@ def DOCUMENTO_DELETE(request, pk):
 
 def CAMPO_LISTALL(request):
     try:
-        if request.user.is_superuser == False:                     
+        if request.user.is_superuser == False:
             usuario = request.user.id
             if not validar_perfiles_activos(usuario, "camp_listall"):
                 messages.error(request, 'No tiene permisos para acceder a esta sección')
                 return redirect('/')
-        Empresa = Verificar_empresa(request) 
+        Empresa = Verificar_empresa(request)
         tipos_documentos = CAMPO.objects.filter(
             EP_NID_id = Empresa        )
         ctx = {
@@ -14392,12 +18227,12 @@ def CAMPO_LISTALL(request):
 
 def CAMPO_ADDONE(request):
     try:
-        if request.user.is_superuser == False:                     
+        if request.user.is_superuser == False:
             usuario = request.user.id
             if not validar_perfiles_activos(usuario, "camp_addone"):
                 messages.error(request, 'No tiene permisos para acceder a esta sección')
                 return redirect('/')
-        
+
         Empresa = Verificar_empresa(request)
         if request.method == 'POST':
             post_data = request.POST.copy()
@@ -14417,7 +18252,7 @@ def CAMPO_ADDONE(request):
                         CA_BHABILITADO = True
                     )
                 messages.success(request, 'Campo guardado correctamente')
-                return redirect('/camp_listall/') 
+                return redirect('/camp_listall/')
             else:
                 print(form.errors)
                 messages.error(request, 'Error al guardar el Campo')
@@ -14436,7 +18271,7 @@ def CAMPO_ADDONE(request):
 
 def CAMPO_UPDATE(request, pk):
     try:
-        if request.user.is_superuser == False:                     
+        if request.user.is_superuser == False:
             usuario = request.user.id
             if not validar_perfiles_activos(usuario, "camp_addone"):
                 messages.error(request, 'No tiene permisos para acceder a esta sección')
@@ -14461,7 +18296,7 @@ def CAMPO_UPDATE(request, pk):
 
 def CAMPO_DELETE(request, pk):
     try:
-        if request.user.is_superuser == False:                     
+        if request.user.is_superuser == False:
             return redirect('/')
         campo = CAMPO.objects.get(id = pk)
         campo.CA_BHABILITADO = False
@@ -14480,17 +18315,17 @@ def CAMPO_DELETE(request, pk):
 
 def CALENDARIO_LISTALL(request):
     try:
-        if request.user.is_superuser == False:                     
+        if request.user.is_superuser == False:
             usuario = request.user.id
             if not validar_perfiles_activos(usuario, "cal_listall"):
                 messages.error(request, 'No tiene permisos para acceder a esta sección')
                 return redirect('/')
-        Empresa = Verificar_empresa(request)     
+        Empresa = Verificar_empresa(request)
         planificaciones = get_list_planificaciones(Empresa)
 
         events = []
         if planificaciones:
-            
+
             for planificacion in planificaciones:
                 event = {
                     'id': str(planificacion[0]),
@@ -14512,7 +18347,7 @@ def CALENDARIO_LISTALL(request):
             horarios_distintos = eventos.filter(CA_BHABILITADO=True, CA_BIS_FERIADO=False, CA_CNOMBRE = '', EP_NID_id = Empresa)
         else:
             feriados = horarios_distintos = CALENDARIO.objects.none()
-        
+
         # Obtener los días del mes actual
         num_dias = calendar.monthrange(int(ano), int(mes))[1]
         dias_mes = [datetime(int(ano), int(mes), dia) for dia in range(1, num_dias + 1)]
@@ -14532,9 +18367,9 @@ def CALENDARIO_LISTALL(request):
         return redirect('/')
 
 def CALENDARIO_ADD_HOLIDAY(request):
-    try:        
-        # TODO : CONSUULTAR QUE USUARIOS PUEDEN AGREGAR FERIADOS 
-        if request.user.is_superuser == False:                                 
+    try:
+        # TODO : CONSUULTAR QUE USUARIOS PUEDEN AGREGAR FERIADOS
+        if request.user.is_superuser == False:
             return redirect('/')
         if request.method == 'POST':
             if request.user.is_superuser == True:
@@ -14590,8 +18425,8 @@ def CALENDARIO_ADD_HOLIDAY(request):
 
 def CALENDARIO_MODIFY_HOURS(request):
     try:
-        # TODO : CONSUULTAR QUE USUARIOS PUEDEN AGREGAR FERIADOS 
-        if request.user.is_superuser == False:                                 
+        # TODO : CONSUULTAR QUE USUARIOS PUEDEN AGREGAR FERIADOS
+        if request.user.is_superuser == False:
             return redirect('/')
         if request.method == 'POST':
             if request.user.is_superuser == True:
@@ -14708,7 +18543,7 @@ def CALENDARIO_MODIFY_HOURS(request):
 
 def ajax_calendario_addone(request):
     try:
-        id_empresa = Verificar_empresa(request) 
+        id_empresa = Verificar_empresa(request)
         empresa = EMPRESA.objects.get(pk = id_empresa)
 
         dia = request.POST.get('dia')
@@ -14723,7 +18558,7 @@ def ajax_calendario_addone(request):
                 'valid': False,
                 'msg': 'La hora de apertura no puede ser mayor o igual a la hora de cierre'
             })
-        
+
         if not cupos_maximos:
             return JsonResponse({
                 'valid': False,
@@ -14759,13 +18594,13 @@ def ajax_calendario_addone(request):
 
 def ETAPA_LISTALL(request):
     try:
-        if request.user.is_superuser == False:                     
+        if request.user.is_superuser == False:
             usuario = request.user.id
             if not validar_perfiles_activos(usuario, "etap_listall"):
                 messages.error(request, 'No tiene permisos para acceder a esta sección')
                 return redirect('/')
-        Empresa = Verificar_empresa(request) 
-        etapa = ETAPA.objects.filter(EP_NID = Empresa)        
+        Empresa = Verificar_empresa(request)
+        etapa = ETAPA.objects.filter(EP_NID = Empresa)
         ctx = {
             'object_list': etapa
         }
@@ -14777,12 +18612,12 @@ def ETAPA_LISTALL(request):
 
 def ETAPA_ADDONE(request):
     try:
-        if request.user.is_superuser == False:                     
+        if request.user.is_superuser == False:
             usuario = request.user.id
             if not validar_perfiles_activos(usuario, "etap_listall"):
                 messages.error(request, 'No tiene permisos para acceder a esta sección')
                 return redirect('/')
-            
+
         Empresa = Verificar_empresa(request)
         if request.method == 'POST':
             post_data = request.POST.copy()
@@ -14794,7 +18629,7 @@ def ETAPA_ADDONE(request):
                 form.instance.ET_FFECHAREGISTRO = datetime.now()
                 form.save()
                 messages.success(request, 'Etapa guardada correctamente')
-                return redirect('/etap_listall/') 
+                return redirect('/etap_listall/')
             else:
                 messages.error(request, 'Error al guardar la Etapa')
                 return redirect('/etap_addone/')
@@ -14811,7 +18646,7 @@ def ETAPA_ADDONE(request):
 
 def ETAPA_UPDATE(request, pk):
     try:
-        if request.user.is_superuser == False:                     
+        if request.user.is_superuser == False:
             usuario = request.user.id
             if not validar_perfiles_activos(usuario, "etap_listall"):
                 messages.error(request, 'No tiene permisos para acceder a esta sección')
@@ -14837,7 +18672,7 @@ def ETAPA_UPDATE(request, pk):
 
 def ETAPA_DELETE(request, pk):
     try:
-        if request.user.is_superuser == False:                     
+        if request.user.is_superuser == False:
             return redirect('/')
         etapa = ETAPA.objects.get(id = pk)
         etapa.delete()
@@ -14851,7 +18686,7 @@ def ETAPA_DELETE(request, pk):
 
 def ETAPA_PREVIEW(request, pk):
     try:
-        if request.user.is_superuser == False:                     
+        if request.user.is_superuser == False:
             usuario = request.user.id
             if not validar_perfiles_activos(usuario, "etapa_preview"):
                 messages.error(request, 'No tiene permisos para acceder a esta sección')
@@ -14869,7 +18704,7 @@ def ETAPA_PREVIEW(request, pk):
                         print("Error al ejecutar la consulta",e)
                         messages.warning(request, f'Error, {str(e)}')
 
-                    
+
                 etapa_data.append(
                     {
                         'TYPE': campo[0].lower(),
@@ -14897,12 +18732,12 @@ def ETAPA_PREVIEW(request, pk):
 
 def SECUENCIA_LISTALL(request):
     try:
-        if request.user.is_superuser == False:                     
+        if request.user.is_superuser == False:
             usuario = request.user.id
             if not validar_perfiles_activos(usuario, "sec_listall"):
                 messages.error(request, 'No tiene permisos para acceder a esta sección')
                 return redirect('/')
-        Empresa = Verificar_empresa(request) 
+        Empresa = Verificar_empresa(request)
         secuencia = SECUENCIA.objects.filter(EP_NID_id = Empresa)
         ctx = {
             'object_list': secuencia
@@ -14970,7 +18805,7 @@ def SECUENCIA_DUPLICAR(request):
 
 def SECUENCIA_ADDONE(request):
     try:
-        if request.user.is_superuser == False:                     
+        if request.user.is_superuser == False:
             usuario = request.user.id
             if not validar_perfiles_activos(usuario, "sec_addone"):
                 messages.error(request, 'No tiene permisos para acceder a esta sección')
@@ -14985,7 +18820,7 @@ def SECUENCIA_ADDONE(request):
                 form.instance.SE_FFECHAREGISTRO = datetime.now()
                 form.save()
                 messages.success(request, 'SECUENCIA guardada correctamente')
-                return redirect('/sec_listall/') 
+                return redirect('/sec_listall/')
             else:
                 messages.error(request, 'Error al guardar la SECUENCIA')
                 return redirect('/sec_addone/')
@@ -15001,7 +18836,7 @@ def SECUENCIA_ADDONE(request):
 
 def SECUENCIA_UPDATE(request, pk):
     try:
-        if request.user.is_superuser == False:                     
+        if request.user.is_superuser == False:
             usuario = request.user.id
             if not validar_perfiles_activos(usuario, "sec_addone"):
                 messages.error(request, 'No tiene permisos para acceder a esta sección')
@@ -15026,7 +18861,7 @@ def SECUENCIA_UPDATE(request, pk):
 
 def SECUENCIA_DELETE(request, pk):
     try:
-        if request.user.is_superuser == False:                     
+        if request.user.is_superuser == False:
             return redirect('/')
         secuencia = SECUENCIA.objects.get(id = pk)
         secuencia.delete()
@@ -15136,7 +18971,7 @@ def ACTUALIZAR_EMPRESA_USUARIO(request,ep_id):
         print(e)
         messages.error(request, f'Error, {str(e)}')
         return redirect(request.META.get('HTTP_REFERER', '/'))
-    
+
 ##########################################################################
 #####################  VALIDACIÓN DE EMPRESA ACTIVA  #####################
 ##########################################################################
@@ -15212,6 +19047,35 @@ def Verificar_empresa(request):
         messages.error(request, 'Solicite al administrador que asigne su empresa')
         return None
 
+
+def _empresa_control_flota_o_404(request):
+    """Empresa activa, validada nuevamente contra USERS_EMPRESA."""
+    empresa_id = Verificar_empresa(request)
+    relacion = get_object_or_404(
+        USERS_EMPRESA,
+        US_NID=request.user,
+        EP_NID_id=empresa_id if empresa_id is not None else -1,
+    )
+    return relacion.EP_NID_id
+
+
+def _objeto_control_flota_o_404(request, modelo, **filtros):
+    empresa_id = _empresa_control_flota_o_404(request)
+    return get_object_or_404(modelo, EP_NID_id=empresa_id, **filtros)
+
+
+def _conductor_control_flota_o_404(request, pk):
+    """Autoriza detalle por pertenencia operacional sólo para SBH."""
+    empresa_id = _empresa_control_flota_o_404(request)
+    if empresa_id != ID_ACEITES_SBH:
+        return get_object_or_404(CONDUCTOR, pk=pk, EP_NID_id=empresa_id)
+    return get_object_or_404(
+        CONDUCTOR,
+        pk=pk,
+        empresas_operacionales__EP_NID_id=ID_ACEITES_SBH,
+        empresas_operacionales__CEM_BHABILITADO=True,
+    )
+
 def EMPRESA_USUARIOS_ADDONE(request):
     try:
         if request.method == 'POST':
@@ -15219,7 +19083,7 @@ def EMPRESA_USUARIOS_ADDONE(request):
             if form.is_valid():
                 messages.success(request, 'Relacion Usuario - Empresa guardada correctamente')
                 form.save()
-                return redirect('/us_emp_listall/') 
+                return redirect('/us_emp_listall/')
             else:
                 messages.error(request, f'Error al guardar la Relacion Usuario - Empresa')
                 return redirect('/us_emp_addone/')
@@ -15329,12 +19193,12 @@ def SECUENCIA_PREVIEW(request, pk):
 def DETALLE_SECUENCIA_LISTALL(request):
 
     try:
-        if request.user.is_superuser == False:                     
+        if request.user.is_superuser == False:
             usuario = request.user.id
             if not validar_perfiles_activos(usuario, "det_sec_listall"):
                 messages.error(request, 'No tiene permisos para acceder a esta sección')
                 return redirect('/')
-        Empresa = Verificar_empresa(request) 
+        Empresa = Verificar_empresa(request)
         det_secuencia = DETALLE_SECUENCIA.objects.filter(EP_NID_id = Empresa, SE_BHABILITADO = True)
         ctx = {
 
@@ -15348,7 +19212,7 @@ def DETALLE_SECUENCIA_LISTALL(request):
 
 def DETALLE_SECUENCIA_ADDONE(request):
     try:
-        if request.user.is_superuser == False:                     
+        if request.user.is_superuser == False:
             usuario = request.user.id
             if not validar_perfiles_activos(usuario, "det_sec_addone"):
                 messages.error(request, 'No tiene permisos para acceder a esta sección')
@@ -15364,7 +19228,7 @@ def DETALLE_SECUENCIA_ADDONE(request):
             paso = post_data.get('SE_NPASO')
 
             if DETALLE_SECUENCIA.objects.filter(
-                SC_NID_id=secuencia_id, 
+                SC_NID_id=secuencia_id,
                 ET_NID_id=etapa_id,
                 SE_BHABILITADO = True
             ).exists():
@@ -15379,11 +19243,11 @@ def DETALLE_SECUENCIA_ADDONE(request):
                 return redirect('/det_sec_addone/')
             form = formDETALLESECUENCIA(post_data or None)
             if form.is_valid():
-                
+
                 form.instance.US_NID = request.user
                 form.save()
                 messages.success(request, 'Detalle de Secuencia guardada correctamente')
-                return redirect('/det_sec_listall/') 
+                return redirect('/det_sec_listall/')
             else:
                 messages.error(request, 'Error al guardar el Detalle de Secuencia')
                 return redirect('/det_sec_addone/')
@@ -15400,7 +19264,7 @@ def DETALLE_SECUENCIA_ADDONE(request):
 
 def DETALLE_SECUENCIA_UPDATE(request, pk):
     try:
-        if request.user.is_superuser == False:                     
+        if request.user.is_superuser == False:
             usuario = request.user.id
             if not validar_perfiles_activos(usuario, "det_sec_addone"):
                 messages.error(request, 'No tiene permisos para acceder a esta sección')
@@ -15424,11 +19288,11 @@ def DETALLE_SECUENCIA_UPDATE(request, pk):
         return redirect('/det_sec_listall/')
 
 def DETALLE_SECUENCIA_DELETE(request, pk):
-    try:        
-        if request.user.is_superuser == False:                         
+    try:
+        if request.user.is_superuser == False:
             return redirect('/')
-        
-        Empresa = Verificar_empresa(request) 
+
+        Empresa = Verificar_empresa(request)
         documento = DETALLE_SECUENCIA.objects.get(id = pk)
 
         if documento.SE_NPASO:
@@ -15457,12 +19321,12 @@ def DETALLE_SECUENCIA_DELETE(request, pk):
 
 def DETALLE_ETAPA_LISTALL(request):
     try:
-        if request.user.is_superuser == False:                     
+        if request.user.is_superuser == False:
             usuario = request.user.id
             if not validar_perfiles_activos(usuario, "det_etap_listall"):
                 messages.error(request, 'No tiene permisos para acceder a esta sección')
                 return redirect('/')
-        Empresa = Verificar_empresa(request) 
+        Empresa = Verificar_empresa(request)
         det_etapa = DETALLE_ETAPA.objects.filter(EP_NID_id = Empresa)
         ctx = {
             'object_list': det_etapa
@@ -15475,12 +19339,12 @@ def DETALLE_ETAPA_LISTALL(request):
 
 def DETALLE_ETAPA_ADDONE(request):
     try:
-        if request.user.is_superuser == False:                     
+        if request.user.is_superuser == False:
             usuario = request.user.id
             if not validar_perfiles_activos(usuario, "det_etap_addone"):
                 messages.error(request, 'No tiene permisos para acceder a esta sección')
                 return redirect('/')
-            
+
         Empresa = Verificar_empresa(request)
         if request.method == 'POST':
             post_data = request.POST.copy()
@@ -15510,7 +19374,7 @@ def DETALLE_ETAPA_ADDONE(request):
                         return redirect('/det_etap_addone/')
                 form.save()
                 messages.success(request, 'Detalle de Etapa guardado correctamente')
-                return redirect('/det_etap_listall/') 
+                return redirect('/det_etap_listall/')
             else:
                 messages.error(request, 'Error al guardar el Detalle de Etapa')
                 return redirect('/det_etap_addone/')
@@ -15526,7 +19390,7 @@ def DETALLE_ETAPA_ADDONE(request):
 
 def DETALLE_ETAPA_UPDATE(request, pk):
     try:
-        if request.user.is_superuser == False:                     
+        if request.user.is_superuser == False:
             usuario = request.user.id
             if not validar_perfiles_activos(usuario, "det_etap_addone"):
                 messages.error(request, 'No tiene permisos para acceder a esta sección')
@@ -15550,8 +19414,8 @@ def DETALLE_ETAPA_UPDATE(request, pk):
         return redirect('/det_etap_listall/')
 
 def DETALLE_ETAPA_DELETE(request, pk):
-    try:        
-        if request.user.is_superuser == False:                                 
+    try:
+        if request.user.is_superuser == False:
             return redirect('/')
         documento = DETALLE_ETAPA.objects.get(id = pk)
         documento.delete()
@@ -15569,12 +19433,12 @@ def DETALLE_ETAPA_DELETE(request, pk):
 
 def CAMPO_OPCIONES_LISTALL(request):
     try:
-        if request.user.is_superuser == False:                     
+        if request.user.is_superuser == False:
             usuario = request.user.id
             if not validar_perfiles_activos(usuario, "camp_op_listall"):
                 messages.error(request, 'No tiene permisos para acceder a esta sección')
                 return redirect('/')
-        Empresa = Verificar_empresa(request) 
+        Empresa = Verificar_empresa(request)
         tipos_documentos = CAMPO_OPCION.objects.filter(EP_NID_id = Empresa)
         ctx = {
             'object_list': tipos_documentos
@@ -15587,7 +19451,7 @@ def CAMPO_OPCIONES_LISTALL(request):
 
 def CAMPO_OPCIONES_ADDONE(request):
     try:
-        if request.user.is_superuser == False:                     
+        if request.user.is_superuser == False:
             usuario = request.user.id
             if not validar_perfiles_activos(usuario, "camp_op_addone"):
                 messages.error(request, 'No tiene permisos para acceder a esta sección')
@@ -15598,7 +19462,7 @@ def CAMPO_OPCIONES_ADDONE(request):
                 form.instance.US_NID = request.user
                 form.save()
                 messages.success(request, 'Campo guardado correctamente')
-                return redirect('camp_op_listall') 
+                return redirect('camp_op_listall')
             else:
                 messages.error(request, 'Error al guardar el Campo')
                 return redirect('camp_op_addone')
@@ -15614,7 +19478,7 @@ def CAMPO_OPCIONES_ADDONE(request):
 
 def CAMPO_OPCIONES_UPDATE(request, pk):
     try:
-        if request.user.is_superuser == False:                     
+        if request.user.is_superuser == False:
             usuario = request.user.id
             if not validar_perfiles_activos(usuario, "camp_op_addone"):
                 messages.error(request, 'No tiene permisos para acceder a esta sección')
@@ -15638,8 +19502,8 @@ def CAMPO_OPCIONES_UPDATE(request, pk):
         return redirect('camp_op_listall')
 
 def CAMPO_OPCIONES_DELETE(request, pk):
-    try:        
-        if request.user.is_superuser == False:                                 
+    try:
+        if request.user.is_superuser == False:
             return redirect('/')
         documento = CAMPO_OPCION.objects.get(id = pk)
         documento.delete()
@@ -15655,9 +19519,25 @@ def CAMPO_OPCIONES_DELETE(request, pk):
 #########################   PLANIFICACIÓN   ##############################
 ##########################################################################
 
+def PLANIFICACION_RECEPCION_TRANSFERENCIA(request):
+    empresa = Verificar_empresa(request)
+    if empresa is None:
+        return redirect('/seleccionar_empresa/')
+
+    if empresa != ID_ACEITES_SBH or not usuario_es_planificador(request.user):
+        messages.error(request, 'No tiene permisos para acceder a Transferencia de Recepción SBH.')
+        return redirect('/')
+
+    request.GET = request.GET.copy()
+    request.GET['tipo'] = CIT_RECEPCION
+    request.GET['flujo'] = 'TRANSFERENCIA'
+    request.GET['_empresa_id'] = str(empresa)
+    return PLANIFICACION_LISTALL(request)
+
+
 def PLANIFICACION_LISTALL(request):
     try:
-        if request.user.is_superuser == False:                     
+        if request.user.is_superuser == False:
             usuario = request.user.id
             if not usuario_es_ingreso_camion(request.user) and not usuario_es_asistente_recepcion(request.user) and not usuario_es_planificador(request.user) and not validar_perfiles_activos(usuario, "pla_listall"):
                 messages.error(request, 'No tiene permisos para acceder a esta sección')
@@ -15675,6 +19555,18 @@ def PLANIFICACION_LISTALL(request):
         tipo_planificacion = str(request.GET.get('tipo') or '').strip().upper()
         if tipo_planificacion in ['RECEPCION', 'DESPACHO']:
             planificaciones = planificaciones.filter(PL_CTIPOCUPO=tipo_planificacion)
+        flujo_navegacion = ''
+        if Empresa == ID_ACEITES_SBH and tipo_planificacion == CIT_RECEPCION:
+            flujo_solicitado = str(request.GET.get('flujo') or '').strip().upper()
+            flujo_navegacion = normalizar_flujo_recepcion_sbh(flujo_solicitado)
+            if flujo_navegacion == 'TRANSFERENCIA':
+                planificaciones = planificaciones.filter(
+                    citacion__SC_NID__SE_CCODIGO=SECUENCIA_RECEPCION_TRANSFERENCIA_SBH
+                ).distinct()
+            elif flujo_solicitado == 'INGRESO_MERCADERIA':
+                planificaciones = planificaciones.exclude(
+                    citacion__SC_NID__SE_CCODIGO=SECUENCIA_RECEPCION_TRANSFERENCIA_SBH
+                ).distinct()
 
         solicitud_patio_id = _int_parametro_patio(request.GET.get('solicitud_no_planificado_id'))
         solicitud_camion_patio_no_planificado = None
@@ -15694,6 +19586,7 @@ def PLANIFICACION_LISTALL(request):
         ctx = {
             'object_list': planificaciones,
             'tipo_planificacion': tipo_planificacion if tipo_planificacion in ['RECEPCION', 'DESPACHO'] else '',
+            'flujo_navegacion': flujo_navegacion,
             'empresa_id': Empresa,
             'camion_patio_id': request.GET.get('camion_patio_id', ''),
             'solicitud_no_planificado_id': (
@@ -15702,7 +19595,7 @@ def PLANIFICACION_LISTALL(request):
             ),
             'solicitud_camion_patio_no_planificado': solicitud_camion_patio_no_planificado,
         }
-        
+
         return render(request, 'home/PLANIFICACION/pla_listall.html', ctx)
     except Exception as e:
         print(e)
@@ -15841,6 +19734,9 @@ def _datos_fila_planificacion_citacion(row, citacion_item, valores_ingreso, cami
         'celular': celular,
         'patente': patente,
         'transportista': transportista,
+        'salida_documento': detalle_despacho.get('salida_documento') or '',
+        'destino': detalle_despacho.get('destino') or '',
+        'ventana_horaria': detalle_despacho.get('ventana_horaria_despacho') or '',
         'fuentes': fuentes,
         'datos_camion_patio': any(fuente == 'camion_patio' for fuente in fuentes.values()),
     }
@@ -16105,6 +20001,7 @@ def PLANIFICACION_LISTONE(request, pk):
             patente_operacional = texto_sin_informacion(datos_fila_planificacion.get('patente'))
             transportista_operacional = texto_sin_informacion(datos_fila_planificacion.get('transportista'))
             es_fila_recepcion_terramar = es_citacion_recepcion_terramar(row)
+            es_fila_preoperacional_terramar = es_flujo_preoperacional_terramar(row)
             detalle_terramar = CITACION_RECEPCION_TERRAMAR_DETALLE.objects.select_related('SN_NID_TRANSPORTISTA', 'CON_NID').filter(CI_NID=row).first() if es_fila_recepcion_terramar else None
             def valor_terramar(valor):
                 return valor if valor not in [None, ''] else 'No informado'
@@ -16124,6 +20021,12 @@ def PLANIFICACION_LISTONE(request, pk):
                 'fuentes': datos_fila_planificacion.get('fuentes', {}),
                 'pedido': datos_fila_planificacion.get('pedido', ''),
                 'camion_patio_id': camion_patio_asociacion.id if es_citacion_sugerida and camion_patio_asociacion else '',
+                'es_flujo_preoperacional_terramar': es_fila_preoperacional_terramar,
+                'responsable_preoperacional_display': (
+                    'Asistente_Bodega'
+                    if es_fila_preoperacional_terramar
+                    else 'Asistente_C_D'
+                ),
             }
 
             log_ingreso_guardia = SYSLOGGER.objects.select_related('US_NID').filter(
@@ -16165,7 +20068,7 @@ def PLANIFICACION_LISTONE(request, pk):
                     row.CI_BAVISADO,
                     row.CI_BCONFIRMADO,
                     row.CI_BARRIBADO,
-                    row.CI_CTIPODOCUMENTO,
+                    (_etiqueta_salida_documento_despacho(datos_fila_planificacion.get('salida_documento')) if row.EP_NID_id == 2 else row.CI_CTIPODOCUMENTO),
                     numero_documento_visible,
                     datos_fila_planificacion.get('producto') or citacion_item.IT_NID.IT_CNOMBRE,
                     celular_operacional,
@@ -16350,7 +20253,7 @@ def PLANIFICACION_FILEDLISTALL(request):
             if not usuario_es_planificador(request.user) and not validar_perfiles_activos(usuario, "pla_filedlistall"):
                 messages.error(request, 'No tiene permisos para acceder a esta sección')
                 return redirect('/')
-        
+
         if usuario_es_ingreso_camion(request.user):
             messages.error(request, 'Su perfil no puede acceder a planificaciones archivadas.')
             return redirect('/pla_listall/')
@@ -16369,7 +20272,7 @@ def PLANIFICACION_FILEDLISTALL(request):
         return render(request, 'home/PLANIFICACION/pla_archived_list.html', {'resumenes': resumenes, 'empresa_id': Empresa})
     except Exception as e:
         print(e)
-        messages.error(request, str(e)) 
+        messages.error(request, str(e))
         return redirect('/')
 
 def ajax_validar_calendario_planificacion(request):
@@ -16377,7 +20280,7 @@ def ajax_validar_calendario_planificacion(request):
         dia = request.POST.get('dia')
         mes = request.POST.get('mes')
         ano = request.POST.get('ano')
-        empresa = Verificar_empresa(request) 
+        empresa = Verificar_empresa(request)
         calendario = CALENDARIO.objects.filter(
             CA_NDIA = dia,
             CA_NMES = mes,
@@ -16440,7 +20343,7 @@ def ajax_validar_nueva_planificacion(request):
                 'valid_planificacion': False,
                 'msg': f'El cupo ingresado supera la cantidad máxima cupos disponibles, el cual es {cupos_disponibles}. ¿Quieres continuar?'
             })
-        
+
         #VALIDAR SI FECHA DE CITACION INGRESA ESTA DENTRO DEL RANGO DE HORA APERTURA Y CIERRA
         if (fecha_nueva_planificacion_datetime.year == calendario.CA_NANO and
             fecha_nueva_planificacion_datetime.month == calendario.CA_NMES and
@@ -16488,11 +20391,11 @@ def ajax_validar_nueva_planificacion(request):
                     'valid': False,
                     'msg': f'Ya existe una Planificación situada para el horario entre {str(row.PL_FFECHAINICIO.time())} - {str(row.PL_FFECHAFIN.time())}'
                 })
-        
+
         return JsonResponse({
             'valid': True,
             'valid_planificacion': True,
-        })            
+        })
     except Exception as e:
         print(e)
         return JsonResponse({
@@ -16544,7 +20447,7 @@ def download_citaciones_data(request, pk):
         planificacion = PLANIFICACION.objects.get(id=pk)
         citaciones = CITACION.objects.filter(
             PL_NID=planificacion,
-            CI_BHABILITADO=True, 
+            CI_BHABILITADO=True,
             CI_BARCHIVADO=False,
             CI_CESTADO__in=['EN PROCESO', 'TERMINADO', 'RECHAZADO']
         ).select_related('SC_NID', 'EP_NID', 'CA_NID')
@@ -16561,11 +20464,11 @@ def download_citaciones_data(request, pk):
         for citacion in citaciones:
             secuencia = citacion.SC_NID
             etapas_id = get_etapa_operacion_xsecuencia(secuencia.pk, citacion.pk)
-            
+
             if etapas_id:
                 # Obtener el total de etapas para identificar la última
                 total_etapas = len(etapas_id)
-                
+
                 for index, row in enumerate(etapas_id):
                     etapa = ETAPA.objects.get(id=row[0])
                     zona = etapa.ZON_NID.ZON_CNOMBRE if etapa.ZON_NID else "Sin zona"
@@ -16574,12 +20477,12 @@ def download_citaciones_data(request, pk):
                         for campo in campos:
                             campo_obj = CAMPO.objects.get(pk=campo[6])
                             dato_operacion = DATO_OPERACION.objects.filter(
-                                CI_NID=citacion, 
-                                SC_NID=citacion.SC_NID, 
-                                ET_NID=etapa, 
+                                CI_NID=citacion,
+                                SC_NID=citacion.SC_NID,
+                                ET_NID=etapa,
                                 CAMP_NID=campo[6]
                             ).first()
-                            
+
                             valor_campo = dato_operacion.DO_CVALOR if dato_operacion else ""
                             # Solo mostrar RECHAZADO en la última etapa
                             estado = "RECHAZADO" if (citacion.CI_CESTADO == "RECHAZADO" and index == total_etapas - 1) else ""
@@ -16587,8 +20490,8 @@ def download_citaciones_data(request, pk):
 
                     etapa_log = ETAPA_LOG.objects.filter(CI_NID=citacion, SC_NID=citacion.SC_NID, ET_NID=etapa).first()
                     dato_operacion_usuario = DATO_OPERACION.objects.filter(
-                        CI_NID=citacion, 
-                        SC_NID=citacion.SC_NID, 
+                        CI_NID=citacion,
+                        SC_NID=citacion.SC_NID,
                         ET_NID=etapa
                     ).first()
 
@@ -16601,7 +20504,7 @@ def download_citaciones_data(request, pk):
                         horas, remainder = divmod(tiempo_transcurrido, 3600)
                         minutos, segundos = divmod(remainder, 60)
                         tiempo_transcurrido_formateado = f"{int(horas):02}:{int(minutos):02}:{int(segundos):02}"
-                        
+
                         if dato_operacion_usuario and dato_operacion_usuario.US_NID:
                             nombre_completo = f"{dato_operacion_usuario.US_NID.first_name} {dato_operacion_usuario.US_NID.last_name}".strip()
                             nombre_usuario = nombre_completo if nombre_completo else dato_operacion_usuario.US_NID.username
@@ -16619,8 +20522,8 @@ def download_citaciones_data(request, pk):
                     # Solo mostrar RECHAZADO en la última etapa
                     estado = "RECHAZADO" if (citacion.CI_CESTADO == "RECHAZADO" and index == total_etapas - 1) else ""
                     resumen_data.append([
-                        citacion.pk, 
-                        secuencia.SE_CNOMBRE, 
+                        citacion.pk,
+                        secuencia.SE_CNOMBRE,
                         etapa.ET_CNOMBRE,
                         zona,
                         patente_camion,
@@ -16628,7 +20531,7 @@ def download_citaciones_data(request, pk):
                         texto_sin_informacion(valores_ingreso.get('celular_conductor')),
                         nombre_usuario,
                         etapa_inicio,
-                        etapa_fin, 
+                        etapa_fin,
                         tiempo_transcurrido_formateado,
                         tiempo_maximo,
                         estado
@@ -16638,19 +20541,19 @@ def download_citaciones_data(request, pk):
             workbook = openpyxl.Workbook()
             worksheet = workbook.active
             worksheet.append(columnas)
-            
+
             # Agregar filtros a las columnas
             worksheet.auto_filter.ref = f"A1:G{len(data) + 1}"
-            
+
             for row in data:
                 worksheet.append(row)
 
             resumen_worksheet = workbook.create_sheet(title='Resumen')
             resumen_worksheet.append(resumen_columnas)
-            
+
             # Agregar filtros a las columnas del resumen
             resumen_worksheet.auto_filter.ref = f"A1:N{len(resumen_data) + 1}"
-            
+
             for row in resumen_data:
                 resumen_worksheet.append(row)
 
@@ -16659,10 +20562,10 @@ def download_citaciones_data(request, pk):
             response['Content-Disposition'] = f'attachment; filename={filename}'
             workbook.save(response)
             return response
-        
+
         messages.warning(request, 'No hay datos para descargar')
         return redirect('pla_listone', pk=pk)
-    
+
     except PLANIFICACION.DoesNotExist:
         messages.error(request, 'La Planificación especificada no existe')
         return redirect('pla_listall')
@@ -16675,16 +20578,16 @@ def download_citaciones_data(request, pk):
 
 def TARIFA_GLOBAL_LISTALL(request):
     try:
-        if request.user.is_superuser == False:                     
+        if request.user.is_superuser == False:
             usuario = request.user.id
             if not validar_perfiles_activos(usuario, "tg_listall"):
                 messages.error(request, 'No tiene permisos para acceder a esta sección')
                 return redirect('/')
-        Empresa = Verificar_empresa(request) 
+        Empresa = Verificar_empresa(request)
         if Empresa is None:
             return redirect('/')
         object_list = TARIFA_GLOBAL.objects.filter(TAR_BHABILITADO = True, EP_NID_id = Empresa)
-        ctx = {            
+        ctx = {
             'object_list': object_list
         }
         return render(request, 'home/TARIFA/tg_listall.html', ctx)
@@ -16694,15 +20597,15 @@ def TARIFA_GLOBAL_LISTALL(request):
         return redirect('/')
 
 def TARIFA_GLOBAL_LISTALL_INHABILITADO(request):
-    try:        
+    try:
         if request.user.is_superuser == False:
             usuario = request.user.id
             if not validar_perfiles_activos(usuario, "tg_listall_dis"):
-                messages.error(request, "No tiene permiso para acceder a esta sección")     
+                messages.error(request, "No tiene permiso para acceder a esta sección")
                 return redirect('/')
-        Empresa = Verificar_empresa(request) 
+        Empresa = Verificar_empresa(request)
         object_list = TARIFA_GLOBAL.objects.filter(TAR_BHABILITADO = False, EP_NID_id = Empresa)
-        ctx = {            
+        ctx = {
             'object_list': object_list
         }
         return render(request, 'home/TARIFA/tg_listall_dis.html', ctx)
@@ -16713,7 +20616,11 @@ def TARIFA_GLOBAL_LISTALL_INHABILITADO(request):
 
 def TARIFA_GLOBAL_ADDONE(request):
     try:
-        empresa_id = Verificar_empresa(request)
+        if request.user.is_superuser == False:
+            if not validar_perfiles_activos(request.user.id, "tg_addone"):
+                messages.error(request, 'No tiene permisos para acceder a esta sección')
+                return redirect('/')
+        empresa_id = _empresa_control_flota_o_404(request)
         if request.method == 'POST':
             # ESTABLECER EMPRESA EN EL FORMULARIO
             empresa = EMPRESA.objects.get(id = empresa_id)
@@ -16759,12 +20666,12 @@ def TARIFA_GLOBAL_ADDONE(request):
 
 def TARIFA_GLOBAL_UPDATE(request, pk):
     try:
-        if request.user.is_superuser == False:                     
+        if request.user.is_superuser == False:
             usuario = request.user.id
             if not validar_perfiles_activos(usuario, "tg_addone"):
                 messages.error(request, 'No tiene permisos para acceder a esta sección')
                 return redirect('/')
-        tarifa_global = TARIFA_GLOBAL.objects.get(id = pk)
+        tarifa_global = _objeto_control_flota_o_404(request, TARIFA_GLOBAL, id=pk)
         fecha_registro_original = tarifa_global.TAR_FFECHAREGISTRO
         valor_previo = tarifa_global.TAR_NVALOR
         if request.method == 'POST':
@@ -16775,7 +20682,7 @@ def TARIFA_GLOBAL_UPDATE(request, pk):
                 form.instance.TAR_NVALORPREVIO = valor_previo
                 form.instance.TAR_BHABILITADO = True
                 tarifa = form.save()
-                
+
                 # Crear registro en TARIFA_LOG
                 TARIFA_LOG.objects.create(
                     TAR_NID=tarifa,
@@ -16797,10 +20704,10 @@ def TARIFA_GLOBAL_UPDATE(request, pk):
         return redirect('/tg_listall/')
 
 def TARIFA_GLOBAL_DELETE(request, pk):
-    try:        
+    try:
         if request.user.is_superuser == False:
             return redirect('/')
-        tarifa_global = TARIFA_GLOBAL.objects.get(id = pk)
+        tarifa_global = _objeto_control_flota_o_404(request, TARIFA_GLOBAL, id=pk)
         tarifa_global.TAR_BHABILITADO = False
         tarifa_global.save()
         messages.success(request, 'Tarifa global eliminada correctamente')
@@ -16811,10 +20718,10 @@ def TARIFA_GLOBAL_DELETE(request, pk):
         return redirect('/tg_listall/')
 
 def TARIFA_GLOBAL_HABILITAR(request, pk):
-    try:        
+    try:
         if request.user.is_superuser == False:
             return redirect('/')
-        tarifa_global = TARIFA_GLOBAL.objects.get(id = pk)
+        tarifa_global = _objeto_control_flota_o_404(request, TARIFA_GLOBAL, id=pk)
         tarifa_global.TAR_BHABILITADO = True
         tarifa_global.save()
         messages.success(request, 'Tarifa global habilitada correctamente')
@@ -16842,13 +20749,13 @@ def ajax_get_data_tarifa(request, pk):
 def TARIFA_GLOBAL_DOWNLOAD_PLANTILLA(request):
     try:
         columnas = ["ID TARIFA", "VALOR"]
-        
+
         # Crea un nuevo libro de trabajo de Excel.
         workbook = openpyxl.Workbook()
 
         # Selecciona la hoja activa.
         worksheet = workbook.active
-        # CARGAMOS LA COLUMNAS 
+        # CARGAMOS LA COLUMNAS
         worksheet.append(columnas)
 
         response = HttpResponse(content_type='application/vnd.ms-excel')
@@ -16874,11 +20781,11 @@ def convert_to_decimal(value):
         # Si ya es Decimal, retornarlo
         if isinstance(value, Decimal):
             return value
-        
+
         # Si es numpy int64, float64, etc., convertir a tipo nativo de Python
         if hasattr(value, 'item'):  # Esto detecta tipos numpy
             value = value.item()
-        
+
         # Si es string, limpiar posibles espacios y caracteres especiales
         if isinstance(value, str):
             value = value.strip()
@@ -16886,14 +20793,14 @@ def convert_to_decimal(value):
             value = value.replace(',', '.')
             # Eliminar espacios internos
             value = value.replace(' ', '')
-            
+
             # Verificar que no esté vacío después de limpiar
             if not value or value in ['', 'nan', 'NaN', 'null', 'NULL']:
                 raise ValueError("Valor vacío o nulo")
-        
+
         # Convertir a Decimal
         return Decimal(str(value))
-        
+
     except (ValueError, InvalidOperation, TypeError) as e:
         raise ValueError(f"No se puede convertir '{value}' (tipo: {type(value).__name__}) a Decimal: {str(e)}")
 
@@ -16908,36 +20815,36 @@ def TARIFA_GLOBAL_ADDMASIVE(request):
             excel_file = request.FILES.get('file')
             df = pd.read_excel(excel_file, dtype=None)
             df = df.fillna(" ")
-            
+
             for index, row in df.iterrows():
                 try:
                     id_tarifa = row[0]
                     tarifa = TARIFA_GLOBAL.objects.get(id = id_tarifa)
-                    
+
                     # Conversión mejorada con detección automática de tipo
                     raw_valor = row[1]
                     print(f"Fila {index + 1}: Valor original: {raw_valor}, Tipo: {type(raw_valor)}")
-                    
+
                     try:
                         valor_tarifa = convert_to_decimal(raw_valor)
                         print(f"Fila {index + 1}: Valor convertido: {valor_tarifa}")
                     except ValueError as conversion_error:
                         raise Exception(f"Error en conversión de valor_tarifa: {str(conversion_error)}")
-                    
+
                     valor_previo = tarifa.TAR_NVALOR
-                    
+
                     # citaciones = CITACION.objects.filter(TAR_NID = tarifa, CI_CESTADO__in = ["CREADO", "EN PROCESO"], CI_BARCHIVADO = False, CI_BHABILITADO = True)
                     # if citaciones:
                     #     for citacion in citaciones:
                     #         citacion.CI_NVALORTARIFA = valor_tarifa
                     #         citacion.save()
-                    
+
                     tarifa.TAR_NVALORPREVIO = valor_previo
                     tarifa.TAR_NVALOR = valor_tarifa
                     tarifa.TAR_FFECHAULTIMAMODIFICACION = datetime.now()
                     tarifa.MODIFICADO_POR = request.user
-                    
-                    tarifa.save()                        
+
+                    tarifa.save()
                 except Exception as e:
                     print(f"Error en fila {index + 1}: {e}")
                     excepcion = str(e)
@@ -16974,7 +20881,7 @@ def TARIFA_GLOBAL_ADDMASIVE(request):
             else:
                 messages.success(request, 'Tarifas modificadas correctamente')
                 return redirect(f'/tg_listall/')
-                    
+
         return render(request,"home/TARIFA/tg_addmasive.html")
     except Exception as e:
         print(e)
@@ -16987,12 +20894,12 @@ def TARIFA_GLOBAL_ADDMASIVE(request):
 
 def RUTA_LISTALL(request):
     try:
-        if request.user.is_superuser == False:                     
+        if request.user.is_superuser == False:
             usuario = request.user.id
             if not validar_perfiles_activos(usuario, "rt_listall"):
                 messages.error(request, 'No tiene permisos para acceder a esta sección')
                 return redirect('/')
-        Empresa = Verificar_empresa(request) 
+        Empresa = Verificar_empresa(request)
         object_list = RUTA.objects.filter(RUT_BHABILITADO = True, EP_NID_id = Empresa)
         ctx = {
             'object_list': object_list
@@ -17004,15 +20911,15 @@ def RUTA_LISTALL(request):
         return redirect('/')
 
 def RUTA_LISTALL_INHABILITADO(request):
-    try:        
+    try:
         if request.user.is_superuser == False:
             usuario = request.user.id
             if not validar_perfiles_activos(usuario, "rt_listall_dis"):
                 messages.error(request, "No tiene permiso para acceder a esta sección")
                 return redirect('/')
-        Empresa = Verificar_empresa(request) 
+        Empresa = Verificar_empresa(request)
         object_list = RUTA.objects.filter(RUT_BHABILITADO = False, EP_NID_id = Empresa)
-        ctx = {            
+        ctx = {
             'object_list': object_list
         }
         return render(request, 'home/RUTA/rt_listall_dis.html', ctx)
@@ -17023,7 +20930,7 @@ def RUTA_LISTALL_INHABILITADO(request):
 
 def RUTA_ADDONE(request):
     try:
-        if request.user.is_superuser == False:                     
+        if request.user.is_superuser == False:
             usuario = request.user.id
             if not validar_perfiles_activos(usuario, "rt_addone"):
                 messages.error(request, 'No tiene permisos para acceder a esta sección')
@@ -17035,21 +20942,21 @@ def RUTA_ADDONE(request):
             post_data['EP_NID'] = empresa
 
             form = formRUTA(post_data)
-            if form.is_valid():                
+            if form.is_valid():
                 ruta = form.save(commit=False)
                 # Obtener la comuna y región de inicio desde el formulario
                 comuna_inicio = form.cleaned_data['COM_NID_INICIO']
-                
+
                 # Obtener la comuna y región de fin desde el formulario
                 comuna_fin = form.cleaned_data['COM_NID_TERMINO']
-                
+
                 # Construir el nombre de la ruta con el formato específico
                 nombre_ruta = f"{comuna_inicio} -> {comuna_fin}"
-                
-                # Asignar el nombre de la ruta al campo correspondiente                
-                # Limpiar nombre de ruta para evitar cambios forzados de el front 
+
+                # Asignar el nombre de la ruta al campo correspondiente
+                # Limpiar nombre de ruta para evitar cambios forzados de el front
                 ruta.RUT_CNOMBRE = ""
-                
+
                 ruta.RUT_CNOMBRE = nombre_ruta
                 ruta.RUT_FFECHAREGISTRO = datetime.now()
                 ruta.RUT_BHABILITADO = True
@@ -17067,12 +20974,12 @@ def RUTA_ADDONE(request):
 
 def RUTA_UPDATE(request, pk):
     try:
-        if request.user.is_superuser == False:                     
+        if request.user.is_superuser == False:
             usuario = request.user.id
             if not validar_perfiles_activos(usuario, "rt_addone"):
                 messages.error(request, 'No tiene permisos para acceder a esta sección')
                 return redirect('/')
-        ruta = RUTA.objects.get(id = pk)
+        ruta = _objeto_control_flota_o_404(request, RUTA, id=pk)
         if request.method == 'POST':
             form = formRUTA(request.POST, instance=ruta)
             if form.is_valid():
@@ -17088,10 +20995,10 @@ def RUTA_UPDATE(request, pk):
         return redirect('/rut_listall/')
 
 def RUTA_DELETE(request, pk):
-    try:    
+    try:
         if request.user.is_superuser == False:
             return redirect('/')
-        ruta = RUTA.objects.get(id = pk)
+        ruta = _objeto_control_flota_o_404(request, RUTA, id=pk)
         ruta.RUT_BHABILITADO = False
         ruta.save()
         messages.success(request, 'Ruta eliminada correctamente')
@@ -17105,7 +21012,7 @@ def RUTA_HABILITAR(request, pk):
     try:
         if request.user.is_superuser == False:
             return redirect('/')
-        ruta = RUTA.objects.get(id = pk)
+        ruta = _objeto_control_flota_o_404(request, RUTA, id=pk)
         ruta.RUT_BHABILITADO = True
         ruta.save()
         messages.success(request, 'Ruta habilitada correctamente')
@@ -17141,7 +21048,7 @@ def ajax_get_data_tarifa_ruta(request):
 
 def EXTRA_LISTALL(request):
     try:
-        if request.user.is_superuser == False:                     
+        if request.user.is_superuser == False:
             usuario = request.user.id
             if not validar_perfiles_activos(usuario, "ext_listall"):
                 messages.error(request, 'No tiene permisos para acceder a esta sección')
@@ -17149,7 +21056,7 @@ def EXTRA_LISTALL(request):
 
         Empresa = Verificar_empresa(request)
         object_list = EXTRA.objects.filter(EXT_BHABILITADO = True, EXT_CTIPO_CITACION = request.GET.get('tipo_citacion'), EP_NID = Empresa)
-            
+
         ctx = {
             'object_list': object_list,
             'tipo_citacion': request.GET.get('tipo_citacion')
@@ -17167,7 +21074,7 @@ def EXTRA_LISTALL_INHABILITADOS(request):
             if not validar_perfiles_activos(usuario, "ext_listall_del"):
                 messages.error(request, "No tiene permiso para acceder a esta sección")
                 return redirect('/')
-        Empresa = Verificar_empresa(request) 
+        Empresa = Verificar_empresa(request)
         object_list = EXTRA.objects.filter(EXT_BHABILITADO = False, EP_NID_id = Empresa)
         ctx = {
             'object_list': object_list
@@ -17180,7 +21087,7 @@ def EXTRA_LISTALL_INHABILITADOS(request):
 
 def EXTRA_ADDONE(request):
     try:
-        if request.user.is_superuser == False:                     
+        if request.user.is_superuser == False:
             usuario = request.user.id
             if not validar_perfiles_activos(usuario, "ext_addone"):
                 messages.error(request, 'No tiene permisos para acceder a esta sección')
@@ -17213,7 +21120,7 @@ def EXTRA_ADDONE(request):
 
 def EXTRA_UPDATE(request, pk):
     try:
-        if request.user.is_superuser == False:                     
+        if request.user.is_superuser == False:
             usuario = request.user.id
             if not validar_perfiles_activos(usuario, "ext_addone"):
                 messages.error(request, 'No tiene permisos para acceder a esta sección')
@@ -17282,14 +21189,14 @@ def ajax_addone_extra(request, pk):
             CITACION_EXTRA.objects.create(
                 EP_NID = citacion.EP_NID,
                 US_NID = request.user,
-                EXT_NID_id = request.POST.get('EXT_NID'), 
+                EXT_NID_id = request.POST.get('EXT_NID'),
                 CI_NID = citacion,
-                CIE_NVALOR = valor, 
+                CIE_NVALOR = valor,
                 CIE_FFECHAREGISTRO = datetime.now(),
                 CIE_BINGRESO = is_ingreso,
                 CIE_CCOMENTARIO = comentario
             )
-            
+
             messages.success(request, 'Extra agregado correctamente')
             return redirect(f'/cit_listone/{pk}')
     except Exception as e:
@@ -17311,7 +21218,7 @@ def CITACION_EXTRA_ADDMASIVO(request):
                 citacion = CITACION.objects.get(id = id_citacion)
                 empresa = citacion.EP_NID
                 usuario = request.user
-                
+
                 if request.user.is_superuser == False:
                     conductor = citacion.CON_NID
                     fecha_citacion = timezone.localtime(citacion.CI_FFECHACITACION)
@@ -17319,14 +21226,14 @@ def CITACION_EXTRA_ADDMASIVO(request):
                     if diferencia_dias > conductor.CON_NPERIODO_EXTRA:
                         messages.error(request, f'No se puede agregar extras mas de {conductor.CON_NPERIODO_EXTRA} dias posteriores a la fecha de la citación')
                         return redirect('/cit_listone/')
-                
+
                 for index, row in df.iterrows():
                     try:
                         if not row[0] or row[0] == '' or str(row[0]).strip() == '':
                             raise Exception("No se puede agregar un extra sin ID")
                         if not row[1] or row[1] == '' or str(row[1]).strip() == '':
                             raise Exception("No se puede agregar un extra sin valor")
-                        
+
                         extra = EXTRA.objects.get(id = row[0])
                         if extra.EXT_CTIPO_CITACION != citacion.CI_CTIPO:
                             raise Exception("El tipo de citación del extra no coincide con el tipo de citación de la citación")
@@ -17356,11 +21263,11 @@ def CITACION_EXTRA_ADDMASIVO(request):
                             error = "El tipo de citación del extra no coincide con el tipo de citación de la citación"
                         else:
                             error = traductor(exception)
-                        
+
                         linea = list(row)
                         linea.append(error)
                         listado_errores_excel.append(linea)
-                
+
                 if len(listado_errores_excel) != 0:
                     # OBTENEMOS LAS COLUMNAS DEL EXCEL CARGADO
                     columnas = list(df.columns.values)
@@ -17372,7 +21279,7 @@ def CITACION_EXTRA_ADDMASIVO(request):
                     message = f"Hay datos que no se pudieron guardar debido a que contienen errores, se ha generado un excel con los datos no guardados. <a href='{link}' download>Clic aquí para descargar el archivo Excel.</a>"
                     messages.info(request, message)
                     return redirect(f'/cit_listone/{id_citacion}')
-                
+
                 messages.success(request, f'Se agregaron {extra_created} extras correctamente')
                 return redirect(f'/cit_listone/{id_citacion}')
             elif tipo == "Extra_masivo":
@@ -17386,7 +21293,7 @@ def CITACION_EXTRA_ADDMASIVO(request):
                             raise Exception("No se puede agregar un extra ID")
                         if not row[2] or row[2] == '' or str(row[2]).strip() == '':
                             raise Exception("No se puede agregar un extra sin valor")
-                        
+
                         citacion = CITACION.objects.get(id = row[0])
                         empresa = citacion.EP_NID
                         conductor = citacion.CON_NID
@@ -17395,7 +21302,7 @@ def CITACION_EXTRA_ADDMASIVO(request):
                             diferencia_dias = (fecha_actual - fecha_citacion).days
                             if diferencia_dias > conductor.CON_NPERIODO_EXTRA:
                                 raise Exception("No se puede agregar extras mas de " + str(conductor.CON_NPERIODO_EXTRA) + " días posteriores a la fecha de la citación")
-                        
+
                         extra = EXTRA.objects.get(id = row[1])
                         if extra.EXT_CTIPO_CITACION != citacion.CI_CTIPO:
                             raise Exception("El tipo de citación del extra no coincide con el tipo de citación de la citación")
@@ -17429,11 +21336,11 @@ def CITACION_EXTRA_ADDMASIVO(request):
                             error = "El tipo de citación del extra no coincide con el tipo de citación de la citación"
                         else:
                             error = traductor(exception)
-                        
+
                         linea = list(row)
                         linea.append(error)
                         listado_errores_excel.append(linea)
-                
+
                 if len(listado_errores_excel) != 0:
                     # OBTENEMOS LAS COLUMNAS DEL EXCEL CARGADO
                     columnas = list(df.columns.values)
@@ -17446,11 +21353,11 @@ def CITACION_EXTRA_ADDMASIVO(request):
                     messages.info(request, message)
                     path = '/cit_listall_despachos/' if tipo_citacion == CIT_DESPACHO else '/cit_listall_recepciones/'
                     return redirect(path)
-                
+
                 messages.success(request, f'Se agregaron {extra_created} extras correctamente')
                 path = '/cit_listall_despachos/' if tipo_citacion == CIT_DESPACHO else '/cit_listall_recepciones/'
                 return redirect(path)
-                
+
     except Exception as e:
         print(e)
         messages.error(request, f'Error, {str(e)}')
@@ -17465,7 +21372,7 @@ def download_excel_plantilla_extra_citacion(request):
 
         # Selecciona la hoja activa.
         worksheet = workbook.active
-        # CARGAMOS LA COLUMNAS 
+        # CARGAMOS LA COLUMNAS
         worksheet.append(columnas)
 
         # CARGAMOS LAS FILAS DE EJEMPLO
@@ -17489,7 +21396,7 @@ def download_excel_plantilla_extra_planificacion(request):
 
         # Selecciona la hoja activa.
         worksheet = workbook.active
-        # CARGAMOS LA COLUMNAS 
+        # CARGAMOS LA COLUMNAS
         worksheet.append(columnas)
 
         # CARGAMOS LAS FILAS DE EJEMPLO
@@ -17511,7 +21418,7 @@ def download_excel_plantilla_extra_planificacion(request):
 def CITACION_LISTALL_DESPACHOS(request):
     try:
         acceso_operacion = usuario_es_operacion_planta(request.user)
-        if request.user.is_superuser == False:                     
+        if request.user.is_superuser == False:
             usuario = request.user.id
             if not validar_perfiles_activos(usuario, "cit_listall") and not acceso_operacion:
                 messages.error(request, 'No tiene permisos para acceder a esta sección')
@@ -17578,7 +21485,7 @@ def CITACION_LISTALL_DESPACHOS(request):
 
         if secuencia_id:
             queryset = queryset.filter(SC_NID__in=secuencia_id)
-            
+
         if fecha_desde and fecha_hasta:
             queryset = queryset.filter(CI_FFECHACITACION__date__range=[fecha_desde, fecha_hasta])
         else:
@@ -17586,12 +21493,12 @@ def CITACION_LISTALL_DESPACHOS(request):
                 queryset = queryset.filter(CI_FFECHACITACION__date__gte=fecha_desde)
             if fecha_hasta:
                 queryset = queryset.filter(CI_FFECHACITACION__date__lte=fecha_hasta)
-        
+
         if proveedor:
             queryset = queryset.filter(PRO_NID=proveedor)
 
         object_list = queryset.order_by('-id')
-        
+
         paginator = Paginator(object_list, 100)
         page = request.GET.get('page')
 
@@ -17650,12 +21557,12 @@ def CITACION_LISTALL_DESPACHOS(request):
     except Exception as e:
         print(e)
         messages.error(request, f'Error, {str(e)}')
-        return redirect('/') 
-    
+        return redirect('/')
+
 def CITACION_LISTALL_RECEPCIONES(request):
     try:
         acceso_operacion = usuario_es_operacion_planta(request.user)
-        if request.user.is_superuser == False:                     
+        if request.user.is_superuser == False:
             usuario = request.user.id
             if not validar_perfiles_activos(usuario, "cit_listall") and not acceso_operacion:
                 messages.error(request, 'No tiene permisos para acceder a esta sección')
@@ -17664,14 +21571,24 @@ def CITACION_LISTALL_RECEPCIONES(request):
             usuario = request.user.id
 
         Empresa = Verificar_empresa(request)
-        contexto_operacion_planta = request.GET.get('contexto') == 'operacion_planta'
+        contexto_solicitado = str(request.GET.get('contexto') or '').strip()
+        contextos_operacion_validos = {'operacion_planta', 'operacion_planta_terminadas'}
+        if contexto_solicitado.startswith('operacion_planta') and contexto_solicitado not in contextos_operacion_validos:
+            return JsonResponse({'success': False, 'message': 'Contexto de Operacion Planta no valido.'}, status=400)
+        contexto_operacion_planta = contexto_solicitado in contextos_operacion_validos
+        contexto_operacion_terminadas = contexto_solicitado == 'operacion_planta_terminadas'
+        contexto_operacion_valor = (
+            'operacion_planta_terminadas' if contexto_operacion_terminadas else 'operacion_planta'
+        )
         tipo_citacion = str(request.GET.get('tipo') or CIT_RECEPCION).strip().upper()
         if tipo_citacion not in {CIT_RECEPCION, CIT_DESPACHO}:
+            if contexto_operacion_planta:
+                return JsonResponse({'success': False, 'message': 'Tipo de citacion no valido.'}, status=400)
             tipo_citacion = CIT_RECEPCION
 
         asignadas = obtener_secuencias_asignadas_usuario(request.user)
 
-        if asignadas.exists():
+        if asignadas.exists() and not request.user.is_superuser:
             secuencias = SECUENCIA.objects.filter(
                 id__in=asignadas,
                 SE_BHABILITADO=True,
@@ -17696,7 +21613,9 @@ def CITACION_LISTALL_RECEPCIONES(request):
         if isinstance(fecha_hasta, str):
             fecha_hasta = parse_date(fecha_hasta)
 
-        queryset = CITACION.objects.filter(
+        queryset = CITACION.objects.select_related(
+            'EP_NID', 'PL_NID', 'SC_NID', 'SN_NID'
+        ).filter(
             Q(CI_CTIPO__iexact=tipo_citacion) |
             (
                 (Q(CI_CTIPO__isnull=True) | Q(CI_CTIPO='')) &
@@ -17708,6 +21627,21 @@ def CITACION_LISTALL_RECEPCIONES(request):
 
         guardia_ingreso = usuario_es_guardia(request.user) and not usuario_es_guardia_porteria(request.user)
 
+        confirmacion_salida = OPERACION_PLANTA_LOG.objects.filter(
+            CI_NID_id=OuterRef('pk'),
+            EP_NID_id=Empresa,
+            OPL_CPASO=PASO_CONFIRMAR_SALIDA,
+            OPL_CESTADO=OPERACION_PLANTA_LOG.ESTADO_COMPLETADO,
+        ).order_by('-OPL_FFECHAREGISTRO', '-id')
+        queryset = queryset.annotate(
+            operacion_terminada=Exists(confirmacion_salida),
+            operacion_fecha_termino=Subquery(confirmacion_salida.values('OPL_FFECHAREGISTRO')[:1]),
+            operacion_usuario_termino=Subquery(
+                confirmacion_salida.values('US_NID__username')[:1],
+                output_field=CharField(),
+            ),
+        )
+
         if contexto_operacion_planta:
             citaciones_operacion = OPERACION_PLANTA_LOG.objects.filter(
                 EP_NID_id=Empresa,
@@ -17715,6 +21649,17 @@ def CITACION_LISTALL_RECEPCIONES(request):
                 OPL_CESTADO=OPERACION_PLANTA_LOG.ESTADO_COMPLETADO
             ).values_list('CI_NID_id', flat=True)
             queryset = queryset.filter(id__in=citaciones_operacion)
+            queryset = queryset.filter(operacion_terminada=contexto_operacion_terminadas)
+            if (not request.user.is_superuser and not contexto_operacion_terminadas and usuario_es_asistente_despacho_terramar(request.user)):
+                if Empresa != 1:
+                    queryset = queryset.none()
+                else:
+                    ids_autorizar_salida = [
+                        citacion.id for citacion in queryset.select_related('EP_NID', 'SC_NID')
+                        if es_citacion_recepcion_terramar(citacion)
+                        and obtener_paso_activo_operacion(citacion)[0] == PASO_AUTORIZAR_SALIDA
+                    ]
+                    queryset = queryset.filter(id__in=ids_autorizar_salida)
         elif acceso_operacion and not request.user.is_superuser and not guardia_ingreso:
             citaciones_operacion = SYSLOGGER.objects.filter(
                 LOG_COPERACION='AUTORIZA_INGRESO_PLANTA'
@@ -17722,12 +21667,12 @@ def CITACION_LISTALL_RECEPCIONES(request):
             queryset = queryset.filter(id__in=[int(cid) for cid in citaciones_operacion if str(cid).isdigit()])
 
         # FILTRAR SOLO SECUENCIAS ASIGNADAS
-        if asignadas.exists():
+        if asignadas.exists() and not request.user.is_superuser:
             queryset = queryset.filter(SC_NID_id__in=asignadas)
 
         if secuencia_id:
             queryset = queryset.filter(SC_NID__in=secuencia_id)
-            
+
         if fecha_desde and fecha_hasta:
             queryset = queryset.filter(
                 CI_FFECHACITACION__date__range=[fecha_desde, fecha_hasta]
@@ -17742,12 +21687,14 @@ def CITACION_LISTALL_RECEPCIONES(request):
                 queryset = queryset.filter(
                     CI_FFECHACITACION__date__lte=fecha_hasta
                 )
-        
+
         if proveedor:
             queryset = queryset.filter(PRO_NID=proveedor)
-        
-        object_list = queryset.order_by('-id')
-        
+
+        object_list = queryset.order_by(
+            '-operacion_fecha_termino', '-id'
+        ) if contexto_operacion_terminadas else queryset.order_by('-id')
+
         paginator = Paginator(object_list, 100)
         page = request.GET.get('page')
 
@@ -17761,6 +21708,12 @@ def CITACION_LISTALL_RECEPCIONES(request):
         enriquecer_citaciones_con_ingreso_camion(object_list)
         for citacion in object_list:
             citacion.operacion_planta_habilitada = citacion_habilitada_operacion(citacion)
+            if contexto_operacion_terminadas:
+                citacion.operacion_estado_visible = 'OPERACION TERMINADA'
+                citacion.nombre_paso_activo = ''
+                citacion.paso_activo_usuario = False
+                citacion.requiere_accion_usuario = False
+                continue
             etapa_preoperacional = obtener_etapa_preoperacional_citacion(citacion)
             if etapa_preoperacional:
                 citacion.operacion_estado_visible = etapa_preoperacional
@@ -17773,6 +21726,14 @@ def CITACION_LISTALL_RECEPCIONES(request):
                 citacion.operacion_estado_visible = paso_activo
                 citacion.nombre_paso_activo = paso_activo
                 citacion.paso_activo_usuario = usuario_puede_paso_operacion(request.user, responsables_activos)
+                if (
+                    paso_activo == PASO_CICLO_DESCARGA
+                    and es_recepcion_terramar_bodega_externa_operacion(citacion)
+                    and _payload_ciclo_terramar_bodega_externa(citacion).get('en_proceso')
+                    and usuario_es_guardia_porteria(request.user)
+                    and _usuario_tiene_acceso_empresa(request.user, citacion.EP_NID_id)
+                ):
+                    citacion.paso_activo_usuario = True
                 citacion.requiere_accion_usuario = citacion.paso_activo_usuario
             else:
                 citacion.operacion_estado_visible = citacion.ETAPA_ACTUAL.ET_CCODIGO if citacion.ETAPA_ACTUAL else ''
@@ -17781,9 +21742,9 @@ def CITACION_LISTALL_RECEPCIONES(request):
                 citacion.requiere_accion_usuario = False
 
         filtrado = 1 if (
-            fecha_desde or 
-            fecha_hasta or 
-            secuencia_id or 
+            fecha_desde or
+            fecha_hasta or
+            secuencia_id or
             proveedor
         ) else 0
 
@@ -17804,6 +21765,8 @@ def CITACION_LISTALL_RECEPCIONES(request):
             'acceso_operacion_planta': acceso_operacion,
             'guardia_ingreso': guardia_ingreso,
             'contexto_operacion_planta': contexto_operacion_planta,
+            'contexto_operacion_terminadas': contexto_operacion_terminadas,
+            'contexto_operacion_valor': contexto_operacion_valor,
             'empresa_activa_id': Empresa,
             'tipo_citacion_actual': tipo_citacion,
             'ocultar_cliente_operacion_recepcion': contexto_operacion_planta and tipo_citacion == CIT_RECEPCION,
@@ -17825,7 +21788,471 @@ def CITACION_LISTALL_RECEPCIONES(request):
     except Exception as e:
         print(e)
         messages.error(request, f'Error, {str(e)}')
-        return redirect('/')  
+        return redirect('/')
+
+
+def operacion_planta_esta_terminada(citacion):
+    return OPERACION_PLANTA_LOG.objects.filter(
+        CI_NID=citacion,
+        EP_NID_id=citacion.EP_NID_id,
+        OPL_CPASO=PASO_CONFIRMAR_SALIDA,
+        OPL_CESTADO=OPERACION_PLANTA_LOG.ESTADO_COMPLETADO,
+    ).exists()
+
+# Documentación exclusiva del paso Documentación de DESPACHO_TERRAMAR.
+CAMPO_DESP_TERR_DOC_TEMPORIZADOR = 'DESP_TERR_DOC_TEMPORIZADOR'
+CAMPO_DESP_TERR_ENCARPE_OK = 'DESP_TERR_ENCARPE_OK'
+CAMPO_DESP_TERR_GUIA_SALIDA = 'DESP_TERR_GUIA_SALIDA'
+ETIQUETA_DESP_TERR_DOC_TEMPORIZADOR = 'Temporizador Documentación Despacho Terramar'
+ETIQUETA_DESP_TERR_ENCARPE_OK = 'Encarpe Despacho Terramar'
+ETIQUETA_DESP_TERR_GUIA_SALIDA = 'Guía de despacho'
+EXTENSIONES_DOCUMENTACION_DESP_TERRAMAR = {'.pdf', '.jpg', '.jpeg', '.png', '.doc', '.docx'}
+MAX_BYTES_DOCUMENTACION_DESP_TERRAMAR = 20 * 1024 * 1024
+
+
+def es_documentacion_despacho_terramar(citacion):
+    """Delimita el nuevo paso a DESPACHO_TERRAMAR, excluyendo Bodega Externa."""
+    return bool(
+        citacion
+        and citacion.EP_NID_id == 1
+        and str(citacion.CI_CTIPO or '').strip().upper() == CIT_DESPACHO
+        and citacion.SC_NID
+        and str(citacion.SC_NID.SE_CCODIGO or '').strip().upper() == 'DESPACHO_TERRAMAR'
+        and str(paso_actual or '').strip() == 'Pesaje Salida'
+        and str(tipo_ticket or '').strip().upper() == 'SAL'
+    )
+
+
+def _campo_documentacion_despacho_terramar(citacion, usuario, codigo, etiqueta, tipo='TEXTO'):
+    campo, _ = CAMPO.objects.get_or_create(
+        EP_NID=citacion.EP_NID,
+        CA_CCODIGO=codigo,
+        defaults={
+            'US_NID': usuario,
+            'CA_CTIPO': tipo,
+            'CA_CETIQUETA': etiqueta,
+            'CA_CPLACEMARK': etiqueta,
+            'CA_BOBLIGATORIO': False,
+            'CA_BHABILITADO': True,
+            'CA_BASIGNARVALOR': False,
+        },
+    )
+    cambios = []
+    if not campo.CA_BHABILITADO:
+        campo.CA_BHABILITADO = True
+        cambios.append('CA_BHABILITADO')
+    if campo.CA_CTIPO != tipo:
+        campo.CA_CTIPO = tipo
+        cambios.append('CA_CTIPO')
+    if cambios:
+        campo.save(update_fields=cambios)
+    return campo
+
+
+def _dato_documentacion_despacho_terramar(citacion, codigo):
+    return DATO_OPERACION.objects.filter(
+        CI_NID=citacion,
+        CAMP_NID__CA_CCODIGO=codigo,
+    ).select_related('CAMP_NID', 'US_NID').order_by('-id').first()
+
+
+def _metadata_documentacion_despacho_terramar(citacion, codigo):
+    dato = _dato_documentacion_despacho_terramar(citacion, codigo)
+    if not dato:
+        return {}, None
+    try:
+        metadata = json.loads(dato.DO_CVALOR or '{}')
+    except (TypeError, ValueError):
+        metadata = {}
+    return (metadata if isinstance(metadata, dict) else {}), dato
+
+
+def _guardar_metadata_documentacion_despacho_terramar(citacion, usuario, codigo, etiqueta, metadata):
+    campo = _campo_documentacion_despacho_terramar(citacion, usuario, codigo, etiqueta)
+    dato, _ = DATO_OPERACION.objects.update_or_create(
+        CI_NID=citacion,
+        CAMP_NID=campo,
+        defaults={
+            'EP_NID': citacion.EP_NID,
+            'US_NID': usuario,
+            'SC_NID': citacion.SC_NID,
+            'ET_NID': citacion.ETAPA_ACTUAL,
+            'DO_CVALOR': json.dumps(metadata, ensure_ascii=False),
+            'DO_NPESO': None,
+            'DO_FFECHAREGISTRO': timezone.now(),
+        },
+    )
+    metadata['dato_id'] = dato.id
+    return metadata
+
+
+def _payload_temporizador_documentacion_despacho_terramar(citacion):
+    metadata, dato = _metadata_documentacion_despacho_terramar(citacion, CAMPO_DESP_TERR_DOC_TEMPORIZADOR)
+    inicio = _parse_iso_operacion(metadata.get('inicio_iso'))
+    fin = _parse_iso_operacion(metadata.get('fin_iso'))
+    if not inicio:
+        return {'iniciado': False, 'en_proceso': False, 'finalizado': False, 'duracion_legible': '00:00:00'}
+    duracion = (fin or timezone.now()) - inicio
+    segundos = metadata.get('duracion_segundos')
+    if fin or segundos is None:
+        segundos = max(int(duracion.total_seconds()), 0)
+    return {
+        'iniciado': True,
+        'en_proceso': not bool(fin),
+        'finalizado': bool(fin),
+        'inicio_iso': inicio.isoformat(),
+        'inicio_ms': int(inicio.timestamp() * 1000),
+        'inicio_legible': timezone.localtime(inicio).strftime('%d/%m/%Y %H:%M'),
+        'fin_iso': fin.isoformat() if fin else '',
+        'fin_legible': timezone.localtime(fin).strftime('%d/%m/%Y %H:%M') if fin else '',
+        'duracion_segundos': segundos,
+        'duracion_legible': metadata.get('duracion_legible') or formatear_duracion_operacional(duracion),
+        'usuario_inicio': metadata.get('usuario_inicio') or (dato.US_NID.username if dato and dato.US_NID_id else ''),
+        'usuario_fin': metadata.get('usuario_fin') or '',
+    }
+
+
+def asegurar_temporizador_documentacion_despacho_terramar(citacion, usuario):
+    """Crea el inicio una única vez al quedar Documentación como paso activo."""
+    if not es_documentacion_despacho_terramar(citacion) or not _paso_activo_es(citacion, PASO_DOCUMENTACION_TERRAMAR):
+        return _payload_temporizador_documentacion_despacho_terramar(citacion)
+    metadata, _ = _metadata_documentacion_despacho_terramar(citacion, CAMPO_DESP_TERR_DOC_TEMPORIZADOR)
+    if metadata.get('inicio_iso'):
+        return _payload_temporizador_documentacion_despacho_terramar(citacion)
+    ahora = timezone.now()
+    _guardar_metadata_documentacion_despacho_terramar(
+        citacion, usuario, CAMPO_DESP_TERR_DOC_TEMPORIZADOR, ETIQUETA_DESP_TERR_DOC_TEMPORIZADOR,
+        {
+            'inicio_iso': ahora.isoformat(),
+            'inicio': timezone.localtime(ahora).strftime('%d/%m/%Y %H:%M'),
+            'usuario_inicio': usuario.username,
+            'usuario_inicio_id': usuario.id,
+            'citacion_id': citacion.id,
+            'paso_operacion': PASO_DOCUMENTACION_TERRAMAR,
+        },
+    )
+    return _payload_temporizador_documentacion_despacho_terramar(citacion)
+
+
+def _payload_documentacion_despacho_terramar(citacion):
+    encarpado, dato_encarpe = _metadata_documentacion_despacho_terramar(citacion, CAMPO_DESP_TERR_ENCARPE_OK)
+    guia, dato_guia = _metadata_documentacion_despacho_terramar(citacion, CAMPO_DESP_TERR_GUIA_SALIDA)
+    ruta_guia = str(guia.get('ruta') or '')
+    guia_valida = bool(
+        dato_guia and ruta_guia and os.path.isfile(ruta_guia)
+        and _ruta_dentro_de_raiz(ruta_guia, obtener_base_folder_campo(citacion.EP_NID_id))
+    )
+    temporizador = _payload_temporizador_documentacion_despacho_terramar(citacion)
+    return {
+        'aplicable': es_documentacion_despacho_terramar(citacion),
+        'temporizador': temporizador,
+        'encarpe_ok': bool(encarpado.get('ok')),
+        'encarpe_usuario': encarpado.get('usuario') or (dato_encarpe.US_NID.username if dato_encarpe and dato_encarpe.US_NID_id else ''),
+        'encarpe_fecha': encarpado.get('fecha_hora') or '',
+        'guia_cargada': guia_valida,
+        'guia_nombre': guia.get('nombre') or '',
+        'guia_usuario': guia.get('usuario') or (dato_guia.US_NID.username if dato_guia and dato_guia.US_NID_id else ''),
+        'guia_fecha': guia.get('fecha_hora') or '',
+        'guia_url': reverse('ajax_operacion_planta_documentacion_despacho_terramar_guia_ver', args=[citacion.id]) if guia_valida else '',
+        'completada': OPERACION_PLANTA_LOG.objects.filter(CI_NID=citacion, OPL_CPASO=PASO_DOCUMENTACION_TERRAMAR, OPL_CESTADO=OPERACION_PLANTA_LOG.ESTADO_COMPLETADO).exists(),
+    }
+
+
+def _citacion_documentacion_despacho_terramar_request(request, pk):
+    if request.method != 'POST':
+        return None, JsonResponse({'ok': False, 'error': 'Método no permitido.'}, status=405)
+    citacion, error = _obtener_citacion_operacion_planta_ajax(request, pk)
+    if error:
+        return None, error
+    if not es_documentacion_despacho_terramar(citacion):
+        return None, JsonResponse({'ok': False, 'error': 'Esta acción solo aplica a DESPACHO_TERRAMAR.'}, status=404)
+    if not _paso_activo_es(citacion, PASO_DOCUMENTACION_TERRAMAR):
+        return None, JsonResponse({'ok': False, 'error': 'Documentación no es el paso activo.'}, status=409)
+    if not usuario_puede_paso_operacion(request.user, [PERFIL_TERRAMAR_ASISTENTE_RECEPCION]):
+        return None, JsonResponse({'ok': False, 'error': 'Solo lectura: este paso corresponde a Asistente Recepción.'}, status=403)
+    return citacion, None
+
+
+def ajax_operacion_planta_documentacion_despacho_terramar_encarpe(request, pk):
+    citacion, error = _citacion_documentacion_despacho_terramar_request(request, pk)
+    if error:
+        return error
+    with transaction.atomic():
+        citacion = _recargar_citacion_bloqueada_operacion(citacion)
+        actual, _ = _metadata_documentacion_despacho_terramar(citacion, CAMPO_DESP_TERR_ENCARPE_OK)
+        if actual.get('ok'):
+            return JsonResponse({'ok': False, 'error': 'Encarpe ya fue confirmado.'}, status=409)
+        ahora = timezone.now()
+        metadata = _guardar_metadata_documentacion_despacho_terramar(
+            citacion, request.user, CAMPO_DESP_TERR_ENCARPE_OK, ETIQUETA_DESP_TERR_ENCARPE_OK,
+            {'ok': True, 'usuario': request.user.username, 'usuario_id': request.user.id,
+             'fecha_iso': ahora.isoformat(), 'fecha_hora': timezone.localtime(ahora).strftime('%d/%m/%Y %H:%M'),
+             'citacion_id': citacion.id, 'paso_operacion': PASO_DOCUMENTACION_TERRAMAR},
+        )
+    return JsonResponse({'ok': True, 'mensaje': 'Encarpe confirmado.', 'encarpe': metadata})
+
+
+def ajax_operacion_planta_documentacion_despacho_terramar_guia(request, pk):
+    citacion, error = _citacion_documentacion_despacho_terramar_request(request, pk)
+    if error:
+        return error
+    archivo = request.FILES.get('archivo')
+    if not archivo or not getattr(archivo, 'name', ''):
+        return JsonResponse({'ok': False, 'error': 'Debe seleccionar una guía.'}, status=400)
+    extension = os.path.splitext(os.path.basename(archivo.name))[1].lower()
+    if extension not in EXTENSIONES_DOCUMENTACION_DESP_TERRAMAR or archivo.size <= 0 or archivo.size > MAX_BYTES_DOCUMENTACION_DESP_TERRAMAR:
+        return JsonResponse({'ok': False, 'error': 'Archivo inválido. Formatos permitidos: PDF, JPG, JPEG, PNG, DOC y DOCX (máximo 20 MB).'}, status=400)
+    with transaction.atomic():
+        citacion = _recargar_citacion_bloqueada_operacion(citacion)
+        if _dato_documentacion_despacho_terramar(citacion, CAMPO_DESP_TERR_GUIA_SALIDA):
+            return JsonResponse({'ok': False, 'error': 'Ya existe una guía cargada para esta citación.'}, status=409)
+        campo = _campo_documentacion_despacho_terramar(citacion, request.user, CAMPO_DESP_TERR_GUIA_SALIDA, ETIQUETA_DESP_TERR_GUIA_SALIDA, tipo='ARCHIVO')
+        ruta = guardar_archivo_dato_operacion(citacion, citacion.ETAPA_ACTUAL, archivo)
+        ahora = timezone.now()
+        metadata = {'ruta': ruta, 'nombre': get_valid_filename(os.path.basename(archivo.name)),
+                    'usuario': request.user.username, 'usuario_id': request.user.id,
+                    'fecha_iso': ahora.isoformat(), 'fecha_hora': timezone.localtime(ahora).strftime('%d/%m/%Y %H:%M'),
+                    'codigo': CAMPO_DESP_TERR_GUIA_SALIDA, 'paso': PASO_DOCUMENTACION_TERRAMAR}
+        DATO_OPERACION.objects.create(CI_NID=citacion, SC_NID=citacion.SC_NID, ET_NID=citacion.ETAPA_ACTUAL,
+            CAMP_NID=campo, EP_NID=citacion.EP_NID, US_NID=request.user,
+            DO_CVALOR=json.dumps(metadata, ensure_ascii=False), DO_FFECHAREGISTRO=ahora)
+    return JsonResponse({'ok': True, 'mensaje': 'Guía cargada correctamente.', 'guia': metadata})
+
+
+def ajax_operacion_planta_documentacion_despacho_terramar_guia_ver(request, pk):
+    citacion, error = _obtener_citacion_operacion_planta_ajax(request, pk)
+    if error or not es_documentacion_despacho_terramar(citacion) or not usuario_es_operacion_planta(request.user):
+        raise Http404
+    guia, _ = _metadata_documentacion_despacho_terramar(citacion, CAMPO_DESP_TERR_GUIA_SALIDA)
+    ruta = str(guia.get('ruta') or '')
+    raiz = obtener_base_folder_campo(citacion.EP_NID_id)
+    if not ruta or not _ruta_dentro_de_raiz(ruta, raiz) or not os.path.isfile(ruta):
+        raise Http404
+    return FileResponse(open(ruta, 'rb'), as_attachment=True, filename=guia.get('nombre') or os.path.basename(ruta))
+
+
+def ajax_operacion_planta_documentacion_despacho_terramar_completar(request, pk):
+    citacion, error = _citacion_documentacion_despacho_terramar_request(request, pk)
+    if error:
+        return error
+    with transaction.atomic():
+        citacion = _recargar_citacion_bloqueada_operacion(citacion)
+        if OPERACION_PLANTA_LOG.objects.filter(CI_NID=citacion, OPL_CPASO=PASO_DOCUMENTACION_TERRAMAR, OPL_CESTADO=OPERACION_PLANTA_LOG.ESTADO_COMPLETADO).exists():
+            return JsonResponse({'ok': False, 'error': 'Documentación ya fue completada.'}, status=409)
+        encarpado, _ = _metadata_documentacion_despacho_terramar(citacion, CAMPO_DESP_TERR_ENCARPE_OK)
+        if not encarpado.get('ok'):
+            return JsonResponse({'ok': False, 'error': 'Debe confirmar Encarpe antes de finalizar Documentación.'}, status=409)
+        estado = _payload_documentacion_despacho_terramar(citacion)
+        if not estado.get('guia_cargada'):
+            return JsonResponse({'ok': False, 'error': 'Debe cargar la guía antes de finalizar Documentación.'}, status=409)
+        reloj, _ = _metadata_documentacion_despacho_terramar(citacion, CAMPO_DESP_TERR_DOC_TEMPORIZADOR)
+        inicio = _parse_iso_operacion(reloj.get('inicio_iso'))
+        if not inicio:
+            return JsonResponse({'ok': False, 'error': 'La fecha de inicio de Documentación no es válida.'}, status=409)
+        ahora = timezone.now()
+        duracion = ahora - inicio
+        reloj.update({'fin_iso': ahora.isoformat(), 'fin': timezone.localtime(ahora).strftime('%d/%m/%Y %H:%M'),
+                       'duracion_segundos': max(int(duracion.total_seconds()), 0),
+                       'duracion_legible': formatear_duracion_operacional(duracion),
+                       'usuario_fin': request.user.username, 'usuario_fin_id': request.user.id})
+        _guardar_metadata_documentacion_despacho_terramar(citacion, request.user, CAMPO_DESP_TERR_DOC_TEMPORIZADOR, ETIQUETA_DESP_TERR_DOC_TEMPORIZADOR, reloj)
+        log = OPERACION_PLANTA_LOG.objects.create(US_NID=request.user, EP_NID=citacion.EP_NID, PL_NID=citacion.PL_NID,
+            CI_NID=citacion, OPL_CPASO=PASO_DOCUMENTACION_TERRAMAR,
+            OPL_CPERFIL_RESPONSABLE=PERFIL_TERRAMAR_ASISTENTE_RECEPCION,
+            OPL_CESTADO=OPERACION_PLANTA_LOG.ESTADO_COMPLETADO,
+            OPL_COBSERVACION=str(request.POST.get('observacion') or '').strip(), OPL_FFECHAREGISTRO=ahora)
+    return JsonResponse({'ok': True, 'mensaje': 'Documentación completada. Autorizar Salida es el siguiente paso.',
+                         'duracion': reloj['duracion_legible'], 'fecha': timezone.localtime(log.OPL_FFECHAREGISTRO).strftime('%d/%m/%Y %H:%M')})
+
+# Revisión final exclusiva de Autorizar Salida para DESPACHO_TERRAMAR.
+CAMPO_DESP_TERR_AUTORIZACION_SALIDA = 'DESP_TERR_AUTORIZACION_SALIDA'
+
+
+def _payload_autorizar_salida_despacho_terramar(citacion):
+    datos_operacion, _ = obtener_datos_operacion_citacion(citacion)
+    detalle = detalle_despacho_resumen_dict(citacion, detalle_operacional_dict(citacion)) or {}
+    ingreso = obtener_valores_ingreso_camion(citacion) or {}
+    entrada = _payload_ticket_pesaje_guardado(citacion, 'Pesaje Entrada') or {}
+    salida = _payload_ticket_pesaje_guardado(citacion, 'Pesaje Salida') or {}
+    mop = _payload_ticket_mop_guardado(citacion)
+    ciclo = obtener_documentos_ciclo_carga_terramar(citacion)
+    documentacion = _payload_documentacion_despacho_terramar(citacion)
+    datos_planificacion = build_datos_planificacion_terramar(
+        citacion,
+        detalle_operacional=detalle_operacional_dict(citacion),
+        valores_ingreso=ingreso,
+        detalle_despacho=detalle,
+    ) or {}
+
+    return {
+        'aplicable': es_documentacion_despacho_terramar(citacion),
+        'planificacion': {'id': citacion.PL_NID_id, 'citacion': citacion.id, 'datos': datos_planificacion, 'cliente': detalle.get('cliente_nombre') or obtener_cliente_planificacion_citacion(citacion).get('nombre') or '', 'destino': detalle.get('destino') or '', 'contenedor': detalle.get('contenedor_crt') or '', 'insumo': detalle.get('insumo') or '', 'bodega': detalle.get('bodega') or '', 'tipo_camion': detalle.get('tipo_camion') or '', 'pallet': detalle.get('pallet') or '', 'relleno': detalle.get('relleno') or '', 'flujo': citacion.SC_NID.SE_CNOMBRE if citacion.SC_NID else '', 'fecha': timezone.localtime(citacion.CI_FFECHACITACION).strftime('%d/%m/%Y %H:%M') if citacion.CI_FFECHACITACION else ''},
+        'transporte': {'cargo': detalle.get('transporte_a_cargo') or '', 'empresa': detalle.get('empresa_transporte') or ingreso.get('empresa_transporte') or '', 'conductor': detalle.get('conductor') or ingreso.get('conductor') or '', 'telefono': detalle.get('telefono_conductor') or ingreso.get('telefono_conductor') or '', 'patente': detalle.get('patente') or ingreso.get('patente') or ''},
+        'entrada': entrada, 'salida': salida, 'mop': mop, 'ciclo': ciclo, 'documentacion': documentacion,
+    }
+
+
+def _validar_dependencias_autorizacion_despacho_terramar(citacion):
+    pasos = {'Pesaje Entrada', PASO_CICLO_CARGA_TERRAMAR, 'Pesaje Salida', PASO_DOCUMENTACION_TERRAMAR}
+    completos = set(OPERACION_PLANTA_LOG.objects.filter(CI_NID=citacion, OPL_CESTADO=OPERACION_PLANTA_LOG.ESTADO_COMPLETADO).values_list('OPL_CPASO', flat=True))
+    faltantes = pasos - completos
+    if faltantes:
+        return 'Faltan pasos previos completados: ' + ', '.join(sorted(faltantes)) + '.'
+    if not _ticket_pesaje_obligatorio_guardado(citacion, 'Pesaje Entrada'):
+        return 'No es posible autorizar la salida. Falta el Ticket de Pesaje Entrada válido.'
+    if obtener_documentos_ciclo_carga_terramar(citacion).get('faltantes'):
+        return 'No es posible autorizar la salida. Faltan documentos de Ciclo Carga.'
+    if not _ticket_pesaje_obligatorio_guardado(citacion, 'Pesaje Salida'):
+        return 'No es posible autorizar la salida. Falta el Ticket de Pesaje Salida válido.'
+    if not _ticket_mop_guardado_valido(citacion):
+        return 'No es posible autorizar la salida. Falta el Ticket MOP / Ejes.'
+    doc = _payload_documentacion_despacho_terramar(citacion)
+    if not doc.get('encarpe_ok'):
+        return 'No es posible autorizar la salida. Falta confirmar Encarpe.'
+    if not doc.get('guia_cargada'):
+        return 'No es posible autorizar la salida. Falta la guía cargada.'
+    reloj = doc.get('temporizador') or {}
+    if not reloj.get('iniciado') or not reloj.get('finalizado') or reloj.get('duracion_segundos') is None:
+        return 'No es posible autorizar la salida. El temporizador de Documentación no está finalizado.'
+    return ''
+
+
+def ajax_operacion_planta_autorizar_salida_despacho_terramar(request, pk):
+    if request.method != 'POST':
+        return JsonResponse({'ok': False, 'error': 'Método no permitido.'}, status=405)
+    citacion, error = _obtener_citacion_operacion_planta_ajax(request, pk)
+    if error:
+        return error
+    if not es_documentacion_despacho_terramar(citacion):
+        return JsonResponse({'ok': False, 'error': 'Esta acción solo aplica a DESPACHO_TERRAMAR.'}, status=404)
+    if not usuario_puede_paso_operacion(request.user, [PERFIL_TERRAMAR_ASISTENTE_DESPACHO]):
+        return JsonResponse({'ok': False, 'error': 'Solo lectura: este paso corresponde a Asistente Despacho.'}, status=403)
+    if str(request.POST.get('documentacion_validada') or '').lower() not in {'1', 'true', 'on', 'si'}:
+        return JsonResponse({'ok': False, 'error': 'Debe confirmar que ha validado toda la documentación antes de autorizar la salida.'}, status=400)
+    with transaction.atomic():
+        citacion = _recargar_citacion_bloqueada_operacion(citacion)
+        if OPERACION_PLANTA_LOG.objects.filter(CI_NID=citacion, OPL_CPASO=PASO_AUTORIZAR_SALIDA, OPL_CESTADO=OPERACION_PLANTA_LOG.ESTADO_COMPLETADO).exists():
+            return JsonResponse({'ok': False, 'error': 'Autorizar Salida ya fue completado.'}, status=409)
+        if not _paso_activo_es(citacion, PASO_AUTORIZAR_SALIDA):
+            return JsonResponse({'ok': False, 'error': 'Autorizar Salida no es el paso activo.'}, status=409)
+        error_dependencias = _validar_dependencias_autorizacion_despacho_terramar(citacion)
+        if error_dependencias:
+            return JsonResponse({'ok': False, 'error': error_dependencias}, status=409)
+        ahora = timezone.now()
+        _guardar_metadata_documentacion_despacho_terramar(citacion, request.user, CAMPO_DESP_TERR_AUTORIZACION_SALIDA, 'Autorización salida Despacho Terramar', {'validado': True, 'texto': 'He validado que toda la documentación está correcta', 'usuario': request.user.username, 'usuario_id': request.user.id, 'fecha_iso': ahora.isoformat(), 'fecha': timezone.localtime(ahora).strftime('%d/%m/%Y %H:%M'), 'paso': PASO_AUTORIZAR_SALIDA})
+        OPERACION_PLANTA_LOG.objects.create(US_NID=request.user, EP_NID=citacion.EP_NID, PL_NID=citacion.PL_NID, CI_NID=citacion, OPL_CPASO=PASO_AUTORIZAR_SALIDA, OPL_CPERFIL_RESPONSABLE=PERFIL_TERRAMAR_ASISTENTE_DESPACHO, OPL_CESTADO=OPERACION_PLANTA_LOG.ESTADO_COMPLETADO, OPL_COBSERVACION=str(request.POST.get('observacion') or '').strip(), OPL_FFECHAREGISTRO=ahora)
+    return JsonResponse({'ok': True, 'mensaje': 'Salida autorizada. Confirmar Salida es el siguiente paso.'})
+
+# Documentaci?n exclusiva del paso visible Ciclo Carga de Despacho Terramar.
+DOCUMENTOS_CICLO_CARGA_TERRAMAR = {
+    'DESP_TERR_ZEBRA_DESPACHO': 'Zebra de despacho',
+    'DESP_TERR_ETIQUETA_ORIGEN': 'Etiqueta de origen',
+    'DESP_TERR_FOTO_CAMION_LADO_1': 'Foto  cargado lado 1',
+    'DESP_TERR_FOTO_CAMION_LADO_2': 'Foto camión cargado lado 2',
+    'DESP_TERR_CORREO_LIBERACION': 'Correo de liberación',
+}
+EXTENSIONES_CICLO_CARGA_TERRAMAR = {'.pdf', '.jpg', '.jpeg', '.png', '.doc', '.docx'}
+MAX_BYTES_CICLO_CARGA_TERRAMAR = 20 * 1024 * 1024
+
+
+def _campo_archivo_ciclo_carga_terramar(citacion, usuario, codigo):
+    return CAMPO.objects.get_or_create(
+        EP_NID=citacion.EP_NID, CA_CCODIGO=codigo,
+        defaults={'US_NID': usuario, 'CA_CTIPO': 'ARCHIVO', 'CA_CETIQUETA': DOCUMENTOS_CICLO_CARGA_TERRAMAR[codigo],
+                  'CA_CPLACEMARK': DOCUMENTOS_CICLO_CARGA_TERRAMAR[codigo], 'CA_BOBLIGATORIO': False,
+                  'CA_BHABILITADO': True, 'CA_BASIGNARVALOR': False},
+    )[0]
+
+
+def obtener_documentos_ciclo_carga_terramar(citacion, request=None):
+    registros = DATO_OPERACION.objects.filter(
+        CI_NID=citacion, CAMP_NID__CA_CCODIGO__in=DOCUMENTOS_CICLO_CARGA_TERRAMAR,
+    ).select_related('US_NID', 'CAMP_NID').order_by('-DO_FFECHAREGISTRO', '-id')
+    por_codigo = {}
+    for dato in registros:
+        codigo = dato.CAMP_NID.CA_CCODIGO
+        if codigo not in por_codigo:
+            try:
+                meta = json.loads(dato.DO_CVALOR or '{}')
+            except (TypeError, ValueError):
+                meta = {}
+            if not isinstance(meta, dict): meta = {}
+            por_codigo[codigo] = (dato, meta)
+    documentos=[]
+    for codigo, nombre in DOCUMENTOS_CICLO_CARGA_TERRAMAR.items():
+        dato, meta = por_codigo.get(codigo, (None, {}))
+        ruta = str(meta.get('ruta') or '')
+        cargado = bool(dato and ruta and os.path.isfile(ruta))
+        documentos.append({'codigo': codigo, 'nombre': nombre, 'cargado': cargado,
+            'archivo_nombre': meta.get('nombre') or (os.path.basename(ruta) if ruta else ''),
+            'archivo_url': reverse('ajax_operacion_planta_ciclo_carga_terramar_documento_ver', args=[citacion.id, codigo]) if cargado else '',
+            'usuario': dato.US_NID.username if dato and dato.US_NID_id else '',
+            'fecha': timezone.localtime(dato.DO_FFECHAREGISTRO).strftime('%d/%m/%Y %H:%M') if dato and dato.DO_FFECHAREGISTRO else ''})
+    faltantes=[d['nombre'] for d in documentos if not d['cargado']]
+    return {'aplicable': es_citacion_despacho_terramar(citacion), 'documentos': documentos,
+            'faltantes': faltantes, 'todos_cargados': not faltantes}
+
+
+def _citacion_ciclo_carga_terramar_request(request, pk):
+    empresa=Verificar_empresa(request)
+    if empresa is None: return None, JsonResponse({'ok': False, 'error': 'Debe seleccionar una empresa.'}, status=400)
+    citacion=get_object_or_404(CITACION.objects.select_related('EP_NID','PL_NID','SC_NID'), pk=pk, EP_NID_id=empresa, CI_BHABILITADO=True)
+    if not es_citacion_despacho_terramar(citacion): return None, JsonResponse({'ok': False, 'error': 'Esta acci?n s?lo aplica a Despacho Terramar.'}, status=400)
+    paso, responsables, _ = obtener_paso_activo_operacion(citacion)
+    if paso != PASO_CICLO_CARGA_TERRAMAR: return None, JsonResponse({'ok': False, 'error': 'Ciclo Carga no es el paso activo.'}, status=409)
+    if not usuario_puede_paso_operacion(request.user, responsables): return None, JsonResponse({'ok': False, 'error': 'Solo lectura: este paso corresponde a Asistente Bodega.'}, status=403)
+    return citacion, None
+
+
+def ajax_operacion_planta_ciclo_carga_terramar_documento(request, pk):
+    if request.method != 'POST': return JsonResponse({'ok': False, 'error': 'M?todo no permitido.'}, status=405)
+    citacion, error = _citacion_ciclo_carga_terramar_request(request, pk)
+    if error: return error
+    codigo=str(request.POST.get('codigo_documento') or '').strip()
+    archivo=request.FILES.get('archivo')
+    if codigo not in DOCUMENTOS_CICLO_CARGA_TERRAMAR: return JsonResponse({'ok': False, 'error': 'Tipo documental no v?lido.'}, status=400)
+    if not archivo or not getattr(archivo, 'name', ''): return JsonResponse({'ok': False, 'error': 'Debe seleccionar un archivo.'}, status=400)
+    extension=os.path.splitext(os.path.basename(archivo.name))[1].lower()
+    if extension not in EXTENSIONES_CICLO_CARGA_TERRAMAR or archivo.size <= 0 or archivo.size > MAX_BYTES_CICLO_CARGA_TERRAMAR:
+        return JsonResponse({'ok': False, 'error': 'Archivo inv?lido. Formatos permitidos: PDF, JPG, JPEG, PNG, DOC y DOCX (m?ximo 20 MB).'}, status=400)
+    campo=_campo_archivo_ciclo_carga_terramar(citacion, request.user, codigo)
+    if DATO_OPERACION.objects.filter(CI_NID=citacion, CAMP_NID=campo).exists():
+        return JsonResponse({'ok': False, 'error': 'Ya existe un archivo cargado para este requisito.'}, status=409)
+    ruta=guardar_archivo_dato_operacion(citacion, citacion.ETAPA_ACTUAL, archivo)
+    meta={'ruta': ruta, 'nombre': get_valid_filename(os.path.basename(archivo.name)), 'codigo': codigo, 'paso': PASO_CICLO_CARGA_TERRAMAR}
+    DATO_OPERACION.objects.create(CI_NID=citacion, SC_NID=citacion.SC_NID, ET_NID=citacion.ETAPA_ACTUAL, CAMP_NID=campo,
+        EP_NID=citacion.EP_NID, US_NID=request.user, DO_CVALOR=json.dumps(meta, ensure_ascii=False), DO_FFECHAREGISTRO=timezone.now())
+    return JsonResponse({'ok': True, 'codigo': codigo, 'nombre': DOCUMENTOS_CICLO_CARGA_TERRAMAR[codigo], 'archivo': meta['nombre'], 'mensaje': 'Documento cargado correctamente.'})
+
+
+def ajax_operacion_planta_ciclo_carga_terramar_documento_ver(request, pk, codigo):
+    empresa=Verificar_empresa(request)
+    if empresa is None or codigo not in DOCUMENTOS_CICLO_CARGA_TERRAMAR: raise Http404
+    citacion=get_object_or_404(CITACION.objects.select_related('EP_NID','SC_NID'), pk=pk, EP_NID_id=empresa, CI_BHABILITADO=True)
+    if not es_citacion_despacho_terramar(citacion): raise Http404
+    dato=DATO_OPERACION.objects.filter(CI_NID=citacion, CAMP_NID__CA_CCODIGO=codigo).select_related('CAMP_NID').order_by('-id').first()
+    try: meta=json.loads(dato.DO_CVALOR or '{}') if dato else {}
+    except (TypeError, ValueError): meta={}
+    ruta=str(meta.get('ruta') or '')
+    raiz=obtener_base_folder_campo(citacion.EP_NID_id)
+    if not ruta or not _ruta_dentro_de_raiz(ruta, raiz) or not os.path.isfile(ruta): raise Http404
+    return FileResponse(open(ruta, 'rb'), as_attachment=False, filename=meta.get('nombre') or os.path.basename(ruta))
+
+
+def ajax_operacion_planta_ciclo_carga_terramar_completar(request, pk):
+    if request.method != 'POST': return JsonResponse({'ok': False, 'error': 'M?todo no permitido.'}, status=405)
+    citacion, error = _citacion_ciclo_carga_terramar_request(request, pk)
+    if error: return error
+    with transaction.atomic():
+        citacion=_recargar_citacion_bloqueada_operacion(citacion)
+        if OPERACION_PLANTA_LOG.objects.filter(CI_NID=citacion, OPL_CPASO=PASO_CICLO_CARGA_TERRAMAR, OPL_CESTADO=OPERACION_PLANTA_LOG.ESTADO_COMPLETADO).exists():
+            return JsonResponse({'ok': False, 'error': 'Ciclo Carga ya fue completado.'}, status=409)
+        estado=obtener_documentos_ciclo_carga_terramar(citacion)
+        if estado['faltantes']: return JsonResponse({'ok': False, 'error': 'No es posible completar Ciclo Carga.', 'faltantes': estado['faltantes']}, status=400)
+        OPERACION_PLANTA_LOG.objects.create(US_NID=request.user, EP_NID=citacion.EP_NID, PL_NID=citacion.PL_NID, CI_NID=citacion,
+            OPL_CPASO=PASO_CICLO_CARGA_TERRAMAR, OPL_CPERFIL_RESPONSABLE=PERFIL_TERRAMAR_ASISTENTE_BODEGA,
+            OPL_CESTADO=OPERACION_PLANTA_LOG.ESTADO_COMPLETADO, OPL_COBSERVACION=str(request.POST.get('observacion') or '').strip())
+    return JsonResponse({'ok': True, 'mensaje': 'Ciclo Carga completado. Pesaje Salida es el siguiente paso.'})
 
 
 def OPERACION_PLANTA_CITACION(request, pk):
@@ -17861,7 +22288,8 @@ def OPERACION_PLANTA_CITACION(request, pk):
         CI_NID=citacion
     ).order_by('-OPL_FFECHAREGISTRO')
     paso_actual_visible, _, pasos_completados = obtener_paso_activo_operacion(citacion, pasos_config)
-    if paso_actual_visible == PASO_ANALISIS_CALIDAD:
+    operacion_solo_lectura = operacion_planta_esta_terminada(citacion)
+    if not operacion_solo_lectura and paso_actual_visible == PASO_ANALISIS_CALIDAD:
         asegurar_calidad_iniciada(citacion, request.user)
     ultimo_log_por_paso = {}
     for log in logs:
@@ -17871,8 +22299,33 @@ def OPERACION_PLANTA_CITACION(request, pk):
     pasos = []
     paso_pesaje_activo_alt = None
     datos_operacion, documentos_operacion = obtener_datos_operacion_citacion(citacion)
+    detalle_operacional_snapshot = detalle_operacional_dict(citacion)
+    snapshot_recepcion_sbh = datos_snapshot_recepcion_sbh_presentacion(
+        citacion,
+        detalle_operacional_snapshot,
+        datos_operacion,
+    )
     es_despacho_bodega_externa = es_despacho_bodega_externa_operacion(citacion)
+    es_despacho_sbh_op = es_despacho_sbh_operacion(citacion)
     es_recepcion_bodega_externa = es_recepcion_bodega_externa_operacion(citacion)
+    es_terramar_bodega_externa = es_recepcion_terramar_bodega_externa_operacion(citacion)
+    es_flujo_terramar = es_flujo_preoperacional_terramar(citacion)
+    es_flujo_timbraje_recepcion = aplica_timbraje_recepcion(citacion)
+    es_doc_despacho_terramar = es_documentacion_despacho_terramar(citacion)
+    if es_doc_despacho_terramar and paso_actual_visible == PASO_DOCUMENTACION_TERRAMAR:
+        asegurar_temporizador_documentacion_despacho_terramar(citacion, request.user)
+    documentacion_despacho_terramar_ctx = (
+        _payload_documentacion_despacho_terramar(citacion)
+        if es_doc_despacho_terramar
+        else {'aplicable': False}
+    )
+    autorizacion_salida_despacho_terramar_ctx = _payload_autorizar_salida_despacho_terramar(citacion) if es_doc_despacho_terramar else {'aplicable': False}
+    ciclo_carga_terramar_ctx = obtener_documentos_ciclo_carga_terramar(citacion) if es_citacion_despacho_terramar(citacion) else {'aplicable': False, 'documentos': [], 'faltantes': [], 'todos_cargados': False}
+    documentacion_terramar_ctx = (
+        _payload_documentacion_terramar(citacion, request)
+        if es_flujo_timbraje_recepcion
+        else None
+    )
     if (
         es_recepcion_bodega_externa
         and _toma_muestra_accion_guardada(citacion)
@@ -17886,12 +22339,26 @@ def OPERACION_PLANTA_CITACION(request, pk):
             or bool(_leer_metadata_toma_muestra_accion(citacion))
         )
         mostrar_viaje_bodega_externa = (
-            es_panel_toma_bodega_externa
-            and PASO_TOMA_MUESTRA in pasos_completados
+            (
+                es_panel_toma_bodega_externa
+                and PASO_TOMA_MUESTRA in pasos_completados
+            )
+            or (
+                es_terramar_bodega_externa
+                and nombre_paso == PASO_CICLO_DESCARGA
+            )
         )
         log_paso = ultimo_log_por_paso.get(nombre_paso)
-        puede_editar = usuario_puede_paso_operacion(request.user, responsables)
+        puede_editar = (
+            not operacion_solo_lectura
+            and usuario_puede_paso_operacion(request.user, responsables)
+        )
         ticket_pesaje = _payload_ticket_pesaje_guardado(citacion, nombre_paso, request)
+        ticket_mop = (
+            _payload_ticket_mop_guardado(citacion, request)
+            if nombre_paso == 'Pesaje Salida'
+            else {'requerido': False, 'ok': False, 'nombre': '', 'download_url': ''}
+        )
         accion_toma_muestra = _payload_toma_muestra_accion(citacion, nombre_flujo) if nombre_paso == PASO_TOMA_MUESTRA else None
         tiempo_vapor = _payload_tiempo_vapor(citacion) if nombre_paso == PASO_TOMA_MUESTRA else None
         tiempo_toma_muestra = _payload_tiempo_toma_muestra(citacion, nombre_flujo) if nombre_paso == PASO_TOMA_MUESTRA else None
@@ -17904,20 +22371,27 @@ def OPERACION_PLANTA_CITACION(request, pk):
         revision_resultado_calidad = _payload_resultado_calidad(citacion) if nombre_paso in {PASO_RESULTADO_CALIDAD, PASO_CICLO_DESCARGA} else None
         preparacion_descarga = _payload_preparacion_descarga(citacion) if nombre_paso == PASO_RESULTADO_CALIDAD else None
         preparacion_descarga_ciclo = _payload_preparacion_descarga(citacion) if nombre_paso == PASO_CICLO_DESCARGA else None
-        ciclo_descarga = _payload_ciclo_descarga(citacion) if nombre_paso == PASO_CICLO_DESCARGA and not es_despacho and not es_recepcion_bodega_externa else None
-        ciclo_bodega_externa = _payload_ciclo_recepcion_bodega_externa(citacion) if mostrar_viaje_bodega_externa else None
+        ciclo_descarga = _payload_ciclo_descarga(citacion) if nombre_paso == PASO_CICLO_DESCARGA and not es_despacho and not es_recepcion_bodega_externa and not es_terramar_bodega_externa else None
+        ciclo_bodega_externa = (
+            _payload_ciclo_terramar_bodega_externa(citacion)
+            if es_terramar_bodega_externa and nombre_paso == PASO_CICLO_DESCARGA
+            else (_payload_ciclo_recepcion_bodega_externa(citacion) if mostrar_viaje_bodega_externa else None)
+        )
         ciclo_carga_despacho = _payload_ciclo_carga_despacho(citacion) if nombre_paso == PASO_CICLO_DESCARGA and es_despacho else None
         cierre_carga_despacho = _payload_cierre_carga_despacho(citacion, datos_operacion) if nombre_paso == PASO_CIERRE_CARGA and es_despacho else None
         borrador_sap = get_goods_receipt_draft_status(citacion) if nombre_paso == PASO_BORRADOR_SAP else None
         autorizar_salida = _payload_autorizar_salida(citacion) if nombre_paso == PASO_AUTORIZAR_SALIDA else None
         sap_update_despacho = (
             get_sap_despacho_update_status(citacion)
-            if es_despacho_bodega_externa and nombre_paso == PASO_AUTORIZAR_SALIDA
+            if (
+                (es_despacho_bodega_externa and nombre_paso == PASO_AUTORIZAR_SALIDA)
+                or (es_despacho_sbh_op and nombre_paso in {PASO_CIERRE_CARGA, PASO_AUTORIZAR_SALIDA})
+            )
             else None
         )
         sap_update_recepcion = (
             get_goods_receipt_draft_update_status(citacion)
-            if es_recepcion and nombre_paso == PASO_AUTORIZAR_SALIDA
+            if es_recepcion and not es_flujo_terramar and nombre_paso == PASO_AUTORIZAR_SALIDA
             else None
         )
         autorizacion_salida_bodega = (
@@ -17966,8 +22440,26 @@ def OPERACION_PLANTA_CITACION(request, pk):
             'nombre': nombre_paso,
             'nombre_visible': nombre_visible_paso_operacion(citacion, nombre_paso),
             'etapa_codigo': _codigo_etapa_accion_estado_camion(nombre_paso),
-            'responsable': ' / '.join(responsables),
-            'activo': nombre_paso == paso_actual_visible,
+            'responsable': ({
+                'OPERADOR ROMANA': 'Operador Romana',
+                PERFIL_TERRAMAR_ASISTENTE_BODEGA: 'Asistente Bodega',
+                PERFIL_TERRAMAR_ASISTENTE_RECEPCION: 'Asistente Recepción',
+                PERFIL_TERRAMAR_ASISTENTE_DESPACHO: 'Asistente Despacho',
+                'GUARDIA PORTERIA': 'Guardia Portería',
+            }.get(responsables[0], ' / '.join(responsables)) if es_flujo_terramar else ' / '.join(responsables)),
+            'es_flujo_terramar': es_flujo_terramar,
+            'es_recepcion_terramar_principal': es_recepcion_terramar_principal(citacion),
+            'es_sbh_recepcion': _empresa_timbre_recepcion(citacion) == 'SBH' and es_recepcion,
+            'es_terramar_bodega_externa': es_terramar_bodega_externa,
+            'implementacion_pendiente': False,
+            'requiere_documentacion_terramar': es_flujo_timbraje_recepcion and nombre_paso == PASO_DOCUMENTACION_TERRAMAR,
+            'requiere_documentacion_despacho_terramar': es_doc_despacho_terramar and nombre_paso == PASO_DOCUMENTACION_TERRAMAR,
+            'requiere_autorizar_salida_terramar': es_flujo_timbraje_recepcion and nombre_paso == PASO_AUTORIZAR_SALIDA,
+            'requiere_autorizar_salida_despacho_terramar': es_doc_despacho_terramar and nombre_paso == PASO_AUTORIZAR_SALIDA,
+            'autorizacion_salida_despacho_terramar': autorizacion_salida_despacho_terramar_ctx,
+            'documentacion_terramar': documentacion_terramar_ctx,
+            'documentacion_despacho_terramar': documentacion_despacho_terramar_ctx,
+            'activo': not operacion_solo_lectura and nombre_paso == paso_actual_visible,
             'seleccionado': nombre_paso == paso_actual_visible or (
                 es_panel_toma_bodega_externa and paso_actual_visible == PASO_CICLO_DESCARGA
             ),
@@ -17976,6 +22468,7 @@ def OPERACION_PLANTA_CITACION(request, pk):
             'requiere_ticket_pesaje': nombre_paso in PASOS_OPERACION_PLANTA_TICKET,
             'tipo_ticket_pesaje': _tipo_ticket_pesaje(nombre_paso) or '',
             'ticket_pesaje': ticket_pesaje,
+            'ticket_mop': ticket_mop,
             'requiere_accion_toma_muestra': nombre_paso == PASO_TOMA_MUESTRA,
             'accion_toma_muestra': accion_toma_muestra,
             'tiempo_vapor': tiempo_vapor,
@@ -17989,33 +22482,46 @@ def OPERACION_PLANTA_CITACION(request, pk):
             'revision_resultado_calidad': revision_resultado_calidad,
             'preparacion_descarga': preparacion_descarga,
             'espera_descarga': espera_descarga,
-            'requiere_ciclo_descarga': nombre_paso == PASO_CICLO_DESCARGA and not es_recepcion_bodega_externa,
+            'requiere_ciclo_descarga': nombre_paso == PASO_CICLO_DESCARGA and not es_recepcion_bodega_externa and not es_terramar_bodega_externa,
             'requiere_ciclo_bodega_externa': mostrar_viaje_bodega_externa,
-            'puede_operar_ciclo_bodega_externa': mostrar_viaje_bodega_externa and paso_actual_visible == PASO_CICLO_DESCARGA,
+            'puede_operar_ciclo_bodega_externa': not operacion_solo_lectura and mostrar_viaje_bodega_externa and paso_actual_visible == PASO_CICLO_DESCARGA,
             'preparacion_descarga_ciclo': preparacion_descarga_ciclo,
             'ciclo_descarga': ciclo_descarga,
             'ciclo_bodega_externa': ciclo_bodega_externa,
-            'puede_iniciar_ciclo_bodega_externa': usuario_puede_paso_operacion(request.user, ['ASISTENTE C D']),
-            'puede_finalizar_ciclo_bodega_externa': usuario_puede_paso_operacion(request.user, ['GUARDIA PORTERIA']),
+            'puede_iniciar_ciclo_bodega_externa': not operacion_solo_lectura and usuario_puede_paso_operacion(
+                request.user,
+                [PERFIL_TERRAMAR_ASISTENTE_BODEGA] if es_terramar_bodega_externa else ['ASISTENTE C D'],
+            ),
+            'puede_finalizar_ciclo_bodega_externa': not operacion_solo_lectura and usuario_puede_paso_operacion(request.user, ['GUARDIA PORTERIA']),
             'ciclo_carga_despacho': ciclo_carga_despacho,
+            'ciclo_carga_terramar': dict(ciclo_carga_terramar_ctx, activo=(nombre_paso == PASO_CICLO_CARGA_TERRAMAR and nombre_paso == paso_actual_visible), completado=(nombre_paso in pasos_completados), puede_editar=puede_editar),
             'es_ciclo_carga_despacho': bool(ciclo_carga_despacho),
             'requiere_cierre_carga_despacho': bool(cierre_carga_despacho),
             'cierre_carga_despacho': cierre_carga_despacho,
+            'es_despacho_sbh_operacion': es_despacho_sbh_op,
+            'puede_reabrir_cierre_carga': (
+                es_despacho_sbh_op
+                and nombre_paso == PASO_CIERRE_CARGA
+                and nombre_paso in pasos_completados
+                and PASO_AUTORIZAR_SALIDA not in pasos_completados
+                and usuario_puede_reabrir_cierre_carga(request.user)
+            ),
             'requiere_borrador_sap': nombre_paso == PASO_BORRADOR_SAP,
             'borrador_sap': borrador_sap,
-            'requiere_autorizar_salida': nombre_paso == PASO_AUTORIZAR_SALIDA,
+            'requiere_autorizar_salida': nombre_paso == PASO_AUTORIZAR_SALIDA and (not es_flujo_timbraje_recepcion or _empresa_timbre_recepcion(citacion) == 'SBH'),
             'requiere_confirmar_salida': nombre_paso == PASO_CONFIRMAR_SALIDA,
             'autorizar_salida': autorizar_salida,
             'requiere_update_sap_despacho': bool(sap_update_despacho),
             'sap_update_despacho': sap_update_despacho,
             'requiere_update_sap_recepcion': bool(sap_update_recepcion),
             'sap_update_recepcion': sap_update_recepcion,
+            'puede_operar_sap_recepcion': usuario_puede_actualizar_borrador_sap_recepcion(citacion, request.user),
             'puede_ver_detalle_tecnico_sap': usuario_puede_ver_detalle_tecnico_sap(request.user),
             'requiere_autorizacion_salida_bodega_externa': bool(autorizacion_salida_bodega),
             'autorizacion_salida_bodega': autorizacion_salida_bodega,
             'requiere_ingreso_planta_bodega_externa': bool(ingreso_planta_bodega),
             'ingreso_planta_bodega': ingreso_planta_bodega,
-            'tipos_ciclo_descarga': opciones_tipos_ciclo_descarga(nombre_flujo) if nombre_paso == PASO_CICLO_DESCARGA and not es_recepcion_bodega_externa else [],
+            'tipos_ciclo_descarga': opciones_tipos_ciclo_descarga(nombre_flujo) if nombre_paso == PASO_CICLO_DESCARGA and not es_recepcion_bodega_externa and not es_terramar_bodega_externa else [],
             'sitios_descarga': [f'Sitio {i}' for i in range(1, 7)] if nombre_paso == PASO_RESULTADO_CALIDAD else [],
             'bombas_descarga': [f'Bomba {i}' for i in range(1, 7)] if nombre_paso == PASO_RESULTADO_CALIDAD else [],
             'solo_lectura_msg': '' if puede_editar else f'Solo lectura: este paso corresponde a {" / ".join(responsables)}',
@@ -18057,6 +22563,8 @@ def OPERACION_PLANTA_CITACION(request, pk):
         'fecha_ingreso_operacion': fecha_ingreso_operacion,
         'guia_operacion_url': guia_operacion_url,
         'numero_guia_operacion': obtener_numero_guia(citacion, datos_operacion.values()),
+        'operacion_solo_lectura': operacion_solo_lectura,
+        'snapshot_recepcion_sbh': snapshot_recepcion_sbh or {},
     }
     return render(request, 'home/CITACION/operacion_planta.html', ctx)
 
@@ -18123,6 +22631,8 @@ def OPERACION_PLANTA_GUARDAR_PASO(request, pk):
 
     Empresa = Verificar_empresa(request)
     if Empresa is None:
+        if _pk_corresponde_recepcion_terramar(pk):
+            return respuesta_error('No tiene acceso a la empresa Terramar de esta citación.', status=403)
         return respuesta_error('Debe seleccionar una empresa.', status=400)
 
     try:
@@ -18136,6 +22646,8 @@ def OPERACION_PLANTA_GUARDAR_PASO(request, pk):
 
     if not citacion_habilitada_operacion(citacion):
         return respuesta_error('La citacion aun no esta habilitada para Operacion Planta.', status=400, citacion_obj=citacion)
+    if operacion_planta_esta_terminada(citacion):
+        return respuesta_error('Operacion terminada: el historial esta disponible en modo solo lectura.', status=409, citacion_obj=citacion)
 
     if post_tradicional:
         citacion_id_post = str(request.POST.get('citacion_id') or '').strip()
@@ -18167,8 +22679,38 @@ def OPERACION_PLANTA_GUARDAR_PASO(request, pk):
     if not usuario_puede_paso_operacion(request.user, responsables_paso):
         return respuesta_error(f'Solo lectura: este paso corresponde a {" / ".join(responsables_paso)}', status=403, citacion_obj=citacion)
 
+    if request.POST.get('accion') == 'subir_imagenes_sellos':
+        if paso != PASO_CIERRE_CARGA or not es_despacho_sbh_operacion(citacion):
+            return respuesta_error('La carga de imagenes de sellos solo aplica a Cierre Proceso de Carga de Despacho SBH.', status=403, citacion_obj=citacion)
+        archivos = request.FILES.getlist('imagenes_sellos')
+        if not archivos:
+            return respuesta_error('Debe seleccionar al menos una imagen de sellos.', status=400, citacion_obj=citacion)
+        try:
+            for archivo in archivos:
+                _validar_imagen_sello_despacho(archivo)
+        except ValueError as exc:
+            nombre_archivo = str(getattr(archivo, 'name', '') or 'Archivo')
+            return respuesta_error(f'{nombre_archivo}: {exc}', status=400, citacion_obj=citacion)
+        with transaction.atomic():
+            _guardar_imagenes_sellos_despacho(citacion, archivos, request.user)
+        imagenes = _documentos_sellos_despacho(citacion)
+        _, documentos_operacion = obtener_datos_operacion_citacion(citacion)
+        cantidad = len(archivos)
+        return JsonResponse({
+            'success': True,
+            'message': f'{cantidad} imagen(es) de sellos cargada(s) correctamente.',
+            'imagenes': imagenes,
+            'documentos_operacion': documentos_operacion,
+        })
+
     if paso in PASOS_OPERACION_PLANTA_TICKET and not _ticket_pesaje_obligatorio_guardado(citacion, paso):
         return respuesta_error(TICKET_PESAJE_REQUIRED_MESSAGE, status=400, citacion_obj=citacion)
+
+    if (
+        es_pesaje_salida_mop_despacho_terramar(citacion, paso, _tipo_ticket_pesaje(paso))
+        and not _ticket_mop_guardado_valido(citacion)
+    ):
+        return respuesta_error(TICKET_MOP_REQUIRED_MESSAGE, status=400, citacion_obj=citacion)
 
     if paso == PASO_TOMA_MUESTRA and not _toma_muestra_accion_guardada(citacion):
         return respuesta_error(TOMA_MUESTRA_ACCION_REQUIRED_MESSAGE, status=400, citacion_obj=citacion)
@@ -18193,8 +22735,12 @@ def OPERACION_PLANTA_GUARDAR_PASO(request, pk):
         )
 
     if paso == PASO_CICLO_DESCARGA:
-        if es_recepcion_bodega_externa_operacion(citacion):
-            ciclo_bodega_externa = _payload_ciclo_recepcion_bodega_externa(citacion)
+        if es_recepcion_bodega_externa_operacion(citacion) or es_recepcion_terramar_bodega_externa_operacion(citacion):
+            ciclo_bodega_externa = (
+                _payload_ciclo_terramar_bodega_externa(citacion)
+                if es_recepcion_terramar_bodega_externa_operacion(citacion)
+                else _payload_ciclo_recepcion_bodega_externa(citacion)
+            )
             if not ciclo_bodega_externa.get('finalizada'):
                 return respuesta_error('Debe registrar el regreso desde Bodega Externa antes de avanzar a Pesaje Salida.', status=400, citacion_obj=citacion)
         elif es_citacion_despacho(citacion):
@@ -18206,7 +22752,11 @@ def OPERACION_PLANTA_GUARDAR_PASO(request, pk):
                 return respuesta_error('Debe iniciar y finalizar la descarga desde el panel Ciclo Descarga.', status=400, citacion_obj=citacion)
 
     if paso == PASO_CIERRE_CARGA and es_citacion_despacho(citacion):
-        ok_cierre, resultado_cierre = guardar_cierre_carga_despacho(citacion, request.POST, request.user)
+        ok_cierre, resultado_cierre = guardar_cierre_carga_despacho(
+            citacion,
+            request.POST,
+            request.user,
+        )
         if not ok_cierre:
             return respuesta_error(resultado_cierre, status=400, citacion_obj=citacion)
         observacion = (
@@ -18217,6 +22767,9 @@ def OPERACION_PLANTA_GUARDAR_PASO(request, pk):
     if paso == PASO_BORRADOR_SAP:
         return respuesta_error('Debe generar y enviar el borrador SAP desde el panel Borrador SAP.', status=400, citacion_obj=citacion)
 
+    if es_citacion_recepcion_terramar(citacion) and paso == PASO_DOCUMENTACION_TERRAMAR:
+        return respuesta_error('Documentación quedará habilitada funcionalmente en la Etapa 2.', status=409, citacion_obj=citacion)
+
     if paso == PASO_AUTORIZAR_SALIDA:
         return respuesta_error('Debe autorizar la salida desde el panel Autorizar Salida.', status=400, citacion_obj=citacion)
 
@@ -18226,6 +22779,8 @@ def OPERACION_PLANTA_GUARDAR_PASO(request, pk):
         OPL_CESTADO=OPERACION_PLANTA_LOG.ESTADO_COMPLETADO
     ).order_by('-OPL_FFECHAREGISTRO').first()
     if log_existente:
+        if es_citacion_recepcion_terramar(citacion):
+            return respuesta_error('El paso operacional ya estaba registrado.', status=409, citacion_obj=citacion)
         if paso == 'Pesaje Salida':
             liberar_reservas_estanque_citacion(
                 citacion,
@@ -18260,10 +22815,15 @@ def OPERACION_PLANTA_GUARDAR_PASO(request, pk):
         observacion = observacion or ''
 
     with transaction.atomic():
+        if paso == 'Pesaje Entrada' and es_recepcion_terramar_principal(citacion):
+            citacion = _recargar_citacion_bloqueada_operacion(citacion)
         if paso == PASO_TOMA_MUESTRA:
             _finalizar_tiempo_toma_muestra(citacion, request.user, nombre_flujo)
             if es_recepcion_bodega_externa_operacion(citacion):
                 asegurar_calidad_iniciada(citacion, request.user)
+        campos_fecha_log = {}
+        if paso == 'Pesaje Entrada' and es_recepcion_terramar_principal(citacion):
+            campos_fecha_log['OPL_FFECHAREGISTRO'] = timezone.now()
         log = OPERACION_PLANTA_LOG.objects.create(
             US_NID=request.user,
             EP_NID=citacion.EP_NID,
@@ -18272,8 +22832,32 @@ def OPERACION_PLANTA_GUARDAR_PASO(request, pk):
             OPL_CPASO=paso,
             OPL_CPERFIL_RESPONSABLE=' / '.join(responsables_paso),
             OPL_CESTADO=OPERACION_PLANTA_LOG.ESTADO_COMPLETADO,
-            OPL_COBSERVACION=observacion
+            OPL_COBSERVACION=observacion,
+            **campos_fecha_log,
         )
+        if paso == 'Pesaje Entrada' and es_recepcion_terramar_principal(citacion):
+            _registrar_inicio_espera_descarga_terramar(
+                citacion, request.user, log.OPL_FFECHAREGISTRO,
+            )
+
+    if paso == 'Pesaje Salida' and es_despacho_sbh_operacion(citacion):
+        resultado_sap = _actualizar_sap_despacho_post_pesaje(citacion, request.user)
+        if not resultado_sap.get('success'):
+            if (resultado_sap.get('status') or {}).get('is_error'):
+                _notificar_soporte_error_sap_despacho(citacion, request.user, resultado_sap)
+            liberar_reservas_estanque_citacion(
+                citacion,
+                request.user,
+                'Reserva liberada al completar Pesaje Salida; actualizacion SAP pendiente',
+            )
+            return respuesta_error(
+                'No se puede continuar: SAP no pudo actualizar el Draft con el peso de salida.',
+                status=502,
+                citacion_obj=citacion,
+            )
+
+    if paso == 'Pesaje Salida' and es_documentacion_despacho_terramar(citacion):
+        asegurar_temporizador_documentacion_despacho_terramar(citacion, request.user)
 
     siguiente_paso = resolver_estado_operacional_visible(
         citacion,
@@ -18660,6 +23244,11 @@ def ajax_operacion_planta_guardar_preparacion_descarga(request, pk):
 def _obtener_citacion_operacion_planta_ajax(request, pk):
     Empresa = Verificar_empresa(request)
     if Empresa is None:
+        if _pk_corresponde_recepcion_terramar(pk):
+            return None, JsonResponse({
+                'success': False,
+                'message': 'No tiene acceso a la empresa Terramar de esta citación.'
+            }, status=403)
         return None, JsonResponse({'success': False, 'message': 'Debe seleccionar una empresa.'}, status=400)
     try:
         citacion = CITACION.objects.select_related('EP_NID', 'PL_NID', 'SC_NID').get(
@@ -18671,8 +23260,446 @@ def _obtener_citacion_operacion_planta_ajax(request, pk):
         return None, JsonResponse({'success': False, 'message': 'Citacion no encontrada.'}, status=404)
     if not citacion_habilitada_operacion(citacion):
         return None, JsonResponse({'success': False, 'message': 'La citacion aun no esta habilitada para Operacion Planta.'}, status=400)
+    if request.method == 'POST' and operacion_planta_esta_terminada(citacion):
+        return None, JsonResponse({
+            'success': False,
+            'message': 'Operacion terminada: el historial esta disponible en modo solo lectura.',
+        }, status=409)
     return citacion, None
 
+
+def _validar_citacion_terramar_etapa2(request, pk, responsables=None):
+    if not request.user.is_authenticated or not request.user.is_active:
+        return None, JsonResponse({'success': False, 'message': 'Usuario no autenticado o inactivo.'}, status=403)
+    if not usuario_es_operacion_planta(request.user):
+        return None, JsonResponse({'success': False, 'message': 'No tiene permisos para Operacion Planta.'}, status=403)
+    citacion, error_response = _obtener_citacion_operacion_planta_ajax(request, pk)
+    if error_response:
+        return None, error_response
+    if not aplica_timbraje_recepcion(citacion):
+        return None, JsonResponse({'success': False, 'message': 'Esta accion solo aplica a Recepciones Terramar o SBH.'}, status=404)
+    if not _usuario_tiene_acceso_empresa(request.user, citacion.EP_NID_id):
+        return None, JsonResponse({'success': False, 'message': 'No tiene acceso a la empresa de la citacion.'}, status=403)
+    if responsables and not usuario_puede_paso_operacion(request.user, responsables):
+        return None, JsonResponse({
+            'success': False,
+            'message': f'Solo lectura: esta accion corresponde a {" / ".join(responsables)}.',
+        }, status=403)
+    return citacion, None
+
+
+def _paso_activo_es(citacion, paso):
+    _, pasos_config = obtener_pasos_operacion_citacion(citacion)
+    return obtener_paso_activo_operacion(citacion, pasos_config)[0] == paso
+
+
+def ajax_operacion_planta_validar_documentacion_terramar(request, pk):
+    if request.method != 'POST':
+        return JsonResponse({'success': False, 'message': 'Metodo no permitido.'}, status=405)
+    citacion, error_response = _validar_citacion_terramar_etapa2(
+        request,
+        pk,
+        [PERFIL_TERRAMAR_ASISTENTE_RECEPCION],
+    )
+    if error_response:
+        return error_response
+    validada = str(request.POST.get('documentacion_validada') or '').lower() in {'1', 'true', 'on', 'si'}
+    if not validada:
+        return JsonResponse({'success': False, 'message': 'Debe marcar He validado la documentacion.'}, status=400)
+    observacion = str(request.POST.get('observacion') or '').strip()
+
+    with transaction.atomic():
+        citacion = _recargar_citacion_bloqueada_operacion(citacion)
+        if OPERACION_PLANTA_LOG.objects.filter(
+            CI_NID=citacion,
+            OPL_CPASO=PASO_DOCUMENTACION_TERRAMAR,
+            OPL_CESTADO=OPERACION_PLANTA_LOG.ESTADO_COMPLETADO,
+        ).exists():
+            return JsonResponse({'success': False, 'message': 'La documentacion ya fue validada.'}, status=409)
+        if not _paso_activo_es(citacion, PASO_DOCUMENTACION_TERRAMAR):
+            return JsonResponse({'success': False, 'message': 'Documentacion no es la etapa activa.'}, status=409)
+        ahora = timezone.now()
+        metadata = {
+            'validada': True,
+            'usuario_id': request.user.id,
+            'usuario': request.user.username,
+            'fecha_iso': ahora.isoformat(),
+            'fecha_hora': timezone.localtime(ahora).strftime('%d/%m/%Y %H:%M'),
+            'observacion': observacion,
+            'citacion_id': citacion.id,
+            'paso_operacion': PASO_DOCUMENTACION_TERRAMAR,
+        }
+        _guardar_metadata_terramar(
+            citacion,
+            request.user,
+            CAMPO_DOCUMENTACION_TERRAMAR,
+            'Validacion documental Terramar',
+            metadata,
+        )
+        log = OPERACION_PLANTA_LOG.objects.create(
+            US_NID=request.user,
+            EP_NID=citacion.EP_NID,
+            PL_NID=citacion.PL_NID,
+            CI_NID=citacion,
+            OPL_CPASO=PASO_DOCUMENTACION_TERRAMAR,
+            OPL_CPERFIL_RESPONSABLE=PERFIL_TERRAMAR_ASISTENTE_RECEPCION,
+            OPL_CESTADO=OPERACION_PLANTA_LOG.ESTADO_COMPLETADO,
+            OPL_COBSERVACION=observacion,
+            OPL_FFECHAREGISTRO=ahora,
+        )
+        registrar_log_camion_no_planificado(
+            request.user,
+            citacion.EP_NID,
+            LOG_DOCUMENTACION_TERRAMAR,
+            f'Documentacion validada para citacion Terramar #{citacion.id}.',
+            citacion.id,
+            observacion[:128],
+        )
+    return JsonResponse({
+        'success': True,
+        'message': 'Documentacion validada. La citacion avanzo a Autorizar Salida.',
+        'paso': PASO_DOCUMENTACION_TERRAMAR,
+        'usuario': request.user.username,
+        'fecha': timezone.localtime(log.OPL_FFECHAREGISTRO).strftime('%d/%m/%Y %H:%M'),
+    })
+
+
+def _nombre_timbrado_terramar(documento):
+    base, extension = os.path.splitext(documento.get('nombre') or 'documento')
+    base = get_valid_filename(base)[:80] or 'documento'
+    base = f'{base}_v{STAMP_VERSION}'
+    extension = extension.lower()
+    if extension not in {'.pdf', '.png', '.jpg', '.jpeg', '.tif', '.tiff'}:
+        extension = '.pdf'
+    return f'{base}_{documento["key"]}_{documento.get("source_hash", "")[:12]}_timbrado{extension}'
+
+
+def _lineas_timbre_recepcion(citacion, usuario, fecha_local):
+    nombre_usuario = usuario.get_full_name().strip() or usuario.username
+    razon_social, rut = _datos_empresa_timbre(citacion)
+    return [
+        'ÁREA DE RECEPCIÓN',
+        'Oficina de Operaciones',
+        fecha_local.strftime('%d/%m/%Y %H:%M'),
+        nombre_usuario,
+        razon_social,
+        rut,
+    ]
+
+
+def _lineas_timbre_terramar(usuario, fecha_local):
+    """Compatibilidad para llamadas históricas."""
+    nombre_usuario = usuario.get_full_name().strip() or usuario.username
+    return ['ÁREA DE RECEPCIÓN', 'Oficina de Operaciones', fecha_local.strftime('%d/%m/%Y %H:%M'), nombre_usuario, 'Terramar Chile SpA', '77.620.020-4']
+
+
+def _procesar_documentos_timbrados_terramar(citacion, usuario):
+    fuentes = obtener_documentos_salida_terramar(citacion)
+    estado_previo = _estado_timbrado_documentos_terramar(citacion, fuentes)
+    previos = {
+        item.get('key'): item
+        for item in estado_previo['metadata'].get('documentos', [])
+        if isinstance(item, dict) and item.get('key')
+    }
+    codigos_usados = {
+        item.get('codigo_validacion')
+        for item in previos.values()
+        if item.get('codigo_validacion')
+    }
+    ahora = timezone.now()
+    fecha_local = timezone.localtime(ahora)
+    destino_root = os.path.join(
+        settings.MEDIA_ROOT,
+        'documentos_citaciones',
+        f'CITACION_{citacion.id}',
+        'timbrados',
+    )
+    documentos = []
+    generados = 0
+    reutilizados = 0
+    for fuente in fuentes:
+        previo = previos.get(fuente['key']) or {}
+        previo_vigente = (
+            previo.get('source_hash') == fuente.get('source_hash')
+            and previo.get('stamp_version') == STAMP_VERSION
+            and bool(previo.get('codigo_validacion'))
+        )
+        ruta_previa = previo.get('stamped_path') if previo_vigente else ''
+        if (
+            ruta_previa
+            and os.path.isfile(ruta_previa)
+            and _ruta_documento_terramar_permitida(ruta_previa)
+        ):
+            documentos.append(previo)
+            reutilizados += 1
+            continue
+
+        codigo_validacion = secrets.token_hex(12).upper()
+        while codigo_validacion in codigos_usados:
+            codigo_validacion = secrets.token_hex(12).upper()
+        codigos_usados.add(codigo_validacion)
+        registro = {
+            'key': fuente['key'],
+            'codigo_validacion': codigo_validacion,
+            'citacion_id': citacion.id,
+            'empresa_id': citacion.EP_NID_id,
+            'source_ref': fuente['source_ref'],
+            'source_hash': fuente.get('source_hash') or '',
+            'source_name': fuente.get('nombre') or '',
+            'source_mime': fuente.get('mime') or '',
+            'origen': fuente.get('origen') or '',
+            'obligatorio': bool(fuente.get('obligatorio')),
+            'stamp_version': STAMP_VERSION,
+            'usuario_id': usuario.id,
+            'usuario': usuario.username,
+            'fecha_iso': ahora.isoformat(),
+            'fecha_timbrado': fecha_local.strftime('%d/%m/%Y %H:%M'),
+            'ubicacion_timbre': 'Esquina inferior derecha, margen proporcional, sello rectangular negro.',
+        }
+        if not fuente.get('disponible'):
+            registro.update({'estado': 'NO_DISPONIBLE', 'mensaje': 'Archivo original no disponible.'})
+        elif not fuente.get('formato_timbrable'):
+            registro.update({'estado': 'NO_COMPATIBLE', 'mensaje': 'Formato no compatible con timbrado.'})
+        else:
+            try:
+                validar_archivo_fuente(fuente['_ruta'])
+                nombre_destino = _nombre_timbrado_terramar(fuente)
+                ruta_destino = os.path.join(destino_root, nombre_destino)
+                resultado = timbrar_documento(
+                    fuente['_ruta'],
+                    ruta_destino,
+                    _lineas_timbre_recepcion(citacion, usuario, fecha_local) + [
+                        f'Código: {codigo_validacion}',
+                    ],
+                    codigo_validacion,
+                )
+                registro.update({
+                    'estado': 'TIMBRADO',
+                    'stamped_path': ruta_destino,
+                    'stamped_name': nombre_destino,
+                    'stamped_mime': resultado['mime'],
+                    'stamped_size': resultado['size'],
+                    'stamped_hash': resultado['hash'],
+                    'format': resultado['format'],
+                })
+                generados += 1
+            except (ValueError, OSError, fitz.FileDataError) as exc:
+                registro.update({'estado': 'ERROR', 'mensaje': str(exc)})
+        documentos.append(registro)
+    return {
+        'citacion_id': citacion.id,
+        'stamp_version': STAMP_VERSION,
+        'usuario_id': usuario.id,
+        'usuario': usuario.username,
+        'fecha_iso': ahora.isoformat(),
+        'fecha_hora': fecha_local.strftime('%d/%m/%Y %H:%M'),
+        'documentos': documentos,
+        'generados': generados,
+        'reutilizados': reutilizados,
+    }
+
+
+def ajax_operacion_planta_timbrar_documentos_terramar(request, pk):
+    if request.method != 'POST':
+        return JsonResponse({'success': False, 'message': 'Metodo no permitido.'}, status=405)
+    citacion, error_response = _validar_citacion_terramar_etapa2(
+        request,
+        pk,
+        None,
+    )
+    if error_response:
+        return error_response
+    responsables_timbrado = [PERFIL_TERRAMAR_ASISTENTE_DESPACHO] if _empresa_timbre_recepcion(citacion) == 'TERRAMAR' else ['ASISTENTE DE RECEPCION']
+    if not usuario_puede_paso_operacion(request.user, responsables_timbrado):
+        return JsonResponse({'success': False, 'message': 'Solo el perfil responsable puede timbrar documentos.'}, status=403)
+    responsables_timbrado = [PERFIL_TERRAMAR_ASISTENTE_DESPACHO] if _empresa_timbre_recepcion(citacion) == 'TERRAMAR' else ['ASISTENTE DE RECEPCION']
+    if not usuario_puede_paso_operacion(request.user, responsables_timbrado):
+        return JsonResponse({'success': False, 'message': 'Solo el perfil responsable puede timbrar documentos.'}, status=403)
+    if not _paso_activo_es(citacion, PASO_AUTORIZAR_SALIDA):
+        return JsonResponse({'success': False, 'message': 'Autorizar Salida no es la etapa activa.'}, status=409)
+    validacion = _leer_metadata_terramar(citacion, CAMPO_DOCUMENTACION_TERRAMAR)
+    if _empresa_timbre_recepcion(citacion) == 'TERRAMAR' and not validacion.get('validada'):
+        return JsonResponse({'success': False, 'message': 'Debe validar Documentacion antes de timbrar.'}, status=409)
+    if not obtener_documentos_salida_terramar(citacion):
+        return JsonResponse({'success': False, 'message': 'No existen documentos disponibles para timbrar.'}, status=400)
+
+    metadata = _procesar_documentos_timbrados_terramar(citacion, request.user)
+    with transaction.atomic():
+        citacion = _recargar_citacion_bloqueada_operacion(citacion)
+        if not _paso_activo_es(citacion, PASO_AUTORIZAR_SALIDA):
+            return JsonResponse({'success': False, 'message': 'La etapa activa cambio durante el timbrado.'}, status=409)
+        _guardar_metadata_terramar(
+            citacion,
+            request.user,
+            _campo_timbrado_recepcion(citacion),
+            f'Documentos timbrados {_empresa_timbre_recepcion(citacion)}',
+            metadata,
+        )
+        registrar_log_camion_no_planificado(
+            request.user,
+            citacion.EP_NID,
+            LOG_TIMBRADO_TERRAMAR,
+            f'Documentos timbrados para citacion Terramar #{citacion.id}. Nuevos: {metadata["generados"]}.',
+            citacion.id,
+            str(metadata['generados']),
+        )
+    payload = _payload_documentacion_terramar(citacion, request)
+    return JsonResponse({
+        'success': True,
+        'message': 'Timbrado finalizado.' if metadata['generados'] else 'Los documentos ya estaban timbrados.',
+        'generados': metadata['generados'],
+        'reutilizados': metadata['reutilizados'],
+        'documentacion': payload,
+    })
+
+
+def ajax_operacion_planta_documento_terramar(request, pk, documento_key):
+    citacion, error_response = _validar_citacion_terramar_etapa2(request, pk)
+    if error_response:
+        return error_response
+    fuente = next(
+        (item for item in _documentos_fuente_terramar(citacion) if item.get('key') == documento_key),
+        None,
+    )
+    if not fuente:
+        return JsonResponse({'success': False, 'message': 'Documento no encontrado.'}, status=404)
+    version = str(request.GET.get('version') or 'original').lower()
+    if version == 'timbrado':
+        claves_salida = {
+            item.get('key')
+            for item in obtener_documentos_salida_terramar(citacion)
+        }
+        if documento_key not in claves_salida:
+            return JsonResponse({'success': False, 'message': 'El antecedente no pertenece al paquete de salida.'}, status=404)
+        estado = _estado_timbrado_documentos_terramar(citacion, [fuente])['documentos'][0]
+        ruta = estado.get('stamped_path') if estado.get('timbrado_disponible') else ''
+        nombre = estado.get('stamped_name') or fuente.get('nombre')
+    elif version == 'original':
+        ruta = fuente.get('_ruta')
+        nombre = fuente.get('nombre')
+    else:
+        return JsonResponse({'success': False, 'message': 'Version documental no valida.'}, status=400)
+    if not ruta or not os.path.isfile(ruta) or not _ruta_documento_terramar_permitida(ruta):
+        return JsonResponse({'success': False, 'message': 'Documento no disponible.'}, status=404)
+    descargar = str(request.GET.get('accion') or 'descargar').lower() != 'ver'
+    response = FileResponse(
+        open(ruta, 'rb'),
+        as_attachment=descargar,
+        filename=os.path.basename(nombre or ruta),
+        content_type=mime_archivo(ruta),
+    )
+    return response
+
+
+def _patente_citacion_terramar(citacion):
+    valores = obtener_valores_ingreso_camion(citacion)
+    patente = str(valores.get('patente') or '').strip()
+    if not patente:
+        camion = _camion_patio_asociado_citacion(citacion)
+        patente = str(camion.CPA_CPATENTE or '').strip() if camion else ''
+    return patente
+
+
+def ajax_operacion_planta_exportar_documentos_terramar(request, pk):
+    if request.method != 'POST':
+        return JsonResponse({'success': False, 'message': 'Metodo no permitido.'}, status=405)
+    citacion, error_response = _validar_citacion_terramar_etapa2(
+        request,
+        pk,
+        None,
+    )
+    if error_response:
+        return error_response
+    responsables_timbrado = [PERFIL_TERRAMAR_ASISTENTE_DESPACHO] if _empresa_timbre_recepcion(citacion) == 'TERRAMAR' else ['ASISTENTE DE RECEPCION']
+    if not usuario_puede_paso_operacion(request.user, responsables_timbrado):
+        return JsonResponse({'success': False, 'message': 'Solo el perfil responsable puede timbrar documentos.'}, status=403)
+    if not _paso_activo_es(citacion, PASO_AUTORIZAR_SALIDA):
+        return JsonResponse({'success': False, 'message': 'Autorizar Salida no es la etapa activa.'}, status=409)
+    documentacion = _leer_metadata_terramar(citacion, CAMPO_DOCUMENTACION_TERRAMAR)
+    if _empresa_timbre_recepcion(citacion) == 'TERRAMAR' and not documentacion.get('validada'):
+        return JsonResponse({'success': False, 'message': 'Debe validar Documentacion antes de exportar.'}, status=409)
+    estado = _estado_timbrado_documentos_terramar(citacion)
+    if not estado['completo']:
+        return JsonResponse({'success': False, 'message': 'Debe timbrar los documentos obligatorios antes de exportar.'}, status=409)
+    com_sal = [
+        item for item in estado['documentos']
+        if item.get('origen') == 'TICKET_PESAJE'
+        and item.get('tipo') == 'Ticket Pesaje Salida'
+    ]
+    if not com_sal or not all(item.get('timbrado_disponible') for item in com_sal):
+        return JsonResponse({'success': False, 'message': 'El ticket timbrado COM_SAL es obligatorio.'}, status=409)
+
+    base_configurada = str(
+        getattr(settings, 'TERRAMAR_DOCUMENTOS_FIRMADOS_DIR', r'C:\Documentos_firmados')
+        or ''
+    ).strip()
+    try:
+        patente = sanitizar_patente_exportacion(_patente_citacion_terramar(citacion))
+    except ValueError as exc:
+        return JsonResponse({'success': False, 'message': str(exc)}, status=400)
+    try:
+        resultado = exportar_documentos_timbrados(
+            base_configurada,
+            patente,
+            estado['documentos'],
+            timezone.localdate().strftime('%Y%m%d'),
+            citacion.id,
+        )
+    except ValueError as exc:
+        return JsonResponse({
+            'success': False,
+            'message': str(exc),
+            'carpeta_esperada': os.path.abspath(os.path.expandvars(base_configurada)),
+        }, status=409)
+
+    carpeta = resultado['carpeta']
+    copiados = resultado['archivos_copiados']
+    reutilizados = resultado['archivos_reutilizados']
+    reemplazados = resultado['archivos_reemplazados']
+    errores = resultado['archivos_fallidos']
+    auditoria_previa = SYSLOGGER.objects.filter(
+        EP_NID=citacion.EP_NID,
+        LOG_COPERACION=LOG_EXPORTA_DOCUMENTOS_TERRAMAR,
+        LOG_CADD1=str(citacion.id),
+        LOG_CADD2=patente,
+    ).exists()
+    if copiados or reemplazados or errores or not auditoria_previa:
+        resultado_texto = 'PARCIAL' if resultado['partial'] else ('OK' if resultado['success'] else 'ERROR')
+        registrar_log_camion_no_planificado(
+            request.user,
+            citacion.EP_NID,
+            LOG_EXPORTA_DOCUMENTOS_TERRAMAR,
+            (
+                f'Exportacion documental Terramar {resultado_texto}. Citacion {citacion.id}; '
+                f'patente {patente}; carpeta {carpeta}; copiados {len(copiados)}; '
+                f'reutilizados {len(reutilizados)}; reemplazados {len(reemplazados)}; '
+                f'errores {len(errores)}.'
+            ),
+            citacion.id,
+            patente,
+        )
+    success = resultado['success']
+    return JsonResponse({
+        'success': success,
+        'partial': resultado['partial'],
+        'message': (
+            'Documentos preparados correctamente.'
+            if success
+            else 'La preparacion termino con errores. Puede reintentar los archivos pendientes.'
+        ),
+        'carpeta': carpeta,
+        'cantidad_disponible': resultado['cantidad_disponible'],
+        'cantidad_copiada': resultado['cantidad_copiada'],
+        'cantidad_reutilizada': resultado['cantidad_reutilizada'],
+        'cantidad_reemplazada': resultado['cantidad_reemplazada'],
+        'cantidad_fallida': resultado['cantidad_fallida'],
+        'total': resultado['total'],
+        'archivos_copiados': copiados,
+        'archivos_reutilizados': reutilizados,
+        'archivos_reemplazados': reemplazados,
+        'archivos_fallidos': errores,
+        'errores': errores,
+    }, status=200 if success else (207 if resultado['partial'] else 500))
 
 def ajax_operacion_planta_guardar_observacion(request, pk):
     if request.method != 'POST':
@@ -18763,13 +23790,25 @@ def ajax_operacion_planta_iniciar_ciclo_recepcion_bodega_externa(request, pk):
     citacion, error_response = _obtener_citacion_operacion_planta_ajax(request, pk)
     if error_response:
         return error_response
-    if not usuario_puede_paso_operacion(request.user, ['ASISTENTE C D']):
-        return JsonResponse({'success': False, 'message': 'Solo Asistente_C_D puede autorizar la salida a Bodega Externa.'}, status=403)
+    es_terramar_externa = es_recepcion_terramar_bodega_externa_operacion(citacion)
+    perfil_inicio = [PERFIL_TERRAMAR_ASISTENTE_BODEGA] if es_terramar_externa else ['ASISTENTE C D']
+    if not usuario_puede_paso_operacion(request.user, perfil_inicio):
+        mensaje = (
+            'Solo Asistente Bodega puede iniciar la salida a Bodega Externa.'
+            if es_terramar_externa
+            else 'Solo Asistente_C_D puede autorizar la salida a Bodega Externa.'
+        )
+        return JsonResponse({'success': False, 'message': mensaje}, status=403)
 
     try:
-        payload, creado = _iniciar_ciclo_recepcion_bodega_externa(citacion, request.user)
+        if es_terramar_externa:
+            payload, creado = _iniciar_ciclo_terramar_bodega_externa(citacion, request.user, request.POST.get('observacion'))
+        else:
+            payload, creado = _iniciar_ciclo_recepcion_bodega_externa(citacion, request.user)
+    except OperacionPlantaDuplicada as e:
+        return JsonResponse({'success': False, 'message': str(e)}, status=409)
     except ValueError as e:
-        return JsonResponse({'success': False, 'message': str(e)}, status=400)
+        return JsonResponse({'success': False, 'message': str(e)}, status=409 if es_terramar_externa else 400)
     except Exception as e:
         return JsonResponse({'success': False, 'message': f'No fue posible autorizar salida a Bodega Externa: {str(e)}'}, status=500)
 
@@ -18793,10 +23832,16 @@ def ajax_operacion_planta_finalizar_ciclo_recepcion_bodega_externa(request, pk):
     if not usuario_puede_paso_operacion(request.user, ['GUARDIA PORTERIA']):
         return JsonResponse({'success': False, 'message': 'Solo Guardia Porteria puede registrar el regreso desde Bodega Externa.'}, status=403)
 
+    es_terramar_externa = es_recepcion_terramar_bodega_externa_operacion(citacion)
     try:
-        payload, creado = _finalizar_ciclo_recepcion_bodega_externa(citacion, request.user, request.POST.get('observacion'))
+        if es_terramar_externa:
+            payload, creado = _finalizar_ciclo_terramar_bodega_externa(citacion, request.user, request.POST.get('observacion'))
+        else:
+            payload, creado = _finalizar_ciclo_recepcion_bodega_externa(citacion, request.user, request.POST.get('observacion'))
+    except OperacionPlantaDuplicada as e:
+        return JsonResponse({'success': False, 'message': str(e)}, status=409)
     except ValueError as e:
-        return JsonResponse({'success': False, 'message': str(e)}, status=400)
+        return JsonResponse({'success': False, 'message': str(e)}, status=409 if es_terramar_externa else 400)
     except Exception as e:
         return JsonResponse({'success': False, 'message': f'No fue posible registrar regreso desde Bodega Externa: {str(e)}'}, status=500)
 
@@ -18820,7 +23865,7 @@ def ajax_operacion_planta_iniciar_ciclo_descarga(request, pk):
     citacion, error_response = _obtener_citacion_operacion_planta_ajax(request, pk)
     if error_response:
         return error_response
-    if es_recepcion_bodega_externa_operacion(citacion):
+    if es_recepcion_bodega_externa_operacion(citacion) or es_recepcion_terramar_bodega_externa_operacion(citacion):
         return JsonResponse({'success': False, 'message': 'El flujo Recepcion Bodega Externa utiliza un ciclo externo de salida y regreso.'}, status=400)
     _, error_response = _validar_accion_ciclo_descarga(request, citacion)
     if error_response:
@@ -18843,6 +23888,8 @@ def ajax_operacion_planta_iniciar_ciclo_descarga(request, pk):
 
         tipo_descarga = request.POST.get('tipo_descarga')
         metadata = _iniciar_ciclo_descarga(citacion, request.user, tipo_descarga)
+    except OperacionPlantaDuplicada as e:
+        return JsonResponse({'success': False, 'message': str(e)}, status=409)
     except ValueError as e:
         return JsonResponse({'success': False, 'message': str(e)}, status=400)
     except Exception as e:
@@ -18899,14 +23946,20 @@ def ajax_operacion_planta_finalizar_ciclo_descarga(request, pk):
     citacion, error_response = _obtener_citacion_operacion_planta_ajax(request, pk)
     if error_response:
         return error_response
-    if es_recepcion_bodega_externa_operacion(citacion):
+    if es_recepcion_bodega_externa_operacion(citacion) or es_recepcion_terramar_bodega_externa_operacion(citacion):
         return JsonResponse({'success': False, 'message': 'El flujo Recepcion Bodega Externa utiliza un ciclo externo de salida y regreso.'}, status=400)
     _, error_response = _validar_accion_ciclo_descarga(request, citacion)
     if error_response:
         return error_response
 
     try:
-        metadata, log = _finalizar_ciclo_descarga(citacion, request.user)
+        metadata, log = _finalizar_ciclo_descarga(
+            citacion,
+            request.user,
+            request.POST.get('observacion')
+        )
+    except OperacionPlantaDuplicada as e:
+        return JsonResponse({'success': False, 'message': str(e)}, status=409)
     except ValueError as e:
         return JsonResponse({'success': False, 'message': str(e)}, status=400)
     except Exception as e:
@@ -18923,6 +23976,73 @@ def ajax_operacion_planta_finalizar_ciclo_descarga(request, pk):
     })
 
 
+def _autorizar_salida_terramar(request, citacion):
+    if not _usuario_tiene_acceso_empresa(request.user, citacion.EP_NID_id):
+        return JsonResponse({'success': False, 'message': 'No tiene acceso a la empresa de la citacion.'}, status=403)
+    if not usuario_puede_paso_operacion(request.user, [PERFIL_TERRAMAR_ASISTENTE_DESPACHO]):
+        return JsonResponse({
+            'success': False,
+            'message': f'Solo {PERFIL_TERRAMAR_ASISTENTE_DESPACHO} puede autorizar la salida Terramar.',
+        }, status=403)
+    observacion = str(request.POST.get('observacion') or '').strip()
+
+    with transaction.atomic():
+        citacion = _recargar_citacion_bloqueada_operacion(citacion)
+        if OPERACION_PLANTA_LOG.objects.filter(
+            CI_NID=citacion,
+            OPL_CPASO=PASO_AUTORIZAR_SALIDA,
+            OPL_CESTADO=OPERACION_PLANTA_LOG.ESTADO_COMPLETADO,
+        ).exists():
+            return JsonResponse({'success': False, 'message': 'La salida ya fue autorizada.'}, status=409)
+        if not _paso_activo_es(citacion, PASO_AUTORIZAR_SALIDA):
+            return JsonResponse({'success': False, 'message': 'Autorizar Salida no es la etapa activa.'}, status=409)
+        documentacion = _leer_metadata_terramar(citacion, CAMPO_DOCUMENTACION_TERRAMAR)
+        if not documentacion.get('validada'):
+            return JsonResponse({'success': False, 'message': 'La validacion documental es obligatoria.'}, status=409)
+        if not _ticket_pesaje_obligatorio_guardado(citacion, 'Pesaje Salida'):
+            return JsonResponse({'success': False, 'message': 'El ticket de Pesaje Salida es obligatorio.'}, status=409)
+        estado_timbrado = _estado_timbrado_documentos_terramar(citacion)
+        if not estado_timbrado['completo']:
+            pendientes = ', '.join(
+                item.get('nombre') or 'Documento'
+                for item in estado_timbrado['obligatorios_pendientes']
+            )
+            return JsonResponse({
+                'success': False,
+                'message': f'Debe timbrar todos los documentos obligatorios. Pendientes: {pendientes or "sin documentos timbrados"}.',
+            }, status=409)
+
+        metadata = _registrar_autorizar_salida(citacion, request.user, 'SI', observacion)
+        ahora = timezone.now()
+        log = OPERACION_PLANTA_LOG.objects.create(
+            US_NID=request.user,
+            EP_NID=citacion.EP_NID,
+            PL_NID=citacion.PL_NID,
+            CI_NID=citacion,
+            OPL_CPASO=PASO_AUTORIZAR_SALIDA,
+            OPL_CPERFIL_RESPONSABLE=PERFIL_TERRAMAR_ASISTENTE_DESPACHO,
+            OPL_CESTADO=OPERACION_PLANTA_LOG.ESTADO_COMPLETADO,
+            OPL_COBSERVACION=observacion,
+            OPL_FFECHAREGISTRO=ahora,
+        )
+        registrar_log_camion_no_planificado(
+            request.user,
+            citacion.EP_NID,
+            LOG_AUTORIZA_SALIDA_TERRAMAR,
+            f'Salida autorizada para citacion Terramar #{citacion.id}, sin operacion SAP.',
+            citacion.id,
+            observacion[:128],
+        )
+    return JsonResponse({
+        'success': True,
+        'message': 'Salida Terramar autorizada. La citacion avanzo a Confirmar Salida.',
+        'autorizar_salida': metadata,
+        'paso': PASO_AUTORIZAR_SALIDA,
+        'usuario': request.user.username,
+        'fecha': timezone.localtime(log.OPL_FFECHAREGISTRO).strftime('%d/%m/%Y %H:%M'),
+    })
+
+
 def ajax_operacion_planta_autorizar_salida(request, pk):
     if request.method != 'POST':
         return JsonResponse({'success': False, 'message': 'Metodo no permitido.'}, status=405)
@@ -18932,7 +24052,22 @@ def ajax_operacion_planta_autorizar_salida(request, pk):
     citacion, error_response = _obtener_citacion_operacion_planta_ajax(request, pk)
     if error_response:
         return error_response
-
+    if es_citacion_recepcion_terramar(citacion):
+        return _autorizar_salida_terramar(request, citacion)
+    if _empresa_timbre_recepcion(citacion) == 'SBH' and str(citacion.CI_CTIPO or '').upper() == CIT_RECEPCION and str(request.POST.get('accion') or '').strip() == 'guardar_conformidad':
+        if not (request.user.is_superuser or usuario_es_asistente_recepcion(request.user)):
+            return JsonResponse({'success': False, 'message': 'Solo Asistente_Recepcion puede registrar la conformidad.'}, status=403)
+        if not _paso_activo_es(citacion, PASO_AUTORIZAR_SALIDA):
+            return JsonResponse({'success': False, 'message': 'Autorizar Salida no es la etapa activa.'}, status=409)
+        if _leer_revision_conformidad_sbh(citacion).get('recepcion_conforme'):
+            return JsonResponse({'success': False, 'message': 'La conformidad ya fue registrada.'}, status=409)
+        try:
+            with transaction.atomic():
+                citacion = _recargar_citacion_bloqueada_operacion(citacion)
+                metadata = _guardar_revision_conformidad_sbh(citacion, request.user, request.POST.get('recepcion_conforme'), request.POST.get('observacion_descarga'))
+        except ValueError as exc:
+            return JsonResponse({'success': False, 'message': str(exc)}, status=400)
+        return JsonResponse({'success': True, 'message': 'Conformidad registrada. Autorizar Salida sigue pendiente.', 'revision_conformidad': metadata})
     log_existente = OPERACION_PLANTA_LOG.objects.filter(
         CI_NID=citacion,
         OPL_CPASO=PASO_AUTORIZAR_SALIDA,
@@ -18961,6 +24096,34 @@ def ajax_operacion_planta_autorizar_salida(request, pk):
             'message': f'Solo lectura: este paso corresponde a {" / ".join(responsables_paso)}'
         }, status=403)
 
+    if es_despacho_sbh_operacion(citacion):
+        draft_status = get_sap_despacho_draft_status(citacion)
+        if not draft_status.get('created'):
+            return JsonResponse({
+                'success': False,
+                'message': 'Debe crear el Draft SAP antes de autorizar la salida.'
+            }, status=400)
+        sap_update_status = get_sap_despacho_update_status(citacion)
+        if not sap_update_status.get('updated'):
+            return JsonResponse({
+                'success': False,
+                'message': 'Debe actualizar el Draft SAP con el peso de salida antes de autorizar.'
+            }, status=400)
+        if not OPERACION_PLANTA_LOG.objects.filter(
+            CI_NID=citacion,
+            OPL_CPASO=PASO_CIERRE_CARGA,
+            OPL_CESTADO=OPERACION_PLANTA_LOG.ESTADO_COMPLETADO,
+        ).exists():
+            return JsonResponse({
+                'success': False,
+                'message': 'Debe completar Cierre Proceso de Carga antes de autorizar la salida.'
+            }, status=409)
+        if not _documentos_sellos_despacho(citacion):
+            return JsonResponse({
+                'success': False,
+                'message': 'Debe cargar al menos una imagen de los sellos antes de autorizar la salida.'
+            }, status=409)
+
     if es_despacho_bodega_externa_operacion(citacion):
         sap_update_status = get_sap_despacho_update_status(citacion)
         if sap_update_status.get('is_error'):
@@ -18973,6 +24136,22 @@ def ajax_operacion_planta_autorizar_salida(request, pk):
                 'success': False,
                 'message': 'Debe actualizar el documento SAP antes de autorizar la salida.'
             }, status=400)
+
+    if (
+        _empresa_timbre_recepcion(citacion) == 'SBH'
+        and str(citacion.CI_CTIPO or '').upper() == CIT_RECEPCION
+    ):
+        revision = _leer_revision_conformidad_sbh(citacion)
+        if not revision.get('recepcion_conforme'):
+            return JsonResponse({'success': False, 'message': 'Debe indicar si la recepción fue conforme.'}, status=409)
+        request.POST = request.POST.copy()
+        request.POST['recepcion_conforme'] = revision['recepcion_conforme']
+        request.POST['observacion_descarga'] = revision.get('observacion') or ''
+
+    if aplica_timbraje_recepcion(citacion):
+        estado_timbrado = _estado_timbrado_documentos_terramar(citacion)
+        if not estado_timbrado['completo']:
+            return JsonResponse({'success': False, 'message': 'Debe timbrar todos los documentos obligatorios antes de autorizar la salida.'}, status=409)
 
     if str(getattr(citacion, 'CI_CTIPO', '') or '').upper() == CIT_RECEPCION:
         sap_update_status = get_goods_receipt_draft_update_status(citacion)
@@ -19025,19 +24204,9 @@ def ajax_operacion_planta_autorizar_salida(request, pk):
 def usuario_puede_ver_detalle_tecnico_sap(user):
     if getattr(user, 'is_superuser', False):
         return True
-    perfiles_usuario = PERFIL_USUARIO.objects.select_related('PR_NID').filter(
-        US_NID=user.id,
-        PE_BHABILITADO=True,
-        PR_NID__PR_BHABILITADO=True
-    )
-    palabras_tecnicas = {'SOPORTE', 'TECNICO', 'TECNICA', 'TI', 'IT', 'ADMINISTRADOR'}
-    for perfil_usuario in perfiles_usuario:
-        nombre = normalizar_nombre_perfil(perfil_usuario.PR_NID.PR_CNOMBRE)
-        codigo = normalizar_nombre_perfil(perfil_usuario.PR_NID.PR_CCODIGO)
-        if any(palabra in nombre.split() or palabra in codigo.split() for palabra in palabras_tecnicas):
-            return True
-    username = normalizar_nombre_perfil(getattr(user, 'username', ''))
-    return any(palabra in username.split() for palabra in {'SOPORTE', 'TI', 'IT'})
+
+    return False
+
 
 
 def _usuarios_soporte_sap_despacho(empresa_id):
@@ -19107,6 +24276,12 @@ def _notificar_soporte_error_sap_despacho(citacion, usuario, result):
         )
 
 
+def _actualizar_sap_despacho_post_pesaje(citacion, usuario):
+    if not es_despacho_sbh_operacion(citacion):
+        return None
+    return sap_despacho_actualizar_borrador(citacion, usuario)
+
+
 def _limpiar_resultado_sap_despacho_para_usuario(result, user):
     if usuario_puede_ver_detalle_tecnico_sap(user):
         return result
@@ -19130,6 +24305,76 @@ def _limpiar_resultado_sap_despacho_para_usuario(result, user):
     return result
 
 
+@require_POST
+def ajax_operacion_planta_reabrir_cierre_carga_despacho_sbh(request, pk):
+    if not usuario_puede_reabrir_cierre_carga(request.user):
+        return JsonResponse({
+            'success': False,
+            'message': 'Solo un superusuario o ADMIN_DESARROLLO puede reabrir este paso.'
+        }, status=403)
+
+    citacion, error_response = _obtener_citacion_operacion_planta_ajax(request, pk)
+    if error_response:
+        return error_response
+    if not es_despacho_sbh_operacion(citacion):
+        return JsonResponse({
+            'success': False,
+            'message': 'La reapertura solo aplica a Despacho SBH.'
+        }, status=400)
+
+    motivo = str(request.POST.get('motivo') or '').strip()
+    if not motivo:
+        motivo = 'Reapertura tecnica: Draft SAP no fue actualizado despues de Pesaje Salida.'
+
+    with transaction.atomic():
+        citacion = _recargar_citacion_bloqueada_operacion(citacion)
+        if OPERACION_PLANTA_LOG.objects.filter(
+            CI_NID=citacion,
+            OPL_CPASO=PASO_AUTORIZAR_SALIDA,
+            OPL_CESTADO=OPERACION_PLANTA_LOG.ESTADO_COMPLETADO,
+        ).exists():
+            return JsonResponse({
+                'success': False,
+                'message': 'No se puede reabrir porque Autorizar Salida ya fue completado.'
+            }, status=409)
+
+        cierre = OPERACION_PLANTA_LOG.objects.select_for_update().filter(
+            CI_NID=citacion,
+            OPL_CPASO=PASO_CIERRE_CARGA,
+            OPL_CESTADO=OPERACION_PLANTA_LOG.ESTADO_COMPLETADO,
+        ).order_by('-OPL_FFECHAREGISTRO', '-id').first()
+        if not cierre:
+            return JsonResponse({
+                'success': False,
+                'message': 'No existe un Cierre Proceso de Carga completado para reabrir.'
+            }, status=409)
+
+        observacion_anterior = str(cierre.OPL_COBSERVACION or '').strip()
+        auditoria = (
+            f'Reabierto por {request.user.username} el '
+            f'{timezone.localtime(timezone.now()).strftime("%d/%m/%Y %H:%M")}. Motivo: {motivo}'
+        )
+        cierre.OPL_CESTADO = 'REABIERTO'
+        cierre.OPL_COBSERVACION = ' | '.join(
+            parte for parte in [observacion_anterior, auditoria] if parte
+        )
+        cierre.save(update_fields=['OPL_CESTADO', 'OPL_COBSERVACION'])
+
+        registrar_log_camion_no_planificado(
+            request.user,
+            citacion.EP_NID,
+            'REABRE_CIERRE_CARGA',
+            f'Reapertura de Cierre Proceso de Carga para citacion #{citacion.id}. {motivo}',
+            citacion.id,
+            motivo[:128],
+        )
+
+    return JsonResponse({
+        'success': True,
+        'message': 'Cierre Proceso de Carga reabierto. Pesaje Salida y Draft SAP se conservaron.'
+    })
+
+
 def ajax_operacion_planta_actualizar_sap_despacho(request, pk):
     if request.method != 'POST':
         return JsonResponse({'success': False, 'message': 'Metodo no permitido.'}, status=405)
@@ -19143,18 +24388,21 @@ def ajax_operacion_planta_actualizar_sap_despacho(request, pk):
     if error_response:
         return error_response
 
-    if not es_despacho_bodega_externa_operacion(citacion):
+    es_sbh = es_despacho_sbh_operacion(citacion)
+    es_bodega_externa = es_despacho_bodega_externa_operacion(citacion)
+    if not es_sbh and not es_bodega_externa:
         return JsonResponse({
             'success': False,
-            'message': 'La actualizacion SAP de despacho solo aplica a Despacho desde Bodega Externa.'
+            'message': 'La actualizacion SAP no aplica al flujo de esta citacion.'
         }, status=400)
 
     _, pasos_config = obtener_pasos_operacion_citacion(citacion)
     paso_actual_visible, responsables_paso, _ = obtener_paso_activo_operacion(citacion, pasos_config)
-    if paso_actual_visible != PASO_AUTORIZAR_SALIDA:
+    paso_sap_esperado = PASO_CIERRE_CARGA if es_sbh else PASO_AUTORIZAR_SALIDA
+    if paso_actual_visible != paso_sap_esperado:
         return JsonResponse({
             'success': False,
-            'message': f'Solo puede actualizar SAP durante la etapa activa: {PASO_AUTORIZAR_SALIDA}.'
+            'message': f'Solo puede actualizar SAP durante la etapa activa: {paso_sap_esperado}.'
         }, status=409)
     if not usuario_puede_paso_operacion(request.user, responsables_paso):
         return JsonResponse({
@@ -19202,12 +24450,11 @@ def ajax_operacion_planta_actualizar_sap_recepcion(request, pk):
             'success': False,
             'message': f'Solo puede actualizar SAP durante la etapa activa: {PASO_AUTORIZAR_SALIDA}.'
         }, status=409)
-    if not usuario_puede_paso_operacion(request.user, responsables_paso):
+    if not usuario_puede_actualizar_borrador_sap_recepcion(citacion, request.user):
         return JsonResponse({
             'success': False,
-            'message': f'Solo lectura: este paso corresponde a {" / ".join(responsables_paso)}'
+            'message': 'Solo Asistente_C_D, Asistente_Recepcion SBH o administrador pueden actualizar el Borrador SAP de recepción.'
         }, status=403)
-
     allow_retry = (
         str(request.POST.get('allow_retry') or '').strip().lower() in {'1', 'true', 'yes'}
         and getattr(request.user, 'is_superuser', False)
@@ -19400,7 +24647,52 @@ def ajax_operacion_planta_obtener_ticket_pesaje(request):
     if not patente_normalizada:
         return JsonResponse({'valid': False, 'msg': 'La citacion no tiene patente para buscar ticket de pesaje.'}, status=400)
 
+    mop_requerido = es_pesaje_salida_mop_despacho_terramar(
+        citacion,
+        paso_nombre,
+        tipo_ticket,
+    )
+
     try:
+        dato_existente = _dato_ticket_pesaje(citacion, paso_nombre)
+        payload_existente = _payload_ticket_pesaje_guardado(citacion, paso_nombre, request)
+        if mop_requerido and dato_existente:
+            metadata_ticket = _leer_metadata_ticket_dato(dato_existente)
+            if not payload_existente or not metadata_ticket:
+                return JsonResponse({
+                    'valid': False,
+                    'msg': 'El ticket de salida congelado no es válido. No se reemplazará automáticamente.',
+                    'mop_requerido': True,
+                    'mop_ok': False,
+                }, status=409)
+            resultado_mop = _resolver_ticket_mop_despacho_terramar(
+                citacion,
+                patente_normalizada,
+                metadata_ticket,
+                request.user,
+                request,
+            )
+            respuesta = {
+                'valid': resultado_mop['estado'] != 'MOP_AMBIGUO',
+                'guardado': True,
+                'dato_id': dato_existente.id,
+                'peso_neto': payload_existente.get('peso_neto'),
+                'folio': payload_existente.get('folio'),
+                'observacion': payload_existente.get('observacion') or '',
+                'download_url': payload_existente.get('download_url') or '',
+                'nombre_archivo_pdf': payload_existente.get('nombre_archivo_pdf') or '',
+                'mop_requerido': True,
+                'mop_ok': resultado_mop['ok'],
+                'mop_estado': resultado_mop['estado'],
+                'mop_nombre': resultado_mop['nombre'],
+                'mop_download_url': resultado_mop['download_url'],
+                'mop_mensaje': resultado_mop['mensaje'],
+            }
+            if resultado_mop['estado'] == 'MOP_AMBIGUO':
+                respuesta['msg'] = resultado_mop['mensaje']
+                return JsonResponse(respuesta, status=409)
+            return JsonResponse(respuesta)
+
         ruta_pdf = _buscar_ticket_pesaje_mas_reciente(patente_normalizada, tipo_ticket)
         if not ruta_pdf:
             return JsonResponse({'valid': False, 'msg': f'No se encontro ticket COM_{tipo_ticket} para la patente {patente_normalizada}.'}, status=404)
@@ -19444,7 +24736,7 @@ def ajax_operacion_planta_obtener_ticket_pesaje(request):
         )
 
         payload = _payload_ticket_pesaje_guardado(citacion, paso_nombre, request) or {}
-        return JsonResponse({
+        respuesta = {
             'valid': True,
             'guardado': True,
             'dato_id': dato.id,
@@ -19453,12 +24745,31 @@ def ajax_operacion_planta_obtener_ticket_pesaje(request):
             'observacion': datos_ticket.get('observacion') or '',
             'download_url': payload.get('download_url', ''),
             'nombre_archivo_pdf': payload.get('nombre_archivo_pdf', os.path.basename(ruta_local)),
-        })
+        }
+        if mop_requerido:
+            resultado_mop = _resolver_ticket_mop_despacho_terramar(
+                citacion,
+                patente_normalizada,
+                metadata,
+                request.user,
+                request,
+            )
+            respuesta.update({
+                'mop_requerido': True,
+                'mop_ok': resultado_mop['ok'],
+                'mop_estado': resultado_mop['estado'],
+                'mop_nombre': resultado_mop['nombre'],
+                'mop_download_url': resultado_mop['download_url'],
+                'mop_mensaje': resultado_mop['mensaje'],
+            })
+            if resultado_mop['estado'] == 'MOP_AMBIGUO':
+                respuesta.update({'valid': False, 'msg': resultado_mop['mensaje']})
+                return JsonResponse(respuesta, status=409)
+        return JsonResponse(respuesta)
     except ValueError as e:
         return JsonResponse({'valid': False, 'msg': str(e)}, status=400)
     except Exception as e:
         return JsonResponse({'valid': False, 'msg': f'Error al obtener ticket de pesaje: {str(e)}'}, status=500)
-
 
 def ajax_operacion_planta_descargar_ticket_pesaje(request):
     dato_id = request.GET.get('dato_id')
@@ -19470,12 +24781,13 @@ def ajax_operacion_planta_descargar_ticket_pesaje(request):
         return JsonResponse({'valid': False, 'msg': 'Debe seleccionar una empresa.'}, status=400)
 
     try:
-        dato = DATO_OPERACION.objects.select_related('CI_NID', 'CAMP_NID').get(
+        dato = DATO_OPERACION.objects.select_related('CI_NID__SC_NID', 'CAMP_NID').get(
             pk=dato_id,
             EP_NID_id=Empresa,
             CAMP_NID__CA_CCODIGO__in=[
                 _codigo_campo_ticket_pesaje('ENT'),
                 _codigo_campo_ticket_pesaje('SAL'),
+                CAMPO_TICKET_MOP_SAL_DESP_TERRAMAR,
             ]
         )
     except DATO_OPERACION.DoesNotExist:
@@ -19484,18 +24796,29 @@ def ajax_operacion_planta_descargar_ticket_pesaje(request):
     if not usuario_es_operacion_planta(request.user):
         return JsonResponse({'valid': False, 'msg': 'No tiene permisos para descargar este ticket.'}, status=403)
 
-    metadata = _leer_metadata_ticket_dato(dato)
-    ruta_pdf = metadata.get('ruta_real_pdf') if metadata else ''
-    if not ruta_pdf or not os.path.isfile(ruta_pdf) or not _ruta_ticket_permitida(ruta_pdf):
+    es_mop = dato.CAMP_NID.CA_CCODIGO == CAMPO_TICKET_MOP_SAL_DESP_TERRAMAR
+    if es_mop:
+        if not es_pesaje_salida_mop_despacho_terramar(dato.CI_NID, 'Pesaje Salida', 'SAL'):
+            return JsonResponse({'valid': False, 'msg': 'Ticket no encontrado.'}, status=404)
+        metadata = _metadata_ticket_mop_dato(dato)
+        ruta_pdf = metadata.get('ruta_local') if metadata else ''
+        nombre_descarga = metadata.get('nombre') if metadata else ''
+        valido = _ticket_mop_guardado_valido(dato.CI_NID, metadata)
+    else:
+        metadata = _leer_metadata_ticket_dato(dato)
+        ruta_pdf = metadata.get('ruta_real_pdf') if metadata else ''
+        nombre_descarga = os.path.basename(ruta_pdf) if ruta_pdf else ''
+        valido = bool(ruta_pdf and os.path.isfile(ruta_pdf) and _ruta_ticket_permitida(ruta_pdf))
+
+    if not valido or not ruta_pdf:
         return JsonResponse({'valid': False, 'msg': 'El PDF congelado no existe o no esta permitido.'}, status=404)
 
     return FileResponse(
         open(ruta_pdf, 'rb'),
         as_attachment=True,
-        filename=os.path.basename(ruta_pdf),
+        filename=nombre_descarga or os.path.basename(ruta_pdf),
         content_type='application/pdf'
     )
-
 
 def formatear_duracion_planta(fecha_inicio):
     if not fecha_inicio:
@@ -20211,7 +25534,7 @@ def export_citaciones_recepciones_excel(request):
 def CITACION_LISTONE(request, pk):
     try:
         citacion = CITACION.objects.get(id=pk)
-        if request.user.is_superuser == False:                     
+        if request.user.is_superuser == False:
             usuario = request.user.id
             acceso_pro_cit = (
                 usuario_tiene_permiso_pro_cit(request.user, PERMISO_INICIAR_PROFORMA)
@@ -20224,7 +25547,7 @@ def CITACION_LISTONE(request, pk):
             ):
                 messages.error(request, 'No tiene permisos para acceder a esta sección')
                 return redirect('/')
-        
+
         notificacion = request.GET.get('notificacion')
         if notificacion:
             empresa_activa_id = Verificar_empresa(request)
@@ -20247,7 +25570,7 @@ def CITACION_LISTONE(request, pk):
         # MODIFICACIÓN 1: Obtener solo etapas activas para la secuencia actual
         etapas = GetPreviewSecuenciaActiva(citacion.SC_NID.pk, citacion.EP_NID.pk)
         etapas_salida = getCantEtapaSalida(citacion.EP_NID.pk, citacion.SC_NID.pk)
-        
+
         if etapas is not None:
             for campo in etapas:
                 datos = []
@@ -20271,17 +25594,17 @@ def CITACION_LISTONE(request, pk):
                     'DATOS': datos,
                     'ID_CAMPO': step_key.replace(' ', '') + '_' + str(campo[7]),
                 })
-        
+
         # VERIFICAMOS SI EXISTE UNA NUEVA ETAPA
         etapa_actual = citacion.ETAPA_ACTUAL
-        
+
         # MODIFICACIÓN 2: Verificar si la etapa actual está habilitada
         detalle_secuencia_actual = DETALLE_SECUENCIA.objects.filter(
-            SC_NID=citacion.SC_NID, 
-            ET_NID=etapa_actual, 
+            SC_NID=citacion.SC_NID,
+            ET_NID=etapa_actual,
             SE_BHABILITADO=True
         ).first()
-        
+
         # Si la etapa actual fue eliminada, reasignar automáticamente
         if not detalle_secuencia_actual and citacion.CI_CESTADO == 'EN PROCESO':
             # Cerrar log de etapa eliminada
@@ -20291,15 +25614,15 @@ def CITACION_LISTONE(request, pk):
                 ET_NID=etapa_actual,
                 EL_FFECHAFIN=None
             ).update(EL_FFECHAFIN=timezone.now())
-            
+
             # Obtener nueva etapa actual después de la eliminación
             etapa_actual = citacion.ETAPA_ACTUAL
-            detalle_secuencia_actual = DETALLE_SECUENCIA.objects.get( 
-                SC_NID=citacion.SC_NID, 
-                ET_NID=etapa_actual, 
+            detalle_secuencia_actual = DETALLE_SECUENCIA.objects.get(
+                SC_NID=citacion.SC_NID,
+                ET_NID=etapa_actual,
                 SE_BHABILITADO=True
             )
-        
+
         siguiente_etapa = citacion.ETAPA_SIGUIENTE
         datos_operacion = DATO_OPERACION.objects.filter(CI_NID = citacion, SC_NID = citacion.SC_NID, ET_NID = etapa_actual)
 
@@ -20310,7 +25633,7 @@ def CITACION_LISTONE(request, pk):
                     etapa_linea = GetEtapaLinea(citacion.SC_NID.id, etapa_actual.id)
                     if etapa_linea and etapa_linea[3] in grouped_data:
                         lineas_etapa = grouped_data[etapa_linea[3]]
-        
+
         campo_validate_sap = GetCampoValidateSap(etapa_actual.id)
         if campo_validate_sap:
             campo_validate_sap = [elemento for tupla in campo_validate_sap for elemento in tupla]
@@ -20318,7 +25641,7 @@ def CITACION_LISTONE(request, pk):
         # MODIFICACIÓN 3: Obtener logs de etapas con datos históricos
         if citacion.CI_CESTADO == CIT_CREADO or citacion.CI_CESTADO == CIT_EN_PROCESO:
             etapas_log = ETAPA_LOG.objects.filter(
-                CI_NID=citacion, 
+                CI_NID=citacion,
                 SC_NID=citacion.SC_NID
             ).exclude(ET_NID=etapa_actual)
         else:
@@ -20330,11 +25653,11 @@ def CITACION_LISTONE(request, pk):
             CI_NID=citacion,
             SC_NID=citacion.SC_NID
         ).exclude(DO_NPESO__isnull=True).exclude(DO_NPESO=0)
-        
+
         for dato in datos_operacion_pesos:
             # Usar el ID del campo (CAMP_NID) como llave
             pesos_dato_operacion[dato.CAMP_NID.pk] = dato.DO_NPESO
-        
+
         # MODIFICACIÓN 4: Solo mostrar etapas que tienen datos cargados
         for log in etapas_log:
             # Verificar si hay datos operacionales para esta etapa
@@ -20343,20 +25666,20 @@ def CITACION_LISTONE(request, pk):
                 SC_NID=citacion.SC_NID,
                 ET_NID=log.ET_NID
             ).exists()
-            
+
             # Solo procesar si tiene datos cargados
             if tiene_datos:
                 step_key = log.ET_NID.ET_CCODIGO
                 campos = GetPreviewEtapaConDatos(log.ET_NID.pk, citacion.pk, citacion.SC_NID.pk)
-                
+
                 if campos:  # Solo agregar si tiene campos con datos
                     if step_key not in datos_etapa:
                         datos_etapa[step_key] = []
-                    
+
                     for campo in campos:
                         campo_id = campo[6]  # ID del campo principal (campo[6] según GetPreviewEtapaConDatos)
                         peso_campo = pesos_dato_operacion.get(campo_id)
-                        
+
                         # Obtener datos de lista si el campo es de tipo 'lista'
                         datos_lista = []
                         if campo[0].lower() == 'lista' and campo[5]:  # campo[5] es QUERY
@@ -20365,7 +25688,7 @@ def CITACION_LISTONE(request, pk):
                             except Exception as e:
                                 print(f"Error al ejecutar la consulta para campo {campo_id}: {e}")
                                 datos_lista = []
-                        
+
                         datos_etapa[step_key].append({
                             'TYPE': campo[0].lower(),
                             'ETIQUETA': campo[7],
@@ -20375,14 +25698,14 @@ def CITACION_LISTONE(request, pk):
                             'PESO': peso_campo,  # Peso del campo desde DO_NPESO
                             'DATOS': datos_lista  # Datos para campos de tipo lista
                         })
-                
+
         if citacion.CI_CESTADO == CIT_CREADO:
             ltsSecuencias = SECUENCIA.objects.filter(SE_BHABILITADO = True).exclude(id = citacion.SC_NID.id)
         else:
             etapa_log = ETAPA_LOG.objects.filter(CI_NID = citacion)
 
         responsables = []
-        
+
         if citacion.CI_CESTADO == CIT_EN_PROCESO and detalle_secuencia_actual:
             responsables_str = detalle_secuencia_actual.USERS_RESPONSABLE_ID
             responsables_str = responsables_str.replace('[', '')
@@ -20395,18 +25718,17 @@ def CITACION_LISTONE(request, pk):
             usuarios_admin = User.objects.filter(is_superuser = True)
             for user in usuarios_admin:
                 responsables.append(user.pk)
-            
+
         ltsConductores = []
         ltsCamiones = []
         ltsProveedores = []
         if citacion.CON_NID:
             ltsConductores = CONDUCTOR.objects.filter(
-                SN_NID = citacion.PRO_NID.pk, 
                 CON_BHABILITADO = True
             ).exclude(id = citacion.CON_NID.pk)
         if citacion.CA_NID:
             ltsCamiones = CAMION.objects.filter(
-                CAM_BHABILITADO = True, 
+                CAM_BHABILITADO = True,
                 SN_NID = citacion.PRO_NID.pk
             ).exclude(id = citacion.CA_NID.pk)
         if citacion.PRO_NID:
@@ -20415,7 +25737,7 @@ def CITACION_LISTONE(request, pk):
                 SN_BHABILITADO = True,
                 SN_CTIPO = 'S'
             ).exclude(id = citacion.PRO_NID.pk)
-        
+
         cupos_proveedor = CUPO_PROVEEDOR.objects.filter(PLA_NID = citacion.PL_NID)
 
         evaluacion_inicio_proforma = evaluar_inicio_proforma(citacion, request.user)
@@ -20424,7 +25746,7 @@ def CITACION_LISTONE(request, pk):
             usuario_tiene_permiso_pro_cit(request.user, PERMISO_PROFORMA_CITACIONES)
             and usuario_pro_cit_tiene_empresa(request.user, citacion.EP_NID_id)
         )
-        
+
         proforma = CITACION_PROFORMA.objects.filter().first()
         if not proforma:
             rutas = RUTA.objects.filter(RUT_BHABILITADO = True)
@@ -20433,9 +25755,9 @@ def CITACION_LISTONE(request, pk):
                 rutas = RUTA.objects.filter(RUT_BHABILITADO = True)
             else:
                 rutas = []
-                
+
         fletes = PARAMETRO.objects.filter(PM_CGRUPO = 'TIPO_FLETE', PM_NVALOR1 = citacion.EP_NID.pk)
-        
+
         ctx = {
             'citacion': citacion,
             'citacion_item': citacion_item,
@@ -20474,12 +25796,12 @@ def CITACION_LISTONE(request, pk):
 def CITACION_EDITAR_FLETE(request, pk):
     try:
         citacion = CITACION.objects.get(id = pk)
-        
+
         flete = request.POST.get('flete')
-        
+
         citacion.CI_CTIPO_FLETE = flete
         citacion.save()
-        
+
         messages.success(request, 'Flete editado correctamente')
         return redirect(f'/cit_listone/{pk}')
     except Exception as e:
@@ -20569,7 +25891,7 @@ def FINALIZAR_SECUENCIA(request, pk):
 
 def CITACION_ADDVARIOSPRE(request):
     try:
-        if request.user.is_superuser == False:                     
+        if request.user.is_superuser == False:
             usuario = request.user.id
             if not validar_perfiles_activos(usuario, "cit_addvarios"):
                 messages.error(request, 'No tiene permisos para acceder a esta sección')
@@ -20604,7 +25926,7 @@ def CITACION_ADDVARIOSPRE(request):
         row_citaciones = [i for i in range(1, int(num_citaciones)+1)]
         ltsFlete = []
         ltsEmpresas = EMPRESA.objects.all()
-        
+
         ltsClientes = SOCIONEGOCIO.objects.filter(SN_BHABILITADO = True, SN_CTIPO = 'C')
 
         ctx = {
@@ -20630,10 +25952,10 @@ def CITACION_ADDVARIOSPRE(request):
         print(e)
         messages.error(request, f'Error, {str(e)}')
         return redirect(f'/pla_listone/{pl_nid}')
-    
+
 def CITACION_ADDVARIOS(request):
     try:
-        if request.user.is_superuser == False:                     
+        if request.user.is_superuser == False:
             usuario = request.user.id
             if not validar_perfiles_activos(usuario, "cit_addvarios"):
                 messages.error(request, 'No tiene permisos para acceder a esta sección')
@@ -20651,12 +25973,12 @@ def CITACION_ADDVARIOS(request):
             tarifa = ''
             for index, row in enumerate(tableData):
                 proveedor = SOCIONEGOCIO.objects.get(id = row['id_proveedor'])
-                
+
                 if row["empresa"]:
-                   empresa = EMPRESA.objects.get(id = row["empresa"]) 
-                
+                   empresa = EMPRESA.objects.get(id = row["empresa"])
+
                 if es_venta:
-                    
+
                     proveedor = SOCIONEGOCIO.objects.get(id = row['id_proveedor'])
                     if not proveedor.SN_BGENERICO:
                         conductor = CONDUCTOR.objects.get(id = row['id_conductor'])
@@ -20902,7 +26224,7 @@ def editar_citacion_recepcion_terramar(request, pk):
         tarifa_id = str(request.POST.get('tarifa_id') or '').strip()
         conductor_id = str(request.POST.get('conductor_id') or '').strip()
         transportista = SOCIONEGOCIO.objects.filter(pk=transportista_id, EP_NID_id=citacion.EP_NID_id, SN_CTIPO='S', SN_BHABILITADO=True).first()
-        conductor = CONDUCTOR.objects.filter(pk=conductor_id, EP_NID_id=citacion.EP_NID_id, SN_NID=transportista, CON_BHABILITADO=True).first()
+        conductor = CONDUCTOR.objects.filter(pk=conductor_id, CON_BHABILITADO=True).first()
         if not transportista or not conductor or not all((campos['codigo_pais'], campos['telefono'], campos['patente'])):
             return JsonResponse({'error': 'Para transporte Terramar debe completar empresa, conductor, código país, celular y patente válidos.'}, status=400)
         campos['empresa_transporte'] = str(transportista)
@@ -20976,7 +26298,7 @@ def get_citation_data(request, pk):
         # Obtener otras listas necesarias
         ltsProveedores = SOCIONEGOCIO.objects.filter(EP_NID=empresa, SN_BHABILITADO=True, SN_CTIPO='S')
         ltsClientes = SOCIONEGOCIO.objects.filter(EP_NID=empresa, SN_BHABILITADO=True, SN_CTIPO='C')
-        ltsConductores = CONDUCTOR.objects.filter(EP_NID=empresa, CON_BHABILITADO=True)
+        ltsConductores = CONDUCTOR.objects.filter(CON_BHABILITADO=True)
         ltsCamiones = CAMION.objects.filter(EP_NID=empresa, CAM_BHABILITADO=True)
         ltsSecuencias = SECUENCIA.objects.filter(EP_NID=empresa, SE_BHABILITADO=True)
         ltsItems = ITEM.objects.filter(EP_NID=empresa)
@@ -21065,7 +26387,7 @@ def get_proveedor_data(request, proveedor_id):
         conductor_selected = ''
         camion_selected = ''
         tarifa_selected = ''
-        
+
         if citacion_id:
             try:
                 citacion = CITACION.objects.get(id=citacion_id)
@@ -21075,7 +26397,7 @@ def get_proveedor_data(request, proveedor_id):
             except CITACION.DoesNotExist:
                 pass
 
-        conductores = CONDUCTOR.objects.filter(EP_NID=empresa, SN_NID=proveedor, CON_BHABILITADO=True)
+        conductores = CONDUCTOR.objects.filter(CON_BHABILITADO=True)
         camiones = CAMION.objects.filter(EP_NID=empresa, SN_NID=proveedor, CAM_BHABILITADO=True)
         tarifas = TARIFA_GLOBAL.objects.filter(EP_NID=empresa, SN_NID=proveedor, TAR_BHABILITADO=True)
 
@@ -21105,7 +26427,7 @@ def update_citation(request, pk):
                 return JsonResponse({'valid': False, 'msg': 'No tiene permisos para editar esta citacion.'}, status=403)
             if not citacion_puede_editar_planificacion(citacion):
                 return JsonResponse({'valid': False, 'msg': 'La citacion ya tiene avance operativo y no puede editarse desde planificacion.'}, status=403)
-            
+
             # Update citation fields
             citacion.CI_CTIPODOCUMENTO = request.POST.get('tipo_documento')
             citacion.CI_CNUMERODOCUMENTO = request.POST.get('numero_documento')
@@ -21130,14 +26452,14 @@ def update_citation(request, pk):
                     nombre=request.POST.get('cliente_nombre')
                 )
                 citacion.SN_NID = cliente_sn
-            
+
             if 'id_conductor' in request.POST:
                 conductor_id = request.POST.get('id_conductor')
                 if not conductor_id or int(conductor_id) == 1:
                     citacion.CON_NID = None
                 else:
                     citacion.CON_NID = CONDUCTOR.objects.get(id=int(conductor_id))
-            
+
             if 'id_camion' in request.POST:
                 camion_id = request.POST.get('id_camion')
                 if not camion_id or int(camion_id) == 1:
@@ -21153,7 +26475,7 @@ def update_citation(request, pk):
                     citacion.SC_NID = secuencia
                 except SECUENCIA.DoesNotExist:
                     return JsonResponse({'valid': False, 'msg': 'La secuencia seleccionada no existe'})
-            
+
             fecha_llegada_raw = request.POST.get('fecha_llegada')
             if fecha_llegada_raw:
                 fecha_llegada = datetime.strptime(fecha_llegada_raw, '%Y-%m-%d').date()
@@ -21237,7 +26559,7 @@ def update_citation(request, pk):
                     origen_default='planificacion'
                 )
                 guardar_datos_planificacion_operacional(citacion, detalle_data, request.user, proveedor_sn=proveedor_sn)
-            
+
             # Update or create CITACION_ITEM
             producto_id = request.POST.get('id_producto')
             if producto_id:
@@ -21245,7 +26567,7 @@ def update_citation(request, pk):
                     CI_NID=citacion,
                     defaults={'IT_NID': ITEM.objects.get(id=producto_id)}
                 )
-            
+
             return JsonResponse({'valid': True})
         except Exception as e:
             return JsonResponse({'valid': False, 'msg': str(e)})
@@ -21375,7 +26697,7 @@ def CITACION_INICIAR_SECUENCIA(request, pk):
             SC_NID = citacion.SC_NID,
             ET_NID = citacion.ETAPA_ACTUAL,
             EL_FFECHAINICIO = datetime.now()
-        )        
+        )
         messages.success(request, 'Secuencia iniciada correctamente.')
         return redirect(f'/cit_listone/{citacion.id}')
     except Exception as e:
@@ -21390,7 +26712,7 @@ def CITACION_ADDSTEP(request, pk):
         secuencia = citacion.SC_NID
         etapa_actual = citacion.ETAPA_ACTUAL
         detalle_secuencia_actual = DETALLE_SECUENCIA.objects.get(SC_NID = secuencia, ET_NID = etapa_actual)
-        
+
         campos_etapa = GetCamposEtapa(etapa_actual.id)
         for campo_row in campos_etapa:
             campo = CAMPO.objects.get(id = campo_row[0])
@@ -21432,7 +26754,7 @@ def CITACION_ADDSTEP(request, pk):
                         US_NID = request.user,
                         DO_CVALOR = file_path,
                         DO_FFECHAREGISTRO = datetime.now()
-                    )                    
+                    )
                 except Exception as e:
                     print(e)
                     datos_operacion = DATO_OPERACION.objects.filter(CI_NID = citacion, SC_NID = secuencia, ET_NID = etapa_actual)
@@ -21471,7 +26793,7 @@ def CITACION_ADDSTEP(request, pk):
                         US_NID = request.user,
                         DO_CVALOR = valor_campo,
                         DO_FFECHAREGISTRO = datetime.now()
-                    )                    
+                    )
                 except Exception as e:
                     print(e)
                     datos_operacion = DATO_OPERACION.objects.filter(CI_NID = citacion, SC_NID = secuencia, ET_NID = etapa_actual)
@@ -21489,7 +26811,7 @@ def CITACION_ADDSTEP(request, pk):
             EL_FFECHAFIN=datetime.now()
         )
 
-        
+
         siguiente_etapa = citacion.ETAPA_SIGUIENTE
         if not siguiente_etapa:
             citacion.CI_FFECHATERMINO = datetime.now()
@@ -21497,7 +26819,7 @@ def CITACION_ADDSTEP(request, pk):
             citacion.save()
             messages.success(request, 'Secuencia finalizada correctamente.')
             return redirect(f'/cit_listone/{citacion.id}')
-        else:                               
+        else:
             ETAPA_LOG.objects.create(
                 CI_NID = citacion,
                 EP_NID = empresa,
@@ -21618,7 +26940,7 @@ def CITACION_FINALIZAR(request, pk):
         citacion.CI_FFECHATERMINO = datetime.now()
         citacion.CI_CESTADO = CIT_RECHAZADO
         citacion.save()
-           
+
         messages.success(request, 'Operación existosa.')
         return redirect(f'/cit_listone/{citacion.id}')
     except Exception as e:
@@ -21667,7 +26989,7 @@ def delete_extra(request, pk):
 def CITACION_BACKWARD(request, pk):
     try:
         citacion = CITACION.objects.get(id = pk)
-        empresa = citacion.EP_NID       
+        empresa = citacion.EP_NID
         etapa_actual = citacion.ETAPA_ACTUAL
         detalle_secuencia_actual = DETALLE_SECUENCIA.objects.get(EP_NID = citacion.EP_NID, SC_NID = citacion.SC_NID, ET_NID = etapa_actual)
 
@@ -21678,7 +27000,7 @@ def CITACION_BACKWARD(request, pk):
                 if campo_obj.CA_BASIGNARVALOR == True:
                     codigo_campo = campo_obj.CA_CCODIGO
                     update_field_citacion_null(pk, codigo_campo)
-        
+
         detalle_etapa_anterior = DETALLE_SECUENCIA.objects.filter(EP_NID = citacion.EP_NID, SC_NID = citacion.SC_NID, SE_NPASO = detalle_secuencia_actual.SE_NPASO - 1).first()
         if detalle_etapa_anterior:
             datos_operacion = DATO_OPERACION.objects.filter(CI_NID = citacion, SC_NID = citacion.SC_NID, ET_NID = detalle_etapa_anterior.ET_NID)
@@ -21704,7 +27026,7 @@ def CITACION_BACKWARD(request, pk):
         else:
             messages.error(request, 'No se puede volver a la etapa anterior')
             return redirect(f'/cit_listone/{citacion.id}')
-        
+
         etapa_log_actual = ETAPA_LOG.objects.get(CI_NID = citacion, SC_NID = citacion.SC_NID, ET_NID = etapa_actual)
         etapa_log_actual.delete()
 
@@ -21728,34 +27050,34 @@ def ajax_validar_citaciones(request):
         hora_inicio_local = timezone.localtime(planificacion.PL_FFECHAINICIO).time()
         hora_fin_local = timezone.localtime(planificacion.PL_FFECHAFIN).time()
         advertencias = []
-        
+
         for index, row in enumerate(tableData):
             # VALIDAR HORA DE CITACION
             hora_citacion = row['hora_citacion']
             hora_citacion_obj = datetime.strptime(hora_citacion, '%H:%M').time()
             if hora_citacion_obj < hora_inicio_local or hora_citacion_obj > hora_fin_local:
                 return JsonResponse({
-                    'valid': False, 
+                    'valid': False,
                     'msg': f'La hora de citación {index + 1} no está dentro del rango de la Planificación',
                 })
 
             # VALIDAR PROVEEDOR
             if not row["id_proveedor"]:
                 return JsonResponse({
-                    'valid': False, 
+                    'valid': False,
                     'msg': f'La citación {index + 1} no posee proveedor valido',
                 })
             proveedor = SOCIONEGOCIO.objects.get(id = row["id_proveedor"])
-            
+
             # VALIDAR CONDUCTOR
             if not row['id_conductor']:
                 return JsonResponse({
-                    'valid': False, 
+                    'valid': False,
                     'msg': f'La citación {index + 1} no posee conductor valido',
                 })
             if proveedor.SN_CRAZONSOCIAL != 'Puesto en planta':
                 conductor = CONDUCTOR.objects.get(id = row['id_conductor'])
-                
+
                 # VERIFICAR DOCUMENTOS DEL CONDUCTOR
                 if conductor.CON_CNOMBRE != 'CONDUCTOR':
                     documentos_conductor = conductor.ESTADO_DOCUMENTOS
@@ -21767,17 +27089,17 @@ def ajax_validar_citaciones(request):
                                 advertencias.append(f'El documento {doc[0]} del conductor {conductor.CON_CNOMBRE} {conductor.CON_CAPELLIDO} está vencido')
                             elif doc[1] <= 30:
                                 advertencias.append(f'El documento {doc[0]} del conductor {conductor.CON_CNOMBRE} {conductor.CON_CAPELLIDO} vence en {doc[1]} días')
-                                
+
             # VALIDAR CAMION
             if not row['id_camion']:
                 return JsonResponse({
-                    'valid': False, 
+                    'valid': False,
                     'msg': f'La citación {index + 1} no posee camión valido',
                 })
             if proveedor.SN_CRAZONSOCIAL != 'Puesto en planta':
 
                 camion = CAMION.objects.get(id = row['id_camion'])
-            
+
                 # VERIFICAR DOCUMENTOS DEL CAMION
                 if camion.CAM_CPATENTE != 'CAMION_GENERICO':
                     documentos_camion = camion.ESTADO_DOCUMENTOS
@@ -21793,14 +27115,14 @@ def ajax_validar_citaciones(request):
             # VALIDAR SECUENCIA
             if not row['id_secuencia']:
                 return JsonResponse({
-                    'valid': False, 
+                    'valid': False,
                     'msg': f'La citación {index + 1} no posee secuencia valida',
                 })
 
             # VALIDAR ITEM
             if not row['id_producto']:
                 return JsonResponse({
-                    'valid': False, 
+                    'valid': False,
                     'msg': f'La citación {index + 1} no posee item valido',
                 })
 
@@ -21808,11 +27130,11 @@ def ajax_validar_citaciones(request):
         num_citaciones_planificacion = CITACION.objects.filter(PL_NID = planificacion).count() + len(tableData)
         if num_citaciones_planificacion > planificacion.PL_NCANTIDADCUPOS:
             return JsonResponse({
-                'valid': True, 
+                'valid': True,
                 'continue': False,
                 'msg': f'La Planificación ya posee el número máximo de citaciones, ¿quieres marcarla como sobrecupo?',
             })
-            
+
         # Si hay advertencias, las mostramos pero permitimos continuar
         if advertencias:
             return JsonResponse({
@@ -21822,7 +27144,7 @@ def ajax_validar_citaciones(request):
                 'warnings': advertencias,
                 'msg': f'Se encontraron problemas con documentos.{advertencias} ¿Desea continuar de todas formas?'
             })
-            
+
         return JsonResponse({'valid': True, 'continue': True})
     except Exception as e:
         print(e)
@@ -22947,7 +28269,26 @@ def construir_archivo_eli(citacion, request=None, sincronizar=True):
     selector = seleccionar_datos_eli_despacho if tipo_eli == 'DESPACHO' else seleccionar_datos_eli_recepcion
     contexto = selector(citacion)
     expediente = _construir_archivo_eli_legacy(citacion, request=request, contexto=contexto, sincronizar=sincronizar)
-    return enriquecer_expediente_eli(expediente, citacion, tipo_eli)
+    expediente = enriquecer_expediente_eli(expediente, citacion, tipo_eli)
+    if aplica_timbraje_recepcion(citacion):
+        metadata_timbrado = _leer_metadata_terramar(citacion, _campo_timbrado_recepcion(citacion))
+        expediente['validaciones_documentos_terramar'] = [
+            {
+                'codigo_validacion': item.get('codigo_validacion'),
+                'documento': item.get('source_name'),
+                'origen': item.get('origen'),
+                'citacion_id': citacion.id,
+                'empresa_id': citacion.EP_NID_id,
+                'usuario_id': item.get('usuario_id'),
+                'usuario': item.get('usuario'),
+                'fecha': item.get('fecha_iso'),
+                'hash_original': item.get('source_hash'),
+                'hash_timbrado': item.get('stamped_hash'),
+            }
+            for item in metadata_timbrado.get('documentos', [])
+            if item.get('estado') == 'TIMBRADO' and item.get('codigo_validacion')
+        ]
+    return expediente
 
 
 def ELI_LISTALL(request):
@@ -23071,26 +28412,26 @@ def ELI_PDF(request, pk):
 def ajax_listar_archivos_tickets(request):
     """Lista archivos en \tickets que contengan el número de citación y la patente"""
     try:
-        if request.user.is_superuser == False:                     
+        if request.user.is_superuser == False:
             usuario = request.user.id
             if not validar_perfiles_activos(usuario, "cit_listone"):
                 return JsonResponse({'success': False, 'msg': 'No tiene permisos'})
 
         citacion_id = request.GET.get('citacion_id')
         patente = request.GET.get('patente')
-        
+
         if not citacion_id or not patente:
             return JsonResponse({'success': False, 'msg': 'Faltan parámetros'})
-        
+
         # Asegurar que citacion_id sea string sin espacios
         citacion_id = str(citacion_id).strip()
         patente = patente.strip()
-        
+
         # Ruta del directorio tickets - buscar en apps/tickets relativo al proyecto
         # El archivo views.py está en apps/home/, entonces apps/tickets está en ../tickets
         base_dir = os.path.dirname(os.path.dirname(__file__))  # apps/
         tickets_path = os.path.join(base_dir, 'tickets')
-        
+
         # Si no existe, intentar otras rutas
         if not os.path.exists(tickets_path) or not os.path.isdir(tickets_path):
             posibles_rutas = [
@@ -23103,22 +28444,22 @@ def ajax_listar_archivos_tickets(request):
                 if os.path.exists(ruta) and os.path.isdir(ruta):
                     tickets_path = ruta
                     break
-        
+
         if not tickets_path or not os.path.exists(tickets_path):
             print(f"Directorio tickets no encontrado. Ruta buscada: {os.path.join(base_dir, 'tickets')}")
             return JsonResponse({'success': True, 'archivos': [], 'msg': 'Directorio tickets no encontrado'})
-        
+
         # Buscar archivos PDF cuyo primer segmento (antes del primer "_") coincida con el número de citación
         archivos = []
         try:
             citacion_id_str = str(citacion_id).strip()
-            
+
             print(f"=== BÚSQUEDA DE ARCHIVOS PDF ===")
             print(f"Directorio: {tickets_path}")
             print(f"citación ID buscada: '{citacion_id_str}'")
             print(f"Buscando archivos cuyo primer segmento (antes del '_') sea '{citacion_id_str}'")
             print("")
-            
+
             for filename in os.listdir(tickets_path):
                 file_path = os.path.join(tickets_path, filename)
                 # Verificar que sea un archivo PDF
@@ -23126,10 +28467,10 @@ def ajax_listar_archivos_tickets(request):
                     # Extraer el primer segmento del nombre del archivo (antes del primer "_")
                     # Ejemplo: "29386_COM_SAL_ZU5787_26_01_20_14_42.pdf" -> "29386"
                     primer_segmento = filename.split('_')[0] if '_' in filename else filename.split('.')[0]
-                    
+
                     # Comparar el primer segmento con el número de citación
                     coincide_citacion = primer_segmento == citacion_id_str
-                    
+
                     if coincide_citacion:
                         file_size = os.path.getsize(file_path)
                         archivo_info = {
@@ -23142,7 +28483,7 @@ def ajax_listar_archivos_tickets(request):
                         print(f"âœ“ AGREGADO: {filename} (primer segmento: '{primer_segmento}')")
                     else:
                         print(f"âœ— IGNORADO: {filename} (primer segmento: '{primer_segmento}', buscado: '{citacion_id_str}')")
-            
+
             print("")
             print(f"=== RESULTADO ===")
             print(f"Total de archivos encontrados: {len(archivos)}")
@@ -23151,7 +28492,7 @@ def ajax_listar_archivos_tickets(request):
         except Exception as e:
             print(f"Error al listar archivos: {e}")
             return JsonResponse({'success': False, 'msg': f'Error al listar archivos: {str(e)}'})
-        
+
         return JsonResponse({'success': True, 'archivos': archivos})
     except Exception as e:
         print(e)
@@ -23160,41 +28501,41 @@ def ajax_listar_archivos_tickets(request):
 def ajax_descargar_archivo_ticket(request):
     """Descarga un archivo de tickets"""
     try:
-        if request.user.is_superuser == False:                     
+        if request.user.is_superuser == False:
             usuario = request.user.id
             if not validar_perfiles_activos(usuario, "cit_listone"):
                 messages.error(request, 'No tiene permisos para acceder a esta sección')
                 return redirect('/')
 
         file_path = request.GET.get('file_path')
-        
+
         if not file_path:
             messages.error(request, 'Ruta de archivo no proporcionada')
             return redirect('/')
-        
+
         # Normalizar la ruta del archivo
         file_path = os.path.normpath(file_path)
-        
+
         # Validar que el archivo esté en el directorio tickets
         # Obtener la ruta base de tickets
         base_dir = os.path.dirname(os.path.dirname(__file__))  # apps/
         tickets_path = os.path.join(base_dir, 'tickets')
-        
+
         # Verificar que el archivo existe y está dentro del directorio tickets
         if not os.path.exists(file_path):
             # Intentar construir la ruta completa si es relativa
             if not os.path.isabs(file_path):
                 file_path = os.path.join(tickets_path, file_path)
-        
+
         # Verificar que el archivo existe y está dentro del directorio tickets permitido
         if not os.path.exists(file_path):
             messages.error(request, 'Archivo no encontrado')
             return redirect('/')
-        
+
         # Verificar que el archivo está dentro de un directorio tickets válido
         normalized_file = os.path.normpath(file_path)
         normalized_tickets = os.path.normpath(tickets_path)
-        
+
         if not normalized_file.startswith(normalized_tickets):
             # Intentar otras rutas posibles
             otras_rutas = [r'C:\tickets', r'\tickets']
@@ -23206,7 +28547,7 @@ def ajax_descargar_archivo_ticket(request):
             if not es_valido:
                 messages.error(request, 'Ruta de archivo no válida')
                 return redirect('/')
-        
+
         # Determinar el content-type según la extensión del archivo
         file_extension = os.path.splitext(file_path)[1].lower()
         content_types = {
@@ -23221,13 +28562,13 @@ def ajax_descargar_archivo_ticket(request):
             '.docx': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
         }
         content_type = content_types.get(file_extension, 'application/octet-stream')
-        
+
         # Abrir y retornar el archivo
         file_handle = open(file_path, 'rb')
         response = FileResponse(file_handle, content_type=content_type)
         response['Content-Disposition'] = f'attachment; filename="{os.path.basename(file_path)}"'
         return response
-        
+
     except Exception as e:
         print(f"Error al descargar archivo: {e}")
         import traceback
@@ -23239,15 +28580,15 @@ def ajax_edit_secuencia(request, pk):
         citacion = CITACION.objects.get(id = pk)
         if citacion.CI_CESTADO != CIT_CREADO:
             return JsonResponse({'valid': False, 'msg': 'La citación ya ha sido iniciada'})
-        
+
         id_secuencia = request.POST.get('new_secuencia')
         secuencia = SECUENCIA.objects.get(id = id_secuencia)
         if secuencia.SE_BHABILITADO == False:
             return JsonResponse({'valid': False, 'msg': 'La secuencia no está habilitada'})
-        
+
         citacion.SC_NID = secuencia
         citacion.save()
-        
+
         return JsonResponse({'valid': True})
     except Exception as e:
         print(e)
@@ -23255,7 +28596,7 @@ def ajax_edit_secuencia(request, pk):
 
 def CITACION_CAMPO_VALIDAR_SAP(request):
     try:
-        if request.user.is_superuser == False:                     
+        if request.user.is_superuser == False:
             usuario = request.user.id
             if not validar_perfiles_activos(usuario, "cit_listone"):
                 messages.error(request, 'No tiene permisos para acceder a esta sección')
@@ -23281,7 +28622,7 @@ def CITACION_CAMPO_VALIDAR_SAP(request):
             # VALIDAR QUE EL CAMPO NO SEA OBLIGATORIO Y NO TENGA UN VALOR
             if not objeto_campo.CA_BOBLIGATORIO and not valor_campo:
                 continue
-            
+
             opciones_campo = CAMPO_OPCION.objects.get(CA_NID = objeto_campo)
             if empresa.pk == ID_TERRAMAR:
                 result = validar_campo_terramar(credenciales, opciones_campo.CA_CTABLA, opciones_campo.CA_CNOMBRECAMPO, valor_campo)
@@ -23316,7 +28657,7 @@ def CITACION_ENVIAR_SAP(request):
         payload = {
             "empresa": empresa.pk,
             "credenciales": {
-                "sb1_Server":empresa.EP_CSERVER,       
+                "sb1_Server":empresa.EP_CSERVER,
                 "sb1_CompanyDB":empresa.EP_CBASEDATOS,
                 "sb1_LicenseServer":empresa.EP_CLISENCESERVER,
                 "sb1_DbUserName":empresa.EP_CUSUARIOSBD,
@@ -23415,7 +28756,7 @@ def CITACION_ENVIAR_SAP(request):
                     DO_CVALOR = row,
                     DO_FFECHAREGISTRO = datetime.now(),
                 )
-            
+
             for row in lineas_sap:
                 line = {}
                 for key, value in row.items():
@@ -23430,8 +28771,8 @@ def CITACION_ENVIAR_SAP(request):
                         DO_FFECHAREGISTRO = datetime.now(),
                     )
             etapa_log_cabecera = ETAPA_LOG.objects.get(
-                CI_NID = citacion, 
-                SC_NID = citacion.SC_NID, 
+                CI_NID = citacion,
+                SC_NID = citacion.SC_NID,
                 ET_NID = etapa_actual
             )
 
@@ -23442,7 +28783,7 @@ def CITACION_ENVIAR_SAP(request):
                 EP_NID = empresa,
                 EL_FFECHAINICIO = etapa_log_cabecera.EL_FFECHAINICIO,
             )
-            
+
             etapa_log_cabecera.EL_FFECHAFIN = datetime.now()
             etapa_log_cabecera.save()
 
@@ -23463,14 +28804,14 @@ def CITACION_OMITIR_ETAPA(request):
 
         citacion = CITACION.objects.get(id = id_citacion)
         detalle_secuencia = DETALLE_SECUENCIA.objects.get(SC_NID = citacion.SC_NID, ET_NID = etapa_actual)
-        
+
         # Modificar el registro actual para que no tenga tiempo transcurrido
         etapa_log = ETAPA_LOG.objects.get(CI_NID = citacion, SC_NID = citacion.SC_NID, ET_NID = etapa_actual)
         tiempo_actual = datetime.now()
         etapa_log.EL_FFECHAINICIO = tiempo_actual  # Establecer la fecha de inicio igual a la de fin
         etapa_log.EL_FFECHAFIN = tiempo_actual     # Para que el tiempo transcurrido sea 0
         etapa_log.save()
-        
+
         # Crear el registro para la siguiente etapa
         siguiente_etapa = citacion.ETAPA_SIGUIENTE
         if siguiente_etapa is not None:
@@ -23488,7 +28829,7 @@ def CITACION_OMITIR_ETAPA(request):
 
 def CITACION_REEMPLAZAR(request, pk):
     try:
-        if request.user.is_superuser == False:                     
+        if request.user.is_superuser == False:
             usuario = request.user.id
             if not validar_perfiles_activos(usuario, "cit_replace"):
                 messages.error(request, 'No tiene permisos para acceder a esta sección')
@@ -23500,7 +28841,7 @@ def CITACION_REEMPLAZAR(request, pk):
         citacion_proforma = CITACION_PROFORMA.objects.filter(CI_NID = citacion_original).exists()
         if citacion_proforma:
             return JsonResponse({'valid': False, 'msg': 'La citación no puede ser reemplazada, ya que posee una proforma'})
-        
+
         if citacion_original.CI_CTIPO == CIT_DESPACHO:
             id_nuevo_proveedor = request.POST.get('nuevo_proveedor')
             nuevo_proveedor = SOCIONEGOCIO.objects.get(id = id_nuevo_proveedor)
@@ -23569,7 +28910,7 @@ def CITACION_REEMPLAZAR(request, pk):
 def CITACION_DATA(request, pk):
     try:
         citacion = CITACION.objects.get(id = pk)
-        
+
         # EXTRAEMOS LA INFORMACION DE LA CITACION ORIGINAL
         proveedor_orignal = [citacion.PRO_NID.id, citacion.PRO_NID.SN_CRAZONSOCIAL]
         conductor_original = [citacion.CON_NID.id, citacion.CON_NID.CON_CNOMBRE + ' ' + citacion.CON_NID.CON_CAPELLIDO ]
@@ -23584,10 +28925,10 @@ def CITACION_DATA(request, pk):
         tarifas = list(TARIFA_GLOBAL.objects.filter(EP_NID = citacion.EP_NID, TAR_BHABILITADO = True, SN_NID = citacion.PRO_NID, RUT_NID = citacion.RUT_NID).values_list('id', 'TAR_CNOMBRETARIFA').exclude(id = citacion.TAR_NID.id))
 
         return JsonResponse({
-            'valid': True, 
-            'proveedor_original': proveedor_orignal, 
-            'conductor_original': conductor_original, 
-            'camion_original': camion_original, 
+            'valid': True,
+            'proveedor_original': proveedor_orignal,
+            'conductor_original': conductor_original,
+            'camion_original': camion_original,
             'tarifa_original': tarifa_original,
             'valor_tarifa_citacion': valor_tarifa_citacion,
             'valor_original_tarifa_citacion': valor_original_tarifa_citacion,
@@ -23633,23 +28974,56 @@ def CIT_CONFORME(request, pk):
 @require_POST
 def CITACION_INICIAR_PROFORMA(request, pk):
     try:
-        citacion, resultado = iniciar_proforma(pk, request.user)
+        citacion = CITACION.objects.get(pk=pk)
+        if citacion.EP_NID_id != EMPRESA_TERRAMAR:
+            citacion, resultado = iniciar_proforma(pk, request.user)
+            if not resultado['ok']:
+                status = 403 if resultado['codigo'] in {
+                    'SIN_PERMISO', 'SIN_EMPRESA',
+                } else 400
+                return HttpResponse(resultado['mensaje'], status=status)
+            messages.info(request, resultado['mensaje'])
+            if request.POST.get('return_to') == 'proforma_citaciones_terminadas':
+                return redirect('proforma_citaciones_terminadas')
+            return redirect(f'/cit_listone/{citacion.pk}')
+
+        patios = list(CAMION_PATIO.objects.filter(
+            CI_NID=citacion,
+            CPA_CESTADO=CAMION_PATIO.ESTADO_ASOCIADO_CITACION,
+        ).only('CPA_CTRANSPORTISTA_DECLARADO'))
+        if len(patios) != 1:
+            return HttpResponse(
+                'La citación debe tener exactamente un CAMION_PATIO asociado.',
+                status=400,
+            )
+        resultado = continuar_borrador_desde_terminadas(
+            user=request.user,
+            citacion_ids=[citacion.pk],
+            empresa_id=citacion.EP_NID_id,
+            transportista_esperado=patios[0].CPA_CTRANSPORTISTA_DECLARADO,
+        )
         if not resultado['ok']:
-            status = 403 if resultado['codigo'] in {'SIN_PERMISO', 'SIN_EMPRESA'} else 400
+            status = (
+                403 if resultado['codigo'] in {
+                    'SIN_PERMISO', 'SIN_EMPRESA', 'EMPRESA_FUERA_ALCANCE',
+                }
+                else 409 if resultado['codigo'] in {
+                    'PROFORMA_AUTORIZADA', 'CONCURRENCIA',
+                }
+                else 400
+            )
             return HttpResponse(resultado['mensaje'], status=status)
 
-        if resultado['codigo'] == 'INICIADA':
-            messages.success(request, 'Citación habilitada correctamente para iniciar su proforma.')
-        else:
-            messages.info(request, resultado['mensaje'])
-        if request.POST.get('return_to') == 'proforma_citaciones_terminadas':
-            return redirect('proforma_citaciones_terminadas')
-        return redirect(f'/cit_listone/{citacion.pk}')
+        messages.success(request, resultado['mensaje'])
+        return redirect('proforma_terramar_detalle', pk=resultado['proforma'])
     except CITACION.DoesNotExist:
         return HttpResponse('La citación no existe.', status=404)
-    except Exception as e:
-        print(e)
-        return HttpResponse(f'No fue posible iniciar la proforma: {str(e)}', status=500)
+    except Exception as exc:
+        print(exc)
+        return HttpResponse(
+            f'No fue posible iniciar la proforma: {str(exc)}',
+            status=500,
+        )
 
 ##########################################################################
 #######################  PROVINCIAS Y COMUNAS  ###########################
@@ -23723,7 +29097,7 @@ def obtener_tarifas(request):
         'tarifas': list(tarifas.values('PM_CCODIGO', 'PM_CDESCRIPCION')),
         'divisas': list(divisas.values('PM_CCODIGO', 'PM_CDESCRIPCION'))
     }
-    
+
     return JsonResponse(data)
 
 ##########################################################################
@@ -23834,16 +29208,16 @@ def verificar_permiso(request):
         try:
             perfil_id = request.POST.get('perfil_id')
             vista_id = request.POST.get('vista_id')
-            
+
             perfil = PERFIL.objects.get(id=perfil_id)
             vista = VISTA.objects.get(id=vista_id)
-            
+
             permiso_habilitado = tiene_permiso_perfil(vista, perfil)
-            
+
             return JsonResponse({'permiso_habilitado': permiso_habilitado})
         except Exception as e:
             return JsonResponse({'error': str(e)}, status=500)
-    
+
     return JsonResponse({'error': 'Método no permitido'}, status=405)
 
 def modificar_perfil_usuario(request):
@@ -23852,17 +29226,17 @@ def modificar_perfil_usuario(request):
             perfil_id = request.POST.get('perfil_id')
             usuario_id = request.POST.get('user_id')
             checked = request.POST.get('checked') == 'true'
-            
+
             usuario = User.objects.get(id=usuario_id)
             perfil = PERFIL.objects.get(id = perfil_id)
             nombre_perfil = perfil.PR_CNOMBRE
-            
+
             if perfil.PR_CCODIGO == 'AD':
                 # Si el perfil_id es 1, se modifica el campo is_superuser del usuario
                 usuario.is_superuser = checked
                 usuario.save()
                 mensaje = 'Perfil de superusuario actualizado correctamente'
-            else:                
+            else:
                 # Para cualquier otro perfil_id, se verifica si existe el registro en PERFIL_USUARIO
                 try:
                     perfil = PERFIL.objects.get(id=perfil_id)
@@ -23909,15 +29283,15 @@ def modificar_perfil_usuario(request):
         except Exception as e:
             print(f"Error en modificar_perfil_usuario: {str(e)}")
             return JsonResponse({'error': str(e)}, status=500)
-    
+
     return JsonResponse({'error': 'Método no permitido'}, status=405)
 
-def verificar_perfil_usuario(request):    
+def verificar_perfil_usuario(request):
     if request.method == 'POST':
         try:
             perfil_id = request.POST.get('perfil_id')
             usuario_id = request.POST.get('user_id')
-            
+
             perfil = PERFIL.objects.get(id=perfil_id)
             usuario = User.objects.get(id=usuario_id)
 
@@ -23925,7 +29299,7 @@ def verificar_perfil_usuario(request):
                 es_admin = True
             else:
                 es_admin = False
-            
+
             perfil_usuario_habilitado = tiene_perfil_usuario(perfil, usuario)
 
             return JsonResponse({'perfil_usuario_habilitado': perfil_usuario_habilitado, 'es_admin': es_admin})
@@ -23933,7 +29307,7 @@ def verificar_perfil_usuario(request):
 
 
             return JsonResponse({'error': str(e)}, status=500)
-    
+
     return JsonResponse({'error': 'Método no permitido'}, status=405)
 
 ##########################################################################
@@ -24048,7 +29422,7 @@ def USERS_HABILITAR(request, pk):
 
 def PROFORMA_LISTALL(request):
     try:
-        if request.user.is_superuser == False:                     
+        if request.user.is_superuser == False:
             usuario = request.user.id
             if not validar_perfiles_activos(usuario, "proforma_listall"):
                 messages.error(request, 'No tiene permisos para acceder a esta sección')
@@ -24065,7 +29439,7 @@ def PROFORMA_LISTALL(request):
             fecha_desde = request.POST.get('fecha_desde', '')
             fecha_hasta = request.POST.get('fecha_hasta', '')
             empresa = request.POST.get('empresa')
-            
+
         if proveedor or fecha_desde or fecha_hasta or empresa:
             filtrado = True
 
@@ -24075,15 +29449,15 @@ def PROFORMA_LISTALL(request):
             fecha_desde=fecha_desde,
             fecha_hasta=fecha_hasta
         )
-        
+
         lstProveedores = SOCIONEGOCIO.objects.filter(SN_CTIPO = 'S').values_list('id', 'SN_CRAZONSOCIAL')
         ltsEmpresas = EMPRESA.objects.all()
-        
+
         ctx = {
             'object_list': object_list,
             'lstProveedores': lstProveedores,
             'ltsEmpresas': ltsEmpresas,
-            'selectedempresa': int(empresa) if empresa is not None else None, 
+            'selectedempresa': int(empresa) if empresa is not None else None,
             'selectedproveedor': int(proveedor) if proveedor else None,
             'fecha_hasta': fecha_hasta,
             'fecha_desde': fecha_desde,
@@ -24094,15 +29468,236 @@ def PROFORMA_LISTALL(request):
         print(e)
         messages.error(request, f'Error, {str(e)}')
         return redirect('/')
-    
+
+def _acceso_listado_proforma_mensual(request, etiqueta):
+    if not usuario_tiene_permiso_pro_cit(
+        request.user, PERMISO_PROFORMA_CITACIONES
+    ):
+        return None, HttpResponse(
+            f'No tiene permiso para consultar {etiqueta}.', status=403
+        )
+
+    empresa = Verificar_empresa(request)
+    try:
+        empresa = int(empresa)
+    except (TypeError, ValueError):
+        return None, HttpResponse(
+            'No existe una empresa activa válida.', status=403
+        )
+    if (
+        empresa != EMPRESA_TERRAMAR
+        or not usuario_pro_cit_tiene_empresa(request.user, empresa)
+    ):
+        return None, HttpResponse(
+            f'{etiqueta} solo está disponible para Terramar.', status=403
+        )
+    return empresa, None
+
+
+def _filtrar_proformas_mensuales(request, queryset, estados_disponibles):
+    tipo = str(request.GET.get('tipo', '')).strip().upper()
+    periodo = str(request.GET.get('periodo', '')).strip()
+    transporte = str(request.GET.get('transporte', '')).strip()
+    estado = str(request.GET.get('estado', '')).strip().upper()
+    categoria = str(request.GET.get('categoria', '')).strip().upper()
+    if tipo in {'RECEPCION', 'DESPACHO'}:
+        queryset = queryset.filter(PRO_CTIPO__in={tipo, f'{tipo} EXTRAS'})
+    if categoria == 'FLETE':
+        queryset = queryset.filter(PRO_CTIPO__in={'RECEPCION', 'DESPACHO'})
+    elif categoria == 'EXTRAS':
+        queryset = queryset.filter(PRO_CTIPO__in={'RECEPCION EXTRAS', 'DESPACHO EXTRAS'})
+    if periodo:
+        try:
+            anio, mes = (int(parte) for parte in periodo.split('-', 1))
+            if 1 <= mes <= 12:
+                queryset = queryset.filter(
+                    PRO_FPERIODO_INICIO__year=anio,
+                    PRO_FPERIODO_INICIO__month=mes,
+                )
+            else:
+                periodo = ''
+        except (TypeError, ValueError):
+            periodo = ''
+    if transporte.isdigit():
+        queryset = queryset.filter(SN_NID_id=int(transporte))
+    else:
+        transporte = ''
+    if estado in estados_disponibles:
+        queryset = queryset.filter(PRO_CESTADO=estado)
+    else:
+        estado = ''
+    return queryset, {
+        'tipo': tipo if tipo in {'RECEPCION', 'DESPACHO'} else '',
+        'categoria': categoria if categoria in {'FLETE', 'EXTRAS'} else '',
+        'periodo': periodo,
+        'transporte': transporte,
+        'estado': estado,
+    }
+
+def _contexto_paginado_proformas(request, queryset, filtros, empresa, estados):
+    transportes = SOCIONEGOCIO.objects.filter(
+        pk__in=PROFORMA.objects.filter(
+            EP_NID_id=empresa,
+            PRO_FPERIODO_INICIO__isnull=False,
+            SN_NID__isnull=False,
+        ).values_list('SN_NID_id', flat=True),
+    ).order_by('SN_CRAZONSOCIAL', 'pk')
+    paginator = Paginator(queryset, 50)
+    page_obj = paginator.get_page(request.GET.get('page', 1))
+    parametros = request.GET.copy()
+    parametros.pop('page', None)
+    carpetas = {}
+    for proforma in page_obj.object_list:
+        proforma.categoria_visual = categoria_proforma(proforma.PRO_CTIPO)
+        proforma.operacion_visual = tipo_operacion_proforma(proforma.PRO_CTIPO)
+        clave = (
+            proforma.SN_NID_id, proforma.operacion_visual,
+            proforma.PRO_FPERIODO_INICIO, proforma.PRO_FPERIODO_FIN,
+        )
+        carpeta = carpetas.setdefault(clave, {
+            'transporte': proforma.SN_NID,
+            'operacion': proforma.operacion_visual,
+            'inicio': proforma.PRO_FPERIODO_INICIO,
+            'fin': proforma.PRO_FPERIODO_FIN,
+            'documentos': [],
+        })
+        carpeta['documentos'].append(proforma)
+    return {
+        'object_list': page_obj.object_list,
+        'carpetas': list(carpetas.values()),
+        'page_obj': page_obj,
+        'paginator': paginator,
+        'total_records': paginator.count,
+        'selectedempresa': empresa,
+        'transportes': transportes,
+        'estados': estados,
+        'filtros': filtros,
+        'querystring': parametros.urlencode(),
+    }
+
+def PROFORMA_MENSUAL_LISTALL(request):
+    empresa, error = _acceso_listado_proforma_mensual(
+        request, 'la Lista de Proformas mensual'
+    )
+    if error:
+        return error
+
+    proformas = (
+        PROFORMA.objects.filter(
+            EP_NID_id=empresa,
+            PRO_FPERIODO_INICIO__isnull=False,
+            PRO_FPERIODO_FIN__isnull=False,
+            PRO_CTIPO__in={'RECEPCION', 'DESPACHO', 'RECEPCION EXTRAS', 'DESPACHO EXTRAS'},
+            PRO_CESTADO__in={'CREADO', 'APROBADO'},
+            PRO_BBORRADOR=True,
+            PRO_DOC_ENTRY__isnull=True,
+        )
+        .filter(Q(PRO_DOC_NUM__isnull=True) | Q(PRO_DOC_NUM=''))
+        .select_related('EP_NID', 'SN_NID')
+        .annotate(
+            cantidad_citaciones=Count('citacion_proforma', distinct=True),
+            cantidad_extras=Count('extra_proforma', filter=Q(extra_proforma__EPR_BHABILITADO=True), distinct=True),
+        )
+        .order_by('-id')
+    )
+    proformas, filtros = _filtrar_proformas_mensuales(
+        request, proformas, {'CREADO', 'APROBADO'}
+    )
+    contexto = _contexto_paginado_proformas(
+        request, proformas, filtros, empresa, ['CREADO', 'APROBADO']
+    )
+    return render(
+        request,
+        'home/PROFORMA/proforma_mensual_listall.html',
+        contexto,
+    )
+
+
+def PROFORMA_MENSUAL_HISTORICO(request):
+    empresa, error = _acceso_listado_proforma_mensual(
+        request, 'Históricos de Proformas'
+    )
+    if error:
+        return error
+
+    proformas = (
+        PROFORMA.objects.filter(
+            EP_NID_id=empresa,
+            PRO_FPERIODO_INICIO__isnull=False,
+            PRO_FPERIODO_FIN__isnull=False,
+            PRO_CTIPO__in={'RECEPCION', 'DESPACHO', 'RECEPCION EXTRAS', 'DESPACHO EXTRAS'},
+            PRO_CESTADO='AUTORIZADO',
+            PRO_BBORRADOR=False,
+        )
+        .select_related('EP_NID', 'SN_NID')
+        .annotate(
+            cantidad_citaciones=Count('citacion_proforma', distinct=True),
+            cantidad_extras=Count('extra_proforma', filter=Q(extra_proforma__EPR_BHABILITADO=True), distinct=True),
+        )
+    )
+    proforma_id = str(request.GET.get('proforma_id', '')).strip()
+    doc_sap = str(request.GET.get('doc_sap', '')).strip()
+    fecha_desde = parse_date(str(request.GET.get('fecha_desde', '')).strip())
+    fecha_hasta = parse_date(str(request.GET.get('fecha_hasta', '')).strip())
+    if proforma_id.isdigit():
+        proformas = proformas.filter(pk=int(proforma_id))
+    else:
+        proforma_id = ''
+    if doc_sap:
+        filtro_doc = Q(PRO_DOC_NUM__icontains=doc_sap)
+        if doc_sap.isdigit():
+            filtro_doc |= Q(PRO_DOC_ENTRY=int(doc_sap))
+        proformas = proformas.filter(filtro_doc)
+    if fecha_desde:
+        proformas = proformas.filter(PRO_FFECHAEMISION__date__gte=fecha_desde)
+    if fecha_hasta:
+        proformas = proformas.filter(PRO_FFECHAEMISION__date__lte=fecha_hasta)
+    proformas, filtros = _filtrar_proformas_mensuales(
+        request, proformas, {'AUTORIZADO'}
+    )
+    filtros.update({
+        'proforma_id': proforma_id,
+        'doc_sap': doc_sap,
+        'fecha_desde': fecha_desde.isoformat() if fecha_desde else '',
+        'fecha_hasta': fecha_hasta.isoformat() if fecha_hasta else '',
+    })
+    contexto = _contexto_paginado_proformas(
+        request,
+        proformas.order_by('-PRO_FFECHAEMISION', '-id'),
+        filtros,
+        empresa,
+        ['AUTORIZADO'],
+    )
+    ids_pagina = [proforma.pk for proforma in contexto['object_list']]
+    fechas_flujo = {}
+    for registro in SYSLOGGER.objects.filter(
+        EP_NID_id=empresa,
+        LOG_CADD1__in=[f'Proforma: {pk}' for pk in ids_pagina],
+        LOG_COPERACION__in=['PROFORMA_APROBADA', 'AUTORIZAR_PROFORMA'],
+    ).order_by('LOG_FFECHAREGISTRO', 'pk'):
+        try:
+            pk = int(str(registro.LOG_CADD1).split(':', 1)[1].strip())
+        except (IndexError, TypeError, ValueError):
+            continue
+        fechas_flujo[pk] = registro.LOG_FFECHAREGISTRO
+    for proforma in contexto['object_list']:
+        proforma.fecha_flujo = fechas_flujo.get(
+            proforma.pk, proforma.PRO_FFECHAEMISION
+        )
+    return render(
+        request,
+        'home/PROFORMA/proforma_mensual_historico.html',
+        contexto,
+    )
+
 def BORRADOR_PROFORMA_LISTALL(request):
     try:
-        if request.user.is_superuser == False:                     
+        if request.user.is_superuser == False:
             usuario = request.user.id
             if not validar_perfiles_activos(usuario, "proforma_listall_borrador"):
                 messages.error(request, 'No tiene permisos para acceder a esta sección')
                 return redirect('/')
-            
+
         proveedor = None
         fecha_desde = None
         fecha_hasta = None
@@ -24115,7 +29710,7 @@ def BORRADOR_PROFORMA_LISTALL(request):
             empresa = request.POST.get('empresa')
             if not empresa:
                 empresa = ID_TERRAMAR
-            
+
         if proveedor or fecha_desde  or fecha_hasta or empresa:
             filtrado = True
 
@@ -24126,16 +29721,16 @@ def BORRADOR_PROFORMA_LISTALL(request):
             fecha_desde=fecha_desde,
             fecha_hasta=fecha_hasta
         )
-        
+
         lstProveedores = SOCIONEGOCIO.objects.filter(SN_CTIPO = 'S').values_list('id', 'SN_CRAZONSOCIAL')
         ltsEmpresas = EMPRESA.objects.all()
-        
+
         ctx = {
             'object_list': object_list,
             'filtrado': filtrado,
             'lstProveedores': lstProveedores,
             'ltsEmpresas': ltsEmpresas,
-            'selectedempresa': int(empresa) if empresa is not None else None, 
+            'selectedempresa': int(empresa) if empresa is not None else None,
             'selectedproveedor': int(proveedor) if proveedor else None,
             'fecha_hasta': fecha_hasta,
             'fecha_desde': fecha_desde,
@@ -24145,7 +29740,7 @@ def BORRADOR_PROFORMA_LISTALL(request):
         print(e)
         messages.error(request, f'Error, {str(e)}')
         return redirect('/')
-    
+
 def PROFORMA_DELETE(request, pk):
     try:
         if request.user.is_superuser == False:
@@ -24155,7 +29750,7 @@ def PROFORMA_DELETE(request, pk):
                 return redirect('/')
 
         proforma = PROFORMA.objects.get(id=pk)
-        
+
         if not proforma.PRO_BBORRADOR:
             messages.error(request, f"Solo se pueden eliminar proformas borradores")
             return redirect(f'/proforma_listall')
@@ -24171,7 +29766,7 @@ def PROFORMA_DELETE(request, pk):
         extra_proforma = EXTRA_PROFORMA.objects.filter(PRO_NID = proforma)
         if extra_proforma:
             extra_proforma.delete()
-            
+
         lineas_proforma = LINEA_PROFORMA.objects.filter(PRO_NID = proforma)
         if lineas_proforma:
             lineas_proforma.delete()
@@ -24190,111 +29785,110 @@ def PROFORMA_CITACION_LISTALL(request):
             return HttpResponse('No tiene permiso para consultar las citaciones de proforma.', status=403)
 
         parametros = request.POST if request.method == 'POST' else request.GET
-        transportista_id = parametros.get('transportista_id', '')
-        fecha_desde = parametros.get('fecha_desde', '')
-        fecha_hasta = parametros.get('fecha_hasta', '')
-        tipo_citacion = parametros.get('tipo_citacion', 'RECEPCION') or 'RECEPCION'
-        empresa = (
-            parametros.get('_empresa_id')
-            or parametros.get('empresa')
-            or Verificar_empresa(request)
-        )
-
+        empresa = parametros.get('_empresa_id') or parametros.get('empresa') or Verificar_empresa(request)
         try:
             empresa = int(empresa)
-            transportista_id = int(transportista_id) if transportista_id else None
         except (TypeError, ValueError):
-            return HttpResponse('Los filtros seleccionados no son válidos.', status=400)
+            return HttpResponse('La empresa seleccionada no es válida.', status=400)
+        if empresa != EMPRESA_TERRAMAR:
+            return HttpResponse('El flujo mensual solo está disponible para Terramar.', status=403)
+        if not usuario_pro_cit_tiene_empresa(request.user, empresa):
+            return HttpResponse('No tiene acceso a Terramar.', status=403)
 
-        if not empresa or not usuario_pro_cit_tiene_empresa(request.user, empresa):
-            return HttpResponse('No tiene acceso a la empresa seleccionada.', status=403)
+        tipo_citacion = str(parametros.get('tipo_citacion') or 'RECEPCION').strip().upper()
+        if tipo_citacion not in {'RECEPCION', 'DESPACHO'}:
+            return HttpResponse('El tipo de citación no es válido.', status=400)
+        periodo = parametros.get('periodo') or timezone.localdate().strftime('%Y-%m')
+        try:
+            periodo_inicio, periodo_fin = periodo_mensual(periodo)
+        except ValueError as exc:
+            return HttpResponse(str(exc), status=400)
+        try:
+            transportista_id = int(parametros.get('transportista_id')) if parametros.get('transportista_id') else None
+        except (TypeError, ValueError):
+            return HttpResponse('El Transporte seleccionado no es válido.', status=400)
 
-        # La consulta legacy conserva toda la elegibilidad. El proveedor no se
-        # usa como transportista ni como filtro de carpetas.
         citaciones = get_list_citaciones_proforma(
             proveedor=None,
-            fecha_desde=fecha_desde,
-            fecha_hasta=fecha_hasta,
+            fecha_desde=periodo_inicio.isoformat(),
+            fecha_hasta=periodo_fin.isoformat(),
             tipo_citacion=tipo_citacion,
             empresa=empresa,
+            usar_fecha_citacion=True,
         ) or []
-
-        # Misma resolución maestra que transportista_vigente_camion_patio(),
-        # cargada una sola vez para evitar una consulta por citación.
-        transportistas_maestros = list(
-            queryset_transportistas_validos_ingreso_camion(empresa)
-            .order_by('id')
-            .values_list('id', 'SN_CRAZONSOCIAL')
+        transportistas_ids = {int(fila[20]) for fila in citaciones if fila[20]}
+        transportistas = dict(
+            SOCIONEGOCIO.objects.filter(
+                pk__in=transportistas_ids,
+                EP_NID_id=EMPRESA_TERRAMAR,
+            ).values_list('id', 'SN_CRAZONSOCIAL')
         )
-        maestros_por_nombre = {}
-        for maestro_id, maestro_nombre in transportistas_maestros:
-            clave_nombre = limpiar_nombre_transportista_ingreso(
-                maestro_nombre
-            ).casefold()
-            maestros_por_nombre.setdefault(
-                clave_nombre,
-                (maestro_id, maestro_nombre),
-            )
+        lstTransportistas = sorted(
+            transportistas.items(), key=lambda item: item[1].casefold()
+        )
 
         carpetas_por_clave = OrderedDict()
-        transportistas_elegibles = OrderedDict()
         total_citaciones_filtradas = 0
-        for citacion in citaciones:
-            citacion = tuple(citacion)
-            nombre_declarado = limpiar_nombre_transportista_ingreso(citacion[7])
-            maestro = maestros_por_nombre.get(nombre_declarado.casefold())
-            if not maestro:
+        for fila in citaciones:
+            fila = tuple(fila)
+            proveedor_id = int(fila[20]) if fila[20] else None
+            if not proveedor_id or proveedor_id not in transportistas:
                 continue
-
-            maestro_id, maestro_nombre = maestro
-            transportistas_elegibles[maestro_id] = maestro_nombre
-            if transportista_id and maestro_id != transportista_id:
+            if transportista_id and proveedor_id != transportista_id:
                 continue
-
-            costo_extra = (citacion[11] or 0) - (citacion[12] or 0)
-            citacion += (costo_extra, (citacion[9] or 0) + costo_extra)
-            clave = (maestro_id, citacion[16], citacion[17])
+            costo_extra = (fila[11] or 0) - (fila[12] or 0)
+            fila += (costo_extra, (fila[9] or 0) + costo_extra)
+            clave = (proveedor_id, empresa, tipo_citacion, periodo_inicio)
             carpeta = carpetas_por_clave.setdefault(
                 clave,
                 {
-                    'transportista_id': maestro_id,
-                    'transportista': maestro_nombre,
-                    'empresa_id': citacion[16],
-                    'empresa': citacion[19],
-                    'tipo': citacion[17],
+                    'transportista_id': proveedor_id,
+                    'transportista': transportistas[proveedor_id],
+                    'empresa_id': empresa,
+                    'empresa': fila[19],
+                    'tipo': tipo_citacion,
+                    'periodo': periodo,
+                    'periodo_inicio': periodo_inicio,
+                    'periodo_fin': periodo_fin,
                     'citaciones': [],
-                    'fecha_antigua': citacion[18],
-                    'fecha_reciente': citacion[18],
+                    'fecha_antigua': fila[18],
+                    'fecha_reciente': fila[18],
+                    'estado_grupo': 'SIN PROFORMA',
+                    'proforma_id': None,
                 },
             )
-            carpeta['citaciones'].append(citacion)
-            carpeta['fecha_antigua'] = min(carpeta['fecha_antigua'], citacion[18])
-            carpeta['fecha_reciente'] = max(carpeta['fecha_reciente'], citacion[18])
+            carpeta['citaciones'].append(fila)
+            carpeta['fecha_antigua'] = min(carpeta['fecha_antigua'], fila[18])
+            carpeta['fecha_reciente'] = max(carpeta['fecha_reciente'], fila[18])
             total_citaciones_filtradas += 1
+
+        for carpeta in carpetas_por_clave.values():
+            existentes = PROFORMA.objects.filter(
+                EP_NID_id=empresa,
+                SN_NID_id=carpeta['transportista_id'],
+                PRO_CTIPO=tipo_citacion,
+                PRO_FPERIODO_INICIO=periodo_inicio,
+                PRO_FPERIODO_FIN=periodo_fin,
+            )
+            autorizada = existentes.filter(PRO_CESTADO='AUTORIZADO').order_by('-pk').first()
+            borrador = existentes.filter(PRO_CESTADO='CREADO', PRO_BBORRADOR=True).order_by('-pk').first()
+            existente = autorizada or borrador
+            if existente:
+                carpeta['estado_grupo'] = 'AUTORIZADA' if autorizada else 'BORRADOR'
+                carpeta['proforma_id'] = existente.pk
 
         carpetas = list(carpetas_por_clave.values())
         paginator = Paginator(carpetas, 500)
         page_obj = paginator.get_page(request.GET.get('page', 1))
-
-        empresas_ids = USERS_EMPRESA.objects.filter(
-            US_NID=request.user,
-        ).values_list('EP_NID_id', flat=True)
-        ltsEmpresas = EMPRESA.objects.filter(id__in=empresas_ids)
-        lstTransportistas = sorted(
-            transportistas_elegibles.items(),
-            key=lambda item: item[1].casefold(),
-        )
-
         filtros_paginacion = request.GET.copy()
         filtros_paginacion.pop('page', None)
         filtros_paginacion['_empresa_id'] = empresa
+        filtros_paginacion['periodo'] = periodo
+        filtros_paginacion['tipo_citacion'] = tipo_citacion
         if transportista_id:
             filtros_paginacion['transportista_id'] = transportista_id
         else:
             filtros_paginacion.pop('transportista_id', None)
-        filtros_paginacion['fecha_desde'] = fecha_desde
-        filtros_paginacion['fecha_hasta'] = fecha_hasta
-        filtros_paginacion['tipo_citacion'] = tipo_citacion
 
         ctx = {
             'object_list': page_obj.object_list,
@@ -24307,12 +29901,14 @@ def PROFORMA_CITACION_LISTALL(request):
             'lstTransportistas': lstTransportistas,
             'selectedtransportista': transportista_id,
             'selectedempresa': empresa,
-            'ltsEmpresas': ltsEmpresas,
-            'fecha_desde': fecha_desde,
-            'fecha_hasta': fecha_hasta,
+            'ltsEmpresas': EMPRESA.objects.filter(pk=EMPRESA_TERRAMAR),
             'tipo_citacion': tipo_citacion,
-            'filtrado': bool(transportista_id or fecha_desde or fecha_hasta),
+            'periodo': periodo,
+            'periodo_inicio': periodo_inicio,
+            'periodo_fin': periodo_fin,
+            'filtrado': True,
             'pagination_query': filtros_paginacion.urlencode(),
+            'puede_autorizar': usuario_puede_autorizar_sap(request.user),
         }
         return render(request, 'home/PROFORMA/proforma_citacion_listall.html', ctx)
     except Exception as e:
@@ -24341,13 +29937,17 @@ def _totales_borrador_proforma(detalle):
     }
 
 
-def _detalle_borrador_desde_seleccion(ids, empresa_id):
+def _detalle_borrador_desde_seleccion(
+    ids, empresa_id, periodo=None, transporte_id=None, tipo=None
+):
+    inicio, fin = periodo_mensual(periodo) if periodo else (None, None)
     filas = get_list_citaciones_proforma(
-        proveedor=None,
-        fecha_desde=None,
-        fecha_hasta=None,
-        tipo_citacion=None,
+        proveedor=transporte_id,
+        fecha_desde=inicio.isoformat() if inicio else None,
+        fecha_hasta=fin.isoformat() if fin else None,
+        tipo_citacion=tipo,
         empresa=empresa_id,
+        usar_fecha_citacion=bool(periodo),
     ) or []
     filas_por_id = {int(fila[0]): fila for fila in filas}
     if any(citacion_id not in filas_por_id for citacion_id in ids):
@@ -24505,7 +30105,14 @@ def PROFORMA_BORRADOR_PDF(request):
                 return HttpResponse('La proforma pertenece a otra empresa.', status=403)
             detalle = _detalle_borrador_desde_proforma(proforma, ids)
         else:
-            detalle = _detalle_borrador_desde_seleccion(ids, empresa_id)
+            periodo = request.POST.get('periodo')
+            transporte_id = request.POST.get('transportista_id')
+            tipo = request.POST.get('tipo')
+            if empresa_id == EMPRESA_TERRAMAR and not periodo:
+                return HttpResponse('Debe indicar el período mensual Terramar.', status=400)
+            detalle = _detalle_borrador_desde_seleccion(
+                ids, empresa_id, periodo, transporte_id, tipo
+            )
 
         empresas = {fila['empresa_id'] for fila in detalle}
         tipos = {fila['tipo'] for fila in detalle}
@@ -24636,7 +30243,7 @@ def PROFORMA_CITACIONES_TERMINADAS(request):
 @login_required
 @require_POST
 def PROFORMA_CITACIONES_TERMINADAS_INICIAR_LOTE(request):
-    resultado = iniciar_lote_proforma(
+    resultado = continuar_borrador_desde_terminadas(
         citacion_ids=request.POST.getlist('citacion_ids[]'),
         user=request.user,
         empresa_id=request.POST.get('empresa_id'),
@@ -24646,26 +30253,316 @@ def PROFORMA_CITACIONES_TERMINADAS_INICIAR_LOTE(request):
     )
 
     if not resultado['ok']:
-        status = (
-            403
-            if resultado['codigo'] in {'SIN_PERMISO', 'SIN_EMPRESA'}
-            else 400
+        if resultado['codigo'] in {
+            'SIN_PERMISO', 'SIN_EMPRESA', 'EMPRESA_FUERA_ALCANCE',
+        }:
+            return HttpResponse(resultado['mensaje'], status=403)
+        messages.error(request, resultado['mensaje'])
+        return redirect('proforma_citaciones_terminadas')
+
+    messages.success(request, resultado['mensaje'])
+    return redirect('proforma_terramar_detalle', pk=resultado['proforma'])
+
+
+@login_required
+@require_GET
+def PROFORMA_TERRAMAR_DETALLE(request, pk):
+    try:
+        proforma = obtener_proforma_terramar(pk, request.user)
+        contexto = contexto_detalle_proforma(proforma)
+        sap_company_db = ''
+        sap_environment = ''
+        try:
+            sap_company_db = get_sap_company_db(
+                proforma.EP_NID_id, for_write=True
+            )
+            sap_environment = normalize_sap_environment()
+        except Exception:
+            pass
+        puede_borrar_carpeta = (
+            proforma_editable(proforma)
+            and not contexto.get('es_mixta')
+            and not str(proforma.PRO_DOC_NUM or '').strip()
+            and usuario_puede_borrar_carpeta(request.user)
         )
-        return HttpResponse(resultado['mensaje'], status=status)
+        contexto.update({
+            'puede_borrar_carpeta': puede_borrar_carpeta,
+            'firma_borrado_carpeta': (
+                firma_borrado_carpeta(proforma) if puede_borrar_carpeta else ''
+            ),
+            'puede_aprobar_borrador': (
+                proforma_editable(proforma)
+                and not contexto.get('es_mixta')
+                and usuario_puede_aprobar_borrador(request.user)
+            ),
+            'puede_autorizar_sap': (
+                estado_permite_autorizar_sap(proforma)
+                and str(Verificar_empresa(request)) == str(proforma.EP_NID_id)
+                and usuario_puede_autorizar_sap(
+                    request.user, proforma.EP_NID_id
+                )
+            ),
+            'sap_company_db': sap_company_db,
+            'sap_environment': sap_environment,
+        })
+        return render(
+            request,
+            'home/PROFORMA/proforma_terramar_detalle.html',
+            contexto,
+        )
+    except PermissionError as exc:
+        return HttpResponse(str(exc), status=403)
+    except ProformaTerramarError as exc:
+        messages.error(request, str(exc))
+        return redirect('prof_listall')
 
-    request.session['proforma_lote_preparado'] = {
-        'lote_id': resultado.get('lote_id'),
-        'citacion_ids': resultado['citacion_ids'],
-        'empresa_id': resultado['empresa_id'],
-        'transportista': resultado['transportista'],
-    }
-    if resultado['codigo'] == 'LOTE_INICIADO':
-        messages.success(request, resultado['mensaje'])
-    else:
-        messages.info(request, resultado['mensaje'])
 
-    return redirect('prof_listall')
+@login_required
+@require_GET
+def PROFORMA_TERRAMAR_CITACION_OPERACIONAL(request, citacion_id):
+    if not usuario_puede_proforma_terramar(request.user):
+        return HttpResponse(
+            'No tiene permiso para acceder al detalle operacional Terramar.',
+            status=403,
+        )
+    citacion = get_object_or_404(
+        CITACION.objects.select_related(
+            'EP_NID', 'PL_NID', 'SN_NID', 'PRO_NID',
+            'RUT_NID__COM_NID_INICIO', 'RUT_NID__COM_NID_TERMINO',
+        ),
+        pk=citacion_id,
+        EP_NID_id=EMPRESA_TERRAMAR,
+    )
+    asociacion = CITACION_PROFORMA.objects.select_related('PRO_NID').filter(
+        CI_NID=citacion,
+        EP_NID_id=EMPRESA_TERRAMAR,
+        PRO_NID__PRO_CTIPO__in={'RECEPCION', 'DESPACHO'},
+    ).order_by('-id').first()
+    proforma = None
+    proforma_extras = None
+    if asociacion and es_proforma_mensual_terramar(asociacion.PRO_NID):
+        proforma = asociacion.PRO_NID
+        grupo_extras = PROFORMA.objects.filter(
+            EP_NID_id=EMPRESA_TERRAMAR,
+            SN_NID_id=proforma.SN_NID_id,
+            PRO_CTIPO=f'{tipo_operacion_proforma(proforma.PRO_CTIPO)} EXTRAS',
+            PRO_FPERIODO_INICIO=proforma.PRO_FPERIODO_INICIO,
+            PRO_FPERIODO_FIN=proforma.PRO_FPERIODO_FIN,
+        )
+        proforma_extras = grupo_extras.filter(
+            PRO_CESTADO='CREADO', PRO_BBORRADOR=True,
+            PRO_DOC_ENTRY__isnull=True,
+        ).order_by('-pk').first()
+    extras_citacion = EXTRA_PROFORMA.objects.none()
+    if proforma_extras:
+        extras_citacion = EXTRA_PROFORMA.objects.filter(
+            PRO_NID=proforma_extras,
+            CIE_NID__CI_NID=citacion,
+            EPR_BHABILITADO=True,
+        ).select_related('CIE_NID__EXT_NID')
+    puede_editar_extras = bool(
+        proforma and (
+            proforma_extras is None or proforma_editable(proforma_extras)
+        )
+    )
+    contexto = detalle_operacional_citacion(citacion)
+    contexto.update({
+        'proforma': proforma,
+        'proforma_extras': proforma_extras,
+        'citacion': citacion,
+        'editable': puede_editar_extras,
+        'extras_citacion': extras_citacion,
+        'catalogo_extras': (
+            EXTRA.objects.filter(
+                EP_NID_id=EMPRESA_TERRAMAR,
+                EXT_BHABILITADO=True,
+                EXT_CTIPO_CITACION=citacion.CI_CTIPO,
+                EXT_NVALORBASE__isnull=False,
+            ).order_by('EXT_CNOMBRE', 'id')
+            if puede_editar_extras else EXTRA.objects.none()
+        ),
+        'detalle_sin_proforma': proforma is None,
+    })
+    return render(
+        request,
+        'home/PROFORMA/proforma_terramar_citacion_detalle.html',
+        contexto,
+    )
+@login_required
+@require_GET
+def PROFORMA_TERRAMAR_CITACION_DETALLE(request, pk, citacion_id):
+    try:
+        proforma = obtener_proforma_terramar(pk, request.user)
+        asociacion = get_object_or_404(
+            CITACION_PROFORMA.objects.select_related(
+                'CI_NID__EP_NID', 'CI_NID__PL_NID', 'CI_NID__SN_NID',
+                'CI_NID__PRO_NID', 'CI_NID__RUT_NID__COM_NID_INICIO',
+                'CI_NID__RUT_NID__COM_NID_TERMINO',
+            ),
+            PRO_NID=proforma,
+            CI_NID_id=citacion_id,
+            EP_NID_id=EMPRESA_TERRAMAR,
+        )
+        contexto = detalle_operacional_citacion(asociacion.CI_NID)
+        contexto.update({
+            'proforma': proforma,
+            'citacion': asociacion.CI_NID,
+            'editable': proforma_editable(proforma),
+            'extras_citacion': EXTRA_PROFORMA.objects.filter(
+                PRO_NID=proforma,
+                CIE_NID__CI_NID=asociacion.CI_NID,
+                EPR_BHABILITADO=True,
+            ).select_related('CIE_NID__EXT_NID'),
+            'catalogo_extras': EXTRA.objects.filter(
+                EP_NID_id=EMPRESA_TERRAMAR,
+                EXT_BHABILITADO=True,
+                EXT_CTIPO_CITACION=asociacion.CI_NID.CI_CTIPO,
+                EXT_NVALORBASE__isnull=False,
+            ).order_by('EXT_CNOMBRE', 'id'),
+        })
+        return render(
+            request,
+            'home/PROFORMA/proforma_terramar_citacion_detalle.html',
+            contexto,
+        )
+    except PermissionError as exc:
+        return HttpResponse(str(exc), status=403)
+    except ProformaTerramarError as exc:
+        messages.error(request, str(exc))
+        return redirect('prof_listall')
 
+
+def _redirigir_detalle_citacion(pk, citacion_id):
+    return redirect('proforma_terramar_citacion_operacional', citacion_id=citacion_id)
+
+
+@login_required
+@require_POST
+def PROFORMA_TERRAMAR_EXTRA_AGREGAR(request, pk, citacion_id):
+    try:
+        agregar_extra_terramar(
+            user=request.user,
+            proforma_id=pk,
+            citacion_id=citacion_id,
+            extra_id=request.POST.get('extra_id'),
+            cantidad=request.POST.get('cantidad'),
+            valor_unitario=request.POST.get('valor_unitario'),
+            comentario=request.POST.get('comentario'),
+            editar_valor=request.POST.get('editar_valor') in {'1', 'on', 'true'},
+        )
+        messages.success(request, 'Extra agregado y totales recalculados correctamente.')
+    except PermissionError as exc:
+        return HttpResponse(str(exc), status=403)
+    except ProformaTerramarError as exc:
+        messages.error(request, str(exc))
+    return _redirigir_detalle_citacion(pk, citacion_id)
+
+
+@login_required
+@require_POST
+def PROFORMA_TERRAMAR_EXTRA_EDITAR(request, pk, citacion_id, extra_id):
+    try:
+        editar_extra_terramar(
+            user=request.user,
+            proforma_id=pk,
+            citacion_id=citacion_id,
+            extra_proforma_id=extra_id,
+            cantidad=request.POST.get('cantidad'),
+            valor_unitario=request.POST.get('valor_unitario'),
+            comentario=request.POST.get('comentario'),
+            editar_valor=request.POST.get('editar_valor') in {'1', 'on', 'true'},
+        )
+        messages.success(request, 'Extra actualizado y totales recalculados correctamente.')
+    except PermissionError as exc:
+        return HttpResponse(str(exc), status=403)
+    except ProformaTerramarError as exc:
+        messages.error(request, str(exc))
+    return _redirigir_detalle_citacion(pk, citacion_id)
+
+
+@login_required
+@require_POST
+def PROFORMA_TERRAMAR_EXTRA_ELIMINAR(request, pk, citacion_id, extra_id):
+    try:
+        eliminar_extra_terramar(
+            user=request.user,
+            proforma_id=pk,
+            citacion_id=citacion_id,
+            extra_proforma_id=extra_id,
+        )
+        messages.success(request, 'Extra eliminado y totales recalculados correctamente.')
+    except PermissionError as exc:
+        return HttpResponse(str(exc), status=403)
+    except ProformaTerramarError as exc:
+        messages.error(request, str(exc))
+    return _redirigir_detalle_citacion(pk, citacion_id)
+
+
+@login_required
+@require_POST
+def PROFORMA_TERRAMAR_APROBAR_BORRADOR(request, pk):
+    try:
+        aprobar_borrador_terramar(user=request.user, proforma_id=pk)
+        messages.success(request, 'Borrador aprobado sin ejecutar SAP.')
+    except PermissionError as exc:
+        return HttpResponse(str(exc), status=403)
+    except ProformaTerramarError as exc:
+        messages.error(request, str(exc))
+    return redirect('proforma_terramar_detalle', pk=pk)
+
+
+@login_required
+@require_POST
+def PROFORMA_TERRAMAR_BORRAR_CARPETA(request, pk):
+    try:
+        resultado = borrar_carpeta_terramar(
+            user=request.user,
+            proforma_id=pk,
+            firma=request.POST.get('firma_borrado'),
+            confirmacion=request.POST.get('confirmacion'),
+        )
+        if resultado['categoria'] == 'FLETE':
+            messages.success(
+                request,
+                f"Carpeta de Fletes #{pk} borrada. "
+                f"{resultado['cantidad_citaciones']} citaciones volvieron a Citaciones terminadas.",
+            )
+        else:
+            messages.success(
+                request,
+                f"Carpeta de Extras #{pk} borrada. "
+                f"{resultado['cantidad_extras']} Extras volvieron a quedar pendientes de Proforma.",
+            )
+        return redirect('prof_listall')
+    except PermissionError as exc:
+        return HttpResponse(str(exc), status=403)
+    except ProformaTerramarError as exc:
+        return HttpResponse(str(exc), status=409)
+
+@login_required
+@require_GET
+def PROFORMA_TERRAMAR_BORRADOR_PDF(request, pk):
+    if not WEASYPRINT_AVAILABLE:
+        return HttpResponse('WeasyPrint no está disponible para generar el PDF.', status=503)
+    try:
+        proforma = obtener_proforma_terramar(pk, request.user)
+        if proforma.PRO_CESTADO not in {'CREADO', 'APROBADO', 'AUTORIZADO'}:
+            raise ProformaTerramarError('El estado de la Proforma no permite generar el PDF.')
+        contexto = contexto_pdf_proforma(proforma)
+        contexto['usuario'] = request.user.get_full_name() or request.user.username
+        html = render_to_string(
+            'home/PROFORMA/proforma_terramar_borrador_pdf.html',
+            contexto,
+            request=request,
+        )
+        response = HttpResponse(content_type='application/pdf')
+        response['Content-Disposition'] = f'inline; filename="borrador_proforma_{proforma.pk}.pdf"'
+        HTML(string=html, base_url=request.build_absolute_uri('/')).write_pdf(response)
+        return response
+    except PermissionError as exc:
+        return HttpResponse(str(exc), status=403)
+    except ProformaTerramarError as exc:
+        return HttpResponse(str(exc), status=400)
 
 def PROFORMA_EXTRAS_LISTALL(request):
     try:
@@ -24681,10 +30578,10 @@ def PROFORMA_EXTRAS_LISTALL(request):
             fecha_hasta = request.POST.get('fecha_hasta', '')
             tipo_citacion = request.POST.get('tipo_citacion', '')
             empresa = request.POST.get('empresa', '')
-                        
+
         if proveedor or fecha_desde or fecha_hasta or tipo_citacion or empresa:
             filtrado = True
-        
+
         object_list = get_EXTRAS_PROFORMA(
             proveedor = proveedor,
             fecha_desde = fecha_desde,
@@ -24692,16 +30589,16 @@ def PROFORMA_EXTRAS_LISTALL(request):
             tipo_citacion = tipo_citacion,
             empresa = empresa
         )
-        
+
         lstProveedores = SOCIONEGOCIO.objects.filter(SN_CTIPO = 'S').values_list('id', 'SN_CRAZONSOCIAL')
         ltsEmpresas = EMPRESA.objects.all()
-                
+
         ctx = {
             'object_list': object_list,
             'lstProveedores': lstProveedores,
             'ltsEmpresas': ltsEmpresas,
             'selectedproveedor': int(proveedor) if proveedor else None,
-            'selectedempresa': int(empresa) if empresa is not None else None, 
+            'selectedempresa': int(empresa) if empresa is not None else None,
             'fecha_desde': fecha_desde,
             'fecha_hasta': fecha_hasta,
             'empresa': empresa,
@@ -24731,10 +30628,24 @@ def PROFORMA_EXTRAS(request):
             proveedor = None
             tipo_citacion = None
             empresa = None
-            
+            periodo_grupo = None
+
             for id_extra in id_extras:
                 citacion_extra = CITACION_EXTRA.objects.get(id = id_extra)
-                
+                if citacion_extra.EP_NID_id == EMPRESA_TERRAMAR:
+                    if EXTRA_PROFORMA.objects.filter(CIE_NID=citacion_extra).exists():
+                        return JsonResponse({
+                            'valid': False,
+                            'msg': 'Uno de los extras Terramar ya pertenece a una Proforma.',
+                        }, status=400)
+                    periodo_extra = periodo_citacion(citacion_extra.CI_NID)
+                    if periodo_grupo is not None and periodo_extra != periodo_grupo:
+                        return JsonResponse({
+                            'valid': False,
+                            'msg': 'No se pueden mezclar extras Terramar de distintos períodos mensuales.',
+                        }, status=400)
+                    periodo_grupo = periodo_extra
+
                 # VALIDACIÓN POR TIPO DE CITACIÓN (RECEPCIÓN/DESPACHO)
                 if tipo_citacion is not None:
                     if tipo_citacion != citacion_extra.CI_NID.CI_CTIPO:
@@ -24745,8 +30656,8 @@ def PROFORMA_EXTRAS(request):
                         })
                 else:
                     tipo_citacion = citacion_extra.CI_NID.CI_CTIPO
-                
-                # VALIDACIÓN POR PROVEEDOR DE LA CITACIÓN 
+
+                # VALIDACIÓN POR PROVEEDOR DE LA CITACIÓN
                 if proveedor is not None:
                     if citacion_extra.CI_NID.PRO_NID.pk != proveedor:
                         return JsonResponse({
@@ -24756,7 +30667,7 @@ def PROFORMA_EXTRAS(request):
                         })
                 else:
                     proveedor = citacion_extra.CI_NID.PRO_NID.pk
-                
+
                 # VALIDACIÓN POR EMPRESA DE LA CITACIÓN (TERRAMAR/ACEITES)
                 if empresa is not None:
                     if citacion_extra.EP_NID_id != empresa:
@@ -24774,10 +30685,10 @@ def PROFORMA_EXTRAS(request):
                 else:
                     sub_total_proforma -= citacion_extra.CIE_NVALOR
                     total_extras_descuento -= citacion_extra.CIE_NVALOR
-                
+
             iva = sub_total_proforma * Decimal(0.19).quantize(Decimal('0.00'))
             total_proforma = sub_total_proforma + iva
-            
+
             proforma = PROFORMA.objects.create(
                 EP_NID_id = empresa,
                 US_NID = request.user,
@@ -24793,9 +30704,11 @@ def PROFORMA_EXTRAS(request):
                 PRO_FFECHAEMISION = datetime.now(),
                 PRO_CTIPO = f'{tipo_citacion} EXTRAS',
                 PRO_BSINEXTRAS = False,
-                PRO_BSOLOEXTRAS = True
+                PRO_BSOLOEXTRAS = True,
+                PRO_FPERIODO_INICIO = periodo_grupo[0] if empresa == EMPRESA_TERRAMAR else None,
+                PRO_FPERIODO_FIN = periodo_grupo[1] if empresa == EMPRESA_TERRAMAR else None
             )
-            
+
             for id_extra in id_extras:
                 extra = CITACION_EXTRA.objects.get(id = id_extra)
                 EXTRA_PROFORMA.objects.create(
@@ -24829,6 +30742,11 @@ def PROFORMA_UNITARIA(request):
         tipo =  None
         if request.method == 'POST':
             citaciones = json.loads(request.POST.get('citaciones'))
+            if CITACION.objects.filter(pk__in=citaciones, EP_NID_id=EMPRESA_TERRAMAR).exists():
+                return JsonResponse({
+                    'valid': False,
+                    'msg': 'Para Terramar debe utilizar la agrupación mensual de Proformas.',
+                }, status=400)
             comentario = request.POST.get('comentario')
             for id_citacion in citaciones:
                 citacion = CITACION.objects.get(id=id_citacion)
@@ -24844,7 +30762,7 @@ def PROFORMA_UNITARIA(request):
                         total_extras_ingreso += extra.CIE_NVALOR
                     else:
                         total_extras_descuento += extra.CIE_NVALOR
-                
+
                 sub_total_citacion = tarifa_citacion + total_extras_ingreso - total_extras_descuento
                 iva = sub_total_citacion * Decimal(0.19).quantize(Decimal('0.00'))
                 total_proforma = sub_total_citacion + iva
@@ -24891,6 +30809,39 @@ def PROFORMA_UNITARIA(request):
 
 def PROFORMA_TODO(request):
     try:
+        if request.method == 'POST':
+            try:
+                ids_mensuales = json.loads(request.POST.get('citaciones') or '[]')
+                ids_mensuales = [int(valor) for valor in ids_mensuales]
+            except (TypeError, ValueError, json.JSONDecodeError):
+                return JsonResponse({'valid': False, 'msg': 'La selección no es válida.'}, status=400)
+            if CITACION.objects.filter(pk__in=ids_mensuales, EP_NID_id=EMPRESA_TERRAMAR).exists():
+                resultado = crear_o_ampliar_proforma_mensual(
+                    user=request.user,
+                    citacion_ids=ids_mensuales,
+                    empresa_id=request.POST.get('empresa_id') or EMPRESA_TERRAMAR,
+                    transporte_id=request.POST.get('transportista_id'),
+                    tipo=request.POST.get('tipo'),
+                    periodo=request.POST.get('periodo'),
+                    comentario=request.POST.get('comentario') or '',
+                    sin_extras=str(request.POST.get('sin_extras', 'false')).lower() == 'true',
+                    proforma_id=request.POST.get('proforma_id') or None,
+                )
+                if resultado['ok']:
+                    return JsonResponse({'valid': True, **resultado})
+                if resultado['codigo'] in {'SIN_PERMISO', 'SIN_EMPRESA', 'EMPRESA_FUERA_ALCANCE'}:
+                    status = 403
+                elif resultado['codigo'] in {
+                    'PROFORMA_EXISTENTE', 'PROFORMA_AUTORIZADA',
+                    'CONCURRENCIA', 'YA_PROFORMADA',
+                }:
+                    status = 409
+                else:
+                    status = 400
+                return JsonResponse(
+                    {'valid': False, 'msg': resultado['mensaje'], **resultado},
+                    status=status,
+                )
         if request.user.is_superuser == False:
             usuario = request.user.id
             if not validar_perfiles_activos(usuario, "proforma_todo"):
@@ -24914,13 +30865,13 @@ def PROFORMA_TODO(request):
             empresa = None
             for citacion in citaciones:
                 citacion = CITACION.objects.get(id=citacion)
-                
+
                 if not citacion.RUT_NID:
                     tarifa = citacion.TAR_NID
                     if tarifa:
                         citacion.RUT_NID = tarifa.RUT_NID
                         citacion.save()
-                
+
                 if tipo_citacion is None:
                     tipo_citacion = citacion.CI_CTIPO
                 else:
@@ -24930,8 +30881,8 @@ def PROFORMA_TODO(request):
                             'msg': 'No se puede crear proforma para citaciones de diferente tipo',
                             'redirect_url': f'/prof_listall/'
                         })
-                        
-                
+
+
                 if proveedor is not None:
                     if citacion.PRO_NID.pk != proveedor:
                         return JsonResponse({
@@ -24941,7 +30892,7 @@ def PROFORMA_TODO(request):
                         })
                 else:
                     proveedor = citacion.PRO_NID.pk
-                
+
                 if empresa is not None:
                     if citacion.EP_NID.pk != empresa:
                         return JsonResponse({
@@ -24951,7 +30902,7 @@ def PROFORMA_TODO(request):
                         })
                 else:
                     empresa = citacion.EP_NID.pk
-                
+
                 if not sin_extras:
                     extras = CITACION_EXTRA.objects.filter(CI_NID = citacion)
                     for extra in extras:
@@ -24963,7 +30914,7 @@ def PROFORMA_TODO(request):
 
                 if citacion.CI_NVALORTARIFA is not None:
                     sub_total_proforma += citacion.CI_NVALORTARIFA
-            
+
             sub_total_proforma += total_extras_ingreso - total_extras_descuento
             iva = sub_total_proforma * Decimal(0.19).quantize(Decimal('0.00'))
             total_proforma = sub_total_proforma + iva
@@ -24987,7 +30938,7 @@ def PROFORMA_TODO(request):
 
             for citacion in citaciones:
                 citacion = CITACION.objects.get(id=citacion)
-                
+
                 if not sin_extras:
                     extras = CITACION_EXTRA.objects.filter(CI_NID = citacion)
                     for extra in extras:
@@ -25023,6 +30974,24 @@ def PROFORMA_LISTONE(request, pk):
     proforma = None
     try:
         proforma = PROFORMA.objects.get(id=pk)
+        if (
+            proforma.EP_NID_id == EMPRESA_TERRAMAR
+            and proforma.PRO_FPERIODO_INICIO is not None
+            and proforma.PRO_FPERIODO_FIN is not None
+        ):
+            return PROFORMA_TERRAMAR_DETALLE(request, pk)
+        if not request.user.is_superuser:
+            permiso_legacy = validar_perfiles_activos(request.user.id, "proforma_listall")
+            permiso_mensual = (
+                proforma.EP_NID_id == EMPRESA_TERRAMAR
+                and proforma.PRO_FPERIODO_INICIO is not None
+                and usuario_tiene_permiso_pro_cit(
+                    request.user, PERMISO_PROFORMA_CITACIONES
+                )
+                and usuario_pro_cit_tiene_empresa(request.user, EMPRESA_TERRAMAR)
+            )
+            if not permiso_legacy and not permiso_mensual:
+                return HttpResponse('No tiene permiso para ver esta Proforma.', status=403)
         proveedor = proforma.SN_NID
 
         documentos = DOCUMENTO_PROFORMA.objects.filter(PRO_NID=proforma)
@@ -25197,57 +31166,57 @@ def PROFORMA_LISTONE(request, pk):
         if proforma:
             return redirect(f'/proforma_listall/{proforma.PRO_CTIPO}/')
         return redirect('/proforma_listall/')
-    
+
 def PROFORMA_LISTONE_SOLO_EXTRAS(request, pk):
     try:
         proforma = PROFORMA.objects.get(id=pk)
         proveedor = proforma.SN_NID
         documentos = DOCUMENTO_PROFORMA.objects.filter(PRO_NID = proforma)
-                
+
         # Solo trabajamos con extras de la proforma
         extras_proforma_ingreso = EXTRA_PROFORMA.objects.filter(
-            PRO_NID=proforma, 
-            EPR_BINGRESO=True, 
+            PRO_NID=proforma,
+            EPR_BINGRESO=True,
             EPR_BHABILITADO=True
         )
         extras_proforma_descuento = EXTRA_PROFORMA.objects.filter(
-            PRO_NID=proforma, 
-            EPR_BINGRESO=False, 
+            PRO_NID=proforma,
+            EPR_BINGRESO=False,
             EPR_BHABILITADO=True
         )
-        
+
         # Calcular totales solo con extras habilitados
         total_extras_ingreso = 0
         total_extras_descuento = 0
         total_extras = 0
-        
+
         for extra_ingreso in extras_proforma_ingreso:
             total_extras_ingreso += extra_ingreso.EPR_NVALOR
             total_extras += extra_ingreso.EPR_NVALOR
-            
+
         for extra_descuento in extras_proforma_descuento:
             total_extras_descuento += extra_descuento.EPR_NVALOR
             total_extras -= extra_descuento.EPR_NVALOR
-        
+
         # El subtotal solo considera extras (sin tarifas)
         sub_total_proforma = total_extras_ingreso - total_extras_descuento
-        
+
         # Calcular IVA y total
         nuevo_iva = round(sub_total_proforma * Decimal(0.19).quantize(Decimal('0.00')), 0)
         nuevo_total_proforma = sub_total_proforma + nuevo_iva
-        
+
         # Actualizar los valores de la proforma si han cambiado
-        if (proforma.PRO_NSUBTOTAL != sub_total_proforma or 
-            proforma.PRO_NIVA != nuevo_iva or 
+        if (proforma.PRO_NSUBTOTAL != sub_total_proforma or
+            proforma.PRO_NIVA != nuevo_iva or
             proforma.PRO_NTOTAL != nuevo_total_proforma):
-            
+
             proforma.PRO_NDESCUENTO = total_extras_descuento
             proforma.PRO_NINGRESO = total_extras_ingreso
             proforma.PRO_NSUBTOTAL = sub_total_proforma
             proforma.PRO_NIVA = nuevo_iva
             proforma.PRO_NTOTAL = nuevo_total_proforma
             proforma.save()
-                
+
         # Obtener logs relacionados con esta proforma
         logs_proforma = SYSLOGGER.objects.filter(
             LOG_CMODULO='PROFORMA',
@@ -25266,12 +31235,12 @@ def PROFORMA_LISTONE_SOLO_EXTRAS(request, pk):
             proveedor = proveedor.pk,
             empresa = proforma.EP_NID.pk
         )
-        
+
         extras_proforma = EXTRA_PROFORMA.objects.filter(
-            PRO_NID=proforma, 
+            PRO_NID=proforma,
             EPR_BHABILITADO=True
         )
-        
+
         has_permiso_nuevo_extra = False
         if not request.user.is_superuser:
             usuario = request.user.id
@@ -25279,7 +31248,7 @@ def PROFORMA_LISTONE_SOLO_EXTRAS(request, pk):
                 has_permiso_nuevo_extra = True
         else:
             has_permiso_nuevo_extra = True
-        
+
         ctx = {
             'proforma': proforma,
             'extras_proforma': extras_proforma,
@@ -25291,7 +31260,7 @@ def PROFORMA_LISTONE_SOLO_EXTRAS(request, pk):
             'documentos': documentos
         }
         return render(request, 'home/PROFORMA/proforma_listone_solo_extras.html', ctx)
-        
+
     except Exception as e:
         print(e)
         messages.error(request, f'Error, {str(e)}')
@@ -25302,41 +31271,41 @@ def PROFORMA_LISTONE_MANUAL(request, pk):
         proforma = PROFORMA.objects.get(id=pk)
         proveedor = proforma.SN_NID
         empresa = proforma.EP_NID
-        
+
         # Obtener documentos asociados a la proforma
         documentos = DOCUMENTO_PROFORMA.objects.filter(PRO_NID=proforma)
-        
+
         # Obtener todas las líneas de la proforma
         lineas_proforma = LINEA_PROFORMA.objects.filter(PRO_NID=proforma).order_by('id')
-        
+
         # Calcular totales basados en las líneas
         subtotal_calculado = Decimal(0)
         for linea in lineas_proforma:
             total_linea = linea.LP_NPRECIO_UNITARIO * linea.LP_NCANTIDAD
             subtotal_calculado += total_linea
-        
+
         # Calcular IVA y total
         iva_calculado = round(subtotal_calculado * Decimal(0.19).quantize(Decimal('0.00')), 0)
         total_calculado = subtotal_calculado + iva_calculado
-        
+
         # Actualizar los valores de la proforma si han cambiado
-        if (proforma.PRO_NSUBTOTAL != subtotal_calculado or 
-            proforma.PRO_NIVA != iva_calculado or 
+        if (proforma.PRO_NSUBTOTAL != subtotal_calculado or
+            proforma.PRO_NIVA != iva_calculado or
             proforma.PRO_NTOTAL != total_calculado):
-            
+
             proforma.PRO_NSUBTOTAL = subtotal_calculado
             proforma.PRO_NIVA = iva_calculado
             proforma.PRO_NTOTAL = total_calculado
             proforma.PRO_NINGRESO = Decimal(0)  # No hay extras en manual
             proforma.PRO_NDESCUENTO = Decimal(0)  # No hay extras en manual
             proforma.save()
-        
+
         # Obtener logs relacionados con esta proforma
         logs_proforma = SYSLOGGER.objects.filter(
             LOG_CMODULO='PROFORMA',
             LOG_CADD1=f'Proforma: {proforma.pk}'
         ).order_by('-LOG_FFECHAREGISTRO')
-        
+
         # Verificar permisos de modificación
         has_permiso_modificaciones = False
         if request.user.is_superuser == False:
@@ -25344,7 +31313,7 @@ def PROFORMA_LISTONE_MANUAL(request, pk):
                 has_permiso_modificaciones = True
         else:
             has_permiso_modificaciones = True
-        
+
         ctx = {
             'proforma': proforma,
             'proveedor': proveedor,
@@ -25355,7 +31324,7 @@ def PROFORMA_LISTONE_MANUAL(request, pk):
             'has_permiso_modificaciones': has_permiso_modificaciones,
         }
         return render(request, "home/PROFORMA/proforma_manual_listone.html", ctx)
-        
+
     except PROFORMA.DoesNotExist:
         messages.error(request, f"La proforma #{pk} no existe")
         return redirect('/proforma_listall')
@@ -25375,10 +31344,15 @@ def PROFORMA_DELETE_CITACION(request, pk):
         # Obtener la citación y su proforma asociada
         citacion_proforma = CITACION_PROFORMA.objects.select_related('PRO_NID', 'CI_NID').get(CI_NID=pk)
         proforma = citacion_proforma.PRO_NID
+        if es_proforma_mensual_terramar(proforma) and not proforma_editable(proforma):
+            return HttpResponse(
+                'La Proforma mensual Terramar no admite quitar citaciones en su estado actual.',
+                status=409,
+            )
 
         # Guardar los valores actuales para restar
-        valor_tarifa = citacion_proforma.CI_NID.CI_NVALORTARIFA or 0
-        
+        valor_tarifa = citacion_proforma.CIP_NSUBTOTAL or 0
+
         # Obtener y eliminar los extras asociados
         extras_proforma = EXTRA_PROFORMA.objects.filter(
             PRO_NID=proforma,
@@ -25441,7 +31415,11 @@ def PROFORMA_ADD_CITACION(request, pk):
 
         if request.user.is_superuser == False:
             usuario = request.user.id
-            if not validar_perfiles_activos(usuario, "proforma_add_citacion"):
+            permiso_legacy = validar_perfiles_activos(usuario, "proforma_add_citacion")
+            permiso_mensual = usuario_tiene_permiso_pro_cit(
+                request.user, PERMISO_PROFORMA_CITACIONES
+            )
+            if not permiso_legacy and not permiso_mensual:
                 return JsonResponse({
                     'valid': False,
                     'msg': 'No tiene permisos para acceder a esta sección'
@@ -25449,7 +31427,7 @@ def PROFORMA_ADD_CITACION(request, pk):
 
         proforma = PROFORMA.objects.get(id=pk)
         id_citacion = request.POST.get('CI_NID')
-        
+
         # Validaciones básicas
         if not id_citacion:
             return JsonResponse({
@@ -25465,6 +31443,31 @@ def PROFORMA_ADD_CITACION(request, pk):
                 'msg': 'La citación no existe'
             }, status=404)
 
+        if proforma.EP_NID_id == EMPRESA_TERRAMAR:
+            if not proforma.PRO_FPERIODO_INICIO or not proforma.PRO_FPERIODO_FIN:
+                return JsonResponse({
+                    'valid': False,
+                    'msg': 'Una Proforma histórica sin período no admite nuevas citaciones.'
+                }, status=400)
+            resultado = crear_o_ampliar_proforma_mensual(
+                user=request.user,
+                citacion_ids=[citacion.pk],
+                empresa_id=proforma.EP_NID_id,
+                transporte_id=proforma.SN_NID_id,
+                tipo=proforma.PRO_CTIPO,
+                periodo=proforma.PRO_FPERIODO_INICIO.strftime('%Y-%m'),
+                sin_extras=proforma.PRO_BSINEXTRAS,
+                proforma_id=proforma.pk,
+            )
+            status = 200 if resultado['ok'] else (
+                403 if resultado['codigo'] in {'SIN_PERMISO', 'SIN_EMPRESA'} else 400
+            )
+            return JsonResponse({
+                'valid': resultado['ok'],
+                'msg': resultado.get('mensaje', ''),
+                **resultado,
+            }, status=status)
+
         # Verificar si la citación ya está asociada a la proforma
         if CITACION_PROFORMA.objects.filter(CI_NID=citacion).exists():
             return JsonResponse({
@@ -25477,7 +31480,7 @@ def PROFORMA_ADD_CITACION(request, pk):
                 'valid': False,
                 'msg': 'La citación pertenece a otra empresa'
             }, status=400)
-        
+
         # Crear la asociación citación-proforma
         citacion_proforma = CITACION_PROFORMA.objects.create(
             EP_NID=citacion.EP_NID,
@@ -25490,7 +31493,7 @@ def PROFORMA_ADD_CITACION(request, pk):
         if proforma.PRO_BSINEXTRAS == False:
             extras = CITACION_EXTRA.objects.filter(CI_NID=citacion)
             extras_count = extras.count()
-            
+
             for extra in extras:
                 EXTRA_PROFORMA.objects.create(
                     EP_NID=citacion.EP_NID,
@@ -25563,7 +31566,7 @@ def PROFORMA_DELETE_EXTRA(request, pk):
         valor_eliminado = extra.EPR_NVALOR
         tipo_extra = "Ingreso" if extra.EPR_BINGRESO else "Descuento"
         nombre_extra = extra.CIE_NID.EXT_NID.EXT_CNOMBRE if extra.CIE_NID and extra.CIE_NID.EXT_NID else "Extra desconocido"
-        
+
         subtotal_proforma = proforma.PRO_NSUBTOTAL
         total_extras_ingreso = proforma.PRO_NINGRESO
         total_extras_descuento = proforma.PRO_NDESCUENTO
@@ -25609,22 +31612,51 @@ def PROFORMA_DELETE_EXTRA(request, pk):
         messages.error(request, f'Error, {str(e)}')
         return redirect('/proforma_listone/' + str(extra.PRO_NID.pk))
 
+def _persistir_doc_entry_sap_pendiente(proforma, user, response):
+    """Evita una segunda OC si SAP respondió DocEntry pero faltó DocNum."""
+    if not isinstance(response, dict) or response.get('doc_entry') in {None, ''}:
+        return False
+    try:
+        doc_entry = int(response['doc_entry'])
+    except (TypeError, ValueError):
+        return False
+    if proforma.PRO_DOC_ENTRY is None:
+        proforma.PRO_DOC_ENTRY = doc_entry
+        proforma.PRO_FOLIO = proforma.pk
+        proforma.save(update_fields=['PRO_DOC_ENTRY', 'PRO_FOLIO'])
+    SYSLOGGER.objects.create(
+        US_NID=user,
+        EP_NID_id=proforma.EP_NID_id,
+        LOG_FFECHAREGISTRO=timezone.now(),
+        LOG_CMODULO='PROFORMA',
+        LOG_COPERACION='OC_SAP_DOCNUM_PENDIENTE',
+        LOG_CADD1=f'Proforma: {proforma.pk}',
+        LOG_CADD2=f'DocEntry: {doc_entry}',
+        LOG_CDESCRIPCION=(
+            'SAP devolvió DocEntry pero no DocNum. La Proforma permanece '
+            'sin autorizar y bloqueada contra un nuevo envío hasta su recuperación.'
+        ),
+    )
+    return True
+
 def PROFORMA_AUTORIZAR(request, pk):
     try:
-        if request.user.is_superuser == False:
-            usuario = request.user.id
-            if not validar_perfiles_activos(usuario, "proforma_autorizar"):
-                messages.error(request, 'No tiene permisos para acceder a esta sección')
-                return redirect('/')
-        
         proforma = PROFORMA.objects.get(id=pk)
-        
-        if proforma.PRO_CESTADO == 'CREADO' and proforma.PRO_DOC_ENTRY is None:
+        if (
+            str(Verificar_empresa(request)) != str(proforma.EP_NID_id)
+            or not usuario_puede_autorizar_sap(
+                request.user, proforma.EP_NID_id
+            )
+        ):
+            messages.error(request, 'No tiene permiso para autorizar esta Proforma en su empresa activa.')
+            return redirect('/')
+
+        if estado_permite_autorizar_sap(proforma):
             Result, Response = CREAR_OC(pk)
             if Result:
                 # Guardar valores antes de la Autorización para el log
                 estado_anterior = proforma.PRO_CESTADO
-                
+
                 proforma.PRO_CESTADO = 'AUTORIZADO'
                 proforma.PRO_BBORRADOR = False
                 proforma.PRO_DOC_NUM = Response['doc_num']
@@ -25647,6 +31679,7 @@ def PROFORMA_AUTORIZAR(request, pk):
                 messages.success(request, 'Proforma autorizada correctamente')
                 return redirect(f'/proforma_listone/{pk}')
             else:
+                _persistir_doc_entry_sap_pendiente(proforma, request.user, Response)
                 # Crear registro de error en SYSLOGGER
                 SYSLOGGER.objects.create(
                     US_NID=request.user,
@@ -25658,7 +31691,7 @@ def PROFORMA_AUTORIZAR(request, pk):
                     LOG_CADD1=f'Proforma: {pk}',
                     LOG_CADD2='Error en CREAR_OC'
                 )
-                
+
                 messages.error(request, f'Error, {Response}')
                 return redirect(f'/proforma_listone/{pk}')
         else:
@@ -25673,7 +31706,7 @@ def PROFORMA_AUTORIZAR(request, pk):
                 LOG_CADD1=f'Proforma: {pk}',
                 LOG_CADD2='No autorizable'
             )
-            
+
             messages.error(request, 'La proforma no se puede autorizar')
             return redirect(f'/proforma_listone/{pk}')
     except Exception as e:
@@ -25686,28 +31719,56 @@ def PROFORMA_AUTORIZAR(request, pk):
 def PROFORMA_AUTORIZAR_AJAX(request, pk):
     """Autoriza la proforma y crea directamente la orden OPOR legacy."""
     try:
-        if request.user.is_superuser is False:
-            usuario = request.user.id
-            if not validar_perfiles_activos(usuario, "proforma_autorizar"):
-                return JsonResponse({
-                    'success': False,
-                    'error': 'No tiene permisos para acceder a esta sección',
-                }, status=403)
-
         # El bloqueo evita que dos solicitudes simultáneas creen dos OPOR para
         # la misma proforma. CREAR_OC y el formato de SYSLOGGER se mantienen.
         with transaction.atomic():
             proforma = PROFORMA.objects.select_for_update().get(id=pk)
-            if not (
-                proforma.PRO_CESTADO == 'CREADO'
-                and proforma.PRO_DOC_ENTRY is None
+            empresa_activa = Verificar_empresa(request)
+            if (
+                str(empresa_activa) != str(proforma.EP_NID_id)
+                or not usuario_puede_autorizar_sap(
+                    request.user, proforma.EP_NID_id
+                )
             ):
+                return JsonResponse({
+                    'success': False,
+                    'error': 'No tiene permiso para autorizar esta Proforma en su empresa activa.',
+                }, status=403)
+            if (
+                proforma.PRO_DOC_ENTRY is not None
+                or str(proforma.PRO_DOC_NUM or '').strip()
+            ):
+                return JsonResponse({
+                    'success': False,
+                    'error': 'Esta Proforma ya tiene una Orden de Compra SAP asociada.',
+                }, status=409)
+            if (
+                es_proforma_mensual_terramar(proforma)
+                and proforma.PRO_CESTADO == 'CREADO'
+            ):
+                return JsonResponse({
+                    'success': False,
+                    'error': 'El borrador debe ser revisado antes de aprobar definitivamente la Proforma.',
+                }, status=409)
+            if not estado_permite_autorizar_sap(proforma):
                 return JsonResponse({
                     'success': False,
                     'error': 'La proforma no se puede autorizar o ya fue autorizada',
                 }, status=409)
 
             Result, Response = CREAR_OC(pk)
+            if Result and (
+                Response.get('doc_entry') is None
+                or not str(Response.get('doc_num') or '').strip()
+            ):
+                Result = False
+                Response = {
+                    **Response,
+                    'error': (
+                        'SAP no devolvió DocEntry y DocNum completos; '
+                        'la Proforma permanece pendiente.'
+                    ),
+                }
             if Result:
                 estado_anterior = proforma.PRO_CESTADO
                 proforma.PRO_CESTADO = 'AUTORIZADO'
@@ -25730,11 +31791,12 @@ def PROFORMA_AUTORIZAR_AJAX(request, pk):
 
                 return JsonResponse({
                     'success': True,
-                    'message': 'Proforma autorizada correctamente',
+                    'message': 'Proforma aprobada correctamente.',
                     'doc_num': Response['doc_num'],
                     'doc_entry': Response['doc_entry'],
                 })
 
+            _persistir_doc_entry_sap_pendiente(proforma, request.user, Response)
             SYSLOGGER.objects.create(
                 US_NID=request.user,
                 EP_NID_id=proforma.EP_NID.pk,
@@ -25747,7 +31809,10 @@ def PROFORMA_AUTORIZAR_AJAX(request, pk):
             )
             return JsonResponse({
                 'success': False,
-                'error': str(Response),
+                'error': (
+                    Response.get('error', str(Response))
+                    if isinstance(Response, dict) else str(Response)
+                ),
             }, status=502)
     except PROFORMA.DoesNotExist:
         return JsonResponse({
@@ -25764,9 +31829,9 @@ def cit_tarifa_ruta(request, pk):
     try:
         citacion = CITACION.objects.get(id = pk)
         ruta = citacion.RUT_NID
-        
+
         proforma = CITACION_PROFORMA.objects.get(CI_NID = citacion).PRO_NID
-        
+
         # Obtener el valor del campo 38 (número de documento) si existe
         numero_documento = None
         try:
@@ -25779,7 +31844,7 @@ def cit_tarifa_ruta(request, pk):
         except Exception as e:
             print(f"Error al obtener número de documento: {e}")
             numero_documento = citacion.CI_CNUMERODOCUMENTO
-            
+
         return JsonResponse({
             'success': True,
             'id_proforma': proforma.pk,
@@ -25798,7 +31863,7 @@ def cit_tarifa_ruta(request, pk):
 def get_ruta_xtarifa(request, pk):
     try:
         tarifa = TARIFA_GLOBAL.objects.get(id = pk)
-        
+
         return JsonResponse({
             'success': True,
             'nombre_ruta': tarifa.RUT_NID.RUT_CNOMBRE,
@@ -25811,12 +31876,12 @@ def get_ruta_xtarifa(request, pk):
             'success': False,
             'error': str(e)
         })
-        
+
 def PROFORMA_MODIFICAR_TARIFA_CITACION(request):
     try:
         id_proforma = request.POST.get('id_proforma')
         id_citacion = request.POST.get('id_citacion')
-        
+
         if request.user.is_superuser == False:
             usuario = request.user.id
             if not validar_perfiles_activos(usuario, "modificar_proforma"):
@@ -25827,29 +31892,29 @@ def PROFORMA_MODIFICAR_TARIFA_CITACION(request):
         id_ruta = request.POST.get('ruta', '')
         valor_tarifa = request.POST.get('valor_tarifa')
         numero_documento = request.POST.get('numero_documento', '').strip()
-        
+
         if not id_proforma or not id_citacion:
             messages.error(request, 'No se puede modificar la tarifa')
             return redirect('proforma_listall_borrador')
-        
+
         # Validar que el valor de tarifa sea válido
         if not valor_tarifa:
             messages.error(request, 'Debe ingresar un valor de tarifa')
             return redirect(f'/proforma_listone/{id_proforma}/')
-        
+
         try:
             valor_tarifa = Decimal(str(valor_tarifa))
         except (InvalidOperation, ValueError):
             messages.error(request, 'El valor de tarifa debe ser un número válido')
             return redirect(f'/proforma_listone/{id_proforma}/')
-        
+
         proforma = PROFORMA.objects.get(id=id_proforma)
         citacion = CITACION.objects.get(id=id_citacion)
         citacion_proforma = CITACION_PROFORMA.objects.get(CI_NID=citacion, PRO_NID=proforma)
-        
+
         # Guardar el valor anterior para calcular la diferencia
         valor_anterior = citacion.CI_NVALORTARIFA or Decimal('0')
-        
+
         if not id_tarifa:
             if id_ruta:
                 citacion.RUT_NID_id = id_ruta
@@ -25857,12 +31922,12 @@ def PROFORMA_MODIFICAR_TARIFA_CITACION(request):
             # Caso: No existe id_tarifa - Solo modificar valores
             citacion.CI_NVALORTARIFA = valor_tarifa
             citacion.save()
-            
+
         else:
             # Caso: Existe id_tarifa - Actualizar tarifa, ruta y valor
             try:
                 tarifa = TARIFA_GLOBAL.objects.get(id=id_tarifa)
-                
+
                 # Si se proporciona ruta, validarla
                 if id_ruta:
                     ruta = RUTA.objects.get(id=id_ruta)
@@ -25870,19 +31935,19 @@ def PROFORMA_MODIFICAR_TARIFA_CITACION(request):
                 else:
                     # Si no se proporciona ruta, usar la ruta de la tarifa
                     citacion.RUT_NID = tarifa.RUT_NID
-                
+
                 # Actualizar la tarifa y el valor
                 citacion.TAR_NID = tarifa
                 citacion.CI_NVALORTARIFA = valor_tarifa
                 citacion.save()
-                
+
             except TARIFA_GLOBAL.DoesNotExist:
                 messages.error(request, 'La tarifa seleccionada no existe')
                 return redirect(f'/proforma_listone/{id_proforma}/')
             except RUTA.DoesNotExist:
                 messages.error(request, 'La ruta seleccionada no existe')
                 return redirect(f'/proforma_listone/{id_proforma}/')
-        
+
         # Actualizar o crear DATO_OPERACION para el campo 38 (número de documento)
         if numero_documento:
             try:
@@ -25892,7 +31957,7 @@ def PROFORMA_MODIFICAR_TARIFA_CITACION(request):
                     CI_NID=citacion,
                     CAMP_NID_id=38
                 ).first()
-                
+
                 if dato_operacion_existente:
                     # Actualizar el valor existente
                     dato_operacion_existente.DO_CVALOR = numero_documento
@@ -25917,28 +31982,28 @@ def PROFORMA_MODIFICAR_TARIFA_CITACION(request):
                 print(f"Error: Campo con id=38 no existe")
             except Exception as e:
                 print(f"Error al guardar número de documento: {e}")
-        
+
         # Actualizar CITACION_PROFORMA con el nuevo subtotal
         citacion_proforma.CIP_NSUBTOTAL = valor_tarifa
         citacion_proforma.save()
-        
+
         # Recalcular totales de la proforma siguiendo la lógica de creación
         # Obtener todos los extras de la proforma (solo los habilitados)
         extras_proforma = EXTRA_PROFORMA.objects.filter(PRO_NID=proforma, EPR_BHABILITADO=True)
-        
+
         total_extras_ingreso = Decimal('0')
         total_extras_descuento = Decimal('0')
-        
+
         for extra in extras_proforma:
             if extra.EPR_BINGRESO:
                 total_extras_ingreso += extra.EPR_NVALOR
             else:
                 total_extras_descuento += extra.EPR_NVALOR
-        
+
         # Obtener el total de todas las tarifas de citaciones en esta proforma
         citaciones_en_proforma = CITACION_PROFORMA.objects.filter(PRO_NID=proforma)
         total_tarifas = Decimal('0')
-        
+
         for cit_prof in citaciones_en_proforma:
             if cit_prof.CI_NID.id == int(id_citacion):
                 # Usar el nuevo valor para esta citación
@@ -25946,16 +32011,16 @@ def PROFORMA_MODIFICAR_TARIFA_CITACION(request):
             else:
                 # Usar el valor actual para las otras citaciones
                 total_tarifas += cit_prof.CI_NID.CI_NVALORTARIFA or Decimal('0')
-        
+
         # Calcular subtotal real (sin IVA)
         subtotal_real = total_tarifas + total_extras_ingreso - total_extras_descuento
-        
+
         # Calcular IVA (19%)
         iva = subtotal_real * Decimal('0.19').quantize(Decimal('0.00'))
-        
+
         # El total incluye IVA
         total_con_iva = subtotal_real + iva
-        
+
         # Actualizar la proforma siguiendo la lógica de creación
         # PRO_NSUBTOTAL almacena el total CON IVA (como en la creación)
         proforma.PRO_NSUBTOTAL = total_con_iva
@@ -25963,9 +32028,9 @@ def PROFORMA_MODIFICAR_TARIFA_CITACION(request):
         proforma.PRO_NTOTAL = total_con_iva  # Igual a PRO_NSUBTOTAL
         proforma.PRO_NINGRESO = total_extras_ingreso
         proforma.PRO_NDESCUENTO = total_extras_descuento
-        
+
         proforma.save()
-        
+
         # Crear registro en SYSLOGGER
         SYSLOGGER.objects.create(
             US_NID=request.user,
@@ -25977,10 +32042,10 @@ def PROFORMA_MODIFICAR_TARIFA_CITACION(request):
             LOG_CADD1=f'Proforma: {id_proforma}',
             LOG_CADD2=f'citación: {id_citacion}'
         )
-        
+
         messages.success(request, 'Tarifa modificada exitosamente')
         return redirect(f'/proforma_listone/{id_proforma}')
-        
+
     except PROFORMA.DoesNotExist:
         messages.error(request, 'La proforma no existe')
         return redirect('proforma_listall_borrador')
@@ -26007,13 +32072,13 @@ def PROFORMA_ADD_EXTRA(request, pk):
                 }, status=403)
 
         id_extra = request.POST.get('CIE_NID')
-        
+
         if not id_extra:
             return JsonResponse({
                 'valid': False,
                 'msg': 'No se recibirá ID del extra'
             }, status=400)
-            
+
         try:
             extra = CITACION_EXTRA.objects.get(id = id_extra)
         except CITACION_EXTRA.DoesNotExist:
@@ -26027,7 +32092,7 @@ def PROFORMA_ADD_EXTRA(request, pk):
                 'valid': False,
                 'msg': 'El extra ya está asociada a una proforma'
             }, status=400)
-        
+
         extra_proforma = EXTRA_PROFORMA.objects.create(
             EP_NID = proforma.EP_NID,
             CIE_NID = extra,
@@ -26035,23 +32100,23 @@ def PROFORMA_ADD_EXTRA(request, pk):
             EPR_NVALOR = extra.CIE_NVALOR,
             EPR_BINGRESO = extra.CIE_BINGRESO,
         )
-        
+
         # Actualizar los totales de la proforma
         subtotal_proforma = proforma.PRO_NSUBTOTAL or 0
         total_extras_ingreso = proforma.PRO_NINGRESO or 0
         total_extras_descuento = proforma.PRO_NDESCUENTO or 0
-        
+
         if extra.CIE_BINGRESO:
             subtotal_proforma += extra.CIE_NVALOR
             total_extras_ingreso += extra.CIE_NVALOR
         else:
             subtotal_proforma -= extra.CIE_NVALOR
             total_extras_descuento += extra.CIE_NVALOR
-        
+
         # Calcular IVA y total
         iva = round(subtotal_proforma * Decimal('0.19').quantize(Decimal('0.00')), 0)
         total_proforma = subtotal_proforma + iva
-        
+
         # Actualizar la proforma
         proforma.PRO_NSUBTOTAL = subtotal_proforma
         proforma.PRO_NIVA = iva
@@ -26059,7 +32124,7 @@ def PROFORMA_ADD_EXTRA(request, pk):
         proforma.PRO_NINGRESO = total_extras_ingreso
         proforma.PRO_NDESCUENTO = total_extras_descuento
         proforma.save()
-        
+
         # Crear registro en SYSLOGGER
         SYSLOGGER.objects.create(
             US_NID=request.user,
@@ -26072,12 +32137,12 @@ def PROFORMA_ADD_EXTRA(request, pk):
             LOG_CADD2=f'Extra: {extra.pk}'
         )
         messages.success(request, f'Extra agregado correctamente')
-        return redirect(f'/proforma_listone_extras/{pk}') 
-    
+        return redirect(f'/proforma_listone_extras/{pk}')
+
     except Exception as e:
         print(e)
         messages.error(request, f'Error, {str(e)}')
-        return redirect(f'/proforma_listone_extras/{pk}') 
+        return redirect(f'/proforma_listone_extras/{pk}')
 
 def DOCUMENTO_PROFORMA_ADDONE(request, pk):
     try:
@@ -26103,7 +32168,7 @@ def DOCUMENTO_PROFORMA_ADDONE(request, pk):
                 for chunk in archivo.chunks():
                     destination.write(chunk)
 
-            
+
             documento = DOCUMENTO_PROFORMA.objects.create(
                 EP_NID = proforma.EP_NID,
                 US_NID = request.user,
@@ -26133,7 +32198,7 @@ def DOCUMENTO_PROFORMA_DELETE(request, pk):
     try:
         documento = DOCUMENTO_PROFORMA.objects.get(id=pk)
         proforma = documento.PRO_NID
-        
+
         # Validar permisos si es necesario
         if request.user.is_superuser == False:
             usuario = request.user.id
@@ -26145,24 +32210,24 @@ def DOCUMENTO_PROFORMA_DELETE(request, pk):
                     return redirect(f'/proforma-manual/{str(proforma.pk)}/')
                 else:
                     return redirect(f'/proforma_listone/{str(proforma.pk)}')
-        
+
         # Guardar información para el log antes de eliminar
         nombre_documento = documento.DP_CNOMBREDOCUMENTO
         ruta_documento = documento.DP_CRUTADOC
         documento_pk = documento.pk
-        
+
         # Eliminar el archivo físico si existe
         if os.path.exists(ruta_documento):
             os.remove(ruta_documento)
-            
+
             # Opcional: Eliminar la carpeta si está vacía
             folder_path = os.path.dirname(ruta_documento)
             if os.path.exists(folder_path) and not os.listdir(folder_path):
                 os.rmdir(folder_path)
-        
+
         # Eliminar el registro de la base de datos
         documento.delete()
-        
+
         # Crear registro en SYSLOGGER
         SYSLOGGER.objects.create(
             US_NID=request.user,
@@ -26174,20 +32239,20 @@ def DOCUMENTO_PROFORMA_DELETE(request, pk):
             LOG_CADD1=f'Proforma: {proforma.pk}',
             LOG_CADD2=f'Documento: {documento_pk}'
         )
-        
+
         messages.success(request, f'Documento "{nombre_documento}" eliminado correctamente')
-        
+
         if "EXTRA" in proforma.PRO_CTIPO:
             return redirect(f'/proforma_listone_extras/{str(proforma.pk)}')
         elif proforma.PRO_CTIPO == "MANUAL":
             return redirect(f'/proforma-manual/{str(proforma.pk)}/')
         else:
             return redirect(f'/proforma_listone/{str(proforma.pk)}')
-            
+
     except DOCUMENTO_PROFORMA.DoesNotExist:
         messages.error(request, 'El documento no existe')
         return redirect('/proforma_list/')
-        
+
     except Exception as e:
         print(e)
         messages.error(request, f'Error al eliminar el documento: {str(e)}')
@@ -26228,21 +32293,21 @@ def PROFORMA_MANUAL_ADD(request):
             proveedor_id = request.POST.get('proveedor')
             comentarios = request.POST.get('comentarios', '')
             cantidad_lineas = int(request.POST.get('cantidad_lineas', 0))
-            
+
             # Obtener valores de totales
             subtotal = Decimal(request.POST.get('subtotal_proforma_input', 0))
             iva = Decimal(request.POST.get('total_iva_input', 0))
             total = Decimal(request.POST.get('total_proforma_input', 0))
-            
+
             # Validar que existan empresa y proveedor
             if not empresa_id or not proveedor_id:
                 messages.error(request, "Debe seleccionar una empresa y un proveedor")
                 return redirect('/proforma_manual_add')
-            
+
             # Obtener instancias
             empresa = EMPRESA.objects.get(pk=empresa_id)
             proveedor = SOCIONEGOCIO.objects.get(pk=proveedor_id)
-            
+
             # Manejar fecha de Emisión
             fecha_emision_input = request.POST.get('fecha_emision')
             if fecha_emision_input:
@@ -26252,7 +32317,7 @@ def PROFORMA_MANUAL_ADD(request):
             else:
                 # Usar fecha actual
                 fecha_emision = timezone.now()
-            
+
             # Crear la proforma
             proforma = PROFORMA.objects.create(
                 EP_NID=empresa,
@@ -26272,14 +32337,14 @@ def PROFORMA_MANUAL_ADD(request):
                 PRO_BSINEXTRAS=False,
                 PRO_BSOLOEXTRAS=False
             )
-            
+
             # Crear las líneas de la proforma
             for i in range(1, cantidad_lineas + 1):
                 tipo_item = request.POST.get(f'LP_CTIPO_ITEM_{i}')
                 descripcion = request.POST.get(f'LP_CDESCRIPCION_{i}')
                 precio_unitario = request.POST.get(f'LP_NPRECIO_UNITARIO_{i}')
                 cantidad = request.POST.get(f'LP_NCANTIDAD_{i}')
-                
+
                 # Validar que existan todos los datos de la línea
                 if tipo_item and descripcion and precio_unitario and cantidad:
                     LINEA_PROFORMA.objects.create(
@@ -26290,22 +32355,22 @@ def PROFORMA_MANUAL_ADD(request):
                         LP_CDESCRIPCION=descripcion,
                         US_NID=request.user
                     )
-            
+
             messages.success(request, f"Proforma Manual #{proforma.pk} creada exitosamente")
             return redirect(f'/proforma_manual_listone/{str(proforma.pk)}')
-        
+
         # GET request
         proveedores = SOCIONEGOCIO.objects.filter(SN_CTIPO='S', SN_BHABILITADO=True).order_by('SN_CRAZONSOCIAL')
         empresas = EMPRESA.objects.all().order_by('EP_CRAZONSOCIAL')
         fecha_actual = timezone.now()
-        
+
         ctx = {
             "proveedores": proveedores,
             'empresas': empresas,
             'fecha_actual': fecha_actual
         }
         return render(request, "home/PROFORMA/proforma_manual_add.html", ctx)
-        
+
     except EMPRESA.DoesNotExist:
         messages.error(request, "La empresa seleccionada no existe")
         return redirect('/proforma_manual_add')
@@ -26328,24 +32393,24 @@ def proforma_manual_add_linea(request):
         descripcion = request.POST.get('descripcion')
         precio_unitario = request.POST.get('precio_unitario')
         cantidad = request.POST.get('cantidad')
-        
+
         # Validar datos
         if not all([proforma_id, tipo_item, descripcion, precio_unitario, cantidad]):
             return JsonResponse({
                 'valid': False,
                 'msg': 'Todos los campos son obligatorios'
             })
-        
+
         # Obtener la proforma
         proforma = PROFORMA.objects.get(id=proforma_id)
-        
+
         # Verificar que sea borrador
         if not proforma.PRO_BBORRADOR:
             return JsonResponse({
                 'valid': False,
                 'msg': 'No se pueden agregar líneas a una proforma aprobada'
             })
-        
+
         # Crear la línea
         linea = LINEA_PROFORMA.objects.create(
             PRO_NID=proforma,
@@ -26355,13 +32420,13 @@ def proforma_manual_add_linea(request):
             LP_CDESCRIPCION=descripcion,
             US_NID=request.user
         )
-        
+
         # Calcular el total de la línea
         total_linea = Decimal(precio_unitario) * int(cantidad)
-        
+
         # Recalcular totales
         recalcular_totales_proforma(proforma)
-        
+
         # Crear registro en SYSLOGGER
         SYSLOGGER.objects.create(
             US_NID=request.user,
@@ -26373,13 +32438,13 @@ def proforma_manual_add_linea(request):
             LOG_CADD1=f'Proforma: {proforma.pk}',
             LOG_CADD2=f'Línea ID: {linea.id}'
         )
-        
+
         return JsonResponse({
             'valid': True,
             'msg': 'Línea agregada exitosamente',
             'linea_id': linea.id
         })
-        
+
     except PROFORMA.DoesNotExist:
         return JsonResponse({
             'valid': False,
@@ -26395,36 +32460,36 @@ def proforma_manual_delete_linea(request):
     """Vista AJAX para eliminar una línea de la proforma manual"""
     try:
         linea_id = request.POST.get('linea_id')
-        
+
         if not linea_id:
             return JsonResponse({
                 'valid': False,
                 'msg': 'ID de línea no proporcionado'
             })
-        
+
         linea = LINEA_PROFORMA.objects.get(id=linea_id)
         proforma = linea.PRO_NID
-        
+
         # Verificar que sea borrador
         if not proforma.PRO_BBORRADOR:
             return JsonResponse({
                 'valid': False,
                 'msg': 'No se pueden eliminar líneas de una proforma aprobada'
             })
-        
+
         # Guardar datos de la línea antes de eliminarla para el log
         tipo_item = linea.LP_CTIPO_ITEM
         descripcion = linea.LP_CDESCRIPCION
         precio_unitario = linea.LP_NPRECIO_UNITARIO
         cantidad = linea.LP_NCANTIDAD
         total_linea = precio_unitario * cantidad
-        
+
         # Eliminar la línea
         linea.delete()
-        
+
         # Recalcular totales
         recalcular_totales_proforma(proforma)
-        
+
         # Crear registro en SYSLOGGER
         SYSLOGGER.objects.create(
             US_NID=request.user,
@@ -26436,12 +32501,12 @@ def proforma_manual_delete_linea(request):
             LOG_CADD1=f'Proforma: {proforma.pk}',
             LOG_CADD2=f'Línea ID: {linea_id}'
         )
-        
+
         return JsonResponse({
             'valid': True,
             'msg': 'Línea eliminada exitosamente'
         })
-        
+
     except LINEA_PROFORMA.DoesNotExist:
         return JsonResponse({
             'valid': False,
@@ -26457,15 +32522,15 @@ def proforma_manual_get_linea(request):
     """Vista AJAX para obtener datos de una línea"""
     try:
         linea_id = request.GET.get('linea_id')
-        
+
         if not linea_id:
             return JsonResponse({
                 'valid': False,
                 'msg': 'ID de línea no proporcionado'
             })
-        
+
         linea = LINEA_PROFORMA.objects.get(id=linea_id)
-        
+
         return JsonResponse({
             'valid': True,
             'linea': {
@@ -26476,7 +32541,7 @@ def proforma_manual_get_linea(request):
                 'cantidad': linea.LP_NCANTIDAD
             }
         })
-        
+
     except LINEA_PROFORMA.DoesNotExist:
         return JsonResponse({
             'valid': False,
@@ -26487,7 +32552,7 @@ def proforma_manual_get_linea(request):
             'valid': False,
             'msg': f'Error al obtener línea: {str(e)}'
         })
-        
+
 def proforma_manual_edit_linea(request):
     """Vista AJAX para editar una línea de la proforma manual"""
     try:
@@ -26496,44 +32561,44 @@ def proforma_manual_edit_linea(request):
         descripcion = request.POST.get('descripcion')
         precio_unitario = request.POST.get('precio_unitario')
         cantidad = request.POST.get('cantidad')
-        
+
         # Validar datos
         if not all([linea_id, tipo_item, descripcion, precio_unitario, cantidad]):
             return JsonResponse({
                 'valid': False,
                 'msg': 'Todos los campos son obligatorios'
             })
-        
+
         linea = LINEA_PROFORMA.objects.get(id=linea_id)
         proforma = linea.PRO_NID
-        
+
         # Verificar que sea borrador
         if not proforma.PRO_BBORRADOR:
             return JsonResponse({
                 'valid': False,
                 'msg': 'No se pueden editar líneas de una proforma aprobada'
             })
-        
+
         # Guardar valores anteriores para el log
         tipo_item_anterior = linea.LP_CTIPO_ITEM
         descripcion_anterior = linea.LP_CDESCRIPCION
         precio_unitario_anterior = linea.LP_NPRECIO_UNITARIO
         cantidad_anterior = linea.LP_NCANTIDAD
         total_anterior = precio_unitario_anterior * cantidad_anterior
-        
+
         # Actualizar la línea
         linea.LP_CTIPO_ITEM = tipo_item
         linea.LP_CDESCRIPCION = descripcion
         linea.LP_NPRECIO_UNITARIO = Decimal(precio_unitario)
         linea.LP_NCANTIDAD = int(cantidad)
         linea.save()
-        
+
         # Calcular nuevo total
         total_nuevo = Decimal(precio_unitario) * int(cantidad)
-        
+
         # Recalcular totales
         recalcular_totales_proforma(proforma)
-        
+
         # Construir descripción detallada del cambio
         cambios = []
         if tipo_item_anterior != tipo_item:
@@ -26546,9 +32611,9 @@ def proforma_manual_edit_linea(request):
             cambios.append(f"Cantidad: {cantidad_anterior} → {cantidad}")
         if total_anterior != total_nuevo:
             cambios.append(f"Total: ${total_anterior} → ${total_nuevo}")
-        
+
         cambios_texto = ", ".join(cambios) if cambios else "Sin cambios en valores"
-        
+
         # Crear registro en SYSLOGGER
         SYSLOGGER.objects.create(
             US_NID=request.user,
@@ -26560,12 +32625,12 @@ def proforma_manual_edit_linea(request):
             LOG_CADD1=f'Proforma: {proforma.pk}',
             LOG_CADD2=f'Línea ID: {linea_id}'
         )
-        
+
         return JsonResponse({
             'valid': True,
             'msg': 'Línea actualizada exitosamente'
         })
-        
+
     except LINEA_PROFORMA.DoesNotExist:
         return JsonResponse({
             'valid': False,
@@ -26580,14 +32645,14 @@ def proforma_manual_edit_linea(request):
 def recalcular_totales_proforma(proforma):
     """Función auxiliar para recalcular los totales de una proforma manual"""
     lineas = LINEA_PROFORMA.objects.filter(PRO_NID=proforma)
-    
+
     subtotal = Decimal(0)
     for linea in lineas:
         subtotal += linea.LP_NPRECIO_UNITARIO * linea.LP_NCANTIDAD
-    
+
     iva = round(subtotal * Decimal(0.19).quantize(Decimal('0.00')), 0)
     total = subtotal + iva
-    
+
     proforma.PRO_NSUBTOTAL = subtotal
     proforma.PRO_NIVA = iva
     proforma.PRO_NTOTAL = total
@@ -26601,32 +32666,32 @@ def get_token(username):
     # Intenta obtener el token del caché
     cache_key = f'api_token_{username}'
     token = cache.get(cache_key)
-    
+
     if token is None:
         # Si no está en caché, obtén un nuevo token
         url = 'http://34.225.254.125:91/login'
         psw = 'neuronia'
-        
+
         body = json.dumps({
             'username': username,
             'password': psw,
         })
-        
+
         response = requests.post(
             url,
             headers={"Content-Type": "application/json"},
             data=body,
         )
-        
+
         if response.status_code == 200:
             token_data = response.json()
             token = token_data["token"]
-            
+
             # Guarda el token en caché por un tiempo determinado (por ejemplo, 1 hora)
             cache.set(cache_key, token, timeout=3600)
         else:
             raise Exception(f"No se pudo obtener el token: {response.text}")
-    
+
     return token
 
 def AXONASK(request):
@@ -26640,7 +32705,7 @@ def AXONASK(request):
             token = get_token(usr)
         except Exception as e:
             return JsonResponse({'message': f'ALERT!!!lo siento {usr} no encuentro tu Autorización: {str(e)}'}, status=200)
-        
+
 
         url = 'http://34.225.254.125:91/insertpush'
         headers = {
@@ -26677,10 +32742,10 @@ def AXONASK(request):
 
         print("ask",ask)
         response=f"{response_message}"
-    
+
 
         return JsonResponse({'message': response}, status=200)
-    except Exception as e:  
+    except Exception as e:
         print("ERROR:",e)
         return JsonResponse({'message': "No puedo responder ahora, lo siento"}, status=200)
 
@@ -26695,7 +32760,7 @@ def AXONCHECKMESSAGE(request):
             tokenAPI = get_token(usr)
         except Exception as e:
             return JsonResponse({'message': f'ALERT!!!lo siento {usr} no encuentro tu Autorización: {str(e)}'}, status=200)
-        
+
         url = f'http://34.225.254.125:91/push/{usr}/{from_user}'
         headers = {
             'Content-Type': 'application/json',
@@ -26720,7 +32785,7 @@ def AXONCHECKMESSAGE(request):
         else:
             response_message = None
         response=response_message
-    
+
         return JsonResponse({'message': response}, status=200)
     except Exception as e:
         print(e)
@@ -26755,7 +32820,7 @@ def AXONGETUSERS(request):
     except Exception as e:
         print(e)
         return JsonResponse({'message': 'ALERT!!!No puedo responder ahora, lo siento'}, status=400)
-    
+
 def AXONGETUNREADMESSAGES(request):
     try:
         url = 'http://34.225.254.125:91/login'
@@ -27049,7 +33114,7 @@ def CUPO_PROVEEDOR_ADD_MASIVE(request, pk):
                     proveedor = SOCIONEGOCIO.objects.filter(SN_CCODIGO_SAP = cod_proveedor).first()
                     if not proveedor:
                         raise Exception('El proveedor no existe')
-                    
+
                     total_cupos_proveedor += cupos
                     cupo_proveedor = CUPO_PROVEEDOR.objects.filter(PLA_NID = planificacion, PRO_NID = proveedor).first()
 
@@ -27059,8 +33124,8 @@ def CUPO_PROVEEDOR_ADD_MASIVE(request, pk):
                             sobrecupo = True
 
                         CUPO_PROVEEDOR.objects.create(
-                            PLA_NID = planificacion, 
-                            PRO_NID = proveedor, 
+                            PLA_NID = planificacion,
+                            PRO_NID = proveedor,
                             CUP_NVALOR = cupos,
                             CUP_BSOBRECUPO = sobrecupo
                         )
@@ -27160,7 +33225,7 @@ def CUPO_PROVEEDOR_ADD_MASIVE(request, pk):
             else:
                 messages.success(request, 'Cupos agregados correctamente')
                 return redirect(f'/pla_listone/{pk}')
-                
+
         context = {
             'planificacion': planificacion,
         }
@@ -27178,7 +33243,7 @@ def download_plantilla_cupos(request):
 
     # Selecciona la hoja activa.
     worksheet = workbook.active
-    # CARGAMOS LA COLUMNAS 
+    # CARGAMOS LA COLUMNAS
     worksheet.append(columnas)
 
     response = HttpResponse(content_type='application/vnd.ms-excel')
@@ -27201,10 +33266,10 @@ def CUPO_PROVEEDOR_ADDONE(request, pk):
                     messages.error(request, 'El proveedor ya tiene un cupo asignado')
                     return redirect(f'/pla_listone/{pk}')
                 cupos_disponibles = planificacion.TOTAL_CUPOS_DISPONIBLES
-                
+
                 if cupos > cupos_disponibles:
                     form.instance.CUP_BSOBRECUPO = True
-                    
+
 
                 form.save()
                 messages.success(request, 'Cupo agregado correctamente')
@@ -27267,7 +33332,7 @@ def ZONA_ADDONE(request):
         print(e)
         messages.error(request, f'Error, {str(e)}')
         return redirect('/zon_listall/')
-    
+
 def ZONA_UPDATE(request, pk):
     try:
         zona = ZONA.objects.get(id = pk)
@@ -27298,7 +33363,7 @@ def ZONA_DELETE(request, pk):
         if etapas.exists():
             messages.error(request, 'La zona tiene etapas asociadas')
             return redirect('/zon_listall/')
-        
+
         zona.ZON_BHABILITADO = False
         zona.save()
         messages.success(request, 'Zona eliminada correctamente')
@@ -27338,13 +33403,13 @@ def IMPORTACION_PLANIFICACION(request, pk):
 
                     if not tipo_citacion or not proveedor or not conductor or not camion or not secuencia or not hora_citacion or not producto or not cliente or not ruta or not documento:
                         raise Exception('Faltan datos en los campos obligatorios')
-                    
+
                     if not numero_documento:
                         numero_documento = None
 
                     if not observaciones:
                         observaciones = None
-                    
+
                     proveedor = SOCIONEGOCIO.objects.filter(SN_CCODIGO_SAP = proveedor).first()
                     if not proveedor:
                         raise Exception('El proveedor no existe')
@@ -27360,7 +33425,7 @@ def IMPORTACION_PLANIFICACION(request, pk):
                     secuencia = SECUENCIA.objects.filter(SE_CNOMBRE = secuencia).first()
                     if not secuencia:
                         raise Exception('La secuencia no existe')
-                    
+
                     producto = ITEM.objects.filter(IT_CCODIGO = producto).first()
                     if not producto:
                         raise Exception('El producto no existe')
@@ -27376,7 +33441,7 @@ def IMPORTACION_PLANIFICACION(request, pk):
                     documento_obj = DOCUMENTO_SOCIONEGOCIO.objects.filter(DSN_CTIPO = documento, LIS_CGRUPO = '').first()
                     if not documento_obj:
                         raise Exception('El documento no existe')
-                    
+
                     tarifa = TARIFA_GLOBAL.objects.filter(RUT_NID = ruta, SN_NID = proveedor, TAR_BHABILITADO = True).first()
                     if not tarifa:
                         raise Exception('La tarifa no existe')
@@ -27465,12 +33530,12 @@ def download_plantilla_planificacion(request):
     # Selecciona la hoja activa.
     worksheet = workbook.active
 
-    # CARGAMOS LA COLUMNAS 
+    # CARGAMOS LA COLUMNAS
     worksheet.append(columnas)
 
     response = HttpResponse(content_type='application/vnd.ms-excel')
     response['Content-Disposition'] = 'attachment; filename=plantilla_citaciones.xlsx'
-    workbook.save(response)    
+    workbook.save(response)
 
     return response
 
@@ -27491,12 +33556,12 @@ def CITACION_EDITAR_ETAPA_TERMINADA(request):
                 if key.startswith('campo_'):
                     campo_id = key.split('_')[1]
                     dato_operacion = DATO_OPERACION.objects.filter(id=campo_id).first()
-                    
+
                     # Si es un campo de archivo, verificar si hay un archivo actual
                     archivo_actual_key = f'archivo_actual_{campo_id}'
                     if archivo_actual_key in request.POST:
                         continue  # Saltamos porque este campo se maneja con FILES
-                    
+
                     # Para campos no archivo
                     if dato_operacion:
                         # Para checkboxes: Django Enviará una lista si hay múltiples valores con el mismo nombre
@@ -27514,115 +33579,408 @@ def CITACION_EDITAR_ETAPA_TERMINADA(request):
                             # Otros tipos de campos
                             dato_operacion.DO_CVALOR = value
                             dato_operacion.save()
-            
+
             # Manejar archivos
             for key, file in request.FILES.items():
                 if key.startswith('campo_'):
                     campo_id = key.split('_')[1]
                     dato_operacion = DATO_OPERACION.objects.filter(id=campo_id).first()
-                    
+
                     if dato_operacion:
                         # Guardar el nuevo archivo
                         file_path = handle_uploaded_file(file)  # Necesitas implementar esta función
                         dato_operacion.DO_CVALOR = file_path
                         dato_operacion.save()
-                
+
             return JsonResponse({'status': 'success'})
         except Exception as e:
             print(f"Error en CITACION_EDITAR_ETAPA_TERMINADA: {str(e)}")
             return JsonResponse({'status': 'error', 'message': f'Error al procesar la solicitud: {str(e)}'}, status=400)
 
 def CREAR_OC(pk):
+    vCompany = None
+
     try:
-        proforma = PROFORMA.objects.get(id = pk)
-        proforma_lineas = CITACION_PROFORMA.objects.filter(PRO_NID = proforma)
-        lineas_proforma = LINEA_PROFORMA.objects.filter(PRO_NID = proforma)
-        if not proforma.PRO_BSOLOEXTRAS and not proforma_lineas and not lineas_proforma:
-            raise Exception('No hay lineas en la proforma')
-        
-        if proforma.EP_NID_id == ID_TERRAMAR:
-            ruta_credenciales = r"C:\inetpub\wwwroot\TERRAMAR-CAMIONES\loginHDB.json"
-            serial = 79 # Serie NAC
-        elif  proforma.EP_NID_id == ID_ACEITES_SBH:
-            ruta_credenciales = r"C:\inetpub\wwwroot\TERRAMAR-CAMIONES\loginMSS.json"
-            serial = 1
-        
-        #Conectar a SAP
-        vCompany = sapConnect(
-            ruta_credenciales=ruta_credenciales
+        # =========================================================
+        # 1. OBTENER PROFORMA
+        # =========================================================
+        proforma = PROFORMA.objects.get(id=pk)
+
+        # Evitar doble creación SAP
+        if (
+            proforma.PRO_DOC_ENTRY is not None
+            or str(proforma.PRO_DOC_NUM or "").strip()
+        ):
+            raise Exception(
+                "Esta Proforma ya tiene una OC SAP asociada."
+            )
+
+        # =========================================================
+        # 2. OBTENER LÍNEAS
+        # =========================================================
+        proforma_lineas = CITACION_PROFORMA.objects.filter(
+            PRO_NID=proforma
         )
-        if vCompany is None:
-            raise Exception('No se pudo conectar a SAP')
-        
-        #Crear la orden de compra
+
+        extras_proforma = EXTRA_PROFORMA.objects.filter(
+            PRO_NID=proforma,
+            EPR_BHABILITADO=True
+        )
+
+        lineas_proforma = LINEA_PROFORMA.objects.filter(
+            PRO_NID=proforma
+        )
+
+        es_mensual_terramar = es_proforma_mensual_terramar(proforma)
+        categoria = categoria_proforma(proforma.PRO_CTIPO)
+
+        # =========================================================
+        # 3. VALIDAR SEPARACIÓN FLETE / EXTRAS
+        # =========================================================
+        if es_mensual_terramar and categoria == "FLETE":
+            if (
+                extras_proforma.exists()
+                or lineas_proforma.exists()
+                or not proforma_lineas.exists()
+            ):
+                raise Exception(
+                    "La Proforma mensual de Fletes debe contener "
+                    "exclusivamente CITACION_PROFORMA."
+                )
+
+        if es_mensual_terramar and categoria == "EXTRAS":
+            if (
+                proforma_lineas.exists()
+                or lineas_proforma.exists()
+                or not extras_proforma.exists()
+            ):
+                raise Exception(
+                    "La Proforma mensual de Extras debe contener "
+                    "exclusivamente EXTRA_PROFORMA."
+                )
+
+        # Validación general legacy/manual
+        if (
+            not proforma.PRO_BSOLOEXTRAS
+            and not proforma_lineas.exists()
+            and not lineas_proforma.exists()
+        ):
+            raise Exception(
+                "No hay líneas en la Proforma."
+            )
+
+        # =========================================================
+        # 4. VALIDAR PROVEEDOR SAP
+        # =========================================================
+        if not proforma.SN_NID:
+            raise Exception(
+                f"La Proforma #{proforma.id} no tiene proveedor asociado."
+            )
+
+        card_code = str(
+            proforma.SN_NID.SN_CCODIGO_SAP or ""
+        ).strip()
+
+        if not card_code:
+            raise Exception(
+                f"La Proforma #{proforma.id} no tiene código SAP "
+                "de proveedor registrado."
+            )
+
+        # =========================================================
+        # 5. CONFIGURACIÓN SAP
+        # =========================================================
+        serial = get_sap_proforma_series(
+            proforma.EP_NID_id
+        )
+
+        # =========================================================
+        # 6. CONECTAR SAP DI API
+        # =========================================================
+        vCompany = sapConnect(
+            proforma.EP_NID_id
+        )
+
+        # Validar que la sociedad SAP sea la correcta
+        validate_sap_di_company(
+            vCompany,
+            proforma.EP_NID_id
+        )
+
+        # =========================================================
+        # 7. CREAR ORDEN DE COMPRA SAP
+        # =========================================================
         opor = vCompany.GetBusinessObject(OPOR)
 
-        opor.Series = serial # Serie Dependiendo de la empresa
-        opor.CardCode = proforma.SN_NID.SN_CCODIGO_SAP  # Código del proveedor
-        opor.DocDate = proforma.PRO_FFECHAREGISTRO  # Fecha del documento
-        opor.DocDueDate = proforma.PRO_FFECHAREGISTRO  # Fecha de vencimiento
-        opor.TaxDate = proforma.PRO_FFECHAREGISTRO  # Fecha de contabilización
+        # Documento de servicio
+        # 1 = dDocument_Service
+        opor.DocType = 1
+
+        opor.Series = int(serial)
+        opor.CardCode = card_code
+
+        # =========================================================
+        # FECHA REAL DE APROBACIÓN
+        # =========================================================
+        fecha_aprobacion = timezone.localdate()
+
+        fecha_aprobacion_datetime = datetime.combine(
+            fecha_aprobacion,
+            time.min
+        )
+
+        # SAP DI API vía COM requiere pywintypes.Time
+        fecha_sap = pywintypes.Time(
+            fecha_aprobacion_datetime
+        )
+
+        opor.DocDate = fecha_sap
+        opor.DocDueDate = fecha_sap
+        opor.TaxDate = fecha_sap
+
+        # =========================================================
+        # MONEDA Y TIPO DE CAMBIO
+        # =========================================================
         opor.DocCurrency = "CLP"
-        opor.UserFields.Fields.Item("U_CodProf").Value = str(pk)
-        
-        for linea in proforma_lineas:
-            item_code, account_number = linea.GET_ITEM_CODE()
-            opor.Lines.ItemCode = item_code
-            opor.Lines.ItemDescription = f"Servicio de transporte - citación {str(linea.CI_NID_id)}"
-            opor.Lines.Quantity = 1
-            opor.Lines.Price = linea.CIP_NSUBTOTAL
-            opor.Lines.AccountCode = account_number
-            opor.Lines.WarehouseCode = "EP"  # Reemplaza con el código correcto
-            opor.Lines.Add()
-        
-        extras_proforma = EXTRA_PROFORMA.objects.filter(PRO_NID = proforma)
-        for extra in extras_proforma:
-            opor.Lines.ItemCode = extra.CIE_NID.EXT_NID.EXT_CARTICULOSAP
-            opor.Lines.ItemDescription = f'Extra {extra.CIE_NID.EXT_NID.EXT_CNOMBRE} - citación {str(extra.CIE_NID.CI_NID_id)}'
-            opor.Lines.Quantity = 1
-            if extra.CIE_NID.CIE_BINGRESO:
-                opor.Lines.Price = extra.EPR_NVALOR
-            else:
-                opor.Lines.Price = (extra.EPR_NVALOR * -1)                
-            opor.Lines.AccountCode = extra.CIE_NID.EXT_NID.EXT_CCUENTASAP
-            opor.Lines.WarehouseCode = "EP"  # Reemplaza con el código correcto
-            opor.Lines.Add()
-        
-        for linea in lineas_proforma:
-            item_code, account_number = linea.GET_ITEM_CODE()
-            
-            opor.Lines.ItemCode = item_code
-            opor.Lines.ItemDescription = f'{linea.LP_CDESCRIPCION}'
-            opor.Lines.Quantity = int(linea.LP_NCANTIDAD)
-            opor.Lines.Price = linea.LP_NPRECIO_UNITARIO        
-            opor.Lines.AccountCode = account_number
-            opor.Lines.WarehouseCode = "EP"  # Reemplaza con el código correcto
-            opor.Lines.Add()
-        
-        # 5. Intentar guardar la orden
+
+        # 305 = BoBridge / SBObob
+        bob = vCompany.GetBusinessObject(305)
+
+        rs_rate = bob.GetCurrencyRate(
+            "CLP",
+            fecha_sap
+        )
+
+        doc_rate = float(
+            rs_rate.Fields.Item(0).Value or 0
+        )
+
+        if doc_rate <= 0:
+            raise Exception(
+                f"No existe tipo de cambio CLP en SAP para "
+                f"{fecha_aprobacion:%d-%m-%Y}."
+            )
+
+        opor.DocRate = doc_rate
+
+        # Relación con TERRAVIEW
+        opor.UserFields.Fields.Item(
+            "U_CodProf"
+        ).Value = str(pk)
+
+        # =========================================================
+        # 8. LÍNEAS DE FLETE
+        # =========================================================
+        if not (
+            es_mensual_terramar
+            and categoria == "EXTRAS"
+        ):
+            for linea in proforma_lineas:
+
+                # Para OC de servicio usamos AccountCode,
+                # no ItemCode.
+                _, account_number = linea.GET_ITEM_CODE()
+
+                account_number = str(
+                    account_number or ""
+                ).strip()
+
+                if not account_number:
+                    raise Exception(
+                        f"La citación {linea.CI_NID_id} "
+                        "no tiene cuenta contable SAP configurada."
+                    )
+
+                precio = float(
+                    linea.CIP_NSUBTOTAL or 0
+                )
+
+                if precio == 0:
+                    raise Exception(
+                        f"La citación {linea.CI_NID_id} "
+                        "tiene valor SAP igual a 0."
+                    )
+
+                opor.Lines.ItemDescription = (
+                    f"Servicio de transporte - "
+                    f"citación {linea.CI_NID_id}"
+                )
+
+                opor.Lines.AccountCode = account_number
+                opor.Lines.Price = precio
+
+                opor.Lines.Add()
+
+        # =========================================================
+        # 9. LÍNEAS DE EXTRAS
+        # =========================================================
+        if not (
+            es_mensual_terramar
+            and categoria == "FLETE"
+        ):
+            for extra in extras_proforma:
+
+                extra_maestro = extra.CIE_NID.EXT_NID
+
+                account_number = str(
+                    extra_maestro.EXT_CCUENTASAP or ""
+                ).strip()
+
+                if not account_number:
+                    raise Exception(
+                        f"El extra {extra_maestro.EXT_CNOMBRE} "
+                        "no tiene cuenta contable SAP configurada."
+                    )
+
+                valor_extra = float(
+                    extra.EPR_NVALOR or 0
+                )
+
+                if not extra.EPR_BINGRESO:
+                    valor_extra *= -1
+
+                if valor_extra == 0:
+                    raise Exception(
+                        f"El extra {extra_maestro.EXT_CNOMBRE} "
+                        "tiene valor igual a 0."
+                    )
+
+                opor.Lines.ItemDescription = (
+                    f"Extra {extra_maestro.EXT_CNOMBRE} - "
+                    f"citación {extra.CIE_NID.CI_NID_id}"
+                )
+
+                opor.Lines.AccountCode = account_number
+                opor.Lines.Price = valor_extra
+
+                opor.Lines.Add()
+
+        # =========================================================
+        # 10. LÍNEAS MANUALES
+        # Solo para Proformas no mensuales
+        # =========================================================
+        if not es_mensual_terramar:
+
+            for linea in lineas_proforma:
+
+                _, account_number = linea.GET_ITEM_CODE()
+
+                account_number = str(
+                    account_number or ""
+                ).strip()
+
+                if not account_number:
+                    raise Exception(
+                        f"La línea manual {linea.id} "
+                        "no tiene cuenta contable SAP configurada."
+                    )
+
+                cantidad = float(
+                    linea.LP_NCANTIDAD or 0
+                )
+
+                precio_unitario = float(
+                    linea.LP_NPRECIO_UNITARIO or 0
+                )
+
+                total_linea = cantidad * precio_unitario
+
+                if total_linea == 0:
+                    raise Exception(
+                        f"La línea manual {linea.id} "
+                        "tiene total igual a 0."
+                    )
+
+                opor.Lines.ItemDescription = str(
+                    linea.LP_CDESCRIPCION or ""
+                )
+
+                opor.Lines.AccountCode = account_number
+                opor.Lines.Price = total_linea
+
+                opor.Lines.Add()
+
+        # =========================================================
+        # 11. CREAR REALMENTE LA OC EN SAP
+        # =========================================================
         res = opor.Add()
+
         if res != 0:
-            print("Error al crear la orden:", vCompany.GetLastErrorDescription())
-            vCompany.Disconnect()
-            return None, vCompany.GetLastErrorDescription()
-        else:
-            doc_entry = vCompany.GetNewObjectKey()
-            
-            # Recuperar el documento recién creado para obtener el DocNum
-            opor_created = vCompany.GetBusinessObject(OPOR)
-            if opor_created.GetByKey(doc_entry):
-                doc_num = opor_created.DocNum
-                print(f"Orden creada - DocEntry: {doc_entry}, DocNum: {doc_num}")
-                vCompany.Disconnect()
-                return True, {"doc_entry": doc_entry, "doc_num": doc_num}
-            else:
-                vCompany.Disconnect()
-                return True, {"doc_entry": doc_entry, "doc_num": None}
+            error_code = vCompany.GetLastErrorCode()
+            error_message = vCompany.GetLastErrorDescription()
+
+            logger.error(
+                "Error SAP al crear OPOR para Proforma %s. "
+                "Codigo=%s. Detalle=%s",
+                pk,
+                error_code,
+                error_message
+            )
+
+            return False, (
+                f"Codigo={error_code}. "
+                f"Detalle={error_message}"
+            )
+
+        # =========================================================
+        # 12. RECUPERAR DOCENTRY
+        # =========================================================
+        doc_entry = str(
+            vCompany.GetNewObjectKey()
+        ).strip()
+
+        if not doc_entry:
+            return False, {
+                "error": (
+                    "SAP creó la OC pero no fue posible "
+                    "recuperar su DocEntry."
+                )
+            }
+
+        # =========================================================
+        # 13. RECUPERAR DOCNUM
+        # =========================================================
+        opor_created = vCompany.GetBusinessObject(OPOR)
+
+        if opor_created.GetByKey(int(doc_entry)):
+            doc_num = opor_created.DocNum
+
+            logger.info(
+                "OC SAP creada para Proforma %s. "
+                "DocEntry=%s DocNum=%s",
+                pk,
+                doc_entry,
+                doc_num
+            )
+
+            return True, {
+                "doc_entry": doc_entry,
+                "doc_num": doc_num,
+            }
+
+        # La OC existe en SAP; devolvemos DocEntry para
+        # evitar un eventual reenvío duplicado.
+        return False, {
+            "doc_entry": doc_entry,
+            "error": (
+                "SAP creó la OC pero no fue posible "
+                "recuperar su DocNum."
+            ),
+        }
+
     except Exception as e:
-        print(e)
-        vCompany.Disconnect()
+
+        logger.exception(
+            "Error controlado al crear OPOR para Proforma %s",
+            pk
+        )
+
         return False, str(e)
-    
+
+    finally:
+        disconnect_sap_company(vCompany)
+
+
 def handle_uploaded_file(file):
     """
     Función auxiliar para manejar el guardado de archivos
@@ -27630,77 +33988,77 @@ def handle_uploaded_file(file):
     # Definir la carpeta donde se guardarán los archivos
     upload_dir = os.path.join(settings.MEDIA_ROOT, 'uploads')
     os.makedirs(upload_dir, exist_ok=True)
-    
+
     # Generar un nombre único para el archivo
     filename = f"{uuid.uuid4()}_{file.name}"
     file_path = os.path.join(upload_dir, filename)
-    
+
     # Guardar el archivo
     with open(file_path, 'wb+') as destination:
         for chunk in file.chunks():
             destination.write(chunk)
-    
+
     return file_path
 
 def guardar_zona(request):
     try:
         # Obtener los datos del request
         data = json.loads(request.body)
-        
+
         # Extraer la información
         nombre = data.get('nombre')
         cupo_maximo = data.get('cupoMaximo')
         coordenadas = data.get('coordenadas', [])
-        
+
         # Validar que tenemos los datos necesarios
         if not nombre or not cupo_maximo:
             return JsonResponse({
                 "success": False,
                 "error": "Nombre y cupo máximo son requeridos"
             })
-        
+
         # Validar que tenemos suficientes coordenadas (3 o 4 puntos)
         if len(coordenadas) < 6:  # Al menos 3 puntos (6 coordenadas)
             return JsonResponse({
                 "success": False,
                 "error": "Se requieren al menos 3 puntos para crear una zona"
             })
-        
+
         # Limitar a 4 puntos (8 coordenadas)
         if len(coordenadas) > 8:
             coordenadas = coordenadas[:8]
-        
+
         # Obtener la empresa actual (ajustar según cómo manejes la empresa en tu sistema)
         # Esta línea debe ser ajustada según tu lógica de negocio
         empresa = EMPRESA.objects.get(id=1)  # Por defecto usamos ID 1, ajustar según necesidad
-        
+
         # Crear la nueva zona
         nueva_zona = ZONA(
             EP_NID=empresa,
             ZON_CNOMBRE=nombre,
             ZON_NCANTIDADCUPOS=cupo_maximo
         )
-        
+
         # Asignar coordenadas según los puntos disponibles
         if len(coordenadas) >= 2:
             nueva_zona.ZON_CLATITUD1 = str(coordenadas[0])
             nueva_zona.ZON_CLONGITUD1 = str(coordenadas[1])
-        
+
         if len(coordenadas) >= 4:
             nueva_zona.ZON_CLATITUD2 = str(coordenadas[2])
             nueva_zona.ZON_CLONGITUD2 = str(coordenadas[3])
-        
+
         if len(coordenadas) >= 6:
             nueva_zona.ZON_CLATITUD3 = str(coordenadas[4])
             nueva_zona.ZON_CLONGITUD3 = str(coordenadas[5])
-        
+
         if len(coordenadas) >= 8:
             nueva_zona.ZON_CLATITUD4 = str(coordenadas[6])
             nueva_zona.ZON_CLONGITUD4 = str(coordenadas[7])
-        
+
         # Guardar la zona en la base de datos
         nueva_zona.save()
-        
+
         # Preparar objeto de respuesta con la información necesaria para actualizar la UI
         respuesta = {
             "success": True,
@@ -27712,9 +34070,9 @@ def guardar_zona(request):
             },
             "mensaje": f"Zona '{nombre}' creada exitosamente"
         }
-        
+
         return JsonResponse(respuesta)
-    
+
     except json.JSONDecodeError:
         return JsonResponse({
             "success": False,
@@ -27739,28 +34097,28 @@ def obtener_zonas(request):
     try:
         # Obtener todas las zonas de la empresa actual (habilitadas)
         zonas = ZONA.objects.filter(ZON_BHABILITADO=True)
-        
+
         # Formatear las zonas para el frontend
         zonas_formateadas = []
         for zona in zonas:
             zona_data = [
                 zona.ZON_CNOMBRE,  # Nombre - posición 0
-                
+
                 # Convertir coordenadas a números si es posible
                 float(zona.ZON_CLATITUD1) if zona.ZON_CLATITUD1 and zona.ZON_CLATITUD1.strip() else "",
                 float(zona.ZON_CLONGITUD1) if zona.ZON_CLONGITUD1 and zona.ZON_CLONGITUD1.strip() else "",
-                
+
                 float(zona.ZON_CLATITUD2) if zona.ZON_CLATITUD2 and zona.ZON_CLATITUD2.strip() else "",
                 float(zona.ZON_CLONGITUD2) if zona.ZON_CLONGITUD2 and zona.ZON_CLONGITUD2.strip() else "",
-                
+
                 float(zona.ZON_CLATITUD3) if zona.ZON_CLATITUD3 and zona.ZON_CLATITUD3.strip() else "",
                 float(zona.ZON_CLONGITUD3) if zona.ZON_CLONGITUD3 and zona.ZON_CLONGITUD3.strip() else "",
-                
+
                 float(zona.ZON_CLATITUD4) if zona.ZON_CLATITUD4 and zona.ZON_CLATITUD4.strip() else "",
                 float(zona.ZON_CLONGITUD4) if zona.ZON_CLONGITUD4 and zona.ZON_CLONGITUD4.strip() else "",
-                
+
                 "", "",  # Vacíos - posiciones 9 y 10
-                
+
                 zona.ZON_CCOLOR or "#4caf50",  # Color - posición 11
                 zona.ZON_CNOMBRE,  # Identificador - posición 12
                 0,  # Cupos ocupados (se podría calcular dinámicamente) - posición 13
@@ -27768,7 +34126,7 @@ def obtener_zonas(request):
                 zona.pk
             ]
             zonas_formateadas.append(zona_data)
-            
+
         return JsonResponse({
             "success": True,
             "zonas": zonas_formateadas
@@ -27785,7 +34143,7 @@ def get_camiones_x_zona(request):
         id_zona = request.GET.get("id_zona")
         zona = ZONA.objects.get(id = id_zona)
         camiones_zona = get_camiones_por_zona(id_zona)
-        
+
         return JsonResponse({
             'success': True,
             'nombre_zona': zona.ZON_CNOMBRE,
@@ -27810,31 +34168,31 @@ def guardar_posicion_zona(request):
                 'success': False,
                 'error': 'No puedes realizar esta Acción'
             })
-        
+
         if request.method != 'POST':
             return JsonResponse({
                 'success': False,
                 'error': 'Método no permitido'
             })
-        
+
         # Obtener datos del request
         id_zona = request.POST.get('id_zona')
         coordenadas = request.POST.get('coordenadas')
         accion = request.POST.get('accion', 'actualizar')
-        
+
         # Validar datos requeridos
         if not id_zona:
             return JsonResponse({
                 'success': False,
                 'error': 'ID de zona requerido'
             })
-        
+
         if not coordenadas and accion != 'eliminar':
             return JsonResponse({
                 'success': False,
                 'error': 'Coordenadas requeridas'
             })
-        
+
         # Buscar la zona existente
         try:
             # Buscar la zona sin importar el estado de ZON_BHABILITADO para crear/actualizar
@@ -27848,46 +34206,46 @@ def guardar_posicion_zona(request):
                 'success': False,
                 'error': 'Zona no encontrada'
             })
-        
+
         if accion == 'eliminar':
             # Soft delete - marcar como deshabilitada (disponible para agregar nuevamente)
             zona.ZON_BHABILITADO = False
             zona.save()
-            
+
             return JsonResponse({
                 'success': True,
                 'mensaje': f'Zona {zona.ZON_CNOMBRE} eliminada del plano'
             })
-        
+
         else:
             # Actualizar coordenadas de la zona
             try:
                 coordenadas_list = json.loads(coordenadas)
-                
+
                 # Validar que tenemos coordenadas válidas
                 if len(coordenadas_list) < 6:  # Al menos 3 puntos
                     return JsonResponse({
                         'success': False,
                         'error': 'Se requieren al menos 3 puntos'
                     })
-                
+
                 # Limitar a 4 puntos máximo
                 if len(coordenadas_list) > 8:
                     coordenadas_list = coordenadas_list[:8]
-                
+
                 # Actualizar las coordenadas en la zona
                 if len(coordenadas_list) >= 2:
                     zona.ZON_CLATITUD1 = str(coordenadas_list[0])
                     zona.ZON_CLONGITUD1 = str(coordenadas_list[1])
-                
+
                 if len(coordenadas_list) >= 4:
                     zona.ZON_CLATITUD2 = str(coordenadas_list[2])
                     zona.ZON_CLONGITUD2 = str(coordenadas_list[3])
-                
+
                 if len(coordenadas_list) >= 6:
                     zona.ZON_CLATITUD3 = str(coordenadas_list[4])
                     zona.ZON_CLONGITUD3 = str(coordenadas_list[5])
-                
+
                 if len(coordenadas_list) >= 8:
                     zona.ZON_CLATITUD4 = str(coordenadas_list[6])
                     zona.ZON_CLONGITUD4 = str(coordenadas_list[7])
@@ -27895,65 +34253,65 @@ def guardar_posicion_zona(request):
                     # Limpiar coordenadas del punto 4 si no se proporciona
                     zona.ZON_CLATITUD4 = ""
                     zona.ZON_CLONGITUD4 = ""
-                
+
                 # Marcar la zona como habilitada (en uso en el mapa)
                 zona.ZON_BHABILITADO = True
-                
+
                 # Guardar los cambios
                 zona.save()
-                
+
                 return JsonResponse({
                     'success': True,
                     'mensaje': f'Posición de zona {zona.ZON_CNOMBRE} actualizada ({accion})'
                 })
-                
+
             except json.JSONDecodeError:
                 return JsonResponse({
                     'success': False,
                     'error': 'Formato de coordenadas inválido'
                 })
-    
+
     except Exception as e:
         print(f"Error en guardar_posicion_zona: {e}")
         return JsonResponse({
             'success': False,
             'error': str(e)
         })
-    
+
 def obtener_posiciones_zonas(request):
     """
     Vista para cargar las posiciones guardadas al inicializar el plano
     """
     try:
         Empresa = Verificar_empresa(request)
-        
+
         # Obtener zonas activas con coordenadas guardadas
         zonas = ZONA.objects.filter(
-            EP_NID_id=Empresa, 
+            EP_NID_id=Empresa,
             ZON_BHABILITADO=True
         ).exclude(
             ZON_CLATITUD1__isnull=True
         ).exclude(
             ZON_CLATITUD1__exact=''
         )
-        
+
         posiciones = []
         for zona in zonas:
             # Construir array de coordenadas
             coordenadas = []
-            
+
             if zona.ZON_CLATITUD1 and zona.ZON_CLONGITUD1:
                 coordenadas.extend([float(zona.ZON_CLATITUD1), float(zona.ZON_CLONGITUD1)])
-            
+
             if zona.ZON_CLATITUD2 and zona.ZON_CLONGITUD2:
                 coordenadas.extend([float(zona.ZON_CLATITUD2), float(zona.ZON_CLONGITUD2)])
-            
+
             if zona.ZON_CLATITUD3 and zona.ZON_CLONGITUD3:
                 coordenadas.extend([float(zona.ZON_CLATITUD3), float(zona.ZON_CLONGITUD3)])
-            
+
             if zona.ZON_CLATITUD4 and zona.ZON_CLONGITUD4:
                 coordenadas.extend([float(zona.ZON_CLATITUD4), float(zona.ZON_CLONGITUD4)])
-            
+
             # Solo incluir si tiene al menos 3 puntos (6 coordenadas)
             if len(coordenadas) >= 6:
                 zona_data = [
@@ -27969,18 +34327,18 @@ def obtener_posiciones_zonas(request):
                     zona.ZON_NCANTIDADCUPOS or 0,  # 14
                     zona.pk  # 15
                 ]
-                
+
                 posiciones.append({
                     'id_zona': zona.id,
                     'coordenadas': json.dumps(coordenadas),
                     'zona_data': zona_data
                 })
-        
+
         return JsonResponse({
             'success': True,
             'posiciones': posiciones
         })
-        
+
     except Exception as e:
         print(f"Error al obtener posiciones: {e}")
         return JsonResponse({
@@ -28001,20 +34359,20 @@ def actualizar_coordenadas_zona(request):
         # Obtener datos del request
         id_zona = request.POST.get('id_zona')
         coordenadas = request.POST.get('coordenadas')
-        
+
         # Validar datos requeridos
         if not id_zona:
             return JsonResponse({
                 'success': False,
                 'error': 'ID de zona requerido'
             })
-        
+
         if not coordenadas:
             return JsonResponse({
                 'success': False,
                 'error': 'Coordenadas requeridas'
             })
-        
+
         # Buscar la zona existente
         try:
             zona = ZONA.objects.get(id=id_zona, ZON_BHABILITADO=True)
@@ -28023,22 +34381,22 @@ def actualizar_coordenadas_zona(request):
                 'success': False,
                 'error': 'Zona no encontrada o no está habilitada'
             })
-        
+
         # Parsear las coordenadas
         try:
             coordenadas_list = json.loads(coordenadas)
-            
+
             # Validar que tenemos coordenadas válidas
             if len(coordenadas_list) < 6:  # Al menos 3 puntos (6 coordenadas)
                 return JsonResponse({
                     'success': False,
                     'error': 'Se requieren al menos 3 puntos (6 coordenadas)'
                 })
-            
+
             # Limitar a 4 puntos máximo (8 coordenadas)
             if len(coordenadas_list) > 8:
                 coordenadas_list = coordenadas_list[:8]
-            
+
             # Limpiar todas las coordenadas primero
             zona.ZON_CLATITUD1 = ""
             zona.ZON_CLONGITUD1 = ""
@@ -28048,27 +34406,27 @@ def actualizar_coordenadas_zona(request):
             zona.ZON_CLONGITUD3 = ""
             zona.ZON_CLATITUD4 = ""
             zona.ZON_CLONGITUD4 = ""
-            
+
             # Asignar las nuevas coordenadas
             if len(coordenadas_list) >= 2:
                 zona.ZON_CLATITUD1 = str(coordenadas_list[0])
                 zona.ZON_CLONGITUD1 = str(coordenadas_list[1])
-            
+
             if len(coordenadas_list) >= 4:
                 zona.ZON_CLATITUD2 = str(coordenadas_list[2])
                 zona.ZON_CLONGITUD2 = str(coordenadas_list[3])
-            
+
             if len(coordenadas_list) >= 6:
                 zona.ZON_CLATITUD3 = str(coordenadas_list[4])
                 zona.ZON_CLONGITUD3 = str(coordenadas_list[5])
-            
+
             if len(coordenadas_list) >= 8:
                 zona.ZON_CLATITUD4 = str(coordenadas_list[6])
                 zona.ZON_CLONGITUD4 = str(coordenadas_list[7])
-            
+
             # Guardar los cambios
             zona.save()
-            
+
             return JsonResponse({
                 'success': True,
                 'mensaje': f'Coordenadas de la zona "{zona.ZON_CNOMBRE}" actualizadas correctamente',
@@ -28076,7 +34434,7 @@ def actualizar_coordenadas_zona(request):
                 'zona_nombre': zona.ZON_CNOMBRE,
                 'coordenadas_actualizadas': coordenadas_list
             })
-            
+
         except json.JSONDecodeError:
             return JsonResponse({
                 'success': False,
@@ -28087,7 +34445,7 @@ def actualizar_coordenadas_zona(request):
                 'success': False,
                 'error': f'Error en los valores de coordenadas: {str(e)}'
             })
-    
+
     except Exception as e:
         print(f"Error en actualizar_coordenadas_zona: {e}")
         return JsonResponse({
@@ -28101,13 +34459,13 @@ def obtener_coordenadas_zona(request):
     """
     try:
         id_zona = request.GET.get('id_zona')
-        
+
         if not id_zona:
             return JsonResponse({
                 'success': False,
                 'error': 'ID de zona requerido'
             })
-        
+
         try:
             zona = ZONA.objects.get(id=id_zona, ZON_BHABILITADO=True)
         except ZONA.DoesNotExist:
@@ -28115,34 +34473,34 @@ def obtener_coordenadas_zona(request):
                 'success': False,
                 'error': 'Zona no encontrada'
             })
-        
+
         # Construir array de coordenadas
         coordenadas = []
-        
+
         if zona.ZON_CLATITUD1 and zona.ZON_CLONGITUD1:
             try:
                 coordenadas.extend([float(zona.ZON_CLATITUD1), float(zona.ZON_CLONGITUD1)])
             except ValueError:
                 pass
-        
+
         if zona.ZON_CLATITUD2 and zona.ZON_CLONGITUD2:
             try:
                 coordenadas.extend([float(zona.ZON_CLATITUD2), float(zona.ZON_CLONGITUD2)])
             except ValueError:
                 pass
-        
+
         if zona.ZON_CLATITUD3 and zona.ZON_CLONGITUD3:
             try:
                 coordenadas.extend([float(zona.ZON_CLATITUD3), float(zona.ZON_CLONGITUD3)])
             except ValueError:
                 pass
-        
+
         if zona.ZON_CLATITUD4 and zona.ZON_CLONGITUD4:
             try:
                 coordenadas.extend([float(zona.ZON_CLATITUD4), float(zona.ZON_CLONGITUD4)])
             except ValueError:
                 pass
-        
+
         return JsonResponse({
             'success': True,
             'zona_id': zona.id,
@@ -28150,7 +34508,7 @@ def obtener_coordenadas_zona(request):
             'coordenadas': coordenadas,
             'numero_puntos': len(coordenadas) // 2
         })
-        
+
     except Exception as e:
         print(f"Error en obtener_coordenadas_zona: {e}")
         return JsonResponse({
@@ -28170,14 +34528,14 @@ def eliminar_zona(request):
             })
         # Obtener datos del request
         id_zona = request.POST.get('id_zona')
-        
+
         # Validar datos requeridos
         if not id_zona:
             return JsonResponse({
                 'success': False,
                 'error': 'ID de zona requerido'
             })
-        
+
         # Buscar la zona existente
         try:
             zona = ZONA.objects.get(id=id_zona, ZON_BHABILITADO=True)
@@ -28186,29 +34544,29 @@ def eliminar_zona(request):
                 'success': False,
                 'error': 'Zona no encontrada o ya está deshabilitada'
             })
-        
+
         camiones_x_zona = get_camiones_por_zona(id_zona)
         if camiones_x_zona:
             return JsonResponse({
                 'success': False,
                 'error': f'Dentro de la zona aun hay camiones'
             })
-        
+
         # Realizar soft delete - marcar como deshabilitada
         zona_nombre = zona.ZON_CNOMBRE
         zona.ZON_BHABILITADO = False
         zona.save()
-        
+
         # Log de la Acción (opcional)
         print(f"Zona eliminada (soft delete): ID={id_zona}, Nombre={zona_nombre}")
-        
+
         return JsonResponse({
             'success': True,
             'mensaje': f'Zona "{zona_nombre}" eliminada correctamente',
             'zona_id': zona.id,
             'zona_nombre': zona_nombre
         })
-    
+
     except Exception as e:
         print(f"Error en eliminar_zona: {e}")
         return JsonResponse({
@@ -28230,9 +34588,9 @@ def cambiar_imagen_plano(request):
                 'success': False,
                 'error': 'No se ha enviado ningún archivo de imagen'
             })
-        
+
         archivo_imagen = request.FILES['imagen']
-        
+
         # Validar tipo de archivo
         tipos_permitidos = ['image/jpeg', 'image/jpg', 'image/png', 'image/gif']
         if archivo_imagen.content_type not in tipos_permitidos:
@@ -28240,7 +34598,7 @@ def cambiar_imagen_plano(request):
                 'success': False,
                 'error': 'Tipo de archivo no permitido. Use JPG, PNG o GIF.'
             })
-        
+
         # Validar tamaño del archivo (10MB máximo)
         max_size = 10 * 1024 * 1024  # 10MB
         if archivo_imagen.size > max_size:
@@ -28248,7 +34606,7 @@ def cambiar_imagen_plano(request):
                 'success': False,
                 'error': 'El archivo es muy grande. Máximo 10MB permitido.'
             })
-        
+
         # Validar que es una imagen válida usando PIL
         try:
             img = Image.open(archivo_imagen)
@@ -28259,57 +34617,57 @@ def cambiar_imagen_plano(request):
                 'success': False,
                 'error': 'El archivo no es una imagen válida.'
             })
-        
+
         # Hacer backup de la imagen anterior (opcional)
         try:
             ruta_anterior = os.path.join(settings.STATIC_ROOT or settings.BASE_DIR, 'static', 'assets/images/planoPlanta.png')
             if os.path.exists(ruta_anterior):
                 backup_name = f"planoPlanta_backup_{uuid.uuid4()}.png"
                 backup_dir = os.path.join(settings.STATIC_ROOT or settings.BASE_DIR, 'static', 'assets/images/backups')
-                
+
                 # Crear directorio de backups si no existe
                 os.makedirs(backup_dir, exist_ok=True)
-                
+
                 ruta_backup = os.path.join(backup_dir, backup_name)
-                
+
                 # Copiar archivo anterior como backup
                 import shutil
                 shutil.copy2(ruta_anterior, ruta_backup)
                 logger.info(f"Backup creado: {ruta_backup}")
-                
+
         except Exception as e:
             logger.warning(f"No se pudo crear backup: {e}")
             # No fallar si no se puede hacer backup
-        
+
         # Reemplazar la imagen principal
         try:
             ruta_principal = os.path.join(settings.STATIC_ROOT or settings.BASE_DIR, 'static', 'assets/images/planoPlanta.png')
-            
+
             # Eliminar imagen anterior si existe
             if os.path.exists(ruta_principal):
                 os.remove(ruta_principal)
-            
+
             # Guardar nueva imagen directamente como planoPlanta.png
             with open(ruta_principal, 'wb+') as destino:
                 for chunk in archivo_imagen.chunks():
                     destino.write(chunk)
-            
+
             # Verificar que el archivo se guardó correctamente
             if not os.path.exists(ruta_principal):
                 raise Exception("El archivo no se guardó correctamente")
-                
+
         except Exception as e:
             logger.error(f"Error al reemplazar imagen principal: {e}")
             return JsonResponse({
                 'success': False,
                 'error': f'Error al actualizar la imagen principal: {str(e)}'
             })
-        
+
         # Obtener información de la nueva imagen
         try:
             img_info = Image.open(ruta_principal)
             ancho, alto = img_info.size
-            
+
             info_imagen = {
                 'ancho': ancho,
                 'alto': alto,
@@ -28319,13 +34677,13 @@ def cambiar_imagen_plano(request):
         except Exception as e:
             logger.warning(f"No se pudo obtener info de imagen: {e}")
             info_imagen = {}
-        
+
         # URL pública de la nueva imagen CON TIMESTAMP para evitar caché
         timestamp = int(time.time())
         nueva_url = f"/static/assets/images/planoPlanta.png?v={timestamp}"
-        
+
         logger.info(f"Imagen del plano cambiada exitosamente: {ruta_principal}")
-        
+
         return JsonResponse({
             'success': True,
             'mensaje': 'Imagen del plano cambiada exitosamente',
@@ -28333,7 +34691,7 @@ def cambiar_imagen_plano(request):
             'info_imagen': info_imagen,
             'timestamp': timestamp  # Enviamos el timestamp para JavaScript
         })
-        
+
     except Exception as e:
         logger.error(f"Error en cambiar_imagen_plano: {e}")
         return JsonResponse({
@@ -28345,20 +34703,20 @@ def cit_ruta_edit(request, pk):
     try:
         citacion = CITACION.objects.get(id = pk)
         id_ruta = request.POST.get('RUT_NID')
-        
+
         if not id_ruta:
             messages.error(request, 'No se ha seleccionado una ruta')
             return redirect(f'/cit_listone/{pk}')
-        
+
         try:
             ruta = RUTA.objects.get(id = id_ruta)
         except RUTA.DoesNotExist:
             messages.error(request, 'La ruta seleccionada no existe')
             return redirect(f'/cit_listone/{pk}')
-        
+
         citacion.RUT_NID = ruta
         citacion.save()
-        messages.success(request, 'Ruta asignada correctamente')       
+        messages.success(request, 'Ruta asignada correctamente')
         return redirect(f'/cit_listone/{pk}')
     except Exception as e:
         print(e)
@@ -28370,39 +34728,39 @@ def download_proforma_details(request, pk):
         proforma = PROFORMA.objects.get(id=pk)
         citaciones = CITACION_PROFORMA.objects.filter(PRO_NID=proforma)
         extras = EXTRA_PROFORMA.objects.filter(PRO_NID=proforma)
-        
+
         # Crea un nuevo libro de trabajo de Excel
         workbook = openpyxl.Workbook()
         workbook.remove(workbook.active)  # Eliminar la hoja por defecto
-        
+
         # Procesar citaciones si existen
         if citaciones.exists():
             worksheet_citaciones = workbook.create_sheet(title="CITACIONES")
-            
+
             # Definir columnas para citaciones
             columnas_citaciones = [
-                "NUMERO PROFORMA", "NUMERO CITACION", "FECHA CITACION", 
-                "TIPO DOCUMENTO", "NUMERO DOCUMENTO", "PROVEEDOR", 
+                "NUMERO PROFORMA", "NUMERO CITACION", "FECHA CITACION",
+                "TIPO DOCUMENTO", "NUMERO DOCUMENTO", "PROVEEDOR",
                 "CONDUCTOR", "CAMION", "RUTA", "TARIFA", "SUBTOTAL"
             ]
-            
+
             # Escribir encabezados
             worksheet_citaciones.append(columnas_citaciones)
-            
+
             # Escribir datos de citaciones
             for citacion in citaciones:
                 ci = citacion.CI_NID
-                
+
                 # Obtener información relacionada
                 proveedor = ci.PRO_NID.SN_CRAZONSOCIAL if ci.PRO_NID else ""
                 conductor = f"{ci.CON_NID.CON_CNOMBRE} {ci.CON_NID.CON_CAPELLIDO}" if ci.CON_NID else ""
                 camion = ci.CA_NID.CAM_CPATENTE if ci.CA_NID else ""
                 ruta = ci.RUT_NID.RUT_CNOMBRE if ci.RUT_NID else ""
                 tarifa = ci.TAR_NID.TAR_CNOMBRETARIFA if ci.TAR_NID else ""
-                
+
                 # Formatear fecha
                 fecha_citacion = ci.CI_FFECHAREGISTRO.strftime('%d/%m/%Y') if ci.CI_FFECHAREGISTRO else ""
-                
+
                 fila = [
                     pk,
                     ci.pk,
@@ -28416,29 +34774,29 @@ def download_proforma_details(request, pk):
                     tarifa,
                     float(citacion.CIP_NSUBTOTAL)
                 ]
-                
+
                 worksheet_citaciones.append(fila)
-        
+
         # Procesar extras si existen
         if extras.exists():
             worksheet_extras = workbook.create_sheet(title="EXTRAS")
-            
+
             # Definir columnas para extras
             columnas_extras = [
-                "NUMERO PROFORMA", "NUMERO CITACION","EXTRA", "DESCRIPCION", 
+                "NUMERO PROFORMA", "NUMERO CITACION","EXTRA", "DESCRIPCION",
                 "VALOR", "ES INGRESO", "NUMERO CITACION"
             ]
-            
+
             # Escribir encabezados
             worksheet_extras.append(columnas_extras)
-            
+
             # Escribir datos de extras
             for extra in extras:
                 cie = extra.CIE_NID
                 ext = cie.EXT_NID
-                
+
                 es_ingreso = "Sí" if extra.EPR_BINGRESO else "No"
-                
+
                 fila = [
                     pk,
                     cie.CI_NID.pk,
@@ -28448,25 +34806,25 @@ def download_proforma_details(request, pk):
                     es_ingreso,
                     cie.CI_NID.pk
                 ]
-                
+
                 worksheet_extras.append(fila)
-        
+
         # Verificar que al menos se creó una hoja
         if len(workbook.sheetnames) == 0:
             messages.warning(request, 'No hay datos para exportar')
             return redirect('/')
-        
+
         # Preparar respuesta HTTP con el archivo Excel
         response = HttpResponse(
             content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
         )
         response['Content-Disposition'] = f'attachment; filename=proforma_{pk}_detalle.xlsx'
-        
+
         # Guardar el libro en la respuesta
         workbook.save(response)
-        
+
         return response
-        
+
     except PROFORMA.DoesNotExist:
         messages.error(request, 'La proforma no existe')
         return redirect('/')
@@ -28479,18 +34837,18 @@ def get_flete_empresa(request):
     try:
         id_empresa = request.GET.get('id_empresa')
         empresa = EMPRESA.objects.get(id=id_empresa)
-        
+
         # Corrección: values_list con flat=True, o values sin flat
         fletes = list(PARAMETRO.objects.filter(
-            PM_CGRUPO='TIPO_FLETE', 
+            PM_CGRUPO='TIPO_FLETE',
             PM_NVALOR1=id_empresa
         ).values_list('PM_CDESCRIPCION', flat=True))
-        
+
         return JsonResponse({
             'success': True,
             'fletes': fletes
         })
-        
+
     except Exception as e:
         print(e)
         return JsonResponse({
@@ -28504,7 +34862,7 @@ def filter_proforma_inicio(request):
         fecha_desde = request.GET.get('fecha_desde')
         fecha_hasta = request.GET.get('fecha_hasta')
         today = datetime.now()
-        
+
         if not fecha_desde:
             fecha_desde = today - timedelta(days=7)
         else:
@@ -28514,7 +34872,7 @@ def filter_proforma_inicio(request):
             fecha_hasta = today
         else:
             fecha_hasta = datetime.strptime(fecha_hasta, '%Y-%m-%d')  # Especifica el formato
-        
+
         proformas_por_socionegocio = PROFORMA.objects.filter(
             EP_NID_id=Empresa,
             PRO_FFECHAEMISION__date__range=[fecha_desde, fecha_hasta],  # Corregí las variables
@@ -28525,10 +34883,10 @@ def filter_proforma_inicio(request):
         ).annotate(
             cantidad_proformas=Count('id')
         ).order_by('-cantidad_proformas')
-        
+
         # Convertir QuerySet a lista de diccionarios
         proformas_list = list(proformas_por_socionegocio)
-        
+
         return JsonResponse({
             "success": True,
             "proformas_por_socionegocio": proformas_list
@@ -28544,9 +34902,9 @@ def parametro_list(request):
     try:
         search = request.GET.get('search', '')
         grupo = request.GET.get('grupo', '')
-        
+
         parametros = PARAMETRO.objects.all()
-        
+
         # Filtros
         if search:
             parametros = parametros.filter(
@@ -28554,29 +34912,29 @@ def parametro_list(request):
                 Q(PM_CDESCRIPCION__icontains=search) |
                 Q(PM_CGRUPO__icontains=search)
             )
-        
+
         if grupo:
             parametros = parametros.filter(PM_CGRUPO=grupo)
-        
+
         parametros = parametros.order_by('PM_CGRUPO', 'PM_CCODIGO')
-        
+
         # Obtener grupos únicos para el filtro
         grupos = PARAMETRO.objects.values_list('PM_CGRUPO', flat=True).distinct().order_by('PM_CGRUPO')
-        
+
         # Paginación
         page = request.GET.get('page', 1)
         paginator = Paginator(parametros, 50)
         parametros_paginados = paginator.page(page)
-        
+
         context = {
             'parametros': parametros_paginados,
             'grupos': grupos,
             'search': search,
             'grupo_selected': grupo
         }
-        
+
         return render(request, 'home/PARAMETRO/parametro_list.html', context)
-        
+
     except Exception as e:
         print(e)
         messages.error(request, f'Error al listar parámetros: {str(e)}')
@@ -28595,17 +34953,17 @@ def parametro_create(request):
             nvalor1 = request.POST.get('PM_NVALOR1', None)
             nvalor2 = request.POST.get('PM_NVALOR2', None)
             nvalor3 = request.POST.get('PM_NVALOR3', None)
-            
+
             # Validar campos obligatorios
             if not grupo or not codigo or not descripcion or not valor1:
                 messages.error(request, 'Los campos Grupo, Código, Descripción y Valor 1 son obligatorios')
                 return redirect('parametro_create')
-            
+
             # Verificar si ya existe
             if PARAMETRO.objects.filter(PM_CGRUPO=grupo, PM_CCODIGO=codigo).exists():
                 messages.error(request, 'Ya existe un parámetro con ese Grupo y Código')
                 return redirect('parametro_create')
-            
+
             # Crear parámetro
             parametro = PARAMETRO.objects.create(
                 PM_CGRUPO=grupo,
@@ -28618,19 +34976,19 @@ def parametro_create(request):
                 PM_NVALOR2=nvalor2 if nvalor2 else None,
                 PM_NVALOR3=nvalor3 if nvalor3 else None
             )
-            
+
             messages.success(request, 'Parámetro creado exitosamente')
             return redirect('parametro_list')
-        
+
         # Obtener grupos existentes para sugerencias
         grupos = PARAMETRO.objects.values_list('PM_CGRUPO', flat=True).distinct().order_by('PM_CGRUPO')
-        
+
         context = {
             'grupos': grupos
         }
-        
+
         return render(request, 'home/PARAMETRO/parametro_form.html', context)
-        
+
     except Exception as e:
         print(e)
         messages.error(request, f'Error al crear parámetro: {str(e)}')
@@ -28640,7 +34998,7 @@ def parametro_create(request):
 def parametro_update(request, pk):
     try:
         parametro = get_object_or_404(PARAMETRO, pk=pk)
-        
+
         if request.method == 'POST':
             descripcion = request.POST.get('PM_CDESCRIPCION')
             valor1 = request.POST.get('PM_CVALOR1')
@@ -28649,12 +35007,12 @@ def parametro_update(request, pk):
             nvalor1 = request.POST.get('PM_NVALOR1', None)
             nvalor2 = request.POST.get('PM_NVALOR2', None)
             nvalor3 = request.POST.get('PM_NVALOR3', None)
-            
+
             # Validar campos obligatorios
             if not descripcion or not valor1:
                 messages.error(request, 'Los campos Descripción y Valor 1 son obligatorios')
                 return redirect('parametro_update', pk=pk)
-            
+
             # Actualizar parámetro
             parametro.PM_CDESCRIPCION = descripcion
             parametro.PM_CVALOR1 = valor1
@@ -28664,17 +35022,17 @@ def parametro_update(request, pk):
             parametro.PM_NVALOR2 = nvalor2 if nvalor2 else None
             parametro.PM_NVALOR3 = nvalor3 if nvalor3 else None
             parametro.save()
-            
+
             messages.success(request, 'Parámetro actualizado exitosamente')
             return redirect('parametro_list')
-        
+
         context = {
             'parametro': parametro,
             'is_update': True
         }
-        
+
         return render(request, 'home/PARAMETRO/parametro_form.html', context)
-        
+
     except Exception as e:
         print(e)
         messages.error(request, f'Error al editar parámetro: {str(e)}')
@@ -28684,21 +35042,21 @@ def parametro_update(request, pk):
 def parametro_delete(request, pk):
     try:
         parametro = get_object_or_404(PARAMETRO, pk=pk)
-        
+
         if request.method == 'POST':
             grupo = parametro.PM_CGRUPO
             codigo = parametro.PM_CCODIGO
             parametro.delete()
-            
+
             messages.success(request, f'Parámetro {grupo} - {codigo} eliminado exitosamente')
             return redirect('parametro_list')
-        
+
         context = {
             'parametro': parametro
         }
-        
+
         return render(request, 'parametros/parametro_confirm_delete.html', context)
-        
+
     except Exception as e:
         print(e)
         messages.error(request, f'Error al eliminar parámetro: {str(e)}')
@@ -28710,13 +35068,13 @@ def info_proveedor(request):
     Vista AJAX para obtener información del proveedor
     """
     proveedor_id = request.GET.get('proveedor', None)
-    
+
     if not proveedor_id:
         return JsonResponse({'error': 'No se proporcionó ID de proveedor'}, status=400)
-    
+
     try:
         proveedor = SOCIONEGOCIO.objects.get(pk=proveedor_id)
-        
+
         data = {
             'razon_social': proveedor.SN_CRAZONSOCIAL,
             'rut': proveedor.SN_CRUT,
@@ -28725,9 +35083,9 @@ def info_proveedor(request):
             'email': proveedor.SN_CEMAIL or '',
             'contacto': proveedor.SN_CCONTACTO or ''
         }
-        
+
         return JsonResponse(data)
-        
+
     except SOCIONEGOCIO.DoesNotExist:
         return JsonResponse({'error': 'Proveedor no encontrado'}, status=404)
     except Exception as e:
@@ -28739,21 +35097,21 @@ def get_tipos_items(request):
     Los tipos de items están en PARAMETRO donde PM_NVALOR1 = ID de empresa
     """
     empresa_id = request.GET.get('empresa', None)
-    
+
     if not empresa_id:
         return JsonResponse({'error': 'No se proporcionó ID de empresa'}, status=400)
-    
+
     try:
         # Convertir empresa_id a Decimal para comparar con PM_NVALOR1
         empresa_id_decimal = Decimal(empresa_id)
-        
+
         # Obtener tipos de items para la empresa
         # Ajusta 'TIPO_ITEM' según el nombre real de tu grupo de parámetros
         tipos_items = PARAMETRO.objects.filter(
             PM_CGRUPO='TIPO_ITEM',  # AJUSTA ESTE VALOR SEGÚN TU CONFIGURACIÓN
             PM_NVALOR1=empresa_id_decimal
         ).values('PM_CDESCRIPCION')
-        
+
         # Formatear lista de tipos de items
         lista_tipos = [
             {
@@ -28762,13 +35120,13 @@ def get_tipos_items(request):
             }
             for tipo in tipos_items
         ]
-        
+
         data = {
             'tipos_items': lista_tipos
         }
-        
+
         return JsonResponse(data)
-        
+
     except Exception as e:
         return JsonResponse({'error': str(e)}, status=500)
 
@@ -28780,18 +35138,18 @@ def PROFORMA_PDF(request, pk):
         if not WEASYPRINT_AVAILABLE:
             messages.error(request, 'La librería weasyprint no está instalada. Por favor instálela con: pip install weasyprint')
             return redirect(f'/proforma_listone/{pk}')
-        
+
         proforma = PROFORMA.objects.get(id=pk)
         proveedor = proforma.SN_NID
         documentos = DOCUMENTO_PROFORMA.objects.filter(PRO_NID=proforma)
-        
+
         # Verificar que proveedor y EP_NID existan antes de usarlos
         if not proveedor or not proforma.EP_NID:
             messages.error(request, 'Error: La proforma no tiene proveedor o empresa asociada')
             return redirect(f'/proforma_listone/{pk}')
-        
+
         listado_citaciones = get_list_citaciones_xproveedor(proveedor.pk, proforma.EP_NID.pk)
-        
+
         # Modificar la consulta de citaciones_proforma para incluir el valor_campo_38
         citaciones_proforma = CITACION_PROFORMA.objects.filter(PRO_NID=proforma).annotate(
             valor_campo_38=Subquery(
@@ -28804,27 +35162,27 @@ def PROFORMA_PDF(request, pk):
 
         extras_proforma_ingreso = EXTRA_PROFORMA.objects.filter(PRO_NID=proforma, EPR_BINGRESO=True, EPR_BHABILITADO=True)
         extras_proforma_descuento = EXTRA_PROFORMA.objects.filter(PRO_NID=proforma, EPR_BINGRESO=False, EPR_BHABILITADO=True)
-        
+
         # Calcular totales usando la misma estructura que PROFORMA_LISTONE
         total_extras_ingreso = 0
         total_extras_descuento = 0
-        
+
         # Calcular totales de extras solo con los habilitados
         for extra_ingreso in extras_proforma_ingreso:
             total_extras_ingreso += extra_ingreso.EPR_NVALOR
-            
+
         for extra_descuento in extras_proforma_descuento:
             total_extras_descuento += extra_descuento.EPR_NVALOR
-        
+
         total_tarifas = 0
         for citacion_proforma in citaciones_proforma:
             citacion = citacion_proforma.CI_NID
             total_tarifas += citacion.CI_NVALORTARIFA if citacion.CI_NVALORTARIFA is not None else 0
-        
+
         # Obtener tipos_extras usando la misma estructura que PROFORMA_LISTONE
         tipos_extras_ingreso = get_list_extras_ingreso(proforma.id)
         tipos_extras_descuento = get_list_extras_descuento(proforma.id)
-        
+
         # Contexto para el template PDF - misma estructura que PROFORMA_LISTONE
         ctx = {
             'proforma': proforma,
@@ -28837,20 +35195,20 @@ def PROFORMA_PDF(request, pk):
             'tipos_extras_descuento': tipos_extras_descuento,
             'total_tarifas': total_tarifas,
         }
-        
+
         # Renderizar el template HTML
         html = render_to_string('home/PROFORMA/proforma_pdf.html', ctx, request=request)
-        
+
         # Crear respuesta PDF
         response = HttpResponse(content_type='application/pdf')
         filename = f'Proforma_{proforma.pk}_{datetime.now().strftime("%Y-%m-%d")}.pdf'
         response['Content-Disposition'] = f'attachment; filename="{filename}"'
-        
+
         # Convertir HTML a PDF usando WeasyPrint
         try:
             # Configurar base_url para recursos estáticos
             base_url = request.build_absolute_uri('/')
-            
+
             # Generar PDF con WeasyPrint
             HTML(string=html, base_url=base_url).write_pdf(
                 response,
@@ -28865,9 +35223,9 @@ def PROFORMA_PDF(request, pk):
             print(f"Error al generar PDF con WeasyPrint: {e}")
             messages.error(request, f'Error al generar el PDF: {str(e)}')
             return redirect(f'/proforma_listone/{pk}')
-        
+
         return response
-        
+
     except Exception as e:
         print(e)
         messages.error(request, f'Error al generar PDF: {str(e)}')
@@ -28894,7 +35252,7 @@ def PROFORMA_PDF(request, pk):
 #         # Buscar usando upper en ambos lados para evitar problemas de case
 #         # Ordenar por fecha descendente (más reciente primero) y luego por tiempo
 #         query = """
-#             SELECT * FROM citaciones 
+#             SELECT * FROM citaciones
 #             WHERE UPPER(cam_cpatente) = UPPER(?)
 #             ORDER BY fecha DESC, tiempo DESC
 #             LIMIT 1
@@ -28917,15 +35275,15 @@ def buscar_patente_ajax(request):
     """
     if request.method == 'GET':
         patente = request.GET.get('patente', '').strip()
-        
+
         if not patente:
             return JsonResponse({
                 'success': False,
                 'message': 'Por favor ingrese una patente'
             })
-        
+
         resultado = obtener_citacion_por_patente(patente)
-        
+
         if resultado:
             # Convertir el diccionario a un formato JSON serializable
             datos = {}
@@ -28935,7 +35293,7 @@ def buscar_patente_ajax(request):
                     datos[key] = value
                 else:
                     datos[key] = str(value)
-            
+
             return JsonResponse({
                 'success': True,
                 'data': datos
@@ -28945,7 +35303,7 @@ def buscar_patente_ajax(request):
                 'success': False,
                 'message': 'No hay pesos registrados para la patente'
             })
-    
+
     return JsonResponse({
         'success': False,
         'message': 'Método no permitido'
@@ -29225,20 +35583,20 @@ def obtener_citacion_por_patente(patente):
 def ajax_obtener_pesaje(request):
     """
     Vista AJAX para obtener el peso desde la base de datos de pesaje.
-    Calcula el campo 'peso': si con_npeso_salida es NULL o 0, usa con_npeso_entrada, 
+    Calcula el campo 'peso': si con_npeso_salida es NULL o 0, usa con_npeso_entrada,
     de lo contrario usa con_npeso_salida.
     """
     try:
         patente = request.GET.get('patente')
         if not patente:
             return JsonResponse({'valid': False, 'msg': 'Patente no proporcionada'})
-        
+
         datos_pesaje = obtener_citacion_por_patente(patente)
-        
+
         if datos_pesaje:
             peso_salida = datos_pesaje.get('con_npeso_nsalida') or datos_pesaje.get('con_npeso_salida')
             peso_entrada = datos_pesaje.get('con_npeso_entrada')
-            
+
             # Calcular el peso según la lógica: si peso_salida es NULL o 0, usar peso_entrada
             try:
                 if peso_salida is not None:
@@ -29251,21 +35609,21 @@ def ajax_obtener_pesaje(request):
                     peso = peso_entrada
             except (ValueError, TypeError):
                 peso = peso_entrada
-            
+
             if peso is not None:
                 return JsonResponse({
-                    'valid': True, 
+                    'valid': True,
                     'peso_entrada': peso,
                     'datos': datos_pesaje
                 })
             else:
                 return JsonResponse({
-                    'valid': False, 
+                    'valid': False,
                     'msg': 'No se encontraron datos de peso para esta patente'
                 })
         else:
             return JsonResponse({
-                'valid': False, 
+                'valid': False,
                 'msg': 'No se encontraron datos de pesaje para esta patente'
             })
     except Exception as e:
@@ -29283,38 +35641,38 @@ def ajax_actualizar_peso_dato_operacion(request):
         campo_id = request.POST.get('campo_id')
         citacion_id = request.POST.get('citacion_id')
         peso = request.POST.get('peso')
-        
+
         print(f"DEBUG ajax_actualizar_peso_dato_operacion - campo_id: {campo_id}, citacion_id: {citacion_id}, peso: {peso}")
-        
+
         if not campo_id or not peso:
             return JsonResponse({
-                'valid': False, 
+                'valid': False,
                 'msg': 'Faltan parámetros requeridos (campo_id, peso)'
             })
-        
+
         # Validar que el peso no sea vacío, nulo o cero
         try:
             peso_float = float(peso)
             if peso_float == 0:
                 return JsonResponse({
-                    'valid': False, 
+                    'valid': False,
                     'msg': 'El peso no puede ser cero'
                 })
         except (ValueError, TypeError):
             return JsonResponse({
-                'valid': False, 
+                'valid': False,
                 'msg': 'El peso debe ser un número válido'
             })
-        
+
         # Convertir campo_id a entero
         try:
             campo_id_int = int(campo_id)
         except (ValueError, TypeError):
             return JsonResponse({
-                'valid': False, 
+                'valid': False,
                 'msg': 'El campo_id debe ser un número válido'
             })
-        
+
         # Buscar el registro en DATO_OPERACION usando CAMP_NID_id (ID del campo principal) como llave
         # Si hay citacion_id, también lo usamos para filtrar más específicamente
         try:
@@ -29334,18 +35692,18 @@ def ajax_actualizar_peso_dato_operacion(request):
                 dato_operacion = DATO_OPERACION.objects.filter(
                     CAMP_NID_id=campo_id_int
                 ).first()
-            
+
             print(f"DEBUG ajax_actualizar_peso_dato_operacion - Registro encontrado: {dato_operacion}")
-            
+
             if dato_operacion:
                 # Actualizar el campo DO_NPESO
                 dato_operacion.DO_NPESO = int(peso_float)
                 dato_operacion.save()
-                
+
                 print(f"DEBUG ajax_actualizar_peso_dato_operacion - Peso actualizado: {dato_operacion.DO_NPESO}")
-                
+
                 return JsonResponse({
-                    'valid': True, 
+                    'valid': True,
                     'msg': 'Peso actualizado correctamente',
                     'peso_actualizado': dato_operacion.DO_NPESO
                 })
@@ -29353,9 +35711,9 @@ def ajax_actualizar_peso_dato_operacion(request):
                 # Si no se encuentra, intentar buscar todos los registros con ese CAMP_NID_id para debug
                 registros_existentes = DATO_OPERACION.objects.filter(CAMP_NID_id=campo_id_int).count()
                 print(f"DEBUG ajax_actualizar_peso_dato_operacion - No se encontró registro. Registros con CAMP_NID_id {campo_id_int}: {registros_existentes}")
-                
+
                 return JsonResponse({
-                    'valid': False, 
+                    'valid': False,
                     'msg': f'No se encontró el registro en DATO_OPERACION para el campo_id {campo_id_int}' + (f' y citacion_id {citacion_id}' if citacion_id else '')
                 })
         except Exception as e:
@@ -29363,7 +35721,7 @@ def ajax_actualizar_peso_dato_operacion(request):
             import traceback
             traceback.print_exc()
             return JsonResponse({
-                'valid': False, 
+                'valid': False,
                 'msg': f'Error al actualizar el peso: {str(e)}'
             })
     except Exception as e:
@@ -29371,5 +35729,3 @@ def ajax_actualizar_peso_dato_operacion(request):
         import traceback
         traceback.print_exc()
         return JsonResponse({'valid': False, 'msg': f'Error al actualizar el peso: {str(e)}'})
-
-

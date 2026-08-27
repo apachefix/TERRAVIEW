@@ -68,6 +68,7 @@ class GoodsReceiptDraftActionDatesTestCase(SimpleTestCase):
 
     def _dependencias(self, fechas):
         stack = ExitStack()
+        stack.enter_context(patch.dict("os.environ", {"SAP_ENVIRONMENT": "QA"}, clear=False))
         stack.enter_context(patch.object(sap_recepcion, "_latest_detail", return_value=self.detalle))
         stack.enter_context(patch.object(sap_recepcion, "_resolve_doc_entry", return_value=3249))
         stack.enter_context(patch.object(sap_recepcion, "_dato_valor", side_effect=self._dato_valor))

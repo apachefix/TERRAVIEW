@@ -1,4 +1,5 @@
-﻿import json
+import json
+from contextlib import nullcontext
 from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
@@ -58,13 +59,17 @@ class RegistroDesdePlanificacionTests(SimpleTestCase):
         })
         request.user = SimpleNamespace(username='asistente', is_superuser=False)
         empresa = SimpleNamespace(id=1)
-        citacion = SimpleNamespace(id=38629, pk=38629, PL_NID=SimpleNamespace(id=1221), PL_NID_id=1221)
+        citacion = SimpleNamespace(
+            id=38629, pk=38629, EP_NID_id=1, CI_CTIPO='RECEPCION',
+            PL_NID=SimpleNamespace(id=1221), PL_NID_id=1221,
+        )
         camion = SimpleNamespace(id=9, CPA_CPATENTE='JWRS50')
         create_camion = MagicMock(return_value=camion)
         asociar = MagicMock(return_value={})
         with patch.object(views, 'usuario_puede_registrar_camion_patio', return_value=True), \
              patch.object(views, 'Verificar_empresa', return_value=1), \
              patch.object(views.EMPRESA.objects, 'filter', return_value=MagicMock(first=MagicMock(return_value=empresa))), \
+             patch.object(views.transaction, 'atomic', return_value=nullcontext()), \
              patch.object(views, '_validar_carga_planificada_patio', return_value=(citacion, {'guia_esperada': '1201112', 'guia_recibida': '1201112', 'resultado_guia': 'COINCIDE', 'acepta_diferencia': False, 'observacion': ''})), \
              patch.object(views.CITACION.objects, 'select_for_update', return_value=MagicMock(select_related=MagicMock(return_value=MagicMock(get=MagicMock(return_value=citacion))))), \
              patch.object(views, '_usuario_tiene_acceso_empresa', return_value=True), \
@@ -83,3 +88,46 @@ class RegistroDesdePlanificacionTests(SimpleTestCase):
         self.assertIs(create_camion.call_args.kwargs['CI_NID'], citacion)
         self.assertEqual(asociar.call_args.kwargs['origen'], 'REGISTRO_AUTOMATICO_TERRAMAR')
         self.assertIs(asociar.call_args.kwargs['citacion'], citacion)
+
+
+class ClientePatioDespachoTests(SimpleTestCase):
+    def test_despacho_prioriza_cliente_detalle_sin_socio_negocio(self):
+        citacion = SimpleNamespace(
+            CI_CTIPO='DESPACHO',
+            PL_NID=SimpleNamespace(PL_CTIPOCUPO='DESPACHO'),
+            SN_NID=None,
+            detalle_despacho=SimpleNamespace(
+                CDD_CSAP_CLIENTE_CODIGO='C77424780',
+                CDD_CSAP_CLIENTE_NOMBRE='EWOS CHILE ALIMENTOS LTDA',
+                CDD_CSAP_NUMERO_ACUERDO='371',
+            ),
+            _datos_cliente_planificacion=[],
+        )
+
+        self.assertEqual(
+            views.obtener_cliente_planificacion_citacion(citacion),
+            {
+                'codigo': 'C77424780',
+                'nombre': 'EWOS CHILE ALIMENTOS LTDA',
+            },
+        )
+        self.assertEqual(views.obtener_contrato_planificacion_citacion(citacion), '371')
+
+    def test_etiquetas_documentales_despacho_sbh(self):
+        self.assertEqual(views._etiqueta_salida_documento_despacho('FE'), 'Factura de cliente')
+        self.assertEqual(views._etiqueta_salida_documento_despacho('GD'), 'Guía de despacho')
+        self.assertEqual(views._etiqueta_salida_documento_despacho('FE_RESERVA'), 'Factura reserva')
+        self.assertEqual(views._etiqueta_salida_documento_despacho(''), '')
+    def test_despacho_sin_detalle_despacho_mantiene_fallback_seguro(self):
+        citacion = SimpleNamespace(
+            CI_CTIPO='DESPACHO',
+            PL_NID=SimpleNamespace(PL_CTIPOCUPO='DESPACHO'),
+            SN_NID=None,
+            _datos_cliente_planificacion=[],
+        )
+
+        self.assertEqual(
+            views.obtener_cliente_planificacion_citacion(citacion),
+            {'codigo': '', 'nombre': ''},
+        )
+        self.assertEqual(views.obtener_contrato_planificacion_citacion(citacion), '')

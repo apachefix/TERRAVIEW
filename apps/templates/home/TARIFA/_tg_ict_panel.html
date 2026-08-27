@@ -1,0 +1,156 @@
+<div class="row mb-3">
+    <div class="col-sm-12">
+        <div class="card border-info mb-0" id="ict-panel">
+            <div class="card-header d-flex align-items-center justify-content-between">
+                <div>
+                    <h5 class="mb-1"><i class="fas fa-chart-line mr-2"></i>Reajuste ICT</h5>
+                    <small class="text-muted">Consulta los últimos 6 períodos ICT publicados por el INE y calcula su variación acumulada. La consulta no modifica tarifas.</small>
+                </div>
+                <span class="badge badge-info">Empresa activa</span>
+            </div>
+            <div class="card-body">
+                <div id="ict-alerta" class="alert d-none" role="alert"></div>
+                <div class="row">
+                    <div class="col-md-3 mb-3"><small class="text-muted d-block">Estado</small><strong id="ict-estado">Sin consultar</strong></div>
+                    <div class="col-md-3 mb-3"><small class="text-muted d-block">Período considerado</small><strong id="ict-periodo">-</strong></div>
+                    <div class="col-md-2 mb-3"><small class="text-muted d-block">Fecha última publicación</small><strong id="ict-fecha">-</strong></div>
+                    <div class="col-md-2 mb-3"><small class="text-muted d-block">Fuente</small><a id="ict-fuente" href="https://calculadoraict.ine.cl/" target="_blank" rel="noopener noreferrer">INE</a></div>
+                    <div class="col-md-2 mb-3"><small class="text-muted d-block">ICT acumulado calculado</small><strong id="ict-acumulado">-</strong></div>
+                </div>
+
+                <div class="table-responsive d-none mb-3" id="ict-componentes-contenedor">
+                    <table class="table table-sm table-bordered mb-0"><thead><tr><th>Mes</th><th class="text-right">Variación ICT</th></tr></thead><tbody id="ict-componentes"></tbody></table>
+                </div>
+
+                <div class="alert alert-light border">
+                    El ICT acumulado se conserva como referencia. Si se ingresa un ajuste manual, el porcentaje manual será el que se aplique a las tarifas.
+                </div>
+                <div class="form-row align-items-end">
+                    <div class="form-group col-md-3 mb-2">
+                        <label for="ict-ajuste-manual">Ajuste manual opcional</label>
+                        <div class="input-group"><input class="form-control" id="ict-ajuste-manual" type="text" inputmode="decimal" disabled><div class="input-group-append"><span class="input-group-text">%</span></div></div>
+                        <small class="form-text text-muted">Si se informa, reemplaza al ICT calculado; no se suma ni se compone.</small>
+                    </div>
+                    <div class="form-group col-md-4 mb-2 d-none" id="ict-motivo-contenedor">
+                        <label for="ict-motivo-manual">Motivo del ajuste manual</label>
+                        <textarea class="form-control" id="ict-motivo-manual" rows="2" disabled></textarea>
+                    </div>
+                    <div class="form-group col-md-2 mb-2">
+                        <small class="text-muted d-block">Porcentaje a aplicar</small>
+                        <strong id="ict-porcentaje-aplicar">-</strong>
+                    </div>
+                    <div class="form-group col-md-3 mb-2">
+                        <button type="button" class="btn btn-info" id="consultar-ict"><i class="fas fa-sync-alt mr-1"></i>Consultar acumulativo ICT 6 meses</button>
+                        <button type="button" class="btn btn-primary mt-2" id="aplicar-ict" disabled title="Primero consulte seis períodos ICT válidos">Generar vista previa</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+(function () {
+    const consultar = document.getElementById('consultar-ict');
+    const preview = document.getElementById('aplicar-ict');
+    const manual = document.getElementById('ict-ajuste-manual');
+    const motivo = document.getElementById('ict-motivo-manual');
+    const motivoContenedor = document.getElementById('ict-motivo-contenedor');
+    const aplicado = document.getElementById('ict-porcentaje-aplicar');
+    const alerta = document.getElementById('ict-alerta');
+    const tabla = document.getElementById('ict-componentes-contenedor');
+    const cuerpo = document.getElementById('ict-componentes');
+    let ictCalculado = null;
+    if (!consultar || !preview || !manual || !motivo) return;
+
+    function numero(valor) { return Number(String(valor || '').trim().replace(',', '.')); }
+    function hayManual() { return manual.value.trim() !== ''; }
+    function manualValido() {
+        if (!hayManual()) return true;
+        const valor = numero(manual.value);
+        return Number.isFinite(valor) && valor > -100 && valor < 100;
+    }
+    function actualizarRegla() {
+        const usaManual = hayManual();
+        motivoContenedor.classList.toggle('d-none', !usaManual);
+        motivo.disabled = !usaManual || manual.disabled;
+        motivo.required = usaManual;
+        const valorAplicado = usaManual
+            ? (manualValido() ? manual.value.trim() : null)
+            : ictCalculado;
+        aplicado.textContent = valorAplicado === null || valorAplicado === ''
+            ? '-' : String(valorAplicado).replace('.', ',') + ' %';
+        const valido = ictCalculado !== null && cuerpo.children.length === 6
+            && manualValido() && (!usaManual || motivo.value.trim() !== '');
+        preview.disabled = !valido;
+        preview.title = valido
+            ? 'Generar vista previa con el porcentaje resuelto'
+            : 'Requiere seis períodos válidos y motivo cuando existe ajuste manual';
+    }
+    function mostrarError(mensaje) {
+        alerta.className = 'alert alert-danger';
+        alerta.textContent = mensaje || 'No fue posible obtener los 6 períodos ICT necesarios para calcular el acumulado.';
+        document.getElementById('ict-estado').textContent = 'Consulta fallida';
+        ictCalculado = null;
+        manual.disabled = true;
+        motivo.disabled = true;
+        tabla.classList.add('d-none');
+        cuerpo.innerHTML = '';
+        actualizarRegla();
+    }
+
+    manual.addEventListener('input', actualizarRegla);
+    motivo.addEventListener('input', actualizarRegla);
+    consultar.addEventListener('click', function () {
+        consultar.disabled = true;
+        consultar.innerHTML = '<i class="fas fa-spinner fa-spin mr-1"></i>Consultando INE...';
+        alerta.className = 'alert d-none';
+        ictCalculado = null;
+        manual.value = '';
+        motivo.value = '';
+        manual.disabled = true;
+        cuerpo.innerHTML = '';
+        actualizarRegla();
+
+        fetch('{% url "tg_consultar_ict" %}', {
+            method: 'POST', credentials: 'same-origin',
+            headers: {'X-CSRFToken': '{{ csrf_token }}', 'X-Requested-With': 'XMLHttpRequest'}
+        })
+        .then(function (respuesta) { return respuesta.json().then(function (datos) { if (!respuesta.ok || !datos.valid) throw new Error(datos.msg); return datos.ict; }); })
+        .then(function (ict) {
+            if (!Array.isArray(ict.componentes) || ict.componentes.length !== 6) throw new Error('No fue posible obtener los 6 períodos ICT necesarios para calcular el acumulado.');
+            const partesFecha = ict.fecha_publicacion.split('-');
+            document.getElementById('ict-estado').textContent = 'Consultado correctamente';
+            document.getElementById('ict-periodo').textContent = ict.periodo;
+            document.getElementById('ict-fecha').textContent = partesFecha.reverse().join('/');
+            document.getElementById('ict-acumulado').textContent = ict.acumulado.replace('.', ',') + ' %';
+            const fuente = document.getElementById('ict-fuente'); fuente.textContent = 'INE'; fuente.href = ict.url;
+            ict.componentes.forEach(function (item) {
+                const fila = document.createElement('tr');
+                const mes = document.createElement('td'); const variacion = document.createElement('td');
+                mes.textContent = item.periodo; variacion.className = 'text-right'; variacion.textContent = item.variacion.replace('.', ',') + ' %';
+                fila.appendChild(mes); fila.appendChild(variacion); cuerpo.appendChild(fila);
+            });
+            tabla.classList.remove('d-none');
+            ictCalculado = ict.acumulado;
+            manual.disabled = false;
+            alerta.className = 'alert alert-success';
+            alerta.textContent = 'Se recuperaron seis períodos oficiales del INE. Ninguna tarifa fue modificada.';
+            actualizarRegla();
+        })
+        .catch(function (error) { mostrarError(error.message); })
+        .finally(function () { consultar.disabled = false; consultar.innerHTML = '<i class="fas fa-sync-alt mr-1"></i>Consultar acumulativo ICT 6 meses'; });
+    });
+
+    preview.addEventListener('click', function () {
+        actualizarRegla();
+        if (preview.disabled) return;
+        const parametros = new URLSearchParams();
+        if (hayManual()) {
+            parametros.set('ajuste_manual', manual.value.trim());
+            parametros.set('motivo_manual', motivo.value.trim());
+        }
+        window.location.href = '{% url "tg_ict_preview" %}?' + parametros.toString();
+    });
+})();
+</script>

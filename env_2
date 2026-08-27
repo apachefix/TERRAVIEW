@@ -1,0 +1,111 @@
+```env
+# =============================================================================
+# DJANGO
+# =============================================================================
+
+SECRET_KEY=GENERAR_UNA_CLAVE_DJANGO_NUEVA
+DEBUG=False
+
+ALLOWED_HOSTS=terraview.terramar-group.com,localhost,127.0.0.1,101.44.3.251,172.16.1.144,186.10.67.182
+
+CSRF_TRUSTED_ORIGINS=http://terraview.terramar-group.com,https://terraview.terramar-group.com
+
+CSRF_COOKIE_SAMESITE=Lax
+SESSION_COOKIE_SAMESITE=Lax
+
+# Mantener False mientras el dominio funcione solamente por HTTP.
+CSRF_COOKIE_SECURE=False
+SESSION_COOKIE_SECURE=False
+SECURE_SSL_REDIRECT=False
+
+SESSION_COOKIE_AGE=28800
+
+
+# =============================================================================
+# POSTGRESQL
+# =============================================================================
+
+DB_NAME=TERRA_CONTROL
+DB_USER=postgres
+DB_PASSWORD=COLOCAR_PASSWORD_POSTGRES
+DB_HOST=127.0.0.1
+DB_PORT=5432
+DB_CONN_MAX_AGE=60
+
+
+# =============================================================================
+# CIFRADO
+# =============================================================================
+
+ENCRYPTION_KEY=GENERAR_UNA_CLAVE_NUEVA
+
+
+# =============================================================================
+# URL PÚBLICA
+# =============================================================================
+
+APP_PUBLIC_BASE_URL=http://terraview.terramar-group.com
+
+
+# =============================================================================
+# MICROSOFT TEAMS / POWER AUTOMATE
+# =============================================================================
+
+TEAMS_WEBHOOK_URL=COLOCAR_NUEVA_URL_WEBHOOK
+TEAMS_WEBHOOK_MODE=adaptive
+CALIDAD_TEAMS_MAX_INTENTOS=3
+
+
+# =============================================================================
+# SAP SERVICE LAYER
+# =============================================================================
+
+SAP_SL_BASE_URL=https://terramar-sl.sapenlanube.com:50000/b1s/v1
+SAP_SL_COMPANY_DB=SBO_TST_SBH_USD
+SAP_SL_USERNAME=desarrollo
+SAP_SL_PASSWORD=COLOCAR_NUEVA_PASSWORD_SERVICE_LAYER
+SAP_SL_VERIFY_SSL=False
+SAP_SL_TIMEOUT=30
+
+SAP_GOODS_RECEIPT_DRAFT_SERIES=17
+SAP_GOODS_RECEIPT_DRAFT_OBJECT_CODE=oPurchaseDeliveryNotes
+SAP_DRAFT_QA_COMPANY_DB=SBO_TST_SBH_USD
+
+SAP_RECEPCION_ENVIAR_LOTE_EN_UPDATE_DRAFT=False
+
+
+# =============================================================================
+# SAP HANA
+# =============================================================================
+
+SAP_HANA_SERVER_ADDRESS=172.16.0.57
+SAP_HANA_SERVER_PORT=30015
+SAP_HANA_COMPANY_DB=SBO_TST_SBH_USD
+SAP_HANA_DB_USERNAME=COLOCAR_USUARIO_HANA
+SAP_HANA_DB_PASSWORD=COLOCAR_NUEVA_PASSWORD_HANA
+
+
+# =============================================================================
+# API CALIDAD
+# =============================================================================
+
+TERRAVIEW_CALIDAD_API_KEY=GENERAR_UNA_API_KEY_NUEVA
+
+
+# =============================================================================
+# MICROSOFT GRAPH
+# =============================================================================
+
+MICROSOFT_GRAPH_TENANT_ID=
+MICROSOFT_GRAPH_CLIENT_ID=
+MICROSOFT_GRAPH_CLIENT_SECRET=
+MICROSOFT_GRAPH_SENDER_USER=
+
+
+# =============================================================================
+# LOGS
+# =============================================================================
+
+LOG_LEVEL=INFO
+DJANGO_LOG_LEVEL=INFO
+```

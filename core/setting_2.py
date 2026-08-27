@@ -4,10 +4,12 @@ Configuración Django para TERRAVIEW
 Dominio: http://terraview.terramar-group.com
 """
 
+from ast import While
 import os
 
 from decouple import config
 from dotenv import load_dotenv
+from setuptools import logging
 from unipath import Path
 
 
@@ -448,6 +450,10 @@ MEDIA_ROOT = os.path.join(
     CORE_DIR,
     "media",
 )
+TERRAMAR_DOCUMENTOS_FIRMADOS_DIR = os.environ.get(
+    "TERRAMAR_DOCUMENTOS_FIRMADOS_DIR",
+    r"C:\Documentos_firmados",
+)
 
 
 # =============================================================================
@@ -480,6 +486,8 @@ os.makedirs(
     LOG_DIR,
     exist_ok=True,
 )
+
+
 
 LOGGING = {
     "version": 1,
@@ -541,3 +549,4 @@ LOGGING = {
         },
     },
 }
+

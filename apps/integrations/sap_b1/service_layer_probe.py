@@ -18,6 +18,8 @@ from requests import Response
 from requests.exceptions import ConnectionError, HTTPError, SSLError, Timeout
 from urllib3.exceptions import InsecureRequestWarning
 
+from apps.integrations.sap_b1.sap_config import SapConfigError, get_sap_company_db
+
 try:
     from decouple import config as decouple_config
 except ImportError:  # pragma: no cover - fallback for minimal diagnostic envs.
@@ -74,12 +76,19 @@ def parse_bool(value: str) -> bool:
     return str(value or "").strip().lower() in {"1", "true", "yes", "y", "on"}
 
 
-def load_config() -> SapServiceLayerConfig:
+def load_config(empresa_id=None, *, for_write=False) -> SapServiceLayerConfig:
     LOGGER.info("Cargando configuracion SAP Service Layer desde variables de entorno.")
     load_env_files()
 
     base_url = get_config_value("SAP_SL_BASE_URL").rstrip("/")
-    company_db = get_config_value("SAP_SL_COMPANY_DB")
+    try:
+        company_db = (
+            get_sap_company_db(empresa_id, for_write=for_write)
+            if empresa_id is not None
+            else get_config_value("SAP_SL_COMPANY_DB")
+        )
+    except SapConfigError as exc:
+        raise SapServiceLayerProbeError(str(exc)) from exc
     username = get_config_value("SAP_SL_USERNAME")
     password = get_config_value("SAP_SL_PASSWORD", "")
     verify_ssl = parse_bool(get_config_value("SAP_SL_VERIFY_SSL", "false"))
@@ -93,7 +102,11 @@ def load_config() -> SapServiceLayerConfig:
         name
         for name, value in {
             "SAP_SL_BASE_URL": base_url,
-            "SAP_SL_COMPANY_DB": company_db,
+            (
+                "SAP_TERRAMAR_COMPANY_DB/SAP_SBH_COMPANY_DB"
+                if empresa_id is not None
+                else "SAP_SL_COMPANY_DB"
+            ): company_db,
             "SAP_SL_USERNAME": username,
             "SAP_SL_PASSWORD": password,
         }.items()

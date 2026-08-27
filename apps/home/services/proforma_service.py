@@ -13,8 +13,10 @@ from apps.home.models import (
 
 
 PERFIL_PRO_CIT = 'PRO_CIT'
+PERFILES_PROFORMA_CITACIONES = {PERFIL_PRO_CIT, 'CONTROL_FLOTA'}
 PERMISO_INICIAR_PROFORMA = 'iniciar_proforma'
 PERMISO_PROFORMA_CITACIONES = 'proforma_citaciones'
+PERMISO_BORRAR_PROFORMA = 'proforma_borrar_borrador'
 
 
 def usuario_tiene_permiso_pro_cit(user, permiso_codigo):
@@ -25,7 +27,7 @@ def usuario_tiene_permiso_pro_cit(user, permiso_codigo):
         US_NID=user,
         PE_BHABILITADO=True,
         PR_NID__PR_BHABILITADO=True,
-        PR_NID__PR_CCODIGO=PERFIL_PRO_CIT,
+        PR_NID__PR_CCODIGO__in=PERFILES_PROFORMA_CITACIONES,
     ).values_list('PR_NID_id', flat=True)
 
     return PERMISO.objects.filter(

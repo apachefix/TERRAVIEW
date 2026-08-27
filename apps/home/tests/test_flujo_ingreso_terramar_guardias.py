@@ -113,10 +113,11 @@ class FlujoIngresoTerramarGuardiasTests(TestCase):
         nombre_flujo, pasos = obtener_pasos_operacion_citacion(self.citacion)
         self.assertEqual(nombre_flujo, 'RECEPCION_TERRAMAR')
         self.assertEqual([paso for paso, _ in pasos], [
-            'Ciclo Descarga', 'Autorizar Salida', 'Confirmar Salida'
+            'Pesaje Entrada', 'Ciclo Descarga', 'Pesaje Salida',
+            'Documentación', 'Autorizar Salida', 'Confirmar Salida'
         ])
         texto_pasos = ' '.join(paso for paso, _ in pasos).upper()
-        for requisito_ajeno in ('ESTANQUE', 'PESAJE', 'PESO', 'SAP'):
+        for requisito_ajeno in ('ESTANQUE', 'MUESTRA', 'CALIDAD', 'SAP'):
             self.assertNotIn(requisito_ajeno, texto_pasos)
 
         seguimiento_request = request_factory.get('/seguimiento-operacional/')
@@ -130,7 +131,7 @@ class FlujoIngresoTerramarGuardiasTests(TestCase):
         seguimiento = render_mock.call_args.args[2]['camiones']
         fila = next(item for item in seguimiento if item['citacion_id'] == self.citacion.id)
         self.assertEqual(fila['nombre_flujo'], 'RECEPCION_TERRAMAR')
-        self.assertEqual(fila['estado_actual'], 'Ciclo Descarga')
+        self.assertEqual(fila['estado_actual'], 'Pesaje Entrada')
 
         with patch('apps.home.views.usuario_es_guardia_porteria', return_value=True):
             asegurar_notificaciones_guardia_porteria_pendientes(self.guardia_porteria, self.empresa.id)
@@ -155,8 +156,11 @@ class FlujoIngresoTerramarGuardiasTests(TestCase):
         nombre_flujo, pasos = obtener_pasos_operacion_citacion(self.citacion)
         self.assertEqual(nombre_flujo, 'RECEPCION_TERRAMAR_BODEGA_EXTERNA')
         self.assertEqual(pasos, [
-            ('Ciclo Descarga', ['SALA CONTROL']),
-            ('Autorizar Salida', ['ASISTENTE DE RECEPCION']),
+            ('Pesaje Entrada', ['OPERADOR ROMANA']),
+            ('Ciclo Descarga', ['ASISTENTE CD']),
+            ('Pesaje Salida', ['OPERADOR ROMANA']),
+            ('Documentación', ['ASISTENTE RECEPCION']),
+            ('Autorizar Salida', ['ASISTENTE DESPACHO']),
             ('Confirmar Salida', ['GUARDIA PORTERIA']),
         ])
         self.assertIs(views.FLUJOS_OPERACION_PLANTA['RECEPCION ESTANQUE SBH'], views.PASOS_RECEPCION_CON_CALIDAD)

@@ -1,0 +1,29 @@
+{% extends "layouts/base.html" %}
+{% block title %}Reversar último ajuste{% endblock %}
+{% block content %}
+<section class="pcoded-main-container"><div class="pcoded-content">
+    <div class="page-header"><div class="page-block"><div class="page-header-title"><h5>Reversar último ajuste</h5></div><ul class="breadcrumb"><li class="breadcrumb-item"><a href="{% url 'tg_listall' %}">Tarifas globales</a></li><li class="breadcrumb-item">Reversa</li></ul></div></div>
+    <div class="card border-warning"><div class="card-header"><h5>Confirmación controlada</h5></div><div class="card-body">
+        {% if ajuste and ajuste.AJT_CESTADO != 'REVERSADO' %}
+            <dl class="row">
+                <dt class="col-sm-4">Tipo</dt><dd class="col-sm-8">{{ ajuste.get_AJT_CTIPO_display }}</dd>
+                <dt class="col-sm-4">Concepto / período</dt><dd class="col-sm-8">{% if ajuste.CVT_NID %}{{ ajuste.CVT_NID.CVT_CNOMBRE }}{% else %}{{ ajuste.AJT_CPERIODOICT }}{% endif %}</dd>
+                <dt class="col-sm-4">Período efectivo</dt><dd class="col-sm-8">{{ ajuste.AJT_FFECHAINICIO|date:'d/m/Y' }} — {{ ajuste.AJT_FFECHAVENCIMIENTO|date:'d/m/Y' }}</dd>
+                <dt class="col-sm-4">Aplicado</dt><dd class="col-sm-8">{{ ajuste.AJT_FFECHAAPLICACION|date:'d/m/Y H:i' }}</dd>
+                <dt class="col-sm-4">Porcentaje aplicado</dt><dd class="col-sm-8">{{ ajuste.AJT_NPORCENTAJE }} %</dd>
+                {% if ajuste.AJT_CTIPO == 'ICT_ACUMULADO_6_MESES' %}
+                <dt class="col-sm-4">ICT calculado</dt><dd class="col-sm-8">{{ ajuste.AJT_NPORCENTAJECALCULADO }} %</dd>
+                <dt class="col-sm-4">Origen</dt><dd class="col-sm-8">{{ ajuste.AJT_CORIGENPORCENTAJE|default:'ICT' }}</dd>
+                <dt class="col-sm-4">Ajuste manual</dt><dd class="col-sm-8">{% if ajuste.AJT_CORIGENPORCENTAJE == 'MANUAL' %}{{ ajuste.AJT_NPORCENTAJEMANUAL }} %{% else %}No informado{% endif %}</dd>
+                {% if ajuste.AJT_CMOTIVOMANUAL %}<dt class="col-sm-4">Motivo manual</dt><dd class="col-sm-8">{{ ajuste.AJT_CMOTIVOMANUAL }}</dd>{% endif %}
+                {% endif %}
+                <dt class="col-sm-4">Tarifas afectadas</dt><dd class="col-sm-8">{{ ajuste.detalles.count }}</dd>
+                <dt class="col-sm-4">Citaciones revalorizadas</dt><dd class="col-sm-8">{{ ajuste.detalles_citaciones.count }}</dd>
+                <dt class="col-sm-4">Usuario</dt><dd class="col-sm-8">{{ ajuste.US_NID.get_full_name|default:ajuste.US_NID.username }}</dd>
+            </dl>
+            <div class="alert alert-warning">La reversa solo continuará si cada tarifa y citación conserva el valor nuevo registrado. Se abortará si alguna citación fue proformada o modificada posteriormente. Nunca se modificarán Proformas ni SAP.</div>
+            <form method="post">{% csrf_token %}<div class="form-group"><label>Motivo de reversa</label><textarea class="form-control" name="motivo" rows="3" required></textarea></div><a href="{% url 'tg_listall' %}" class="btn btn-secondary">Cancelar</a><button class="btn btn-warning float-right" type="submit">Confirmar reversa</button></form>
+        {% else %}<div class="alert alert-info">No existe un último ajuste vigente que pueda reversarse.</div><a href="{% url 'tg_listall' %}" class="btn btn-secondary">Volver</a>{% endif %}
+    </div></div>
+</div></section>
+{% endblock content %}

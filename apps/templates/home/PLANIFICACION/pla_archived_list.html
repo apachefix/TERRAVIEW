@@ -72,36 +72,20 @@
     }
 
     .archived-plans-table .action-cell {
-        width: 180px;
-        min-width: 180px;
+        width: 56px;
+        min-width: 56px;
+        max-width: 56px;
+        text-align: center;
     }
 
-    .archived-plans-table .sticky-actions {
-        position: sticky;
-        right: 0;
-        z-index: 3;
-        background-color: #fff;
-        box-shadow: -5px 0 7px -6px rgba(0, 0, 0, .65);
-        border-left: 1px solid #dee2e6;
+    .archived-plans-table .action-cell .btn {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 32px;
+        height: 30px;
+        padding: 0;
     }
-
-    .archived-plans-table thead .sticky-actions {
-        z-index: 4;
-        background-color: #f4f7fa;
-    }
-
-    .archived-plans-table tbody tr:nth-of-type(odd) > .sticky-actions {
-        background-color: #f7f7f7;
-    }
-
-    .archived-plans-table tbody tr:nth-of-type(even) > .sticky-actions {
-        background-color: #fff;
-    }
-
-    .archived-plans-table tbody tr:hover > .sticky-actions {
-        background-color: #f1f3f5;
-    }
-
     @media (max-width: 767.98px) {
         .archived-plans-table-wrap {
             max-height: calc(100vh - 220px);
@@ -146,6 +130,7 @@
                                     <thead>
                                         <tr>
                                             <th>Tipo</th>
+                                            <th class="action-cell">Ver</th>
                                             <th>Fecha</th>
                                             <th>Cupos</th>
                                             <th>Citaciones</th>
@@ -158,13 +143,21 @@
                                             <th>Clientes</th>
                                             <th>Archivador</th>
                                             <th>Fecha archivado</th>
-                                            <th class="sticky-actions">Acciones</th>
                                         </tr>
                                     </thead>
                                     <tbody>
                                         {% for row in resumenes %}
                                         <tr>
                                             <td>{{ row.planificacion.PL_CTIPOCUPO }}</td>
+                                            <td class="action-cell">
+                                                <a class="btn btn-primary btn-sm"
+                                                   href="{% url 'pla_archivada_resumen' row.planificacion.id %}?_empresa_id={{ empresa_id }}"
+                                                   title="Ver resumen hist&oacute;rico"
+                                                   aria-label="Ver resumen hist&oacute;rico">
+                                                    <i class="fas fa-eye" aria-hidden="true"></i>
+                                                    <span class="sr-only">Ver resumen hist&oacute;rico</span>
+                                                </a>
+                                            </td>
                                             <td class="date-cell">{{ row.planificacion.PL_FFECHAINICIO|date:'d/m/Y' }}</td>
                                             <td class="number-cell">{{ row.cupos_planificados }}</td>
                                             <td class="number-cell">{{ row.citaciones_creadas }}</td>
@@ -177,9 +170,7 @@
                                             <td>{{ row.clientes }}</td>
                                             <td>{{ row.planificacion.US_ARCHIVADOR_ID|default:'-' }}</td>
                                             <td class="date-cell">{{ row.planificacion.PL_FFECHAARCHIVADO|date:'d/m/Y' }}</td>
-                                            <td class="action-cell sticky-actions">
-                                                <a class="btn btn-primary btn-sm" href="{% url 'pla_archivada_resumen' row.planificacion.id %}?_empresa_id={{ empresa_id }}">Ver resumen histórico</a>
-                                            </td>
+
                                         </tr>
                                         {% empty %}
                                         <tr>
