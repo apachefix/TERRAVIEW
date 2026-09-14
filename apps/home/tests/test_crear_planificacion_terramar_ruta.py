@@ -50,8 +50,8 @@ class CrearPlanificacionTerramarRutaTests(TestCase):
             RUT_BHABILITADO=True
         )
         cls.transportista = SOCIONEGOCIO.objects.create(
-            EP_NID=cls.empresa, SN_CCODIGO_SAP='TR-TEST',
-            SN_CRAZONSOCIAL='Transportes Test', SN_CRUT='77-7',
+            EP_NID=cls.empresa, SN_CCODIGO_SAP='H06726077',
+            SN_CRAZONSOCIAL='PEDRO HIDALGO SARZOSA', SN_CRUT='06726077-5',
             SN_CTIPO='S', SN_BHABILITADO=True
         )
         cls.conductor = CONDUCTOR.objects.create(
@@ -122,6 +122,96 @@ class CrearPlanificacionTerramarRutaTests(TestCase):
         session = self.client.session
         session['empresa_id'] = self.empresa.id
         session.save()
+
+    def crear_ruta_catalogo(self, codigo, *, empresa=None, habilitada=True):
+        empresa = empresa or self.empresa
+        return RUTA.objects.create(
+            EP_NID=empresa, RG_NID_INICIO=self.region,
+            PV_NID_INICIO=self.provincia, COM_NID_INICIO=self.comuna_origen,
+            RG_NID_TERMINO=self.region, PV_NID_TERMINO=self.provincia,
+            COM_NID_TERMINO=self.comuna_destino,
+            RUT_NTIEMPOMAXIMOENTREGA=1, RUT_NTIEMPOESTADIAPLANTA=1,
+            RUT_CNOMBRE=f'Ruta catálogo {codigo}', RUT_CCODIGO=codigo,
+            RUT_BHABILITADO=habilitada,
+        )
+
+    def crear_tarifa_catalogo(self, ruta, transportista, *, empresa=None, habilitada=True, valor=1000):
+        empresa = empresa or self.empresa
+        return TARIFA_GLOBAL.objects.create(
+            EP_NID=empresa, RUT_NID=ruta, US_NID=self.usuario,
+            MODIFICADO_POR=self.usuario, SN_NID=transportista,
+            TAR_NVALOR=valor, TAR_NVALORPREVIO=valor,
+            TAR_CNOMBRETARIFA=f'Tarifa {ruta.RUT_CCODIGO}', TAR_CTIPOTARIFA='FLETE',
+            TAR_CDIVISA='CLP', TAR_BHABILITADO=habilitada,
+        )
+
+    def test_catalogo_planificable_devuelve_todas_las_rutas_validas_sin_duplicar(self):
+        rutas_validas = [self.ruta]
+        for indice in range(2, 6):
+            ruta = self.crear_ruta_catalogo(f'R-{indice}')
+            self.crear_tarifa_catalogo(ruta, self.transportista, valor=1000 + indice)
+            rutas_validas.append(ruta)
+        self.crear_tarifa_catalogo(self.ruta, self.transportista, valor=9999)
+
+        ruta_tarifa_inactiva = self.crear_ruta_catalogo('R-TAR-INACTIVA')
+        self.crear_tarifa_catalogo(ruta_tarifa_inactiva, self.transportista, habilitada=False)
+        ruta_inactiva = self.crear_ruta_catalogo('R-INACTIVA', habilitada=False)
+        self.crear_tarifa_catalogo(ruta_inactiva, self.transportista)
+        otro_transportista = SOCIONEGOCIO.objects.create(
+            EP_NID=self.empresa, SN_CCODIGO_SAP='P76713913',
+            SN_CRAZONSOCIAL='COMERCIALIZADORA Y FORESTAL LOS RIOS SPA.', SN_CRUT='76713913-6',
+            SN_CTIPO='S', SN_BHABILITADO=True,
+        )
+        rutas_otro = []
+        for indice in range(1, 5):
+            ruta_otro = self.crear_ruta_catalogo(f'R-OTRO-{indice}')
+            self.crear_tarifa_catalogo(ruta_otro, otro_transportista)
+            rutas_otro.append(ruta_otro)
+
+        resultado = views.obtener_rutas_tarifas_transportista(
+            self.empresa.id, self.transportista.id
+        )
+
+        self.assertEqual({tarifa.RUT_NID_id for tarifa in resultado}, {ruta.id for ruta in rutas_validas})
+        self.assertEqual(len(resultado), 5)
+        self.assertEqual(
+            {tarifa.RUT_NID_id for tarifa in views.obtener_rutas_tarifas_transportista(self.empresa.id, otro_transportista.id)},
+            {ruta.id for ruta in rutas_otro},
+        )
+
+    def test_recepcion_y_despacho_comparten_catalogo_y_ep2_permanece_aislado(self):
+        for indice in range(2, 6):
+            ruta = self.crear_ruta_catalogo(f'R-ENDPOINT-{indice}')
+            self.crear_tarifa_catalogo(ruta, self.transportista, valor=2000 + indice)
+        empresa_sbh = EMPRESA.objects.create(
+            id=2, EP_CRAZONSOCIAL='Aceites SBH', EP_CRUT='2-7',
+            EP_CBASEDATOS='sbh_test', EP_CUSUARIOSBD='test', EP_CPORT='5432',
+        )
+        transportista_sbh = SOCIONEGOCIO.objects.create(
+            EP_NID=empresa_sbh, SN_CCODIGO_SAP='SBH-TR',
+            SN_CRAZONSOCIAL='Transporte SBH', SN_CRUT='99-9',
+            SN_CTIPO='S', SN_BHABILITADO=True,
+        )
+        ruta_sbh = self.crear_ruta_catalogo('R-SBH', empresa=empresa_sbh)
+        self.crear_tarifa_catalogo(ruta_sbh, transportista_sbh, empresa=empresa_sbh)
+        self.autenticar()
+
+        recepcion = self.client.get(reverse('ajax_rutas_transportista_planificacion'), {
+            'transportista_id': self.transportista.id, 'tipo': 'RECEPCION',
+        })
+        despacho = self.client.get(reverse('ajax_rutas_transportista_despacho_terramar'), {
+            'transportista_id': self.transportista.id,
+        })
+
+        self.assertEqual(recepcion.status_code, 200, recepcion.content)
+        self.assertEqual(despacho.status_code, 200, despacho.content)
+        self.assertEqual(len(recepcion.json()['rutas']), 5)
+        self.assertEqual(len(despacho.json()['rutas']), 5)
+        self.assertNotIn(str(ruta_sbh.id), {item['ruta_id'] for item in recepcion.json()['rutas']})
+        self.assertEqual(
+            [tarifa.RUT_NID_id for tarifa in views.obtener_rutas_tarifas_transportista(2, transportista_sbh.id)],
+            [ruta_sbh.id],
+        )
 
     def crear_dato_operacion(self, citacion, *args, **kwargs):
         etapa = ETAPA.objects.create(

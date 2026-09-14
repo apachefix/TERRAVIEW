@@ -142,7 +142,7 @@
             <div class="page-block">
                 <div class="row align-items-center">
                     <div class="col-md-12">
-                        <div class="page-header-title"><h5 class="m-b-10">Camiones en patio</h5></div>
+                        <div class="page-header-title"><h5 class="m-b-10">{% if es_asistente_despacho_patio %}Despachos pendientes de preparacion/asociacion{% else %}Camiones en patio{% endif %}</h5></div>
                         <ul class="breadcrumb">
                             <li class="breadcrumb-item"><a href="/"><i class="feather icon-home"></i></a></li>
                             <li class="breadcrumb-item">Patio</li>
@@ -192,6 +192,20 @@
                     <div class="patio-muted">{{ camion.CPA_CINSUMO_DECLARADO_GUIA|default:'Sin insumo declarado en guia' }}</div>
                     <div class="patio-muted">{{ camion.CPA_CPROVEEDOR_DECLARADO|default:'Sin proveedor declarado' }}</div>
                     <div class="patio-muted">Llegada: {{ camion.CPA_FFECHALLEGADA|date:'d/m/Y H:i' }}</div>
+                    {% if es_asistente_despacho_patio %}
+                        <div class="mt-2 border-top pt-2">
+                            <div class="patio-muted">Origen: {% if camion.trazabilidad_planificacion.CPTR_CRESULTADO_BUSQUEDA|slice:':8' == 'GUARDIA_' %}Guardia / Estado del camion{% else %}Asistente Recepcion / registro manual{% endif %}</div>
+                            <div class="patio-muted">Citacion candidata: {{ camion.trazabilidad_planificacion.CI_NID_id|default:'-' }}</div>
+                            <div class="patio-muted">Planificacion candidata: {{ camion.trazabilidad_planificacion.PL_NID_id|default:'-' }}</div>
+                            {% if camion.trazabilidad_planificacion.CI_NID.CI_FFECHACITACION %}
+                                <div class="patio-muted">Fecha candidata: {{ camion.trazabilidad_planificacion.CI_NID.CI_FFECHACITACION|date:'d/m/Y H:i' }}</div>
+                            {% endif %}
+                            <div class="patio-muted">Responsable: Asistente Despacho</div>
+                            {% if not camion.CPA_CNOMBRE_CONDUCTOR or not camion.CPA_CRUT_CONDUCTOR or not camion.CPA_CTELEFONO_CONDUCTOR or not camion.CPA_CCODIGO_PAIS_TELEFONO %}
+                                <div class="text-danger small">Datos faltantes: revisar conductor, RUT, telefono y codigo pais.</div>
+                            {% endif %}
+                        </div>
+                    {% endif %}
                     {% if camion.CI_NID_id %}
                         <div class="mt-2"><span class="badge badge-success">Citacion #{{ camion.CI_NID_id }}</span></div>
                     {% endif %}                    {% if puede_retirar_camion_patio %}

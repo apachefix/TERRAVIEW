@@ -90,6 +90,26 @@ def es_operador_romana(user):
     return False
 
 
+@register.filter(name='es_asistente_despacho_empresa')
+def es_asistente_despacho_empresa(user, empresa_id):
+    """Asistente de Despacho habilitado y asignado a la empresa activa."""
+    if (
+        not getattr(user, 'is_authenticated', False)
+        or not getattr(user, 'is_active', False)
+        or not empresa_id
+    ):
+        return False
+    return bool(
+        USERS_EMPRESA.objects.filter(US_NID=user, EP_NID_id=empresa_id).exists()
+        and PERFIL_USUARIO.objects.filter(
+            US_NID=user,
+            PE_BHABILITADO=True,
+            PR_NID__PR_CCODIGO__iexact='ASISTENTE_DESPACHO',
+            PR_NID__PR_BHABILITADO=True,
+        ).exists()
+    )
+
+
 @register.filter(name='es_usuario_maesc')
 def es_usuario_maesc(user):
     return _normalizar_texto(getattr(user, 'username', '')) == 'MAESC'
@@ -376,7 +396,7 @@ def es_planificador(user):
 
 @register.filter(name='puede_gestionar_planificaciones')
 def puede_gestionar_planificaciones(user):
-    if es_ingreso_camion(user):
+    if es_ingreso_camion(user) or has_perfil(user, 'ASISTENTE_DESPACHO'):
         return False
 
     if getattr(user, 'is_superuser', False):

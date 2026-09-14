@@ -29,6 +29,7 @@ class RevisionCamionTerramarTests(TestCase):
             EP_NID=SimpleNamespace(EP_CRAZONSOCIAL='TERRAMAR CHILE'),
             CI_CTIPO='RECEPCION',
             PL_NID=SimpleNamespace(PL_CTIPOCUPO='RECEPCION'),
+            SC_NID=SimpleNamespace(SE_CCODIGO='RECEPCION_TERRAMAR'),
         )
         manager = patch('apps.home.views.CITACION.objects.select_for_update')
         with manager as select_for_update, \

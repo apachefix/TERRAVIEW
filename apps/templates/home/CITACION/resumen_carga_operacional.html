@@ -1,0 +1,58 @@
+<style>
+.op-carga-resumen {margin:0 0 24px;padding:20px;border:1px solid #d4e2e7;border-radius:12px;background:rgba(32,111,128,.04);}
+.op-carga-resumen h5,.op-carga-resumen h6 {margin:0;}
+.op-carga-resumen .op-carga-intro {display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:16px;}
+.op-carga-resumen .op-carga-lectura {font-size:.75rem;border:1px solid #b8cbd3;border-radius:20px;padding:4px 10px;white-space:nowrap;}
+.op-carga-resumen .op-carga-acuerdo {background:var(--bs-body-bg,#fff);border:1px solid #d4e2e7;border-radius:10px;overflow:hidden;margin-top:16px;}
+.op-carga-resumen .op-carga-acuerdo-header {display:flex;justify-content:space-between;gap:12px;align-items:center;flex-wrap:wrap;padding:16px 20px;border-bottom:1px solid #d4e2e7;background:rgba(32,111,128,.05);}
+.op-carga-resumen .op-carga-cantidad {font-size:1.15rem;font-weight:700;font-variant-numeric:tabular-nums;}
+.op-carga-resumen .op-carga-producto {padding:18px 20px;}
+.op-carga-resumen .op-carga-producto + .op-carga-producto {border-top:1px solid #d4e2e7;}
+.op-carga-resumen .op-carga-producto-titulo {font-weight:600;margin-bottom:12px;overflow-wrap:anywhere;}
+.op-carga-resumen .op-carga-estanques {display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,280px),1fr));gap:14px;}
+.op-carga-resumen .op-carga-estanque {min-width:0;border:1px solid #d4e2e7;border-radius:8px;padding:14px;}
+.op-carga-resumen .op-carga-warehouse {display:inline-block;padding:4px 9px;border-radius:5px;background:#e4f0f3;color:#205767;font-weight:700;margin-bottom:10px;overflow-wrap:anywhere;}
+.op-carga-resumen table {width:100%;border-collapse:collapse;font-size:.9rem;table-layout:fixed;}
+.op-carga-resumen th,.op-carga-resumen td {padding:9px 4px;border-bottom:1px solid #e5ebee;vertical-align:top;overflow-wrap:anywhere;}
+.op-carga-resumen th:last-child,.op-carga-resumen td:last-child {text-align:right;width:38%;font-variant-numeric:tabular-nums;}
+.op-carga-resumen tfoot th,.op-carga-resumen tfoot td {border-bottom:0;font-weight:700;}
+.op-carga-resumen .op-carga-total {display:flex;justify-content:space-between;gap:12px;padding:12px 20px;background:rgba(32,111,128,.05);border-top:1px solid #d4e2e7;}
+@media(max-width:600px) {.op-carga-resumen {padding:12px;}.op-carga-resumen .op-carga-producto,.op-carga-resumen .op-carga-acuerdo-header {padding:14px;}.op-carga-resumen .op-carga-estanques {grid-template-columns:1fr;}}
+</style>
+<section class="op-carga-resumen" aria-label="Resumen de carga operacional">
+    <div class="op-carga-intro">
+        <h5><i class="fas fa-boxes" aria-hidden="true"></i> Resumen de carga operacional</h5>
+        <span class="op-carga-lectura"><i class="fas fa-lock" aria-hidden="true"></i> Solo lectura</span>
+    </div>
+    <p class="text-muted mb-0">Cantidad a cargar según la distribución operacional guardada. No corresponde al stock disponible.</p>
+    {% if resumen.guardado %}
+        {% for acuerdo in resumen.acuerdos %}
+        <article class="op-carga-acuerdo">
+            <header class="op-carga-acuerdo-header">
+                <div><h6>Acuerdo SAP {{ acuerdo.numero_acuerdo|default:acuerdo.sap_abs_id }}</h6><small class="text-muted">AbsID / AgreementNo: {{ acuerdo.sap_abs_id }}</small></div>
+                <div><small>Cantidad operacional del acuerdo</small><br><span class="op-carga-cantidad">{{ acuerdo.cantidad|floatformat:"-5" }} {{ acuerdo.unidad }}</span></div>
+            </header>
+            {% for producto in acuerdo.productos %}
+            <div class="op-carga-producto">
+                <div class="op-carga-producto-titulo"><small class="text-muted">ItemCode / PT</small><br>{{ producto.item_code }} — {{ producto.item_name|default:'Nombre no registrado' }}</div>
+                <div class="op-carga-estanques">
+                    {% for estanque in producto.estanques %}
+                    <section class="op-carga-estanque" aria-label="Estanque {{ estanque.warehouse_code }}">
+                        <div class="op-carga-warehouse"><i class="fas fa-database" aria-hidden="true"></i> {{ estanque.warehouse_code }}</div>
+                        <table aria-label="Lotes a cargar desde {{ estanque.warehouse_code }}">
+                            <thead><tr><th scope="col">Lote</th><th scope="col">Cantidad a cargar</th></tr></thead>
+                            <tbody>{% for lote in estanque.lotes %}<tr><td>{{ lote.batch_number }}</td><td>{{ lote.cantidad|floatformat:"-5" }} {{ producto.unidad }}</td></tr>{% empty %}<tr><td colspan="2">Sin lotes guardados.</td></tr>{% endfor %}</tbody>
+                            <tfoot><tr><th scope="row">Total {{ estanque.warehouse_code }}</th><td>{{ estanque.cantidad|floatformat:"-5" }} {{ producto.unidad }}</td></tr></tfoot>
+                        </table>
+                    </section>
+                    {% endfor %}
+                </div>
+            </div>
+            {% endfor %}
+            <footer class="op-carga-total"><strong>Total acuerdo</strong><strong>{{ acuerdo.cantidad|floatformat:"-5" }} {{ acuerdo.unidad }}</strong></footer>
+        </article>
+        {% empty %}<p class="mt-3 mb-0">La carga guardada no contiene acuerdos operacionales.</p>{% endfor %}
+    {% else %}
+        <div class="alert alert-light border mt-3 mb-0">No hay una distribución de carga operacional guardada para esta citación. No se muestran cantidades de planificación ni de stock como cantidades a cargar.</div>
+    {% endif %}
+</section>

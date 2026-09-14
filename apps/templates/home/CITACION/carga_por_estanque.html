@@ -1,0 +1,149 @@
+<style>
+.op-carga-fisica {margin:20px 0 24px;}
+.op-carga-fisica .op-carga-fisica-grid {display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,560px),1fr));gap:16px;}
+.op-carga-fisica .op-carga-fisica-card {min-width:0;min-height:0;gap:8px;border:1px solid #cddfe4;border-left:4px solid #6a8d98;border-radius:12px;padding:18px;background:var(--bs-body-bg,#fff);}
+.op-carga-fisica .op-carga-fisica-card.is-started {border-left-color:#23899c;}
+.op-carga-fisica .op-carga-fisica-card.is-finalized {border-left-color:#27845e;}
+.op-carga-fisica .op-carga-fisica-header {display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:12px;}
+.op-carga-fisica h5 {margin:0;font-size:1.1rem;}
+.op-carga-fisica .op-carga-fisica-total {font-size:1.45rem;font-weight:700;font-variant-numeric:tabular-nums;}
+.op-carga-fisica .op-carga-fisica-producto {margin:10px 0;overflow-wrap:anywhere;}
+.op-carga-fisica table {width:100%;margin:12px 0;table-layout:fixed;font-size:.9rem;}
+.op-carga-fisica td,.op-carga-fisica th {padding:7px 0;border-bottom:1px solid #e3ebee;overflow-wrap:anywhere;}
+.op-carga-fisica td:last-child,.op-carga-fisica th:last-child {text-align:right;width:38%;}
+.op-carga-fisica tbody tr:last-child td {border-bottom:0;}
+.op-carga-fisica .op-carga-fisica-progress {padding:14px 18px;background:rgba(35,137,156,.08);border-radius:8px;margin-bottom:16px;}
+.op-carga-fisica progress {width:100%;height:10px;accent-color:#27845e;}
+.op-carga-fisica .op-carga-fisica-controls {display:flex;align-items:center;flex-wrap:wrap;gap:12px;margin-top:0;padding-top:0;border:0;}
+.op-carga-fisica .op-carga-fisica-point {order:1;flex:0 1 160px;max-width:100%;min-width:0;margin:0;overflow-wrap:anywhere;}
+.op-carga-fisica .op-carga-fisica-point label {display:block;margin:0;font-size:.9rem;line-height:18px;}
+.op-carga-fisica .op-carga-fisica-point select {margin-top:4px;}
+.op-carga-fisica .op-carga-fisica-controls > .badge {order:2;flex:0 0 auto;}
+.op-carga-fisica .op-carga-fisica-controls > .text-muted {order:3;}
+.op-carga-fisica .op-carga-fisica-controls > .op-glass-button,
+.op-carga-fisica + .op-dispatch-cycle-grid .op-glass-button {width:200px;max-width:100%;min-width:0;flex:0 0 auto;align-self:center;}
+.op-carga-fisica .op-carga-fisica-controls > .op-glass-button {order:4;width:180px;}
+.op-carga-fisica .op-carga-fisica-card:not(.is-started) .op-carga-fisica-controls > .badge,
+.op-carga-fisica .op-carga-fisica-card:not(.is-started) .op-carga-fisica-controls > .op-glass-button,
+.op-carga-fisica .op-carga-fisica-card:not(.is-started) .op-carga-fisica-controls > .text-muted {margin-top:22px;}
+.op-carga-fisica .op-carga-fisica-times {order:3;flex:0 1 240px;min-width:0;display:flex;flex-wrap:wrap;gap:4px 12px;margin:0;padding:0;font-size:.9rem;overflow-wrap:anywhere;}
+@media(max-width:600px) {
+    .op-carga-fisica .op-carga-fisica-controls {flex-direction:column;align-items:flex-start;gap:10px;}
+    .op-carga-fisica .op-carga-fisica-point,.op-carga-fisica .op-carga-fisica-times {flex:0 1 auto;}
+    .op-carga-fisica .op-carga-fisica-point {width:180px;}
+    .op-carga-fisica .op-carga-fisica-card .op-carga-fisica-controls > .badge,
+    .op-carga-fisica .op-carga-fisica-card .op-carga-fisica-controls > .op-glass-button,
+    .op-carga-fisica .op-carga-fisica-card .op-carga-fisica-controls > .text-muted {margin-top:0;align-self:flex-start;}
+}
+.op-carga-fisica + .op-dispatch-cycle-grid {grid-template-columns:repeat(auto-fit,minmax(min(100%,320px),1fr));}
+.op-carga-fisica + .op-dispatch-cycle-grid .op-dispatch-process-card {min-height:0;}
+@media(max-width:600px) {.op-carga-fisica .op-carga-fisica-grid {grid-template-columns:1fr;}.op-carga-fisica .op-carga-fisica-card {padding:14px;}}
+/* Shared operational grid, scoped exclusively to the warehouse dispatch cycle. */
+.op-unified-dispatch {display:grid;grid-template-columns:repeat(3,minmax(0,1fr));align-items:stretch;gap:16px;margin-top:16px;}
+.op-unified-dispatch .op-carga-fisica,
+.op-unified-dispatch .op-carga-fisica-grid,
+.op-unified-dispatch .op-dispatch-cycle-grid {display:contents;}
+.op-unified-dispatch .op-carga-fisica > .alert,
+.op-unified-dispatch .op-carga-fisica-progress {grid-column:1 / -1;margin:0;}
+.op-unified-dispatch .op-dispatch-process-card {min-width:0;min-height:260px;height:100%;padding:18px;gap:12px;border:1px solid #cddfe4;border-left:4px solid #6a8d98;border-radius:12px;background:var(--bs-body-bg,#fff);box-shadow:0 4px 14px rgba(11,37,69,.07);}
+.op-unified-dispatch .op-dispatch-process-card.is-started {border-left-color:#23899c;}
+.op-unified-dispatch .op-dispatch-process-card.is-finalized {border-left-color:#27845e;}
+.op-unified-dispatch .op-dispatch-cycle-grid .op-dispatch-process-card:last-child {grid-column:auto;justify-self:stretch;width:auto;max-width:none;}
+.op-unified-dispatch .op-carga-fisica-header {margin:0;}
+.op-unified-dispatch .op-dispatch-process-title,
+.op-unified-dispatch .op-carga-fisica h5 {display:flex;align-items:center;gap:10px;font-size:14px;font-weight:900;color:#0b2545;line-height:1.4;}
+.op-unified-dispatch .op-carga-fisica h5 > i {display:inline-flex;align-items:center;justify-content:center;width:34px;height:34px;flex:0 0 34px;border-radius:8px;color:#fff;background:linear-gradient(135deg,#35a8f2,#146bb9);}
+.op-unified-dispatch .badge {align-self:flex-start;font-size:.75rem;padding:6px 9px;}
+.op-unified-dispatch .op-carga-fisica-producto {margin:0;}
+.op-unified-dispatch .op-carga-fisica table {margin:0;}
+.op-unified-dispatch .op-carga-fisica-controls {margin-top:auto;}
+.op-unified-dispatch .op-dispatch-runtime {margin-top:auto;border:0;background:transparent;padding:0;}
+.op-unified-dispatch .op-dispatch-runtime .op-wait-clock-time {font-size:1.45rem;}
+.op-unified-dispatch .op-dispatch-process-card .op-glass-button {width:180px;max-width:100%;align-self:flex-start;}
+.op-unified-dispatch + .op-dispatch-complete-actions {margin-top:24px;}
+@media(max-width:1199.98px) {.op-unified-dispatch {grid-template-columns:repeat(2,minmax(0,1fr));}}
+@media(max-width:767.98px) {.op-unified-dispatch {grid-template-columns:minmax(0,1fr);}}
+</style>
+<section class="op-carga-fisica" aria-label="Operación de carga por estanque">
+    {% if ciclo.error_carga and ciclo.carga_legacy %}
+        <div class="alert alert-info">
+            {{ ciclo.aviso_legacy }}
+            <div>Punto: {{ ciclo.carga_legacy.punto_despacho|default:'No registrado' }}.
+                Inicio: {{ ciclo.carga_legacy.inicio_legible }} por {{ ciclo.carga_legacy.usuario }}.
+                {% if ciclo.carga_legacy.fin_legible %}Fin: {{ ciclo.carga_legacy.fin_legible }} por {{ ciclo.carga_legacy.usuario_fin }}.{% endif %}
+            </div>
+        </div>
+    {% endif %}
+    {% if ciclo.error_carga %}
+        <div class="alert alert-danger" role="alert">{{ ciclo.error_carga }}</div>
+    {% else %}
+        {% if ciclo.cantidad_estanques > 1 %}
+        <div class="op-carga-fisica-progress" role="status">
+            <strong>{{ ciclo.estanques_finalizados }} de {{ ciclo.cantidad_estanques }} estanques completados</strong>
+            <progress max="{{ ciclo.cantidad_estanques }}" value="{{ ciclo.estanques_finalizados }}" aria-label="Estanques completados"></progress>
+            <small>La siguiente etapa estará disponible cuando todas las cargas estén finalizadas.</small>
+        </div>
+        {% endif %}
+        {% if ciclo.aviso_legacy %}
+        <div class="alert alert-info">
+            {{ ciclo.aviso_legacy }}
+            {% if ciclo.cantidad_estanques > 1 %}
+            <div>Punto histórico: {{ ciclo.carga_legacy.punto_despacho|default:'No registrado' }}.
+                Inicio: {{ ciclo.carga_legacy.inicio_legible }} por {{ ciclo.carga_legacy.usuario }}.
+                {% if ciclo.carga_legacy.fin_legible %}Fin: {{ ciclo.carga_legacy.fin_legible }} por {{ ciclo.carga_legacy.usuario_fin }}.{% endif %}
+            </div>
+            {% endif %}
+        </div>
+        {% endif %}
+        <div class="op-carga-fisica-grid">
+        {% for carga in ciclo.cargas %}
+            <article class="op-dispatch-process-card op-carga-fisica-card {% if carga.iniciado %}is-started{% endif %} {% if carga.finalizado %}is-finalized{% endif %}" data-proceso="carga" data-warehouse="{{ carga.warehouse_code }}">
+                <div class="op-carga-fisica-header">
+                    <h5><i class="fas fa-oil-can" aria-hidden="true"></i> CARGA DESDE {{ carga.warehouse_code }}</h5>
+                </div>
+                <span class="badge {% if carga.finalizado %}badge-success{% elif carga.iniciado %}badge-info{% else %}badge-secondary{% endif %}">{% if carga.estado == 'EN_CARGA' %}EN CARGA{% else %}{{ carga.estado }}{% endif %}</span>
+                <div class="op-carga-fisica-total">{{ carga.cantidad|floatformat:"-5" }} <small>{{ carga.unidad }}</small></div>
+                <div class="op-carga-fisica-producto">{{ carga.item_code }} — {{ carga.item_name }}</div>
+                <small class="text-muted">Acuerdo{% if carga.acuerdos|length > 1 %}s{% endif %}: {{ carga.acuerdos|join:', ' }} · {{ carga.lotes|length }} lote{{ carga.lotes|length|pluralize }}</small>
+                <table aria-label="Lotes de {{ carga.warehouse_code }}">
+                    <thead><tr><th scope="col">Lote</th><th scope="col">Cantidad a cargar</th></tr></thead>
+                    <tbody>{% for lote in carga.lotes %}<tr><td>{{ lote.batch_number }}</td><td>{{ lote.cantidad|floatformat:"-5" }} {{ carga.unidad }}</td></tr>{% endfor %}</tbody>
+                </table>
+                <div class="op-carga-fisica-controls">
+                {% if carga.iniciado %}
+                    <div class="op-carga-fisica-point"><strong>Punto / bomba:</strong> {{ carga.punto_despacho }}</div>
+                    <div class="op-carga-fisica-times">
+                        <div>Inicio: {{ carga.inicio_legible }} · {{ carga.usuario }}</div>
+                        {% if carga.finalizado %}
+                            <div>Término: {{ carga.fin_legible }} · {{ carga.usuario_fin }}</div>
+                            <strong>Duración: {{ carga.duracion_legible }}</strong>
+                        {% else %}
+                            <strong>Tiempo en carga: <span class="op-dispatch-live-time" data-dispatch-start="{{ carga.inicio_iso }}" data-dispatch-start-ms="{{ carga.inicio_ms }}">{{ carga.duracion_legible|default:'00:00:00' }}</span></strong>
+                        {% endif %}
+                    </div>
+                    {% if not carga.finalizado and paso.activo and paso.puede_editar %}
+                        <button type="button" class="op-glass-button is-success btn-finalizar-proceso-despacho" data-paso="{{ paso.nombre }}" data-proceso="carga" data-warehouse="{{ carga.warehouse_code }}">
+                            <i class="fas fa-check" aria-hidden="true"></i> Finalizar carga de {{ carga.warehouse_code }}
+                        </button>
+                    {% endif %}
+                {% else %}
+                    <div class="form-group op-carga-fisica-point">
+                        <label>Punto / bomba
+                            <select class="form-control despacho-punto-carga" {% if not paso.activo or not paso.puede_editar %}disabled{% endif %}>
+                                <option value="">Seleccione punto</option>
+                                {% for punto in ciclo.puntos_despacho %}<option value="{{ punto }}">{{ punto }}</option>{% endfor %}
+                            </select>
+                        </label>
+                    </div>
+                    {% if paso.activo and paso.puede_editar %}
+                        <button type="button" class="op-glass-button is-secondary btn-iniciar-proceso-despacho" data-paso="{{ paso.nombre }}" data-proceso="carga" data-warehouse="{{ carga.warehouse_code }}" data-requiere-punto="true">
+                            <i class="fas fa-play" aria-hidden="true"></i> INICIAR CARGA
+                        </button>
+                    {% else %}<small class="text-muted">Solo lectura.</small>{% endif %}
+                {% endif %}
+                </div>
+            </article>
+        {% endfor %}
+        </div>
+    {% endif %}
+</section>

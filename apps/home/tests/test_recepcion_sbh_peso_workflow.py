@@ -283,7 +283,7 @@ class RecepcionSbhPesoWorkflowTests(SimpleTestCase):
         )
         self.assertIn('if not es_flujo_recepcion_sbh:', source)
         self.assertIn(
-            'es_flujo_recepcion_sbh and not ruta_transportista_asistente_guardada(citacion)',
+            'es_flujo_recepcion_sbh and requiere_ruta_transportista_revision(citacion) and not ruta_transportista_asistente_guardada(citacion)',
             source,
         )
         self.assertIn("'DO_FFECHAREGISTRO': timezone.now()", source)

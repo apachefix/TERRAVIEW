@@ -299,6 +299,7 @@
                 },
                 success: function(response) {
                     if (response.success) {
+                        response.data.tipo_resultado = response.tipo_resultado || response.data.tipo_resultado;
                         mostrarModalEstadoCamion(response.data);
                     } else {
                         // Mostrar mensaje de error
@@ -335,7 +336,78 @@
             return String(hours).padStart(2, '0') + ':' + String(minutes).padStart(2, '0') + ':' + String(seconds).padStart(2, '0');
         }
 
+        function csrfEstadoCamion() {
+            var match = document.cookie.match(/(?:^|; )csrftoken=([^;]*)/);
+            return match ? decodeURIComponent(match[1]) : '';
+        }
+
+        function registrarIngresoDespachoSbh(datos) {
+            var candidatos = datos.candidatos || [];
+            var citacionId = candidatos.length === 1 ? candidatos[0].citacion_id : '';
+            $.ajax({
+                url: datos.registro_url,
+                type: 'POST',
+                headers: {'X-CSRFToken': csrfEstadoCamion()},
+                data: {patente: datos.patente, citacion_id: citacionId},
+                success: function(response) {
+                    Swal.fire({icon: 'success', title: 'Ingreso registrado', text: response.message});
+                },
+                error: function(xhr) {
+                    var response = xhr.responseJSON || {};
+                    Swal.fire({icon: 'error', title: 'No fue posible registrar', text: response.message || 'Intente nuevamente.'});
+                }
+            });
+        }
+
+        function mostrarModalPlanificacionEstadoCamion(datos, contenidoPlan) {
+            if (!datos.puede_registrar_ingreso) {
+                Swal.fire({title: datos.titulo, html: contenidoPlan, width: '85%', confirmButtonText: 'Cerrar'});
+                return;
+            }
+            Swal.fire({
+                title: datos.titulo,
+                html: contenidoPlan,
+                width: '85%',
+                showCancelButton: true,
+                confirmButtonText: 'Registrar ingreso y enviar a Asistente de Despacho',
+                cancelButtonText: 'Cerrar',
+                confirmButtonColor: '#28a745'
+            }).then(function(result) {
+                if (result.isConfirmed) {
+                    registrarIngresoDespachoSbh(datos);
+                }
+            });
+        }
+
         function mostrarModalEstadoCamion(datos) {
+            if (datos.tipo_resultado === 'INGRESO_PATIO_PENDIENTE') {
+                var contenidoPatio = '<div class=text-left><div class=alert>' + escapeHtmlEstadoCamion(datos.mensaje) + '</div>';
+                contenidoPatio += '<p><strong>Patente:</strong> ' + escapeHtmlEstadoCamion(datos.patente) + '</p>';
+                contenidoPatio += '<p><strong>Estado:</strong> ' + escapeHtmlEstadoCamion(datos.estado) + '</p>';
+                contenidoPatio += '<p><strong>Responsable:</strong> ' + escapeHtmlEstadoCamion(datos.responsable) + '</p></div>';
+                Swal.fire({title: 'Ingreso ya registrado', html: contenidoPatio, width: '70%', confirmButtonText: 'Cerrar'});
+                return;
+            }
+            if (datos.tipo_resultado === 'PLANIFICACION_ENCONTRADA' || datos.tipo_resultado === 'MULTIPLE_MATCHES') {
+                var candidatos = datos.candidatos || [];
+                var contenidoPlan = '<div class=text-left><div class=alert>' + escapeHtmlEstadoCamion(datos.mensaje) + '</div>';
+                candidatos.forEach(function(candidato) {
+                    contenidoPlan += '<div class=border><strong>Citacion #' + escapeHtmlEstadoCamion(candidato.citacion_id) + ' / Planificacion #' + escapeHtmlEstadoCamion(candidato.planificacion_id) + '</strong>';
+                    contenidoPlan += '<div>Patente: ' + escapeHtmlEstadoCamion(candidato.patente || datos.patente) + ' | Tipo: ' + escapeHtmlEstadoCamion(candidato.tipo) + '</div>';
+                    contenidoPlan += '<div>Empresa: ' + escapeHtmlEstadoCamion(candidato.empresa) + ' | Estado: ' + escapeHtmlEstadoCamion(candidato.estado) + '</div>';
+                    contenidoPlan += '<div>Fecha citacion: ' + escapeHtmlEstadoCamion(candidato.fecha_citacion) + ' | Fecha despacho: ' + escapeHtmlEstadoCamion(candidato.fecha_despacho) + '</div>';
+                    contenidoPlan += '<div>Llegada planta: ' + escapeHtmlEstadoCamion(candidato.hora_llegada_planta) + ' | Conductor: ' + escapeHtmlEstadoCamion(candidato.conductor) + '</div>';
+                    contenidoPlan += '<div>RUT conductor: ' + escapeHtmlEstadoCamion(candidato.rut_conductor) + ' | Telefono: ' + escapeHtmlEstadoCamion((candidato.codigo_pais || '') + ' ' + (candidato.telefono || '')) + '</div>';
+                    contenidoPlan += '<div>Llegada destino: ' + escapeHtmlEstadoCamion(candidato.hora_llegada_destino) + ' | Formato camion: ' + escapeHtmlEstadoCamion(candidato.tipo_camion) + '</div>';
+                    contenidoPlan += '<div>Transportista: ' + escapeHtmlEstadoCamion(candidato.empresa_transporte) + ' | Cliente: ' + escapeHtmlEstadoCamion(candidato.cliente) + '</div>';
+                    contenidoPlan += '<div>Transporte a cargo: ' + escapeHtmlEstadoCamion(candidato.transporte_a_cargo) + ' | Producto: ' + escapeHtmlEstadoCamion(candidato.producto) + '</div>';
+                    contenidoPlan += '<div>Destino: ' + escapeHtmlEstadoCamion(candidato.destino) + ' | Secuencia: ' + escapeHtmlEstadoCamion(candidato.secuencia) + '</div>';
+                    contenidoPlan += '<div>Orden carga: ' + escapeHtmlEstadoCamion(candidato.orden_carga) + ' | Condicion entrega: ' + escapeHtmlEstadoCamion(candidato.condicion_entrega) + '</div></div><br>';
+                });
+                contenidoPlan += '</div>';
+                mostrarModalPlanificacionEstadoCamion(datos, contenidoPlan);
+                return;
+            }
             if (datos.tipo_resultado === 'CITACION_VIGENTE') {
                 var camposVigentes = [
                     ['Patente', datos.patente], ['Citación', datos.citacion_id], ['Empresa', datos.empresa],

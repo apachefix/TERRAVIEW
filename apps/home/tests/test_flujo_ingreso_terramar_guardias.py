@@ -173,7 +173,12 @@ class FlujoIngresoTerramarGuardiasTests(TestCase):
         self.secuencia.SE_CCODIGO = 'EST_SBH_CLIENTE'
         nombre_despacho, pasos_despacho = obtener_pasos_operacion_citacion(self.citacion)
         self.assertEqual(nombre_despacho, self.secuencia.SE_CNOMBRE)
-        self.assertEqual(pasos_despacho, views.pasos_despacho_operacion_activos(views.PASOS_DESPACHO_CARGA))
+        # Esta citación sigue siendo EP1 aunque se pruebe un código de secuencia SBH.
+        self.assertNotIn(views.PASO_APROBAR_INICIO_CARGA, [paso for paso, _ in pasos_despacho])
+        self.assertEqual(pasos_despacho, [
+            paso for paso in views.pasos_despacho_operacion_activos(views.PASOS_DESPACHO_CARGA_ESTANQUE)
+            if paso[0] != views.PASO_APROBAR_INICIO_CARGA
+        ])
 
     def test_rama_comun_guardia_porteria_sigue_autorizando_sbh(self):
         self.secuencia.SE_CCODIGO = 'RECEPCION_ESTANQUE_SBH'

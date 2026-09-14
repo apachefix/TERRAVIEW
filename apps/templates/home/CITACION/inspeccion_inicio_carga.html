@@ -1,0 +1,88 @@
+<style>
+.op-inspeccion {border:1px solid #dce3ea;border-radius:12px;overflow:hidden;background:var(--bs-body-bg,#fff);}
+.op-inspeccion header,.op-inspeccion footer {padding:20px;background:rgba(35,110,130,.06);}
+.op-inspeccion h4 {margin:0 0 8px;}
+.op-inspeccion .op-inspeccion-criterios {display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px;padding:20px;}
+.op-inspeccion .op-inspeccion-criterio {border:1px solid #dce3ea;border-radius:8px;padding:16px;margin:0;min-width:0;}
+.op-inspeccion legend {font-size:1rem;font-weight:600;width:auto;padding:0 4px;}
+.op-inspeccion .op-inspeccion-opciones {display:flex;gap:12px;flex-wrap:wrap;}
+.op-inspeccion label {padding:8px 12px;border:1px solid #b8c5ce;border-radius:6px;cursor:pointer;margin:0;}
+.op-inspeccion label:has(input:checked) {background:#e4f3ec;border-color:#27815a;color:#174c35;}
+.op-inspeccion label.op-inspeccion-no:has(input:checked) {background:#fde9e9;border-color:#bb4545;color:#842b2b;}
+.op-inspeccion input {margin-right:6px;}
+.op-inspeccion progress {width:100%;height:8px;accent-color:#287d88;}
+.op-inspeccion .op-inspeccion-resultado {margin:16px 20px;padding:16px;border-radius:8px;border-left:4px solid #27815a;background:#e4f3ec;color:#174c35;}
+.op-inspeccion .op-inspeccion-rechazado {border-color:#bb4545;background:#fde9e9;color:#842b2b;}
+@media(max-width:600px) {.op-inspeccion .op-inspeccion-criterios {grid-template-columns:1fr;padding:12px;}.op-inspeccion header,.op-inspeccion footer {padding:16px;}}
+</style>
+<form class="op-inspeccion" id="op-inspeccion-form" method="post" action="{% url 'operacion_planta_guardar_paso' citacion.id %}">
+    {% csrf_token %}
+    <input type="hidden" name="_empresa_id" value="{{ citacion.EP_NID_id }}">
+    <input type="hidden" name="paso" value="{{ paso.nombre }}">
+    <header>
+        <h4><i class="fas fa-clipboard-check" aria-hidden="true"></i> Inspección previa al inicio de carga</h4>
+        <div>Responsable: <strong>ASISTENTE C D</strong></div>
+        <p class="mb-2">Revise los cinco controles. Cualquier incumplimiento impide la carga y deriva el camión a Confirmar salida.</p>
+        <span class="badge badge-secondary">{{ paso.inspeccion_inicio_carga.resultado|default:'PENDIENTE' }}</span>
+    </header>
+    {% if paso.inspeccion_inicio_carga.resultado %}
+    <section class="op-inspeccion-resultado {% if paso.inspeccion_inicio_carga.resultado == 'RECHAZADO' %}op-inspeccion-rechazado{% endif %}">
+        <strong>{{ paso.inspeccion_inicio_carga.resultado }}</strong>
+        {% if paso.inspeccion_inicio_carga.resultado == 'RECHAZADO' %}
+        <p>La carga no está autorizada. Siguiente paso: Confirmar salida.</p>
+        <strong>Motivos de rechazo</strong>
+        <ul>{% for motivo in paso.inspeccion_inicio_carga.motivos_rechazo %}<li>{{ motivo }}</li>{% endfor %}</ul>
+        {% else %}<p>Inspección aprobada. Continúa el Ciclo de Carga / Despacho.</p>{% endif %}
+        <small>Registrado por {{ paso.inspeccion_inicio_carga.usuario }} · {{ paso.inspeccion_inicio_carga.fecha_iso }}</small>
+    </section>
+    {% endif %}
+    <div class="op-inspeccion-criterios">
+    {% for criterio in paso.criterios_inicio_carga %}
+        <fieldset class="op-inspeccion-criterio" {% if not paso.activo or not paso.puede_editar or paso.inspeccion_inicio_carga.resultado %}disabled{% endif %}>
+            <legend>{{ forloop.counter }}. {{ criterio.titulo }}</legend>
+            <div class="op-inspeccion-opciones">
+                <label><input type="radio" name="{{ criterio.codigo }}" value="CUMPLE" required {% if criterio.valor == 'CUMPLE' %}checked{% endif %}>Cumple</label>
+                <label class="op-inspeccion-no"><input type="radio" name="{{ criterio.codigo }}" value="NO_CUMPLE" required {% if criterio.valor == 'NO_CUMPLE' %}checked{% endif %}>No Cumple</label>
+            </div>
+        </fieldset>
+    {% endfor %}
+    </div>
+    <footer>
+        {% if paso.activo and paso.puede_editar and not paso.inspeccion_inicio_carga.resultado %}
+        <div id="op-inspeccion-resumen" role="status" aria-live="polite">0 de 5 controles respondidos.</div>
+        <progress id="op-inspeccion-progreso" max="5" value="0" aria-label="Controles respondidos"></progress>
+        <button class="btn btn-primary mt-3" type="submit" id="op-inspeccion-guardar" disabled>Finalizar inspección</button>
+        <div id="op-inspeccion-error" class="text-danger mt-2" role="alert"></div>
+        {% else %}<small>Solo lectura. La inspección solo puede registrarse una vez, por el responsable y cuando este paso esté activo.</small>{% endif %}
+    </footer>
+</form>
+<script>
+(function () {
+    const form = document.getElementById('op-inspeccion-form');
+    const button = document.getElementById('op-inspeccion-guardar');
+    if (!form || !button) return;
+    let sending = false;
+    function refresh() {
+        const checked = form.querySelectorAll('input[type=radio]:checked');
+        const rejected = Array.from(checked).some(input => input.value === 'NO_CUMPLE');
+        document.getElementById('op-inspeccion-progreso').value = checked.length;
+        document.getElementById('op-inspeccion-resumen').textContent = checked.length + ' de 5 controles respondidos. ' + (checked.length === 5 ? (rejected ? 'Resultado al guardar: RECHAZADO → Confirmar salida.' : 'Resultado al guardar: APROBADO → Ciclo de Carga / Despacho.') : 'Complete todos los controles para finalizar.');
+        button.disabled = sending || checked.length !== 5;
+    }
+    form.addEventListener('change', refresh);
+    form.addEventListener('submit', async function (event) {
+        event.preventDefault();
+        if (sending || !form.reportValidity() || form.querySelectorAll('input[type=radio]:checked').length !== 5) return;
+        sending = true; refresh();
+        const error = document.getElementById('op-inspeccion-error');
+        error.textContent = '';
+        try {
+            const response = await fetch(form.action, {method:'POST',body:new FormData(form),headers:{'X-Requested-With':'XMLHttpRequest'},credentials:'same-origin'});
+            const result = await response.json();
+            if (!response.ok || !result.success) throw new Error(result.error || result.message || 'No se pudo guardar la inspección.');
+            window.location.reload();
+        } catch (err) {error.textContent = err.message; sending = false; refresh();}
+    });
+    refresh();
+})();
+</script>

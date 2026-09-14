@@ -16,6 +16,10 @@
         color: #fff;
     }
 
+    body.theme-harinas .operacion-hero {
+        background: linear-gradient(110deg, #3F5F5C 0%, #6C8784 52%, #B66F63 100%);
+    }
+
     .operacion-hero:before {
         content: "";
         position: absolute;
@@ -1083,9 +1087,48 @@
 
     .op-close-load-grid {
         display: grid;
-        grid-template-columns: repeat(4, minmax(0, 1fr));
+        grid-template-columns: minmax(0, 2fr) minmax(180px, 1fr);
         gap: 12px;
+        max-width: 760px;
     }
+
+    .op-close-load-temperature {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+    }
+
+    .op-close-load-unit {
+        flex: 0 0 auto;
+        color: #0b2545;
+        font-weight: 800;
+    }
+
+    .op-close-load-actions {
+        display: flex;
+        justify-content: center;
+        margin-top: 24px;
+    }
+
+    .op-close-load-actions .op-glass-button {
+        width: 100%;
+        max-width: 420px;
+    }
+
+    .op-final-dispatch-grid {display:grid;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));gap:12px;margin-bottom:18px;}
+    .op-final-dispatch-card {padding:14px;border:1px solid rgba(11,37,69,.12);border-radius:10px;background:rgba(255,255,255,.72);}
+    .op-final-dispatch-card dl {display:grid;grid-template-columns:auto 1fr;gap:5px 12px;margin:10px 0 0;}
+    .op-final-dispatch-card dt {color:#607487;font-size:.78rem;text-transform:uppercase;}
+    .op-final-dispatch-card dd {margin:0;color:#0b2545;font-weight:700;overflow-wrap:anywhere;}
+    .op-last-loads {margin-bottom:18px;padding:16px;border:1px solid rgba(11,37,69,.12);border-radius:10px;background:rgba(255,255,255,.72);}
+    .op-last-load-row {display:grid;grid-template-columns:34px minmax(0,1fr);align-items:center;gap:10px;margin-top:10px;}
+    .op-last-load-index {font-weight:900;color:#146bb9;text-align:center;}
+    .op-authorize-final-actions {display:flex;justify-content:center;margin-top:20px;}
+    .op-authorize-final-actions .op-glass-button {width:100%;max-width:420px;}
+    .op-sap-agreements-grid {display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:10px;margin:12px 0;}
+    .op-sap-agreement-card {padding:12px;border:1px solid rgba(11,37,69,.12);border-radius:9px;background:#fff;}
+    .op-sap-agreement-card strong {color:#0b2545;}
+    .op-sap-agreement-meta {margin-top:7px;color:#52616f;font-size:.84rem;line-height:1.55;}
 
     .op-close-load-field {
         min-height: 78px;
@@ -2653,6 +2696,9 @@
                                     </div>
                                     {% endif %}
 
+                                    {% if paso.no_ejecutado_inspeccion %}
+                                    <div class="alert alert-warning">No ejecutado: camión rechazado en la inspección previa. Continúa directamente a Confirmar salida.</div>
+                                    {% else %}
                                     {% if paso.requiere_ticket_pesaje %}
                                     <div class="operacion-ticket-pesaje {% if paso.tipo_ticket_pesaje == 'SAL' %}is-sal{% else %}is-ent{% endif %}"
                                          data-paso="{{ paso.nombre }}"
@@ -3320,7 +3366,7 @@
                                                     Ciclo de Carga / Despacho
                                                 </div>
                                                 <div class="op-cycle-subtitle">
-                                                    Responsable: Sala_Control | Patente: {{ patente }}
+                                                    Responsable: {% if paso.es_inspeccion_estanque_sbh %}ASISTENTE C D{% else %}Sala_Control{% endif %} | Patente: {{ patente }}
                                                 </div>
                                             </div>
                                             <span class="op-cycle-state-badge {% if paso.ciclo_carga_despacho.tiene_proceso_finalizado %}is-done{% elif paso.ciclo_carga_despacho.iniciada %}is-active{% endif %}">
@@ -3335,6 +3381,13 @@
                                             </span>
                                         </div>
 
+                                        {% if paso.resumen_carga_operacional %}
+                                            {% include 'home/CITACION/resumen_carga_operacional.html' with resumen=paso.resumen_carga_operacional %}
+                                        {% endif %}
+                                        {% if paso.ciclo_carga_despacho.por_estanque %}
+                                        <div class="op-unified-dispatch">
+                                            {% include 'home/CITACION/carga_por_estanque.html' with ciclo=paso.ciclo_carga_despacho %}
+                                        {% endif %}
                                         <div class="op-dispatch-cycle-grid" data-process-count="{{ paso.ciclo_carga_despacho.procesos|length }}">
                                             {% for proceso in paso.ciclo_carga_despacho.procesos %}
                                             <div class="op-dispatch-process-card {% if proceso.iniciado %}is-started{% endif %} {% if proceso.finalizado %}is-finalized{% endif %}"
@@ -3343,6 +3396,9 @@
                                                     <span class="op-dispatch-process-icon"><i class="fas {{ proceso.icon }}"></i></span>
                                                     {{ proceso.label }}
                                                 </div>
+                                                {% if paso.ciclo_carga_despacho.por_estanque %}
+                                                <span class="badge {% if proceso.finalizado %}badge-success{% elif proceso.iniciado %}badge-info{% else %}badge-secondary{% endif %}">{% if proceso.finalizado %}FINALIZADO{% elif proceso.iniciado %}EN PROCESO{% else %}PENDIENTE{% endif %}</span>
+                                                {% endif %}
 
                                                 {% if proceso.requiere_punto %}
                                                     {% if proceso.iniciado %}
@@ -3422,11 +3478,14 @@
                                             {% endfor %}
                                         </div>
 
+                                        {% if paso.ciclo_carga_despacho.por_estanque %}</div>{% endif %}
                                         {% if paso.activo and paso.puede_editar %}
                                             <div class="op-dispatch-complete-actions">
                                                 <button type="button"
                                                         class="op-glass-button is-success btn-guardar-operacion"
                                                         data-paso="{{ paso.nombre }}"
+                                                        data-por-estanque="{% if paso.ciclo_carga_despacho.por_estanque %}true{% else %}false{% endif %}"
+                                                        {% if paso.ciclo_carga_despacho.por_estanque and not paso.ciclo_carga_despacho.finalizada %}disabled{% endif %}
                                                         data-requiere-proceso-finalizado="{% if paso.ciclo_carga_despacho.tiene_proceso_finalizado %}false{% else %}true{% endif %}">
                                                     <i class="op-glass-icon fas fa-arrow-right"></i>
                                                     Enviar siguiente etapa
@@ -3909,6 +3968,7 @@
                                          data-registrada="{% if paso.autorizar_salida.registrada %}true{% else %}false{% endif %}"
                                          data-sap-updated="{% if paso.sap_update_despacho.updated %}true{% else %}false{% endif %}"
                                          data-sap-error="{% if paso.sap_update_despacho.is_error %}true{% else %}false{% endif %}"
+                                         data-ultimas-cargas="{% if paso.datos_finales_despacho_sbh.ultimas_cargas_completas %}true{% else %}false{% endif %}"
                                          data-sap-recepcion-updated="{% if paso.sap_update_recepcion.updated %}true{% else %}false{% endif %}"
                                          data-sap-recepcion-error="{% if paso.sap_update_recepcion.is_error %}true{% else %}false{% endif %}">
                                         <div class="op-cycle-header">
@@ -3952,7 +4012,44 @@
                                                     </div>
                                                 </div>
                                             </div>
-                                        {% else %}
+                                         {% else %}
+                                            {% if paso.datos_finales_despacho_sbh %}
+                                            <div class="op-lab-title mb-2"><i class="fas fa-clipboard-list"></i> Datos del despacho</div>
+                                            <div class="op-final-dispatch-grid">
+                                                {% for registro in paso.datos_finales_despacho_sbh.registros %}
+                                                <article class="op-final-dispatch-card">
+                                                    <strong>Acuerdo {{ registro.numero_acuerdo|default:'Sin información' }}</strong>
+                                                    <dl>
+                                                        <dt>Código SAP</dt><dd>{{ registro.item_code|default:'Sin información' }}</dd>
+                                                        <dt>Producto</dt><dd>{{ registro.item_name|default:'Sin información' }}</dd>
+                                                        <dt>Estanque origen</dt><dd>{{ registro.warehouse_code|default:'Sin información' }}</dd>
+                                                        <dt>Lote SAP</dt><dd>{{ registro.batch_number|default:'Sin información' }}</dd>
+                                                        <dt>Fecha elaboración</dt><dd>{{ registro.fecha_elaboracion|default:'Sin información persistida' }}</dd>
+                                                        <dt>Fecha vencimiento</dt><dd>{{ registro.fecha_vencimiento|default:'Sin información' }}</dd>
+                                                        <dt>N° Sellos</dt><dd>{{ paso.datos_finales_despacho_sbh.nro_sellos|default:'Sin información' }}</dd>
+                                                        <dt>Temperatura</dt><dd>{{ paso.datos_finales_despacho_sbh.temperatura|default:'Sin información' }} °C</dd>
+                                                    </dl>
+                                                </article>
+                                                {% empty %}
+                                                <div class="alert alert-warning mb-0">No existe distribución operacional persistida.</div>
+                                                {% endfor %}
+                                            </div>
+                                            <div class="op-last-loads">
+                                                <div class="op-lab-title"><i class="fas fa-history"></i> Tres últimas cargas</div>
+                                                {% for valor in paso.datos_finales_despacho_sbh.ultimas_cargas %}
+                                                <label class="op-last-load-row">
+                                                    <span class="op-last-load-index">{{ forloop.counter }}°</span>
+                                                    <input type="text" class="form-control ultima-carga-despacho" data-indice="{{ forloop.counter }}" value="{{ valor }}"
+                                                           {% if paso.datos_finales_despacho_sbh.ultimas_cargas_completas or not paso.activo or not paso.puede_editar %}readonly{% endif %}>
+                                                </label>
+                                                {% endfor %}
+                                                {% if paso.activo and paso.puede_editar and not paso.datos_finales_despacho_sbh.ultimas_cargas_completas %}
+                                                <button type="button" class="btn btn-outline-primary mt-3 btn-guardar-ultimas-cargas">
+                                                    <i class="fas fa-save mr-1"></i> Guardar tres últimas cargas
+                                                </button>
+                                                {% endif %}
+                                            </div>
+                                            {% endif %}
                                             {% if paso.requiere_update_sap_recepcion %}
                                             <div class="op-sap-draft-panel mb-3 operacion-sap-recepcion-update-box"
                                                  data-sap-updated="{% if paso.sap_update_recepcion.updated %}true{% else %}false{% endif %}"
@@ -4065,9 +4162,34 @@
                                                         </span>
                                                     </div>
                                                     <div class="sap-update-result-line">
+                                                        {% if paso.drafts_sap_despacho_operacionales.aplicable %}
+                                                        <div class="op-sap-agreements-grid">
+                                                            {% for draft in paso.drafts_sap_despacho_operacionales.drafts %}
+                                                            <article class="op-sap-agreement-card">
+                                                                <div class="d-flex justify-content-between align-items-center">
+                                                                    <strong>Acuerdo {{ draft.numero_acuerdo|default:'-' }}</strong>
+                                                                    <span class="badge {% if draft.estado == 'CREADO' and draft.docentry %}badge-success{% elif draft.estado == 'ERROR' or draft.estado == 'INCIERTO' %}badge-danger{% else %}badge-warning{% endif %}">
+                                                                        {{ draft.estado }}
+                                                                    </span>
+                                                                </div>
+                                                                <div class="op-sap-agreement-meta">
+                                                                    AbsID: <strong>{{ draft.sap_abs_id|default:'-' }}</strong><br>
+                                                                    DocEntry: <strong>{{ draft.docentry|default:'-' }}</strong><br>
+                                                                    DocNum: <strong>{{ draft.docnum|default:'-' }}</strong>
+                                                                    {% if draft.actualizado %}<br>Persistido: {{ draft.actualizado }}{% endif %}
+                                                                    {% if draft.error %}<br><span class="text-danger">{{ draft.error }}</span>{% endif %}
+                                                                </div>
+                                                            </article>
+                                                            {% empty %}
+                                                            <div class="alert alert-warning mb-0">No existe un Draft SAP persistido para los acuerdos operacionales.</div>
+                                                            {% endfor %}
+                                                        </div>
+                                                        Peso salida: <strong>{{ paso.sap_update_despacho.peso_salida|default:'-' }} kg</strong>
+                                                        {% else %}
                                                         Draft DocEntry: <strong>{{ paso.sap_update_despacho.docentry|default:'-' }}</strong>
                                                         | DocNum: <strong>{{ paso.sap_update_despacho.docnum|default:'-' }}</strong>
                                                         | Peso salida: <strong>{{ paso.sap_update_despacho.peso_salida|default:'-' }}</strong>
+                                                        {% endif %}
                                                     </div>
                                                     <div class="sap-update-result-line">
                                                         {% if paso.sap_update_despacho.usuario or paso.sap_update_despacho.fecha_hora %}
@@ -4085,8 +4207,15 @@
                                                         {{ paso.sap_update_despacho.resumen_mensaje|default:'Debe actualizar el documento SAP antes de autorizar la salida.' }}
                                                     </div>
                                                 </div>
+                                                {% if paso.drafts_sap_despacho_operacionales.aplicable and not paso.drafts_sap_despacho_operacionales.actualizacion_habilitada %}
+                                                    <div class="alert alert-warning">
+                                                        <i class="fas fa-lock mr-1"></i>
+                                                        {{ paso.drafts_sap_despacho_operacionales.mensaje_actualizacion }}
+                                                    </div>
+                                                {% endif %}
                                                 {% if paso.activo and paso.puede_editar and not paso.sap_update_despacho.updated %}
-                                                    <button type="button" class="btn btn-primary btn-sm btn-actualizar-sap-despacho">
+                                                    <button type="button" class="btn btn-primary btn-sm btn-actualizar-sap-despacho"
+                                                            {% if paso.drafts_sap_despacho_operacionales.aplicable and not paso.drafts_sap_despacho_operacionales.actualizacion_habilitada or paso.datos_finales_despacho_sbh and not paso.datos_finales_despacho_sbh.ultimas_cargas_completas %}disabled{% endif %}>
                                                         <i class="fas fa-sync-alt mr-1"></i> Actualizar documento SAP
                                                     </button>
                                                 {% elif paso.sap_update_despacho.updated %}
@@ -4151,7 +4280,7 @@
                                                                    name="recepcion_conforme_{{ paso.orden }}"
                                                                    value="SI"
                                                                    {% if paso.autorizar_salida.revision_conformidad.recepcion_conforme == 'SI' %}checked{% endif %}
-                                                                   {% if paso.autorizar_salida.revision_conformidad.recepcion_conforme or not paso.activo or not paso.puede_editar or paso.requiere_update_sap_despacho and not paso.sap_update_despacho.updated or paso.requiere_update_sap_recepcion and not paso.sap_update_recepcion.updated and not paso.es_sbh_recepcion %}disabled{% endif %}>
+                                                                   {% if paso.autorizar_salida.revision_conformidad.recepcion_conforme or not paso.activo or not paso.puede_editar or paso.datos_finales_despacho_sbh and not paso.datos_finales_despacho_sbh.ultimas_cargas_completas or paso.requiere_update_sap_despacho and not paso.sap_update_despacho.updated or paso.requiere_update_sap_recepcion and not paso.sap_update_recepcion.updated and not paso.es_sbh_recepcion %}disabled{% endif %}>
                                                             <span><i class="fas fa-check"></i> Si</span>
                                                         </label>
                                                         <label class="op-auth-option op-conforme-option op-conforme-no is-no">
@@ -4159,13 +4288,20 @@
                                                                    name="recepcion_conforme_{{ paso.orden }}"
                                                                    value="NO"
                                                                    {% if paso.autorizar_salida.revision_conformidad.recepcion_conforme == 'NO' %}checked{% endif %}
-                                                                   {% if paso.autorizar_salida.revision_conformidad.recepcion_conforme or not paso.activo or not paso.puede_editar or paso.requiere_update_sap_despacho and not paso.sap_update_despacho.updated or paso.requiere_update_sap_recepcion and not paso.sap_update_recepcion.updated and not paso.es_sbh_recepcion %}disabled{% endif %}>
+                                                                   {% if paso.autorizar_salida.revision_conformidad.recepcion_conforme or not paso.activo or not paso.puede_editar or paso.datos_finales_despacho_sbh and not paso.datos_finales_despacho_sbh.ultimas_cargas_completas or paso.requiere_update_sap_despacho and not paso.sap_update_despacho.updated or paso.requiere_update_sap_recepcion and not paso.sap_update_recepcion.updated and not paso.es_sbh_recepcion %}disabled{% endif %}>
                                                             <span><i class="fas fa-times"></i> No</span>
                                                         </label>
                                                     </div>
                                                 </div>
+                                             </div>
+                                            {% if paso.activo and paso.puede_editar %}
+                                            <div class="op-authorize-final-actions" {% if not paso.autorizar_salida.revision_conformidad.recepcion_conforme %}hidden{% endif %}>
+                                                <button type="button" class="op-glass-button is-success btn-autorizar-salida-operacion">
+                                                    <i class="op-glass-icon fas fa-check-circle"></i> Autorizar salida
+                                                </button>
                                             </div>
-                                        {% endif %}
+                                            {% endif %}
+                                         {% endif %}
                                     </div>
                                     {% endif %}
 
@@ -4290,113 +4426,37 @@
                                     {% if paso.requiere_cierre_carga_despacho %}
                                     <div class="op-lab-panel op-result-dashboard-panel operacion-cierre-carga-despacho-box"
                                          data-paso="{{ paso.nombre }}"
-                                         data-tipo-imagen-sello="{{ paso.cierre_carga_despacho.tipo_imagen_sello }}"
-                                         data-nro-sellos-dato-id="{{ paso.cierre_carga_despacho.nro_sellos_dato_id }}"
-                                         data-tiene-imagenes="{% if paso.cierre_carga_despacho.imagenes_sellos %}true{% else %}false{% endif %}"
-                                         data-sap-updated="{% if paso.sap_update_despacho.updated %}true{% else %}false{% endif %}">
+                                         data-nro-sellos-dato-id="{{ paso.cierre_carga_despacho.nro_sellos_dato_id }}">
                                         <div class="op-result-dashboard-section">
                                             <div class="op-lab-title"><i class="fas fa-clipboard-check"></i> Cierre Proceso de Carga</div>
-                                            {% if paso.es_despacho_sbh_operacion %}
-                                            <div class="alert {% if paso.sap_update_despacho.updated %}alert-success{% else %}alert-danger{% endif %} operacion-sap-despacho-update-box"
-                                                 data-sap-updated="{% if paso.sap_update_despacho.updated %}true{% else %}false{% endif %}"
-                                                 data-sap-error="{% if paso.sap_update_despacho.is_error %}true{% else %}false{% endif %}">
-                                                {% if paso.sap_update_despacho.updated %}
-                                                    <strong>Draft SAP actualizado con peso de salida.</strong>
-                                                {% else %}
-                                                    <strong>Actualizacion SAP pendiente.</strong>
-                                                    No se puede completar el cierre hasta actualizar el Draft con el peso de salida.
-                                                    {% if paso.activo and paso.puede_editar %}
-                                                    <button type="button" class="btn btn-sm btn-primary ml-2 btn-actualizar-sap-despacho">Reintentar actualizacion SAP</button>
-                                                    {% endif %}
-                                                {% endif %}
-                                            </div>
-                                            {% endif %}
+                                            <div class="op-lab-subtitle">Responsable: ASISTENTE_C_D</div>
                                             <div class="op-close-load-grid">
                                                 <div class="op-field-summary-card op-close-load-field">
-                                                    <div class="op-field-summary-label">Codigo SAP</div>
-                                                    <div class="op-field-summary-value {% if not paso.cierre_carga_despacho.codigo_sap %}is-muted{% endif %}">
-                                                        {{ paso.cierre_carga_despacho.codigo_sap|default:'Sin informacion' }}
-                                                    </div>
-                                                </div>
-                                                <div class="op-field-summary-card op-close-load-field">
-                                                    <div class="op-field-summary-label">N&deg; BACH</div>
-                                                    <div class="op-field-summary-value {% if not paso.cierre_carga_despacho.numero_bach %}is-muted{% endif %}">
-                                                        {{ paso.cierre_carga_despacho.numero_bach|default:'Sin informacion' }}
-                                                    </div>
-                                                </div>
-                                                <div class="op-field-summary-card op-close-load-field">
-                                                    <div class="op-field-summary-label">Estanque Origen</div>
-                                                    <div class="op-field-summary-value {% if not paso.cierre_carga_despacho.estanque_origen %}is-muted{% endif %}">
-                                                        {{ paso.cierre_carga_despacho.estanque_origen|default:'Sin informacion' }}
-                                                    </div>
-                                                </div>
-                                                <div class="op-field-summary-card op-close-load-field">
-                                                    <div class="op-field-summary-label">Fecha de Elaboracion</div>
-                                                    <div class="op-field-summary-value is-muted">{{ paso.cierre_carga_despacho.fecha_elaboracion }}</div>
-                                                </div>
-                                                <div class="op-field-summary-card op-close-load-field">
-                                                    <div class="op-field-summary-label">N&deg; Sellos</div>
+                                                    <label class="op-field-summary-label" for="cierre-nro-sellos-{{ paso.orden }}">Sellos</label>
                                                     <textarea class="form-control cierre-nro-sellos"
+                                                              id="cierre-nro-sellos-{{ paso.orden }}"
                                                               rows="2"
+                                                              placeholder="Ej.: 12345, 12346"
                                                               {% if not paso.activo or not paso.puede_editar %}readonly{% endif %}>{{ paso.cierre_carga_despacho.nro_sellos }}</textarea>
                                                 </div>
                                                 <div class="op-field-summary-card op-close-load-field">
-                                                    <div class="op-field-summary-label">Lote SAP</div>
-                                                    <div class="op-field-summary-value {% if not paso.cierre_carga_despacho.lote_sap %}is-muted{% endif %}">
-                                                        {{ paso.cierre_carga_despacho.lote_sap|default:'Sin informacion' }}
+                                                    <label class="op-field-summary-label" for="cierre-temperatura-{{ paso.orden }}">Temperatura de despacho</label>
+                                                    <div class="op-close-load-temperature">
+                                                        <input type="number"
+                                                               id="cierre-temperatura-{{ paso.orden }}"
+                                                               class="form-control cierre-temperatura"
+                                                               value="{{ paso.cierre_carga_despacho.temperatura }}"
+                                                               step="0.1"
+                                                               inputmode="decimal"
+                                                               {% if not paso.activo or not paso.puede_editar %}readonly{% endif %}>
+                                                        <span class="op-close-load-unit" aria-hidden="true">&deg;C</span>
                                                     </div>
                                                 </div>
-                                                <div class="op-field-summary-card op-close-load-field">
-                                                    <div class="op-field-summary-label">Fecha Vencimiento</div>
-                                                    <div class="op-field-summary-value is-muted">{{ paso.cierre_carga_despacho.fecha_vencimiento }}</div>
-                                                </div>
-                                                <div class="op-field-summary-card op-close-load-field">
-                                                    <div class="op-field-summary-label">Temperatura</div>
-                                                    <input type="text"
-                                                           class="form-control cierre-temperatura"
-                                                           value="{{ paso.cierre_carga_despacho.temperatura }}"
-                                                           {% if not paso.activo or not paso.puede_editar %}readonly{% endif %}>
-                                                </div>
-                                            </div>
-
-                                            <div class="op-seal-images">
-                                                <div class="op-lab-title mb-2"><i class="fas fa-images"></i> Imagenes de sellos</div>
-                                                {% if paso.es_despacho_sbh_operacion and paso.activo and paso.puede_editar %}
-                                                <div class="form-group">
-                                                    <input type="file" class="form-control-file cierre-imagenes-sellos"
-                                                           accept=".jpg,.jpeg,.png,image/jpeg,image/png" multiple>
-                                                    <small class="form-text text-muted">Debe existir al menos una imagen JPG, JPEG o PNG. Puede seleccionar varias.</small>
-                                                    <small class="form-text cierre-imagenes-sellos-estado" aria-live="polite"></small>
-                                                </div>
-                                                {% endif %}
-                                                <div class="cierre-imagenes-sellos-lista">
-                                                {% if paso.cierre_carga_despacho.imagenes_sellos %}
-                                                    <div class="op-seal-image-grid">
-                                                        {% for imagen in paso.cierre_carga_despacho.imagenes_sellos %}
-                                                            <a class="op-seal-image-item" href="{{ imagen.download_url }}" target="_blank" rel="noopener">
-                                                                <img src="{{ imagen.download_url }}" alt="{{ imagen.nombre }}">
-                                                                <div class="op-seal-image-caption">
-                                                                    {{ imagen.nombre|default:'Imagen sello' }}
-                                                                    {% if imagen.fecha %}<br>{{ imagen.fecha }}{% endif %}{% if imagen.usuario %}<br>{{ imagen.usuario }}{% endif %}
-                                                                </div>
-                                                            </a>
-                                                        {% endfor %}
-                                                    </div>
-                                                {% else %}
-                                                    <div class="op-dashboard-muted">Sin imagenes de sellos cargadas</div>
-                                                {% endif %}
-                                                </div>
-                                            </div>
-
-                                            <div class="op-field-summary-card op-close-load-field mt-3">
-                                                <div class="op-field-summary-label">Tres ultimas cargas</div>
-                                                <div class="op-field-summary-value is-muted">{{ paso.cierre_carga_despacho.tres_ultimas_cargas }}</div>
                                             </div>
 
                                             {% if paso.activo and paso.puede_editar %}
-                                                <div class="d-flex justify-content-end mt-3">
-                                                    <button type="button" class="op-glass-button is-success btn-guardar-operacion" data-paso="{{ paso.nombre }}"
-                                                            {% if paso.es_despacho_sbh_operacion and not paso.sap_update_despacho.updated %}disabled{% endif %}>
+                                                <div class="op-close-load-actions">
+                                                    <button type="button" class="op-glass-button is-success btn-guardar-operacion" data-paso="{{ paso.nombre }}">
                                                         <i class="op-glass-icon fas fa-check"></i>
                                                         Enviar siguiente etapa
                                                     </button>
@@ -4574,7 +4634,10 @@
                                     </div>
                                     {% endif %}
 
-                                    {% if paso.implementacion_pendiente and not paso.requiere_autorizar_salida %}
+                                    {% if paso.requiere_inspeccion_inicio_carga %}
+                                        {% include 'home/CITACION/inspeccion_inicio_carga.html' %}
+                                    {% endif %}
+                                    {% if paso.implementacion_pendiente and not paso.requiere_autorizar_salida and not paso.requiere_inspeccion_inicio_carga %}
                                     <div class="alert alert-info mb-0">
                                         Paso configurado para {{ paso.responsable }}. Su acción funcional se habilitará en la Etapa 2.
                                     </div>
@@ -4608,6 +4671,7 @@
                                     <button type="button" class="btn btn-primary btn-guardar-operacion" data-paso="{{ paso.nombre }}">
                                         <i class="fas fa-save"></i> Guardar paso
                                     </button>
+                                    {% endif %}
                                     {% endif %}
                                 </div>
                             </div>
@@ -5304,6 +5368,7 @@
             data: {
                 proceso: proceso,
                 punto_despacho: punto,
+                warehouse_code: String(boton.data('warehouse') || ''),
                 _empresa_id: OPERACION_PLANTA_EMPRESA_ID,
                 empresa_id: OPERACION_PLANTA_EMPRESA_ID
             },
@@ -5341,6 +5406,7 @@
             type: 'POST',
             data: {
                 proceso: proceso,
+                warehouse_code: String(boton.data('warehouse') || ''),
                 _empresa_id: OPERACION_PLANTA_EMPRESA_ID,
                 empresa_id: OPERACION_PLANTA_EMPRESA_ID
             },
@@ -5576,6 +5642,59 @@
         guardarObservacionOperacion($(this));
     });
 
+    $(document).on('click', '.btn-guardar-ultimas-cargas', function () {
+        const button = $(this);
+        const box = button.closest('.operacion-autorizar-salida-box');
+        const inputs = box.find('.ultima-carga-despacho');
+        const cargas = [];
+        const textoOriginal = button.html();
+
+        inputs.each(function () {
+            cargas.push(String($(this).val() || '').trim());
+        });
+        if (cargas.length !== 3 || cargas.some(function (valor) { return !valor; })) {
+            Swal.fire({
+                icon: 'warning',
+                title: 'Datos incompletos',
+                text: 'Debe ingresar exactamente las tres últimas cargas.'
+            });
+            return;
+        }
+
+        $.ajax({
+            url: "{% url 'ajax_operacion_planta_autorizar_salida' citacion.id %}",
+            type: 'POST',
+            data: {
+                accion: 'guardar_ultimas_cargas',
+                carga_1: cargas[0],
+                carga_2: cargas[1],
+                carga_3: cargas[2],
+                _empresa_id: OPERACION_PLANTA_EMPRESA_ID,
+                empresa_id: OPERACION_PLANTA_EMPRESA_ID
+            },
+            headers: { 'X-CSRFToken': getCookie('csrftoken') },
+            beforeSend: function () {
+                button.prop('disabled', true).html('<i class="fas fa-spinner fa-spin mr-1"></i> Guardando...');
+            },
+            success: function (response) {
+                if (!response.success) {
+                    button.prop('disabled', false).html(textoOriginal);
+                    Swal.fire({ icon: 'error', title: 'No fue posible guardar', text: response.message || 'Revise las tres últimas cargas.' });
+                    return;
+                }
+                box.attr('data-ultimas-cargas', 'true');
+                Swal.fire({ icon: 'success', title: 'Datos guardados', text: response.message }).then(function () {
+                    location.reload();
+                });
+            },
+            error: function (xhr) {
+                const response = xhr.responseJSON || {};
+                button.prop('disabled', false).html(textoOriginal);
+                Swal.fire({ icon: 'error', title: 'No fue posible guardar', text: response.message || ('Error HTTP ' + xhr.status + ' al guardar las cargas.') });
+            }
+        });
+    });
+
     $(document).on('click', '.btn-actualizar-sap-despacho', function () {
         const button = $(this);
         const box = button.closest('.operacion-sap-despacho-update-box');
@@ -5779,6 +5898,13 @@
         });
     }
 
+    $(document).on('click', '.btn-autorizar-salida-operacion', function () {
+        const button = $(this);
+        const box = button.closest('.operacion-autorizar-salida-box');
+        const recepcionConforme = box.find('.op-conforme-toggle input[type="radio"]:checked').val() || '';
+        autorizarSalidaOperacion(box, recepcionConforme, button);
+    });
+
     $(document).on('click', '.op-conforme-option', function (event) {
         const opcion = $(this);
         const input = opcion.find('input[type="radio"]');
@@ -5805,7 +5931,7 @@
             url: "{% url 'ajax_operacion_planta_autorizar_salida' citacion.id %}", type: 'POST',
             data: { accion: 'guardar_conformidad', recepcion_conforme: input.val() || '', observacion_descarga: (box.find('.autorizacion-observacion-descarga').val() || '').trim(), _empresa_id: OPERACION_PLANTA_EMPRESA_ID, empresa_id: OPERACION_PLANTA_EMPRESA_ID },
             headers: { 'X-CSRFToken': getCookie('csrftoken') },
-            success: response => { box.find('.op-conforme-toggle input[type="radio"]').prop('disabled', true); box.find('.autorizacion-observacion-descarga').prop('readonly', true); Swal.fire({ icon: 'success', title: 'Conformidad registrada', text: response.message }); },
+            success: response => { box.find('.op-conforme-toggle input[type="radio"]').prop('disabled', true); box.find('.autorizacion-observacion-descarga').prop('readonly', true); box.find('.op-authorize-final-actions').prop('hidden', false); Swal.fire({ icon: 'success', title: 'Conformidad registrada', text: response.message }); },
             error: xhr => { const r=xhr.responseJSON||{}; Swal.fire({ icon:'error', title:'No fue posible guardar', text:r.message||'Error de conformidad.' }); }
         });
     });
@@ -6240,27 +6366,6 @@
         });
     }
 
-    function renderImagenesSellos(cierreCargaBox, imagenes) {
-        const lista = cierreCargaBox.find('.cierre-imagenes-sellos-lista');
-        if (!lista.length) return;
-        if (!imagenes || !imagenes.length) {
-            lista.html('<div class="op-dashboard-muted">Sin imagenes de sellos cargadas</div>');
-            cierreCargaBox.attr('data-tiene-imagenes', 'false');
-            return;
-        }
-        const items = imagenes.map(function (imagen) {
-            const nombre = escaparHtmlOperacion(imagen.nombre || 'Imagen sello');
-            const url = escaparHtmlOperacion(imagen.download_url || '#');
-            const fecha = imagen.fecha ? '<br>' + escaparHtmlOperacion(imagen.fecha) : '';
-            const usuario = imagen.usuario ? '<br>' + escaparHtmlOperacion(imagen.usuario) : '';
-            return '<a class="op-seal-image-item" href="' + url + '" target="_blank" rel="noopener">' +
-                '<img src="' + url + '" alt="' + nombre + '">' +
-                '<div class="op-seal-image-caption">' + nombre + fecha + usuario + '</div></a>';
-        }).join('');
-        lista.html('<div class="op-seal-image-grid">' + items + '</div>');
-        cierreCargaBox.attr('data-tiene-imagenes', 'true');
-    }
-
     function renderDocumentosOperacion(documentos) {
         const contenedor = $('.operacion-documentos-adjuntos');
         if (!contenedor.length) return;
@@ -6286,45 +6391,6 @@
             '<tbody>' + filas + '</tbody></table></div>'
         );
     }
-
-    $(document).on('change', '.cierre-imagenes-sellos', function () {
-        const input = $(this);
-        const archivos = Array.from(this.files || []);
-        if (!archivos.length) return;
-        const cierreCargaBox = input.closest('.operacion-cierre-carga-despacho-box');
-        const estado = cierreCargaBox.find('.cierre-imagenes-sellos-estado');
-        const data = new FormData();
-        data.append('accion', 'subir_imagenes_sellos');
-        data.append('paso', cierreCargaBox.data('paso'));
-        data.append('_empresa_id', '{{ empresa_activa_id }}');
-        archivos.forEach(function (archivo) {
-            data.append('imagenes_sellos', archivo);
-        });
-
-        cierreCargaBox.attr('data-subiendo-imagenes', 'true');
-        input.prop('disabled', true);
-        estado.removeClass('text-danger text-success').addClass('text-info').text('Subiendo imagenes...');
-        $.ajax({
-            url: "{% url 'operacion_planta_guardar_paso' citacion.id %}",
-            type: 'POST',
-            data: data,
-            processData: false,
-            contentType: false,
-            headers: {'X-CSRFToken': getCookie('csrftoken')}
-        }).done(function (response) {
-            renderImagenesSellos(cierreCargaBox, response.imagenes || []);
-            renderDocumentosOperacion(response.documentos_operacion || []);
-            estado.removeClass('text-info text-danger').addClass('text-success').text(response.message || 'Imagenes cargadas correctamente.');
-            Swal.fire({icon: 'success', title: 'Imagenes cargadas', text: response.message || 'Carga completada.'});
-        }).fail(function (xhr) {
-            const mensaje = xhr.responseJSON && xhr.responseJSON.message ? xhr.responseJSON.message : 'No fue posible cargar las imagenes.';
-            estado.removeClass('text-info text-success').addClass('text-danger').text(mensaje);
-            Swal.fire({icon: 'error', title: 'Error de carga', text: mensaje});
-        }).always(function () {
-            cierreCargaBox.attr('data-subiendo-imagenes', 'false');
-            input.prop('disabled', false).val('');
-        });
-    });
 
     function guardarPasoOperacion(paso, boton) {
         const textarea = obtenerObservacionPasoOperacion(paso);
@@ -6392,20 +6458,11 @@
                 return;
             }
 
-            if (String(cierreCargaBox.attr('data-subiendo-imagenes')) === 'true') {
-                Swal.fire({
-                    icon: 'info',
-                    title: 'Carga en proceso',
-                    text: 'Espere a que finalice la subida de imagenes de sellos.'
-                });
-                return;
-            }
-            const tieneImagenes = String(cierreCargaBox.attr('data-tiene-imagenes')) === 'true';
-            if (!tieneImagenes) {
+            if (!Number.isFinite(Number(temperatura.replace(',', '.')))) {
                 Swal.fire({
                     icon: 'warning',
-                    title: 'Imagen de sellos obligatoria',
-                    text: 'Debe cargar al menos una imagen de los sellos antes de cerrar el proceso de carga.'
+                    title: 'Temperatura invalida',
+                    text: 'Debe ingresar una Temperatura numerica valida.'
                 });
                 return;
             }
@@ -6465,7 +6522,9 @@
             Swal.fire({
                 icon: 'warning',
                 title: 'Proceso requerido',
-                text: 'Debe finalizar al menos un proceso de carga/despacho antes de enviar a la siguiente etapa.'
+                text: String($(this).data('por-estanque')) === 'true'
+                    ? 'Debe finalizar todos los estanques seleccionados antes de enviar a la siguiente etapa.'
+                    : 'Debe finalizar al menos un proceso de carga/despacho antes de enviar a la siguiente etapa.'
             });
             return;
         }

@@ -1055,6 +1055,45 @@ class CITACION_DETALLE_OPERACIONAL(models.Model):
         ]
 
 
+class CITACION_TRANSFERENCIA_DETALLE(models.Model):
+    CI_NID = models.ForeignKey(
+        CITACION,
+        verbose_name='Id citacion',
+        on_delete=models.CASCADE,
+        related_name='detalles_transferencia',
+    )
+    EP_NID = models.ForeignKey(EMPRESA, verbose_name='Id empresa', on_delete=models.PROTECT)
+    US_NID = models.ForeignKey(User, verbose_name='Usuario creacion', on_delete=models.PROTECT, null=True, blank=True)
+    CTD_CESTANQUE_ORIGEN = models.CharField('Estanque origen', max_length=128)
+    CTD_CCODIGO_SAP = models.CharField('Codigo SAP', max_length=128)
+    CTD_CINSUMO = models.CharField('Insumo', max_length=256)
+    CTD_CCODIGO_PROPIETARIO = models.CharField('Codigo propietario', max_length=128, null=True, blank=True)
+    CTD_CPROPIEDAD_PRODUCTO = models.CharField('Propiedad producto', max_length=256, null=True, blank=True)
+    CTD_NSTOCK_DISPONIBLE = models.DecimalField('Stock disponible snapshot', max_digits=18, decimal_places=5)
+    CTD_CUNIDAD_INVENTARIO = models.CharField('Unidad inventario snapshot', max_length=128)
+    CTD_NCANTIDAD_A_MOVER = models.DecimalField('Cantidad a mover', max_digits=18, decimal_places=5)
+    CTD_NORDEN = models.PositiveIntegerField('Orden')
+    CTD_FFECHACREACION = models.DateTimeField('Fecha creacion', auto_now_add=True)
+
+    class Meta:
+        db_table = 'CITACION_TRANSFERENCIA_DETALLE'
+        ordering = ['CTD_NORDEN', 'id']
+        constraints = [
+            models.UniqueConstraint(
+                fields=['CI_NID', 'CTD_CESTANQUE_ORIGEN', 'CTD_CCODIGO_SAP'],
+                name='CIT_TRANSF_UNQ_ESTANQUE_ITEM',
+            ),
+            models.UniqueConstraint(
+                fields=['CI_NID', 'CTD_NORDEN'],
+                name='CIT_TRANSF_UNQ_ORDEN',
+            ),
+        ]
+        indexes = [
+            models.Index(fields=['EP_NID', 'CTD_CESTANQUE_ORIGEN'], name='CIT_TRANSF_EP_EST_IDX'),
+            models.Index(fields=['CTD_CCODIGO_SAP'], name='CIT_TRANSF_COD_IDX'),
+        ]
+
+
 class CITACION_DESPACHO_DETALLE(models.Model):
     CI_NID = models.OneToOneField(CITACION, verbose_name='Id citacion', on_delete=models.CASCADE, related_name='detalle_despacho')
     EP_NID = models.ForeignKey(EMPRESA, verbose_name='Id empresa', on_delete=models.PROTECT)
@@ -1069,6 +1108,9 @@ class CITACION_DESPACHO_DETALLE(models.Model):
     CDD_CTELEFONO_CONDUCTOR = models.CharField('Telefono conductor', max_length=64, null=True, blank=True)
     CDD_CPATENTE = models.CharField('Patente', max_length=32, null=True, blank=True)
     CDD_CORDEN_CARGA = models.CharField('Orden de carga', max_length=128, null=True, blank=True)
+    CDD_FFECHA_DESPACHO = models.DateField('Fecha despacho', null=True, blank=True)
+    CDD_FHORA_LLEGADA_PLANTA = models.TimeField('Hora llegada a planta', null=True, blank=True)
+    CDD_FHORA_LLEGADA_DESTINO = models.TimeField('Hora llegada a destino', null=True, blank=True)
     CDD_CVENTANA_HORARIA_DESPACHO = models.CharField('Ventana horaria despacho', max_length=128, null=True, blank=True)
     CDD_NPESO_INFORMADO = models.DecimalField('Peso informado', max_digits=18, decimal_places=5, null=True, blank=True)
     CDD_CBODEGA = models.CharField('Bodega', max_length=128, null=True, blank=True)
@@ -1118,6 +1160,152 @@ class CITACION_DESPACHO_DETALLE(models.Model):
             models.Index(fields=['CDD_CPATENTE'], name='CIT_DESP_PATENTE_IDX'),
             models.Index(fields=['CDD_CSAP_NUMERO_ACUERDO'], name='CIT_DESP_SAP_ACUERDO_IDX'),
         ]
+
+
+class CITACION_DESPACHO_ASIGNACION_SAP(models.Model):
+    ESTADO_PLANIFICADA = 'PLANIFICADA'
+    ESTADO_ANULADA = 'ANULADA'
+    ESTADO_CHOICES = [
+        (ESTADO_PLANIFICADA, 'Planificada'),
+        (ESTADO_ANULADA, 'Anulada'),
+    ]
+
+    CDD_NID = models.ForeignKey(
+        CITACION_DESPACHO_DETALLE,
+        verbose_name='Detalle despacho',
+        on_delete=models.CASCADE,
+        related_name='asignaciones_sap',
+    )
+    EP_NID = models.ForeignKey(EMPRESA, verbose_name='Id empresa', on_delete=models.PROTECT)
+    US_NID = models.ForeignKey(User, verbose_name='Usuario creacion', on_delete=models.PROTECT, null=True, blank=True)
+    CDAS_CSAP_ABS_ID = models.CharField('SAP AbsID snapshot', max_length=128, null=True, blank=True)
+    CDAS_CSAP_NUMERO_ACUERDO = models.CharField('Numero acuerdo SAP snapshot', max_length=128, null=True, blank=True)
+    CDAS_CSAP_LINEA_ACUERDO = models.CharField('Linea acuerdo SAP snapshot', max_length=128, null=True, blank=True)
+    CDAS_CSAP_CODIGO_PRODUCTO = models.CharField('Codigo producto SAP snapshot', max_length=128, null=True, blank=True)
+    CDAS_CSAP_NOMBRE_PRODUCTO = models.CharField('Nombre producto SAP snapshot', max_length=256, null=True, blank=True)
+    CDAS_CSAP_CLIENTE_CODIGO = models.CharField('Codigo cliente SAP snapshot', max_length=128, null=True, blank=True)
+    CDAS_CSAP_CLIENTE_NOMBRE = models.CharField('Nombre cliente SAP snapshot', max_length=256, null=True, blank=True)
+    CDAS_CSAP_OC_CLIENTE = models.CharField('OC cliente SAP snapshot', max_length=128, null=True, blank=True)
+    CDAS_NSAP_CANTIDAD_CONTRATO = models.DecimalField('Cantidad contrato SAP snapshot', max_digits=18, decimal_places=5, null=True, blank=True)
+    CDAS_NSAP_CANTIDAD_CONSUMIDA = models.DecimalField('Cantidad consumida SAP snapshot', max_digits=18, decimal_places=5, null=True, blank=True)
+    CDAS_NSAP_SALDO = models.DecimalField('Saldo SAP snapshot', max_digits=18, decimal_places=5, null=True, blank=True)
+    CDAS_CSAP_UNIDAD_MEDIDA = models.CharField('Unidad medida SAP snapshot', max_length=64, null=True, blank=True)
+    CDAS_NCANTIDAD_INTENTADA_DESPACHAR = models.DecimalField('Cantidad intentada a despachar', max_digits=18, decimal_places=5)
+    CDAS_NORDEN = models.PositiveIntegerField('Orden de asignacion')
+    CDAS_CESTADO = models.CharField('Estado', max_length=16, choices=ESTADO_CHOICES, default=ESTADO_PLANIFICADA)
+    CDAS_FFECHA_SNAPSHOT = models.DateTimeField('Fecha snapshot SAP', default=timezone.now)
+    CDAS_FFECHACREACION = models.DateTimeField('Fecha creacion', auto_now_add=True)
+    CDAS_FFECHAACTUALIZACION = models.DateTimeField('Fecha actualizacion', auto_now=True)
+
+    class Meta:
+        db_table = 'CITACION_DESPACHO_ASIGNACION_SAP'
+        ordering = ['CDAS_NORDEN', 'id']
+        constraints = [
+            models.UniqueConstraint(
+                fields=['CDD_NID', 'CDAS_CSAP_ABS_ID', 'CDAS_CSAP_LINEA_ACUERDO'],
+                name='CIT_DESP_SAP_UNQ_LINEA',
+            ),
+            models.UniqueConstraint(
+                fields=['CDD_NID', 'CDAS_NORDEN'],
+                name='CIT_DESP_SAP_UNQ_ORDEN',
+            ),
+            models.CheckConstraint(
+                check=models.Q(CDAS_NCANTIDAD_INTENTADA_DESPACHAR__gt=0),
+                name='CIT_DESP_SAP_CANT_POSITIVA',
+            ),
+        ]
+        indexes = [
+            models.Index(fields=['EP_NID', 'CDAS_CSAP_ABS_ID'], name='CIT_DESP_SAP_ABS_IDX'),
+            models.Index(fields=['CDAS_CSAP_NUMERO_ACUERDO'], name='CIT_DESP_SAP_NUM_IDX'),
+        ]
+
+
+class CITACION_DESPACHO_CARGA(models.Model):
+    """Configuración operacional; conserva el snapshot de planificación."""
+    CI_NID = models.OneToOneField(CITACION, on_delete=models.PROTECT, related_name='carga_despacho')
+    US_NID = models.ForeignKey(User, on_delete=models.PROTECT)
+    cantidad_total = models.DecimalField(max_digits=18, decimal_places=5)
+    zona_carga = models.CharField(max_length=64)
+    version = models.PositiveIntegerField(default=1)
+    actualizado = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = 'CITACION_DESPACHO_CARGA'
+        constraints = [models.CheckConstraint(check=models.Q(cantidad_total__gt=0), name='DESP_CARGA_TOTAL_POS')]
+
+
+class CITACION_DESPACHO_ACUERDO_OPERACIONAL(models.Model):
+    carga = models.ForeignKey(CITACION_DESPACHO_CARGA, on_delete=models.CASCADE, related_name='acuerdos')
+    sap_abs_id = models.PositiveIntegerField()
+    numero_acuerdo = models.CharField(max_length=128)
+    cliente_codigo = models.CharField(max_length=128)
+    cliente_nombre = models.CharField(max_length=256)
+    oc_cliente = models.CharField(max_length=128, blank=True)
+    cantidad = models.DecimalField(max_digits=18, decimal_places=5)
+    orden = models.PositiveIntegerField()
+
+    class Meta:
+        db_table = 'CITACION_DESPACHO_ACUERDO_OP'
+        ordering = ['orden', 'id']
+        constraints = [
+            models.UniqueConstraint(fields=['carga', 'sap_abs_id'], name='DESP_OP_ACUERDO_UNQ'),
+            models.CheckConstraint(check=models.Q(cantidad__gt=0), name='DESP_OP_ACUERDO_POS'),
+        ]
+
+
+class CITACION_DESPACHO_ACUERDO_ESTANQUE(models.Model):
+    acuerdo = models.ForeignKey(CITACION_DESPACHO_ACUERDO_OPERACIONAL, on_delete=models.CASCADE, related_name='estanques')
+    warehouse_code = models.CharField(max_length=64)
+    item_code = models.CharField(max_length=128)
+    item_name = models.CharField(max_length=256)
+    linea_acuerdo = models.CharField(max_length=128)
+    unidad_medida = models.CharField(max_length=64)
+    cantidad = models.DecimalField(max_digits=18, decimal_places=5)
+    orden = models.PositiveIntegerField()
+
+    class Meta:
+        db_table = 'CITACION_DESPACHO_ACUERDO_TK'
+        ordering = ['orden', 'id']
+        constraints = [
+            models.UniqueConstraint(fields=['acuerdo', 'warehouse_code', 'item_code'], name='DESP_OP_TK_ITEM_UNQ'),
+            models.CheckConstraint(check=models.Q(cantidad__gt=0), name='DESP_OP_TK_POS'),
+        ]
+
+
+class CITACION_DESPACHO_ACUERDO_LOTE(models.Model):
+    estanque = models.ForeignKey(CITACION_DESPACHO_ACUERDO_ESTANQUE, on_delete=models.CASCADE, related_name='lotes')
+    batch_number = models.CharField(max_length=128)
+    fecha_vencimiento = models.DateField(null=True, blank=True)
+    stock_snapshot = models.DecimalField(max_digits=18, decimal_places=5)
+    cantidad = models.DecimalField(max_digits=18, decimal_places=5)
+
+    class Meta:
+        db_table = 'CITACION_DESPACHO_ACUERDO_LOTE'
+        ordering = ['fecha_vencimiento', 'batch_number']
+        constraints = [
+            models.UniqueConstraint(fields=['estanque', 'batch_number'], name='DESP_OP_LOTE_UNQ'),
+            models.CheckConstraint(check=models.Q(cantidad__gt=0, cantidad__lte=models.F('stock_snapshot')), name='DESP_OP_LOTE_STOCK'),
+        ]
+
+
+class CITACION_DESPACHO_DRAFT_SAP(models.Model):
+    """Un envío por acuerdo. PREPARADO no significa documento creado en SAP."""
+    acuerdo = models.OneToOneField(CITACION_DESPACHO_ACUERDO_OPERACIONAL, on_delete=models.PROTECT, related_name='draft')
+    clave_idempotencia = models.CharField(max_length=128, unique=True)
+    estado = models.CharField(max_length=20, default='PREPARADO', choices=[
+        ('PREPARADO', 'Preparado'), ('ENVIANDO', 'Enviando'), ('CREADO', 'Creado'),
+        ('ERROR', 'Error confirmado'), ('INCIERTO', 'Requiere conciliación'),
+    ])
+    docentry = models.CharField(max_length=64, blank=True)
+    docnum = models.CharField(max_length=64, blank=True)
+    payload = models.JSONField(default=dict)
+    respuesta = models.JSONField(default=dict)
+    error = models.TextField(blank=True)
+    intentos = models.PositiveIntegerField(default=0)
+    actualizado = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = 'CITACION_DESPACHO_DRAFT_SAP'
 
 
 class CITACION_RECEPCION_TERRAMAR_DETALLE(models.Model):

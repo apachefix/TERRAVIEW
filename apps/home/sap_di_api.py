@@ -5,6 +5,8 @@ from decimal import Decimal
 from decouple import config
 from hdbcli import dbapi
 
+from apps.integrations.sap_b1.sap_config import SapConfigError, get_sap_company_db
+
 
 HANA_IDENTIFIER_RE = re.compile(r'^[A-Za-z0-9_]+$')
 
@@ -659,8 +661,38 @@ def consultar_detalle_pedido_sap(pedido):
     }
 
 
-def consultar_acuerdos_despacho_sap(termino):
-    company_db = _configured_hana_schema("SAP_HANA_ACUERDOS_COMPANY_DB")
+def _expresion_incoterms_sbh(company_db):
+    """Resuelve el UDF opcional de OAT1 sin invalidar toda la búsqueda."""
+    columnas = _rows(
+        '''
+        SELECT "COLUMN_NAME"
+        FROM "SYS"."TABLE_COLUMNS"
+        WHERE "SCHEMA_NAME" = ?
+          AND "TABLE_NAME" = 'OAT1'
+          AND "COLUMN_NAME" IN ('U_Incoterms', 'U_U_Incoterms')
+        ''',
+        [company_db],
+    )
+    disponibles = {str(fila.get('COLUMN_NAME') or '') for fila in columnas}
+    if 'U_Incoterms' in disponibles:
+        return 'L."U_Incoterms"'
+    if 'U_U_Incoterms' in disponibles:
+        return 'L."U_U_Incoterms"'
+    return 'CAST(NULL AS NVARCHAR(50))'
+
+def consultar_acuerdos_despacho_sap(termino, empresa_id=None):
+    if str(empresa_id or '') == '2':
+        try:
+            company_db = get_sap_company_db(2)
+        except SapConfigError as exc:
+            raise SapDiApiError(str(exc)) from exc
+        if not HANA_IDENTIFIER_RE.match(company_db):
+            raise SapDiApiError('SAP_SBH_COMPANY_DB tiene un formato no valido.')
+        incoterms_sql = _expresion_incoterms_sbh(company_db)
+    else:
+        # Compatibilidad sin cambios para Terramar y consumidores legacy.
+        company_db = _configured_hana_schema("SAP_HANA_ACUERDOS_COMPANY_DB")
+        incoterms_sql = 'L."U_U_Incoterms"'
     termino = (termino or '').strip()
 
     if len(termino) < 2:
@@ -705,7 +737,7 @@ def consultar_acuerdos_despacho_sap(termino):
             L."TrnspCode"  AS "codigo_transporte",
             L."U_CostEstim" AS "centro_costo_estimado",
             L."U_FeeMt"     AS "tarifa_mt",
-            L."U_U_Incoterms" AS "incoterms"
+            {incoterms_sql} AS "incoterms"
         FROM "{company_db}"."OOAT" A
         INNER JOIN "{company_db}"."OAT1" L
             ON L."AgrNo" = A."AbsID"
@@ -733,4 +765,51 @@ def consultar_acuerdos_despacho_sap(termino):
     return {
         'ok': True,
         'resultados': _rows(sql, params)
+    }
+
+def consultar_stock_fisico_despacho_sap(item_code, empresa_id=None):
+    """Consulta informativa de existencia física por warehouse para un ItemCode."""
+    if str(empresa_id or '') != '2':
+        raise SapDiApiError('La consulta de stock físico de despacho sólo está disponible para SBH.')
+
+    item_code = str(item_code or '').strip()
+    if not item_code:
+        raise SapDiApiError('Debe indicar el ItemCode para consultar stock físico SAP.')
+
+    try:
+        company_db = get_sap_company_db(2)
+    except SapConfigError as exc:
+        raise SapDiApiError(str(exc)) from exc
+    if not HANA_IDENTIFIER_RE.match(company_db):
+        raise SapDiApiError('SAP_SBH_COMPANY_DB tiene un formato no válido.')
+
+    sql = f'''
+        SELECT
+            W."ItemCode" AS "item_code",
+            W."WhsCode" AS "whs_code",
+            H."WhsName" AS "whs_name",
+            W."OnHand" AS "on_hand",
+            W."IsCommited" AS "committed",
+            W."OnOrder" AS "on_order",
+            W."OnHand" - W."IsCommited" AS "net_available",
+            I."InvntryUom" AS "unit"
+        FROM "{company_db}"."OITW" W
+        INNER JOIN "{company_db}"."OWHS" H
+            ON H."WhsCode" = W."WhsCode"
+        INNER JOIN "{company_db}"."OITM" I
+            ON I."ItemCode" = W."ItemCode"
+        WHERE W."ItemCode" = ?
+          AND W."OnHand" > 0
+        ORDER BY W."OnHand" DESC, W."WhsCode"
+    '''
+    warehouses = _rows(sql, [item_code])
+    stock_total = sum(float(row.get('on_hand') or 0) for row in warehouses)
+    unidad = next((str(row.get('unit') or '').strip() for row in warehouses if row.get('unit')), '')
+    return {
+        'ok': True,
+        'available': True,
+        'item_code': item_code,
+        'unit': unidad,
+        'stock_total': stock_total,
+        'warehouses': warehouses,
     }

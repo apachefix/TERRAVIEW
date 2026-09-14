@@ -77,6 +77,15 @@
             '</select></div>';
     }
 
+    function patioTransporteCargoField(camion) {
+        return '<div class="form-group mb-0"><label>Transporte a cargo de *</label>' +
+            '<select class="form-control" name="transporte_a_cargo" required>' +
+            '<option value="">Seleccione...</option>' +
+            '<option value="TERRAMAR"' + (camion.transporte_a_cargo === 'TERRAMAR' ? ' selected' : '') + '>Terramar</option>' +
+            '<option value="CLIENTE"' + (camion.transporte_a_cargo === 'CLIENTE' ? ' selected' : '') + '>Cliente</option>' +
+            '</select></div>';
+    }
+
     function patioActualizarCamposRecepcionEdicion(limpiar) {
         const select = $('#patioEditTipoRecepcion');
         if (!select.length) return;
@@ -105,15 +114,17 @@
         }
         return '<form id="patioEditForm">' +
             '<div class="patio-edit-form-grid">' +
+            patioTransporteCargoField(camion) +
             patioField('transportista', 'Empresa transporte', camion.transportista, true) +
             patioField('conductor', 'Nombre conductor', camion.conductor, true) +
             patioField('rut_conductor', 'RUT conductor', camion.rut_conductor, true) +
             patioField('telefono_conductor', 'Celular conductor', camion.telefono, true) +
+            patioField('telefono_codigo_pais', 'Codigo pais', camion.telefono_codigo_pais, true) +
             patioField('patente', 'Patente camion', camion.patente, true) +
-            patioField('proveedor', 'Proveedor declarado', camion.proveedor, true) +
-            patioField('cliente', 'Cliente declarado', camion.cliente, true) +
-            patioField('numero_guia', 'Numero guia/documento', camion.guia, true) +
-            patioField('insumo_declarado_guia', 'Insumo declarado en guia', camion.insumo_declarado_guia, true) +
+            patioField('proveedor', 'Proveedor declarado', camion.proveedor, !camion.es_despacho_sbh) +
+            patioField('cliente', 'Cliente declarado', camion.cliente, !camion.es_despacho_sbh) +
+            patioField('numero_guia', 'Numero guia/documento', camion.guia, !camion.es_despacho_sbh) +
+            patioField('insumo_declarado_guia', 'Insumo declarado en guia', camion.insumo_declarado_guia, !camion.es_despacho_sbh) +
             camposRecepcion +
             '</div>' +
             '<div class="form-group mt-3 mb-0">' +
@@ -204,8 +215,9 @@
         const solicitudBloqueaAsociacion = ['PENDIENTE', 'APROBADO_PENDIENTE_PLANIFICACION'].includes(camion.solicitud_estado);
         const citacionAprobadaId = camion.solicitud_citacion_id || null;
         $('#btnAsociarCamionPatio')
-            .prop('disabled', camion.estado === 'ASOCIADO_CITACION' || solicitudBloqueaAsociacion)
-            .text('Buscar citacion');
+            .toggle(!!permisos.puede_asociar)
+            .prop('disabled', !permisos.puede_asociar || camion.estado === 'ASOCIADO_CITACION' || solicitudBloqueaAsociacion || permisos.asociacion_directa_asistente_despacho)
+            .text(permisos.asociacion_directa_asistente_despacho ? 'Seleccione una citacion' : 'Buscar citacion');
         patioRenderNoPlanificado(camion, permisos);
         $('#patioCitacionAprobada').toggle(!!citacionAprobadaId);
         $('#patioCitacionAprobadaNumero').text(citacionAprobadaId ? '#' + citacionAprobadaId : '');
@@ -226,6 +238,18 @@
             ['Insumo declarado en guia', camion.insumo_declarado_guia],
             ['Cliente declarado', camion.cliente], ['Guia/documento', camion.guia]
         ];
+        if (camion.es_despacho_sbh) {
+            fields.push(
+                ['Origen ingreso', camion.origen_ingreso],
+                ['Citacion candidata', camion.citacion_candidata_id],
+                ['Planificacion candidata', camion.planificacion_candidata_id],
+                ['Fecha citacion candidata', camion.fecha_citacion_candidata],
+                ['Fecha despacho candidata', camion.fecha_despacho_candidata],
+                ['Estado candidato', camion.estado_citacion_candidata],
+                ['Resultado busqueda', camion.resultado_busqueda_planificacion],
+                ['Responsable pendiente', camion.responsable_pendiente]
+            );
+        }
         if (camion.es_recepcion_sbh) {
             fields.push(
                 ['Tipo recepci\u00f3n', camion.tipo_recepcion_label || camion.tipo_recepcion],
@@ -392,7 +416,10 @@
         $(this).addClass('is-selected');
         patioCitacionSeleccionada = $(this).data('citacion-id');
         const solicitudBloquea = patioCamionActual && ['PENDIENTE', 'APROBADO_PENDIENTE_PLANIFICACION'].includes(patioCamionActual.solicitud_estado);
-        $('#btnAsociarCamionPatio').prop('disabled', !patioCamionActual || patioCamionActual.estado === 'ASOCIADO_CITACION' || solicitudBloquea);
+        const permisos = (patioDetalleActual || {}).permisos || {};
+        $('#btnAsociarCamionPatio')
+            .prop('disabled', !permisos.puede_asociar || !patioCamionActual || patioCamionActual.estado === 'ASOCIADO_CITACION' || solicitudBloquea)
+            .text(permisos.asociacion_directa_asistente_despacho ? 'Confirmar asociacion' : 'Buscar citacion');
     });
 
     $(document).off('click', '.patio-citation-filter-btn');
@@ -550,6 +577,34 @@
         });
     });
 
+    function asociarDespachoSeleccionado() {
+        if (!patioCamionActual || !patioCitacionSeleccionada) return;
+        Swal.fire({
+            icon: 'question',
+            title: 'Confirmar asociacion',
+            text: 'Se asociara la citacion de despacho seleccionada al camion en patio.',
+            showCancelButton: true,
+            confirmButtonText: 'Asociar',
+            cancelButtonText: 'Cancelar'
+        }).then(function(result) {
+            if (!result.isConfirmed) return;
+            $.ajax({
+                url: '/camiones-patio/' + patioCamionActual.id + '/asociar/',
+                type: 'POST',
+                headers: {'X-CSRFToken': patioCookie('csrftoken')},
+                data: {_empresa_id: PATIO_EMPRESA_ID, citacion_id: patioCitacionSeleccionada}
+            }).done(function(response) {
+                $('#camionPatioModal').modal('hide');
+                Swal.fire({icon: 'success', title: 'Asociacion confirmada', text: response.message}).then(function() {
+                    window.location.reload();
+                });
+            }).fail(function(xhr) {
+                const response = xhr.responseJSON || {};
+                patioAlert(response.message || 'No fue posible asociar la citacion.', 'danger');
+            });
+        });
+    }
+
     function abrirSelectorTipoCitacion(camionPatioId) {
         Swal.fire({
             title: 'Seleccionar tipo de citacion',
@@ -575,6 +630,11 @@
     $('#btnAsociarCamionPatio').off('click');
     $('#btnAsociarCamionPatio').on('click', function () {
         if (!patioCamionActual) return;
+        const permisos = (patioDetalleActual || {}).permisos || {};
+        if (permisos.asociacion_directa_asistente_despacho) {
+            asociarDespachoSeleccionado();
+            return;
+        }
         const camionPatioId = patioCamionActual.id;
         const modalDetalle = $('#camionPatioModal');
         if (modalDetalle.hasClass('show')) {

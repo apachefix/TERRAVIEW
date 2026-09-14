@@ -48,30 +48,49 @@ class DespachoSbhSapCierreTests(SimpleTestCase):
         actualizar.assert_not_called()
 
     @patch('apps.home.views.guardar_dato_operacion_codigo')
-    @patch('apps.home.views.get_sap_despacho_update_status', return_value={'updated': False})
-    def test_cierre_bloqueado_si_sap_no_esta_actualizado(self, _estado, guardar_dato):
+    @patch('apps.home.views.get_sap_despacho_update_status')
+    def test_cierre_no_depende_del_estado_sap(self, estado_sap, guardar_dato):
+        guardar_dato.return_value = SimpleNamespace(id=55)
         ok, mensaje = views.guardar_cierre_carga_despacho(
             self._citacion(),
             {'despacho_cierre_nro_sellos': 'S1', 'despacho_cierre_temperatura': '20'},
             self.usuario,
         )
 
-        self.assertFalse(ok)
-        self.assertIn('SAP no pudo actualizar', mensaje)
-        guardar_dato.assert_not_called()
+        self.assertTrue(ok)
+        self.assertEqual(mensaje['nro_sellos'], 'S1')
+        self.assertEqual(mensaje['temperatura'], '20')
+        self.assertEqual(guardar_dato.call_count, 2)
+        estado_sap.assert_not_called()
 
-    @patch('apps.home.views._documentos_sellos_despacho', return_value=[])
     @patch('apps.home.views.guardar_dato_operacion_codigo')
-    @patch('apps.home.views.get_sap_despacho_update_status', return_value={'updated': True})
-    def test_cierre_bloqueado_sin_imagen(self, _estado, guardar_dato, _documentos):
+    @patch('apps.home.views._documentos_sellos_despacho')
+    def test_cierre_no_requiere_imagen(self, documentos, guardar_dato):
+        guardar_dato.return_value = SimpleNamespace(id=55)
         ok, mensaje = views.guardar_cierre_carga_despacho(
             self._citacion(),
             {'despacho_cierre_nro_sellos': 'S1', 'despacho_cierre_temperatura': '20'},
             self.usuario,
         )
 
-        self.assertFalse(ok)
-        self.assertIn('al menos una imagen', mensaje)
+        self.assertTrue(ok)
+        self.assertEqual(mensaje['nro_sellos'], 'S1')
+        documentos.assert_not_called()
+
+    @patch('apps.home.views.guardar_dato_operacion_codigo')
+    def test_cierre_valida_sellos_temperatura_y_formato_numerico(self, guardar_dato):
+        casos = (
+            ({'despacho_cierre_nro_sellos': '', 'despacho_cierre_temperatura': '20'}, 'Sellos'),
+            ({'despacho_cierre_nro_sellos': 'S1', 'despacho_cierre_temperatura': ''}, 'Temperatura'),
+            ({'despacho_cierre_nro_sellos': 'S1', 'despacho_cierre_temperatura': 'caliente'}, 'numerico'),
+        )
+        for datos, esperado in casos:
+            with self.subTest(datos=datos):
+                ok, mensaje = views.guardar_cierre_carga_despacho(
+                    self._citacion(), datos, self.usuario,
+                )
+                self.assertFalse(ok)
+                self.assertIn(esperado, mensaje)
         guardar_dato.assert_not_called()
 
     @patch('apps.home.views.CITACION_DOCUMENTO.objects.create')
@@ -154,13 +173,9 @@ class DespachoSbhSapCierreTests(SimpleTestCase):
         with self.assertRaisesRegex(ValueError, 'maximo 10 MB'):
             views._validar_imagen_sello_despacho(archivo)
 
-    @patch('apps.home.views._guardar_imagenes_sellos_despacho')
-    @patch('apps.home.views._documentos_sellos_despacho', return_value=[{'nombre': 'sello-existente.jpg'}])
+    @patch('apps.home.views._documentos_sellos_despacho')
     @patch('apps.home.views.guardar_dato_operacion_codigo')
-    @patch('apps.home.views.get_sap_despacho_update_status', return_value={'updated': True})
-    def test_imagen_existente_permite_cerrar_sin_repetir_la_carga(
-        self, _estado, guardar_dato, _documentos, guardar_imagenes
-    ):
+    def test_cierre_ignora_imagenes_legacy(self, guardar_dato, documentos):
         guardar_dato.return_value = SimpleNamespace(id=55)
 
         ok, resultado = views.guardar_cierre_carga_despacho(
@@ -170,8 +185,49 @@ class DespachoSbhSapCierreTests(SimpleTestCase):
         )
 
         self.assertTrue(ok)
-        self.assertEqual(resultado['imagenes_sellos'][0]['nombre'], 'sello-existente.jpg')
-        guardar_imagenes.assert_not_called()
+        self.assertNotIn('imagenes_sellos', resultado)
+        documentos.assert_not_called()
+
+
+class ResponsableCicloCargaEstanqueSbhTests(SimpleTestCase):
+    def setUp(self):
+        self.citacion = SimpleNamespace(
+            CI_CTIPO='DESPACHO',
+            PL_NID=None,
+            SC_NID=SimpleNamespace(
+                SE_CCODIGO='EST_SBH_CLIENTE',
+                SE_CNOMBRE='Despacho desde Estanque SBH',
+            ),
+        )
+        self.usuario = SimpleNamespace(username='usuario_generico', is_superuser=False)
+
+    def test_asistente_cd_es_responsable_y_sala_control_queda_solo_lectura(self):
+        nombre, pasos = views.obtener_pasos_operacion_citacion(self.citacion)
+        responsables = dict(pasos)[views.PASO_CICLO_CARGA]
+        self.assertEqual(nombre, 'Despacho desde Estanque SBH')
+        self.assertEqual(responsables, ['ASISTENTE C D'])
+        with patch.object(views, 'perfiles_normalizados_usuario', return_value={'ASISTENTE C D'}):
+            self.assertTrue(views.usuario_puede_paso_operacion(self.usuario, responsables))
+        with patch.object(views, 'perfiles_normalizados_usuario', return_value={'SALA CONTROL'}):
+            self.assertFalse(views.usuario_puede_paso_operacion(self.usuario, responsables))
+
+    def test_usuario_sin_empresa_dos_no_obtiene_acceso(self):
+        consulta = Mock()
+        consulta.exists.return_value = False
+        with patch.object(views.USERS_EMPRESA.objects, 'filter', return_value=consulta):
+            self.assertFalse(views._usuario_tiene_acceso_empresa(self.usuario, 2))
+
+    def test_otras_etapas_y_flujos_conservan_responsables(self):
+        especiales = dict(views.PASOS_DESPACHO_CARGA_ESTANQUE)
+        base = dict(views.PASOS_DESPACHO_CARGA)
+        for paso, responsables in base.items():
+            if paso not in {views.PASO_CICLO_CARGA, views.PASO_AUTORIZAR_SALIDA}:
+                self.assertEqual(especiales[paso], responsables)
+        self.assertEqual(especiales[views.PASO_AUTORIZAR_SALIDA], ['ASISTENTE DESPACHO'])
+        self.assertEqual(especiales[views.PASO_CIERRE_CARGA], ['Asistente_C_D'])
+        self.assertEqual(dict(views.FLUJOS_DESPACHO_OPERACION_PLANTA['TRASVASIJE_CLIENTE'])[views.PASO_CICLO_CARGA], ['SALA CONTROL'])
+        self.assertEqual(dict(views.PASOS_RECEPCION_CON_CALIDAD)['Ciclo Descarga'], ['SALA CONTROL'])
+        self.assertEqual(dict(views.PASOS_DESPACHO_TERRAMAR)[views.PASO_CICLO_CARGA_TERRAMAR], [views.PERFIL_TERRAMAR_ASISTENTE_BODEGA])
 
 
 class DespachoSbhUploadInmediatoTests(SimpleTestCase):
@@ -197,7 +253,7 @@ class DespachoSbhUploadInmediatoTests(SimpleTestCase):
         request.user = self.usuario
         return request
 
-    def test_endpoint_persiste_todos_los_archivos_y_devuelve_ambos_bloques(self):
+    def test_endpoint_de_cierre_ya_no_acepta_subida_de_imagenes(self):
         archivos = [
             SimpleUploadedFile('lado1.jpg', b'jpg-1', content_type='image/jpeg'),
             SimpleUploadedFile('lado2.jpg', b'jpg-2', content_type='image/jpeg'),
@@ -235,12 +291,11 @@ class DespachoSbhUploadInmediatoTests(SimpleTestCase):
             )
 
         payload = json.loads(response.content)
-        self.assertEqual(response.status_code, 200)
-        self.assertTrue(payload['success'])
-        self.assertEqual(len(payload['imagenes']), 3)
-        self.assertEqual(len(payload['documentos_operacion']), 3)
-        archivos_guardados = guardar.call_args.args[1]
-        self.assertEqual([archivo.name for archivo in archivos_guardados], ['lado1.jpg', 'lado2.jpg', 'etiqueta.png'])
+        self.assertEqual(response.status_code, 400)
+        self.assertFalse(payload['success'])
+        self.assertIn('Sellos', payload['message'])
+        self.assertNotIn('imagenes', payload)
+        guardar.assert_not_called()
 
     @patch('apps.home.views._documentos_sellos_despacho', return_value=[{
         'id': 4,
@@ -295,4 +350,3 @@ class DespachoSbhReaperturaTests(SimpleTestCase):
         self.assertEqual(cierre.OPL_CESTADO, 'REABIERTO')
         cierre.save.assert_called_once_with(update_fields=['OPL_CESTADO', 'OPL_COBSERVACION'])
         registrar_auditoria.assert_called_once()
-

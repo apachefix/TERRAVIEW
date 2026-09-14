@@ -1,11 +1,12 @@
 from pathlib import Path
 from types import SimpleNamespace
-from unittest.mock import patch
+from unittest.mock import Mock, patch
 
+from django.contrib.auth import get_user_model
 from django.test import RequestFactory, SimpleTestCase
 
 from apps.home import sap_di_api, views
-from apps.home.models import CITACION_DETALLE_OPERACIONAL
+from apps.home.models import CITACION, CITACION_DETALLE_OPERACIONAL, CITACION_TRANSFERENCIA_DETALLE, EMPRESA
 
 
 class RecepcionTransferenciaSbhTests(SimpleTestCase):
@@ -37,9 +38,12 @@ class RecepcionTransferenciaSbhTests(SimpleTestCase):
     def test_modal_y_campos_exclusivos_existen(self):
         template = Path('apps/templates/home/PLANIFICACION/pla_addone.html').read_text(encoding='utf-8')
         self.assertIn('ModalCrearRecepcionTransferencia', template)
-        self.assertIn('productosSapTransferencia', template)
-        self.assertIn('transferencia_codigo_sap', template)
-        self.assertNotIn('transferencia_cantidad_a_mover', template)
+        self.assertIn('transferencia_movimientos', template)
+        self.assertIn('agregarMovimientoTransferencia', template)
+        self.assertIn('transferencia-codigo-sap', template)
+        self.assertIn('transferencia-cantidad', template)
+        self.assertIn('eliminarMovimientoTransferencia', template)
+        self.assertIn('transferencia_total', template)
         self.assertIn('Cantidad de camiones', template)
         self.assertIn('transferencia_almacen_destino', template)
         self.assertIn('transferencia_estanque_destino', template)
@@ -61,11 +65,97 @@ class RecepcionTransferenciaSbhTests(SimpleTestCase):
         template = Path('apps/templates/home/PLANIFICACION/pla_addone.html').read_text(encoding='utf-8')
         self.assertIn('for (let numeroCamion = 1; numeroCamion <= cantidadCamiones; numeroCamion += 1)', template)
         self.assertIn('cantidad_camion: 1', template)
+        self.assertIn('movimientos: recopilado.movimientos', template)
         self.assertIn('function renderizarFilaRecepcionTransferencia(item, index)', template)
         self.assertIn('<th>N° camión</th>', template)
-        self.assertIn('<th>Estanque origen</th>', template)
+        self.assertIn('<th>Movimientos</th>', template)
+        self.assertIn('<th>Total a mover</th>', template)
         self.assertIn('<th>Almacén destino</th>', template)
-        self.assertIn('ES_RECEPCION_TRANSFERENCIA_SBH ? 10', template)
+        self.assertIn('ES_RECEPCION_TRANSFERENCIA_SBH ? 7', template)
+
+    @patch('apps.home.views.obtener_snapshot_recepcion_transferencia_sap')
+    def test_dos_estanques_generan_dos_movimientos_validados(self, snapshot_mock):
+        snapshot_mock.side_effect = [self.productos_sap[0], self.productos_sap[1]]
+
+        movimientos = views.validar_movimientos_recepcion_transferencia_sbh([
+            {'estanque_origen': 'PROSE_T5', 'codigo_sap': '950066', 'cantidad_a_mover': '10'},
+            {'estanque_origen': 'PROSEG10', 'codigo_sap': '800042', 'cantidad_a_mover': '8'},
+        ])
+
+        self.assertEqual(len(movimientos), 2)
+        self.assertEqual(snapshot_mock.call_count, 2)
+        self.assertEqual(movimientos[0]['cantidad_a_mover'], 10)
+
+    @patch('apps.home.views.obtener_snapshot_recepcion_transferencia_sap')
+    def test_mismo_estanque_con_productos_distintos_es_valido(self, snapshot_mock):
+        snapshot_mock.side_effect = [self.productos_sap[0], self.productos_sap[1]]
+
+        movimientos = views.validar_movimientos_recepcion_transferencia_sbh([
+            {'estanque_origen': 'PROSEG10', 'codigo_sap': '950066', 'cantidad_a_mover': '8'},
+            {'estanque_origen': 'PROSEG10', 'codigo_sap': '800042', 'cantidad_a_mover': '4'},
+        ])
+
+        self.assertEqual(len(movimientos), 2)
+
+    def test_rechaza_duplicado_exacto_antes_de_persistir(self):
+        with patch('apps.home.views.obtener_snapshot_recepcion_transferencia_sap', return_value=self.productos_sap[0]):
+            with self.assertRaisesRegex(ValueError, 'ya fue agregado'):
+                views.validar_movimientos_recepcion_transferencia_sbh([
+                    {'estanque_origen': 'PROSEG10', 'codigo_sap': '950066', 'cantidad_a_mover': '8'},
+                    {'estanque_origen': 'PROSEG10', 'codigo_sap': '950066', 'cantidad_a_mover': '4'},
+                ])
+
+    @patch('apps.home.views.obtener_snapshot_recepcion_transferencia_sap')
+    def test_rechaza_cantidad_superior_al_stock(self, snapshot_mock):
+        snapshot_mock.return_value = self.productos_sap[0]
+        with self.assertRaisesRegex(ValueError, 'supera el stock'):
+            views.validar_movimientos_recepcion_transferencia_sbh([
+                {'estanque_origen': 'PROSEG10', 'codigo_sap': '950066', 'cantidad_a_mover': '500'},
+            ])
+
+    def test_modelo_detalle_tiene_relacion_y_restricciones(self):
+        self.assertEqual(
+            CITACION_TRANSFERENCIA_DETALLE._meta.get_field('CI_NID').remote_field.related_name,
+            'detalles_transferencia',
+        )
+        nombres = {constraint.name for constraint in CITACION_TRANSFERENCIA_DETALLE._meta.constraints}
+        self.assertIn('CIT_TRANSF_UNQ_ESTANQUE_ITEM', nombres)
+        self.assertIn('CIT_TRANSF_UNQ_ORDEN', nombres)
+
+    @patch('apps.home.views.CITACION_TRANSFERENCIA_DETALLE.objects.bulk_create')
+    @patch('apps.home.views.CITACION_TRANSFERENCIA_DETALLE.objects.filter')
+    def test_persistencia_crea_un_detalle_por_movimiento(self, filter_mock, bulk_create):
+        filter_mock.return_value.delete.return_value = (0, {})
+        citacion = CITACION(EP_NID=EMPRESA(), US_NID=get_user_model()())
+        movimientos = [
+            {
+                'estanque_origen': 'PROSE_T5', 'codigo_sap': '980047',
+                'insumo': 'BLEND VEGETAL', 'stock_disponible_snapshot': 163.41,
+                'unidad_inventario_snapshot': 'Toneladas Metricas',
+                'cantidad_a_mover': 10, 'orden': 1,
+            },
+            {
+                'estanque_origen': 'PROSEG10', 'codigo_sap': '950066',
+                'insumo': 'ACEITE DE ALGA', 'stock_disponible_snapshot': 487.26,
+                'unidad_inventario_snapshot': 'Toneladas Metricas',
+                'cantidad_a_mover': 8, 'orden': 2,
+            },
+        ]
+
+        views.guardar_detalles_transferencia_citacion(citacion, movimientos)
+
+        detalles = bulk_create.call_args.args[0]
+        self.assertEqual(len(detalles), 2)
+        self.assertEqual(detalles[0].CTD_CESTANQUE_ORIGEN, 'PROSE_T5')
+        self.assertEqual(detalles[1].CTD_NCANTIDAD_A_MOVER, 8)
+
+    def test_validacion_sucede_antes_de_crear_planificacion(self):
+        source = Path(views.__file__).read_text(encoding='utf-8')
+        self.assertLess(
+            source.index('movimientos_validados = validar_movimientos_recepcion_transferencia_sbh'),
+            source.index('planificacion = PLANIFICACION()'),
+        )
+        self.assertIn('@transaction.atomic\ndef CREAR_PLANIFICACION_CITACION', source)
 
     def test_cantidad_camiones_exige_entero_positivo(self):
         for valor in ('', '0', '-1', '1.5', 'texto'):

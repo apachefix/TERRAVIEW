@@ -1,7 +1,7 @@
 {% extends "layouts/base.html" %}
 {% load permission_filters %}
 
-{% block title %}{% if request.user|es_ingreso_camion and tipo_planificacion == 'RECEPCION' %} Ingreso de cami&oacute;n - Recepci&oacute;n {% elif request.user|es_ingreso_camion and tipo_planificacion == 'DESPACHO' %} Ingreso de cami&oacute;n - Despacho {% elif request.user|es_ingreso_camion %} Ingreso de cami&oacute;n {% elif tipo_planificacion == 'RECEPCION' %} Planificaciones Recepci&oacute;n {% elif tipo_planificacion == 'DESPACHO' %} Planificaciones Despacho {% else %} Planificaciones {% endif %}{% endblock %}
+{% block title %}{% if modo_ingreso_camion and tipo_planificacion == 'RECEPCION' %} Ingreso de cami&oacute;n - Recepci&oacute;n {% elif modo_ingreso_camion and tipo_planificacion == 'DESPACHO' %} Ingreso de cami&oacute;n - Despacho {% elif modo_ingreso_camion %} Ingreso de cami&oacute;n {% elif tipo_planificacion == 'RECEPCION' %} Planificaciones Recepci&oacute;n {% elif tipo_planificacion == 'DESPACHO' %} Planificaciones Despacho {% else %} Planificaciones {% endif %}{% endblock %}
 
 {% block stylesheets %}
     <link rel="stylesheet" href="/static/assets/css/plugins/dataTables.bootstrap4.min.css">
@@ -24,12 +24,12 @@
                     <div class="row align-items-center">
                         <div class="col-md-12">
                             <div class="page-header-title">
-                                <h5 class="m-b-10">{% if request.user|es_ingreso_camion and tipo_planificacion == 'RECEPCION' %}Ingreso de cami&oacute;n - Recepci&oacute;n{% elif request.user|es_ingreso_camion and tipo_planificacion == 'DESPACHO' %}Ingreso de cami&oacute;n - Despacho{% elif request.user|es_ingreso_camion %}Ingreso de cami&oacute;n{% elif tipo_planificacion == 'RECEPCION' %}Planificaciones Recepci&oacute;n{% elif tipo_planificacion == 'DESPACHO' %}Planificaciones Despacho{% else %}Planificaciones{% endif %}</h5>
+                                <h5 class="m-b-10">{% if modo_ingreso_camion and tipo_planificacion == 'RECEPCION' %}Ingreso de cami&oacute;n - Recepci&oacute;n{% elif modo_ingreso_camion and tipo_planificacion == 'DESPACHO' %}Ingreso de cami&oacute;n - Despacho{% elif modo_ingreso_camion %}Ingreso de cami&oacute;n{% elif tipo_planificacion == 'RECEPCION' %}Planificaciones Recepci&oacute;n{% elif tipo_planificacion == 'DESPACHO' %}Planificaciones Despacho{% else %}Planificaciones{% endif %}</h5>
                             </div>
                             <ul class="breadcrumb">
                                 <li class="breadcrumb-item"><a href="/"><i class="feather icon-home"></i></a></li>
                                 <li class="breadcrumb-item"><a href="/">TERRAVIEW</a></li>
-                                {% if request.user|es_ingreso_camion %}
+                                {% if modo_ingreso_camion %}
                                     <li class="breadcrumb-item"><a href="{% url 'pla_listall' %}">Ingreso de cami&oacute;n</a></li>
                                     {% if tipo_planificacion == 'RECEPCION' %}
                                         <li class="breadcrumb-item">Recepci&oacute;n</li>
@@ -58,7 +58,7 @@
                                 <h5>Opciones de exportaci&oacute;n</h5>
                             </div>
                             <div class=" mb-2 mb-md-0" style="margin-right: 50px;margin-top: 20px;">
-                                {% if not archivados and not request.user|es_ingreso_camion and not solicitud_no_planificado_id %}
+                                {% if not archivados and not modo_ingreso_camion and not solicitud_no_planificado_id %}
                                     <a href="{% url 'pla_addone' %}{% if tipo_planificacion %}?tipo={{ tipo_planificacion }}{% if flujo_navegacion %}&flujo={{ flujo_navegacion }}{% endif %}{% if empresa_id %}&_empresa_id={{ empresa_id }}{% endif %}{% elif empresa_id %}?_empresa_id={{ empresa_id }}{% endif %}" class="btn  btn-primary d-inline-flex align-items-center mr-2"><i class="fas fa-user-plus"></i>
                                         &nbsp;&nbsp; Nuevo
                                     </a>

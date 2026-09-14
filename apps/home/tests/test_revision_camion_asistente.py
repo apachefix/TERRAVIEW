@@ -1,10 +1,15 @@
 from types import SimpleNamespace
 from unittest.mock import patch
+from pathlib import Path
 
 from django.http import QueryDict
 from django.test import SimpleTestCase
 
-from apps.home.views import _normalizar_datos_edicion_camion_patio, ruta_transportista_asistente_guardada
+from apps.home.views import (
+    _normalizar_datos_edicion_camion_patio,
+    requiere_ruta_transportista_revision,
+    ruta_transportista_asistente_guardada,
+)
 
 
 class RevisionCamionAsistenteTests(SimpleTestCase):
@@ -47,3 +52,51 @@ class RevisionCamionAsistenteTests(SimpleTestCase):
         citacion = SimpleNamespace(TAR_NID_id=1, RUT_NID_id=1, TAR_NID=SimpleNamespace(RUT_NID_id=1))
         with patch('apps.home.views.obtener_datos_operacion_citacion', return_value=({'AR_RUTA_TRANSPORTISTA': dato_vacio}, [])):
             self.assertFalse(ruta_transportista_asistente_guardada(citacion))
+
+    def test_recepcion_sbh_cliente_no_requiere_ruta(self):
+        citacion = SimpleNamespace(CI_CTIPO='RECEPCION', EP_NID_id=2)
+        contexto = {'requiere_ruta_transportista': False}
+        self.assertFalse(requiere_ruta_transportista_revision(citacion, contexto))
+
+    def test_recepcion_sbh_terramar_requiere_ruta(self):
+        citacion = SimpleNamespace(CI_CTIPO='RECEPCION', EP_NID_id=2)
+        contexto = {'requiere_ruta_transportista': True}
+        self.assertTrue(requiere_ruta_transportista_revision(citacion, contexto))
+
+    def test_despacho_sbh_cliente_no_requiere_ruta(self):
+        citacion = SimpleNamespace(CI_CTIPO='DESPACHO', EP_NID_id=2)
+        contexto = {'requiere_ruta_transportista': False}
+        self.assertFalse(requiere_ruta_transportista_revision(citacion, contexto))
+
+    def test_despacho_sbh_terramar_requiere_ruta(self):
+        citacion = SimpleNamespace(CI_CTIPO='DESPACHO', EP_NID_id=2)
+        contexto = {'requiere_ruta_transportista': True}
+        self.assertTrue(requiere_ruta_transportista_revision(citacion, contexto))
+
+    def test_modal_sbh_reconstruye_controles_en_ambos_sentidos(self):
+        template = Path('apps/templates/home/PLANIFICACION/pla_listone.html').read_text(encoding='utf-8')
+        self.assertIn('function reconstruirCamposTransporteRevision(modalidad)', template)
+        self.assertIn("modalActivo.find('.revision-transporte-campo').remove()", template)
+        self.assertIn("reconstruirCamposTransporteRevision($(this).val() === 'CLIENTE' ? 'CLIENTE' : 'TERRAMAR')", template)
+        self.assertIn("$('#bloqueRutaTransportista').remove()", template)
+        self.assertIn('renderRevisionRutaTransportistaCampo([],', template)
+
+    def test_selector_formal_usa_transportista_sbh_estricto_y_conductor_independiente(self):
+        template = Path('apps/templates/home/PLANIFICACION/pla_listone.html').read_text(encoding='utf-8')
+        self.assertIn("empresa_id: empresaId, estricto_empresa: '1'", template)
+        bloque_conductor = template[template.index("$('#revision_conductor').off('.revisionIngreso')"):]
+        bloque_conductor = bloque_conductor[:bloque_conductor.index("$(document).on('click', '#btn_revision_editar_datos'")]
+        self.assertNotIn('transportista_id:', bloque_conductor)
+        self.assertNotIn('transportista:', bloque_conductor)
+
+    def test_conductor_formal_tiene_rut_readonly_y_telefono_editable(self):
+        template = Path('apps/templates/home/PLANIFICACION/pla_listone.html').read_text(encoding='utf-8')
+        self.assertIn('id="revision_rut_conductor" value="${escapeHtml(valores.rut_conductor || \'\')}" readonly', template)
+        self.assertIn('id="revision_telefono_conductor" value="${escapeHtml(valores.telefono_conductor || \'\')}" required', template)
+        self.assertNotIn('id="revision_telefono_conductor" readonly', template)
+
+    def test_backend_reconstruye_maestro_y_admite_transportista_manual_cliente_sbh(self):
+        source = Path('apps/home/views.py').read_text(encoding='utf-8')
+        self.assertIn("datos['CPA_CRUT_CONDUCTOR'] = str(conductor.CON_CRUT or '').strip()", source)
+        self.assertIn("elif Empresa == ID_ACEITES_SBH:\n                datos['CPA_CTRANSPORTISTA_DECLARADO']", source)
+        self.assertIn("queryset_transportistas_validos_ingreso_camion(\n                Empresa, estrictamente_empresa=True", source)

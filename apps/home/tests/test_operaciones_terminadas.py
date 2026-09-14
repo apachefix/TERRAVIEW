@@ -19,11 +19,13 @@ class OperacionesTerminadasTests(TestCase):
         cls.operador = User.objects.create_user('Operador_historial', password='test')
         cls.guardia = User.objects.create_user('Guardia_Porteria_historial', password='test')
         cls.solo_terramar = User.objects.create_user('Operador_solo_terramar', password='test')
+        cls.asistente_despacho = User.objects.create_user('Asistente_Despacho_listado', password='test')
         cls.terramar = cls.empresa(1, 'TERRAMAR CHILE')
         cls.sbh = cls.empresa(2, 'ACEITES SBH')
         for empresa in (cls.terramar, cls.sbh):
             USERS_EMPRESA.objects.create(US_NID=cls.operador, EP_NID=empresa)
             USERS_EMPRESA.objects.create(US_NID=cls.guardia, EP_NID=empresa)
+            USERS_EMPRESA.objects.create(US_NID=cls.asistente_despacho, EP_NID=empresa)
         USERS_EMPRESA.objects.create(US_NID=cls.solo_terramar, EP_NID=cls.terramar)
         for usuario in (cls.operador, cls.solo_terramar):
             perfil = PERFIL.objects.create(
@@ -36,6 +38,12 @@ class OperacionesTerminadasTests(TestCase):
             PR_CNOMBRE='GUARDIA PORTERIA',
         )
         PERFIL_USUARIO.objects.create(US_NID=cls.guardia, PR_NID=perfil_guardia)
+        perfil_despacho = PERFIL.objects.create(
+            US_NID=cls.asistente_despacho,
+            PR_CCODIGO='ASISTENTE_DESPACHO',
+            PR_CNOMBRE='ASISTENTE DESPACHO',
+        )
+        PERFIL_USUARIO.objects.create(US_NID=cls.asistente_despacho, PR_NID=perfil_despacho)
         cls.citaciones = {}
         for empresa in (cls.terramar, cls.sbh):
             calendario = CALENDARIO.objects.create(
@@ -133,6 +141,37 @@ class OperacionesTerminadasTests(TestCase):
         self.assertIn(self.citaciones[(1, 'RECEPCION', 'activa')].id, ids)
         self.assertIn(self.intermedia.id, ids)
         self.assertNotIn(self.citaciones[(1, 'RECEPCION', 'terminada')].id, ids)
+
+    def test_asistente_despacho_ve_ep2_aunque_etapa_sea_de_otro_perfil(self):
+        citacion = self.citaciones[(2, 'DESPACHO', 'activa')]
+        self.client.force_login(self.asistente_despacho)
+        response = self.client.get(self.url(self.sbh, 'DESPACHO'))
+        self.assertEqual(response.status_code, 200)
+        self.assertIn(citacion.id, self.ids(response))
+        fila = next(item for item in response.context['object_list'] if item.id == citacion.id)
+        self.assertEqual(fila.nombre_paso_activo, 'Pesaje Entrada')
+        self.assertFalse(fila.paso_activo_usuario)
+
+        detalle = self.client.get(
+            f"{reverse('operacion_planta_citacion', args=[citacion.id])}?empresa_id=2&_empresa_id=2"
+        )
+        self.assertEqual(detalle.status_code, 200)
+        pesaje = next(
+            paso for paso in detalle.context['pasos']
+            if paso['nombre'] == 'Pesaje Entrada'
+        )
+        self.assertFalse(pesaje['puede_editar'])
+
+    def test_operacion_planta_no_expone_empresa_no_asignada(self):
+        self.client.force_login(self.solo_terramar)
+        response = self.client.get(self.url(self.sbh, 'DESPACHO'))
+        if response.status_code == 200 and response.context:
+            self.assertNotIn(
+                self.citaciones[(2, 'DESPACHO', 'activa')].id,
+                self.ids(response),
+            )
+        else:
+            self.assertIn(response.status_code, {302, 403})
 
     def test_confirmar_salida_mueve_inmediatamente_entre_bandejas(self):
         citacion = self.citaciones[(1, 'RECEPCION', 'activa')]

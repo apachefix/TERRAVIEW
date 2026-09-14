@@ -544,6 +544,38 @@
         white-space: normal;
     }
 
+    .accion-log-asociacion {
+        display: inline-flex;
+        flex-direction: row;
+        align-items: center;
+        gap: 12px;
+        flex-wrap: nowrap;
+        width: max-content;
+        max-width: none;
+    }
+
+    .accion-log-asociacion > .btn,
+    .accion-log-asociacion > .action-button-group {
+        flex: 0 0 auto;
+    }
+
+    .accion-log-asociacion > .estado-envio-asistente {
+        flex: 0 1 auto;
+        margin-top: 0;
+    }
+
+    .accion-log-asociacion .action-button-group {
+        display: inline-flex;
+    }
+
+    @media (max-width: 575.98px) {
+        .accion-log-asociacion {
+            flex-wrap: wrap;
+            width: auto;
+            max-width: 100%;
+        }
+    }
+
     .acciones-enviada {
         display: grid;
         grid-template-columns: max-content 185px;
@@ -1024,7 +1056,7 @@
                                     <button type="button" class="btn btn-warning" data-toggle="modal" data-target="#ModalSolicitudCamionNoPlanificado">
                                         Camión no planificado
                                     </button>
-                                    {% elif not request.user|es_ingreso_camion %}
+                                    {% elif not modo_ingreso_camion %}
                                     {% if planificacion.PL_CTIPOCUPO == 'DESPACHO' and solicitud_camion_patio_no_planificado %}
                                     <button type="button" class="btn btn-warning" onclick="abrirModalDespachoNoPlanificado()">
                                         Camión no planificado
@@ -1075,7 +1107,7 @@
                                                 {% for object in despachos %}
                                                     <tr id="citacion-row-{{ object.0 }}" data-citacion-id="{{ object.0 }}" class="{% if object.43 %}fila-devuelta-guardia{% elif object.40 %}fila-pendiente-envio{% elif object.37 %}citacion-enviada-siguiente{% elif object.34 %}citacion-enviada-siguiente{% elif object.30 %}citacion-enviada-siguiente{% elif object.27 %}citacion-estanque-asignado{% elif object.24 %}citacion-aprobada-asistente{% elif object.21 %}citacion-enviada-asistente{% endif %}{% if object.54.mostrar_alerta_sugerida %} citacion-sugerida-activa citacion-sugerida-pulse{% endif %}">
                                                         <td>
-                                                            <div class="pulse-button-container {% if request.user|es_guardia and object.43 %}acciones-enviada acciones-devolucion-guardia{% elif request.user|es_guardia and object.40 %}acciones-enviada acciones-pendiente-envio{% elif request.user|es_guardia and object.34 %}acciones-enviada{% elif request.user|es_guardia and object.21 %}acciones-enviada{% elif request.user|es_asistente_recepcion and object.24 %}acciones-enviada{% elif request.user|es_asistente_recepcion and object.21 %}acciones-enviada{% elif request.user.is_superuser and object.24 %}acciones-enviada{% elif request.user.is_superuser and object.21 %}acciones-enviada{% elif request.user|es_asistente_cd and object.30 %}acciones-enviada{% elif request.user|es_asistente_cd %}acciones-enviada{% endif %}">
+                                                            <div class="pulse-button-container {% if request.user|es_guardia and object.43 %}acciones-enviada acciones-devolucion-guardia{% elif request.user|es_guardia and object.40 %}acciones-enviada acciones-pendiente-envio{% elif request.user|es_guardia and object.34 %}acciones-enviada{% elif request.user|es_guardia and object.21 %}acciones-enviada{% elif request.user.is_superuser and object.24 %}acciones-enviada{% elif request.user.is_superuser and object.21 %}acciones-enviada{% elif request.user|es_asistente_cd and object.30 %}acciones-enviada{% elif request.user|es_asistente_cd %}acciones-enviada{% endif %}">
                                                                 {% if object.54.mostrar_alerta_sugerida %}
                                                                     <span class="badge badge-warning citacion-sugerida-row-badge">Citacion sugerida seleccionada</span>
                                                                     <div class="small text-muted">Seleccione esta citacion para asociar el camion.</div>
@@ -1142,7 +1174,8 @@
                                                                     <button type="button" class="btn btn-primary btn-sm" onclick="openCitationSummaryModal({{ object.0 }})" title="Ver ingreso guardado">
                                                                         <i class="fas fa-eye"></i>
                                                                     </button>
-                                                                {% elif request.user|es_asistente_recepcion and object.24 %}
+                                                                {% elif request.user|es_asistente_recepcion and object.24 or es_asistente_despacho_ingreso and object.24 %}
+                                                                    <div class="accion-log-asociacion">
                                                                     <button type="button" class="btn btn-outline-primary btn-sm" onclick="openRevisionAsistenteModal({{ object.0 }})" title="Ver resumen aprobado">
                                                                         <i class="fas fa-eye"></i>
                                                                     </button>
@@ -1151,6 +1184,7 @@
                                                                         <div>Fecha: {% if object.26 %}{{ object.26|date:'d/m/Y H:i' }}{% else %}No registrada{% endif %}</div>
                                                                         <div>Usuario: {{ object.25|default:'No registrado' }}</div>
                                                                         <div>Etapa: {{ object.3 }}</div>
+                                                                    </div>
                                                                     </div>
                                                                 {% elif request.user.is_superuser and object.24 %}
                                                                     <button type="button" class="btn btn-outline-primary btn-sm" onclick="openRevisionAsistenteModal({{ object.0 }})" title="Ver citación">
@@ -1162,7 +1196,8 @@
                                                                         <div>Usuario: {{ object.25|default:'No registrado' }}</div>
                                                                         <div>Etapa: {{ object.3 }}</div>
                                                                     </div>
-                                                                {% elif request.user|es_asistente_recepcion and object.21 %}
+                                                                {% elif request.user|es_asistente_recepcion and object.21 or es_asistente_despacho_ingreso and object.21 %}
+                                                                    <div class="accion-log-asociacion">
                                                                     <button type="button"
                                                                             class="btn btn-success btn-sm"
                                                                             onclick="openRevisionAsistenteModal({{ object.0 }})"
@@ -1175,6 +1210,7 @@
                                                                         <div>Fecha: {% if object.51 %}{{ object.51|date:'d/m/Y H:i' }}{% elif object.23 %}{{ object.23|date:'d/m/Y H:i' }}{% else %}No registrada{% endif %}</div>
                                                                         <div>Usuario: {% if object.50 %}{{ object.50 }}{% else %}{{ object.22|default:'No registrado' }}{% endif %}</div>
                                                                         <div>Enviar a Asistente_C_D</div>
+                                                                    </div>
                                                                     </div>
                                                                 {% elif request.user.is_superuser and object.21 %}
                                                                     <button type="button"
@@ -1211,7 +1247,7 @@
                                                                         <div>{% if object.27 %}<span class="badge badge-warning">Estanque: {{ object.27 }}</span>{% else %}Estanque pendiente{% endif %}</div>
                                                                     </div>
                                                                 {% elif object.0 in citaciones_responsable and object.17 == 'EN PROCESO' %}
-                                                                    {% if request.user|es_asistente_recepcion and object.46 %}
+                                                                    {% if request.user|es_asistente_recepcion and object.46 or es_asistente_despacho_ingreso and object.46 %}
                                                                     <button type="button" class="btn btn-info btn-sm{% if object.54.mostrar_alerta_sugerida %} citacion-sugerida-action{% endif %}" onclick="openAsociarCamionPatioModal({{ object.0 }})" title="Asociar camion en patio">
                                                                         <i class="fas fa-link"></i> Asociar camion en patio
                                                                     </button>
@@ -1219,21 +1255,21 @@
                                                                     <button type="button" class="btn btn-info btn-sm{% if object.54.mostrar_alerta_sugerida %} citacion-sugerida-action{% endif %}" onclick="openAsociarCamionPatioModal({{ object.0 }})" title="Asociar camion en patio">
                                                                         <i class="fas fa-link"></i> Asociar camion en patio
                                                                     </button>
-                                                                    {% elif request.user|es_ingreso_camion %}
+                                                                    {% elif modo_ingreso_camion %}
                                                                     {% else %}
                                                                     <a class="pulse-button" href="#" onclick="openCitationSummaryModal({{ object.0 }}); return false;">
                                                                     {% endif %}
-                                                                    {% if not request.user|es_ingreso_camion and not request.user|es_asistente_recepcion %}
+                                                                    {% if not modo_ingreso_camion and not request.user|es_asistente_recepcion %}
                                                                         <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16">
                                                                             <path d="M16 8s-3-5.5-8-5.5S0 8 0 8s3 5.5 8 5.5S16 8 16 8zM1.173 8a13.133 13.133 0 0 1 1.66-2.043C4.12 4.668 5.88 3.5 8 3.5c2.12 0 3.879 1.168 5.168 2.457A13.133 13.133 0 0 1 14.828 8c-.058.087-.122.183-.195.288-.335.48-.83 1.12-1.465 1.755C11.879 11.332 10.119 12.5 8 12.5c-2.12 0-3.879-1.168-5.168-2.457A13.134 13.134 0 0 1 1.172 8z"/>
                                                                             <path d="M8 5.5a2.5 2.5 0 1 0 0 5 2.5 2.5 0 0 0 0-5zM4.5 8a3.5 3.5 0 1 1 7 0 3.5 3.5 0 0 1-7 0z"/>
                                                                         </svg>
                                                                     {% endif %}
-                                                                    {% if not request.user|es_ingreso_camion and not request.user|es_asistente_recepcion %}
+                                                                    {% if not modo_ingreso_camion and not request.user|es_asistente_recepcion %}
                                                                     </a>
                                                                     {% endif %}
                                                                 {% else %}
-                                                                    {% if request.user|es_asistente_recepcion and object.46 %}
+                                                                    {% if request.user|es_asistente_recepcion and object.46 or es_asistente_despacho_ingreso and object.46 %}
                                                                     <button type="button" class="btn btn-info btn-sm{% if object.54.mostrar_alerta_sugerida %} citacion-sugerida-action{% endif %}" onclick="openAsociarCamionPatioModal({{ object.0 }})" title="Asociar camion en patio">
                                                                         <i class="fas fa-link"></i> Asociar camion en patio
                                                                     </button>
@@ -1241,21 +1277,21 @@
                                                                     <button type="button" class="btn btn-info btn-sm{% if object.54.mostrar_alerta_sugerida %} citacion-sugerida-action{% endif %}" onclick="openAsociarCamionPatioModal({{ object.0 }})" title="Asociar camion en patio">
                                                                         <i class="fas fa-link"></i> Asociar camion en patio
                                                                     </button>
-                                                                    {% elif request.user|es_ingreso_camion %}
+                                                                    {% elif modo_ingreso_camion %}
                                                                     {% else %}
                                                                     <a class="btn btn-primary btn-sm" href="#" onclick="openCitationSummaryModal({{ object.0 }}); return false;">
                                                                     {% endif %}
-                                                                    {% if not request.user|es_ingreso_camion and not request.user|es_asistente_recepcion %}
+                                                                    {% if not modo_ingreso_camion and not request.user|es_asistente_recepcion %}
                                                                         <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-eye" viewBox="0 0 16 16">
                                                                             <path d="M16 8s-3-5.5-8-5.5S0 8 0 8s3 5.5 8 5.5S16 8 16 8zM1.173 8a13.133 13.133 0 0 1 1.66-2.043C4.12 4.668 5.88 3.5 8 3.5c2.12 0 3.879 1.168 5.168 2.457A13.133 13.133 0 0 1 14.828 8c-.058.087-.122.183-.195.288-.335.48-.83 1.12-1.465 1.755C11.879 11.332 10.119 12.5 8 12.5c-2.12 0-3.879-1.168-5.168-2.457A13.134 13.134 0 0 1 1.172 8z"/>
                                                                             <path d="M8 5.5a2.5 2.5 0 1 0 0 5 2.5 2.5 0 0 0 0-5zM4.5 8a3.5 3.5 0 1 1 7 0 3.5 3.5 0 0 1-7 0z"/>
                                                                         </svg>
                                                                     {% endif %}
-                                                                    {% if not request.user|es_ingreso_camion and not request.user|es_asistente_recepcion %}
+                                                                    {% if not modo_ingreso_camion and not request.user|es_asistente_recepcion %}
                                                                     </a>
                                                                     {% endif %}
                                                                 {% endif%}
-                                                                {% if not request.user|es_ingreso_camion %}
+                                                                {% if not modo_ingreso_camion %}
                                                                     <button type="button" class="btn btn-warning btn-sm" onclick="openEditModal({{ object.0 }})" title="Editar">
                                                                         <i class="fas fa-edit"></i>
                                                                     </button>
@@ -1324,7 +1360,7 @@
                                                 {% for object in recepciones %}
                                                     <tr id="citacion-row-{{ object.0 }}" data-citacion-id="{{ object.0 }}" class="{% if object.37 %}fila-devuelta-guardia{% elif object.34 %}fila-pendiente-envio{% elif object.31 %}citacion-enviada-siguiente{% elif object.28 %}citacion-enviada-siguiente{% elif object.24 %}citacion-enviada-siguiente{% elif object.21 %}citacion-estanque-asignado{% elif object.18 %}citacion-aprobada-asistente{% elif object.15 %}citacion-enviada-asistente{% endif %}{% if object.47.mostrar_alerta_sugerida %} citacion-sugerida-activa citacion-sugerida-pulse{% endif %}">
                                                         <td>
-                                                            <div class="pulse-button-container {% if object.46 and request.user.is_superuser and object.18 %}acciones-sap{% elif object.46 and request.user|es_asistente_cd and not object.24 %}acciones-sap{% elif request.user|es_guardia and object.37 %}acciones-enviada acciones-devolucion-guardia{% elif request.user|es_guardia and object.34 %}acciones-enviada acciones-pendiente-envio{% elif request.user|es_guardia and object.28 %}acciones-enviada{% elif request.user|es_guardia and object.15 %}acciones-enviada{% elif request.user|es_asistente_recepcion and object.18 %}acciones-enviada{% elif request.user|es_asistente_recepcion and object.15 %}acciones-enviada{% elif request.user.is_superuser and object.18 %}acciones-enviada{% elif request.user.is_superuser and object.15 %}acciones-enviada{% elif request.user|es_asistente_cd and object.24 %}acciones-enviada{% elif request.user|es_asistente_cd %}acciones-enviada{% endif %}">
+                                                            <div class="pulse-button-container {% if object.46 and request.user.is_superuser and object.18 %}acciones-sap{% elif object.46 and request.user|es_asistente_cd and not object.24 %}acciones-sap{% elif request.user|es_guardia and object.37 %}acciones-enviada acciones-devolucion-guardia{% elif request.user|es_guardia and object.34 %}acciones-enviada acciones-pendiente-envio{% elif request.user|es_guardia and object.28 %}acciones-enviada{% elif request.user|es_guardia and object.15 %}acciones-enviada{% elif request.user.is_superuser and object.18 %}acciones-enviada{% elif request.user.is_superuser and object.15 %}acciones-enviada{% elif request.user|es_asistente_cd and object.24 %}acciones-enviada{% elif request.user|es_asistente_cd %}acciones-enviada{% endif %}">
                                                                 {% if object.47.mostrar_alerta_sugerida %}
                                                                     <span class="badge badge-warning citacion-sugerida-row-badge">Citacion sugerida seleccionada</span>
                                                                     <div class="small text-muted">Seleccione esta citacion para asociar el camion.</div>
@@ -1410,7 +1446,8 @@
                                                                     <button type="button" class="btn btn-primary btn-sm" onclick="openCitationSummaryModal({{ object.0 }})" title="Ver ingreso guardado">
                                                                         <i class="fas fa-eye"></i>
                                                                     </button>
-                                                                {% elif request.user|es_asistente_recepcion and object.18 %}
+                                                                {% elif request.user|es_asistente_recepcion and object.18 or es_asistente_despacho_ingreso and object.18 %}
+                                                                    <div class="accion-log-asociacion">
                                                                     <button type="button" class="btn btn-outline-primary btn-sm" onclick="openRevisionAsistenteModal({{ object.0 }})" title="Ver resumen aprobado">
                                                                         <i class="fas fa-eye"></i>
                                                                     </button>
@@ -1419,6 +1456,7 @@
                                                                         <div>Fecha: {% if object.20 %}{{ object.20|date:'d/m/Y H:i' }}{% else %}No registrada{% endif %}</div>
                                                                         <div>Usuario: {{ object.19|default:'No registrado' }}</div>
                                                                         <div>Etapa: {{ object.5 }}</div>
+                                                                    </div>
                                                                     </div>
                                                                 {% elif request.user.is_superuser and object.18 %}
                                                                     {% if object.46 %}
@@ -1438,7 +1476,8 @@
                                                                         <div>Usuario: {{ object.19|default:'No registrado' }}</div>
                                                                         <div>Etapa: {{ object.5 }}</div>
                                                                     </div>
-                                                                {% elif request.user|es_asistente_recepcion and object.15 %}
+                                                                {% elif request.user|es_asistente_recepcion and object.15 or es_asistente_despacho_ingreso and object.15 %}
+                                                                    <div class="accion-log-asociacion">
                                                                     <div class="action-button-group">
                                                                         <button type="button"
                                                                                 class="btn btn-success btn-sm js-avanzar-asistente"
@@ -1454,6 +1493,7 @@
                                                                         <div>Fecha: {% if object.45 %}{{ object.45|date:'d/m/Y H:i' }}{% elif object.17 %}{{ object.17|date:'d/m/Y H:i' }}{% else %}No registrada{% endif %}</div>
                                                                         <div>Usuario: {% if object.44 %}{{ object.44 }}{% else %}{{ object.16|default:'No registrado' }}{% endif %}</div>
                                                                         <div>Validar y enviar a Asistente_C_D</div>
+                                                                    </div>
                                                                     </div>
                                                                 {% elif request.user.is_superuser and object.15 %}
                                                                     <div class="action-button-group">
@@ -1500,7 +1540,7 @@
                                                                         <div>{% if object.21 %}<span class="badge badge-warning">Estanque: {{ object.21 }}</span>{% else %}Estanque pendiente{% endif %}</div>
                                                                     </div>
                                                                 {% elif object.0 in citaciones_responsable and object.12 == 'EN PROCESO' %}
-                                                                    {% if request.user|es_asistente_recepcion and object.40 %}
+                                                                    {% if request.user|es_asistente_recepcion and object.40 or es_asistente_despacho_ingreso and object.40 %}
                                                                     <button type="button" class="btn btn-info btn-sm{% if object.47.mostrar_alerta_sugerida %} citacion-sugerida-action{% endif %}" onclick="openAsociarCamionPatioModal({{ object.0 }})" title="Asociar camion en patio">
                                                                         <i class="fas fa-link"></i> Asociar camion en patio
                                                                     </button>
@@ -1508,21 +1548,21 @@
                                                                     <button type="button" class="btn btn-info btn-sm{% if object.47.mostrar_alerta_sugerida %} citacion-sugerida-action{% endif %}" onclick="openAsociarCamionPatioModal({{ object.0 }})" title="Asociar camion en patio">
                                                                         <i class="fas fa-link"></i> Asociar camion en patio
                                                                     </button>
-                                                                    {% elif request.user|es_ingreso_camion %}
+                                                                    {% elif modo_ingreso_camion %}
                                                                     {% else %}
                                                                     <a class="pulse-button btn btn-primary btn-sm" href="#" onclick="openCitationSummaryModal({{ object.0 }}); return false;">
                                                                     {% endif %}
-                                                                    {% if not request.user|es_ingreso_camion and not request.user|es_asistente_recepcion %}
+                                                                    {% if not modo_ingreso_camion and not request.user|es_asistente_recepcion %}
                                                                         <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16">
                                                                             <path d="M16 8s-3-5.5-8-5.5S0 8 0 8s3 5.5 8 5.5S16 8 16 8zM1.173 8a13.133 13.133 0 0 1 1.66-2.043C4.12 4.668 5.88 3.5 8 3.5c2.12 0 3.879 1.168 5.168 2.457A13.133 13.133 0 0 1 14.828 8c-.058.087-.122.183-.195.288-.335.48-.83 1.12-1.465 1.755C11.879 11.332 10.119 12.5 8 12.5c-2.12 0-3.879-1.168-5.168-2.457A13.134 13.134 0 0 1 1.172 8z"/>
                                                                             <path d="M8 5.5a2.5 2.5 0 1 0 0 5 2.5 2.5 0 0 0 0-5zM4.5 8a3.5 3.5 0 1 1 7 0 3.5 3.5 0 0 1-7 0z"/>
                                                                         </svg>
                                                                     {% endif %}
-                                                                    {% if not request.user|es_ingreso_camion and not request.user|es_asistente_recepcion %}
+                                                                    {% if not modo_ingreso_camion and not request.user|es_asistente_recepcion %}
                                                                     </a>
                                                                     {% endif %}
                                                                 {% else %}
-                                                                    {% if request.user|es_asistente_recepcion and object.40 %}
+                                                                    {% if request.user|es_asistente_recepcion and object.40 or es_asistente_despacho_ingreso and object.40 %}
                                                                     <button type="button" class="btn btn-info btn-sm{% if object.47.mostrar_alerta_sugerida %} citacion-sugerida-action{% endif %}" onclick="openAsociarCamionPatioModal({{ object.0 }})" title="Asociar camion en patio">
                                                                         <i class="fas fa-link"></i> Asociar camion en patio
                                                                     </button>
@@ -1530,21 +1570,21 @@
                                                                     <button type="button" class="btn btn-info btn-sm{% if object.47.mostrar_alerta_sugerida %} citacion-sugerida-action{% endif %}" onclick="openAsociarCamionPatioModal({{ object.0 }})" title="Asociar camion en patio">
                                                                         <i class="fas fa-link"></i> Asociar camion en patio
                                                                     </button>
-                                                                    {% elif request.user|es_ingreso_camion %}
+                                                                    {% elif modo_ingreso_camion %}
                                                                     {% else %}
                                                                     <a class="btn btn-primary btn-sm" href="#" onclick="openCitationSummaryModal({{ object.0 }}); return false;">
                                                                     {% endif %}
-                                                                    {% if not request.user|es_ingreso_camion and not request.user|es_asistente_recepcion %}
+                                                                    {% if not modo_ingreso_camion and not request.user|es_asistente_recepcion %}
                                                                         <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-eye" viewBox="0 0 16 16">
                                                                             <path d="M16 8s-3-5.5-8-5.5S0 8 0 8s3 5.5 8 5.5S16 8 16 8zM1.173 8a13.133 13.133 0 0 1 1.66-2.043C4.12 4.668 5.88 3.5 8 3.5c2.12 0 3.879 1.168 5.168 2.457A13.133 13.133 0 0 1 14.828 8c-.058.087-.122.183-.195.288-.335.48-.83 1.12-1.465 1.755C11.879 11.332 10.119 12.5 8 12.5c-2.12 0-3.879-1.168-5.168-2.457A13.134 13.134 0 0 1 1.172 8z"/>
                                                                             <path d="M8 5.5a2.5 2.5 0 1 0 0 5 2.5 2.5 0 0 0 0-5zM4.5 8a3.5 3.5 0 1 1 7 0 3.5 3.5 0 0 1-7 0z"/>
                                                                         </svg>
                                                                     {% endif %}
-                                                                    {% if not request.user|es_ingreso_camion and not request.user|es_asistente_recepcion %}
+                                                                    {% if not modo_ingreso_camion and not request.user|es_asistente_recepcion %}
                                                                     </a>
                                                                     {% endif %}
                                                                 {% endif %}
-                                                                {% if not request.user|es_ingreso_camion %}
+                                                                {% if not modo_ingreso_camion %}
                                                                 <button type="button" class="btn btn-warning btn-sm" onclick="openEditModal({{ object.0 }})" title="Editar">
                                                                     <i class="fas fa-edit"></i>
                                                                 </button>
@@ -2178,6 +2218,18 @@
 
    <div class="modal fade" id="editReceptionTerramarModal" tabindex="-1" role="dialog" aria-hidden="true"><div class="modal-dialog modal-xl modal-dialog-scrollable" role="document"><div class="modal-content"><div class="modal-header"><h5 class="modal-title">Editar recepción – Etapa 0</h5><button type="button" class="close" data-dismiss="modal"><span>&times;</span></button></div><form id="editReceptionTerramarForm">{% csrf_token %}<input type="hidden" id="ert_citation_id"><div class="modal-body"><div class="form-row"><div class="form-group col-md-4"><label class="required-label">Fecha llegada</label><input class="form-control" type="date" id="ert_fecha_llegada" name="fecha_llegada" required></div><div class="form-group col-md-4"><label>Contenedor / CRT</label><input class="form-control" id="ert_contenedor_crt" name="contenedor_crt"></div><div class="form-group col-md-4"><label class="required-label">Insumo</label><select class="form-control" id="ert_item_id" name="item_id" required></select></div><div class="form-group col-md-4"><label class="required-label">Bodega</label><input class="form-control" id="ert_bodega" name="bodega" required></div><div class="form-group col-md-4"><label class="required-label">N° guía despacho</label><input class="form-control" id="ert_numero_guia" name="numero_guia" required></div><div class="form-group col-md-4"><label class="required-label">Transporte a cargo de</label><select class="form-control" id="ert_transporte_a_cargo" name="transporte_a_cargo" required><option value="">Seleccione</option><option value="Terramar">Terramar</option><option value="Cliente">Cliente</option></select></div><div class="form-group col-md-4 ert-maestro"><label class="ert-required">Empresa transporte</label><select class="form-control" id="ert_empresa_transporte"></select><input type="hidden" id="ert_empresa_transporte_id" name="empresa_transporte_id"><input type="hidden" id="ert_empresa_transporte" name="empresa_transporte"><div class="form-group col-md-4 ert-maestro" id="ert_ruta_transportista_contenedor"><label class="ert-required">Ruta del transportista</label><select class="form-control" id="ert_ruta_transportista" name="ruta_visible" disabled><option value="">Seleccione primero empresa transporte</option></select><input type="hidden" id="ert_ruta_id" name="ruta_id"><input type="hidden" id="ert_tarifa_id" name="tarifa_id"><small class="text-muted" id="ert_ruta_ayuda"></small></div></div><div class="form-group col-md-4"><label class="ert-required">Conductor</label><select class="form-control ert-maestro" id="ert_conductor"></select><input class="form-control d-none ert-manual" id="ert_conductor_manual" name="conductor" placeholder="Conductor"><input type="hidden" id="ert_conductor_id" name="conductor_id"></div><div class="form-group col-md-4"><label class="ert-required">Código país</label><select class="form-control" id="ert_codigo_pais" name="codigo_pais">{% for pais in paises_telefono %}<option value="{{ pais.codigo_telefonico }}" {% if pais.codigo_telefonico == "+56" %}selected{% endif %}>{{ pais.nombre }} ({{ pais.codigo_telefonico }})</option>{% endfor %}</select></div><div class="form-group col-md-4"><label class="ert-required">Celular conductor</label><input class="form-control" id="ert_telefono" name="telefono" inputmode="tel"></div><div class="form-group col-md-4"><label class="ert-required">Patente camión</label><input class="form-control text-uppercase" id="ert_patente" name="patente"></div><div class="form-group col-md-4"><label class="required-label">Hora citación</label><input class="form-control" type="time" id="ert_hora_citacion" name="hora_citacion" required></div><div class="form-group col-md-4"><label class="required-label">Flujo operacional</label><select class="form-control" id="ert_secuencia_id" name="secuencia_id" required></select><small id="ert_flujo_bloqueado" class="text-muted d-none">El flujo no puede cambiarse porque existe avance operacional.</small></div></div></div><div class="modal-footer"><button type="button" class="btn btn-secondary" data-dismiss="modal">Cancelar</button><button type="submit" class="btn btn-success">Guardar cambios</button></div></form></div></div></div>
 <!-- Add this modal at the end of your template -->
+<style>
+    #edit_despacho_asignaciones .edit-despacho-asignacion {
+        border: 1px solid #dfe3e8;
+        border-radius: .5rem;
+        padding: 1rem;
+        margin-bottom: 1rem;
+        background: #fff;
+    }
+    .edit-despacho-asignacion.is-confirmed { border-left: 4px solid #28a745; }
+    .edit-despacho-asignacion-header { display: flex; justify-content: space-between; align-items: center; gap: 1rem; margin-bottom: 1rem; }
+    #edit_despacho_fields .edit-section-title { font-weight: 700; text-transform: uppercase; margin: 1.25rem 0 .75rem; color: #495057; }
+</style>
 <div class="modal fade" id="editCitationModal" tabindex="-1" role="dialog" aria-labelledby="editCitationModalLabel" aria-hidden="true">
     <div class="modal-dialog modal-xl modal-dialog-scrollable" role="document">
         <div class="modal-content">
@@ -2200,6 +2252,103 @@
                     <input type="hidden" id="edit_proveedor_nombre" name="proveedor_sap">
                     <input type="hidden" id="edit_insumo_nombre" name="insumo">
 
+                    <div class="form-group">
+                        <label for="id_cliente" class="required-label">Cliente</label>
+                        <select class="form-control" id="id_cliente" name="id_cliente" required></select>
+                    </div>
+
+                    <div id="edit_despacho_fields" class="d-none">
+                        <input type="hidden" id="edit_despacho_asignaciones_json" name="asignaciones_sap" class="edit-despacho-field">
+                        <div class="edit-section-title">Información SAP</div>
+                        <div id="edit_despacho_asignaciones"></div>
+                        <button type="button" class="btn btn-outline-primary btn-sm" id="edit_despacho_anexar_contrato">
+                            + Anexar contrato
+                        </button>
+
+                        <div class="edit-section-title">Información para despacho</div>
+                        <div class="form-row">
+                            <div class="form-group col-md-4">
+                                <label for="edit_despacho_fecha" class="required-label">Fecha despacho</label>
+                                <input type="date" class="form-control edit-despacho-field" id="edit_despacho_fecha" name="fecha_despacho" required>
+                            </div>
+                            <div class="form-group col-md-4">
+                                <label for="edit_despacho_destino" class="required-label">Destino</label>
+                                <input type="text" class="form-control edit-despacho-field" id="edit_despacho_destino" name="destino" required>
+                            </div>
+                            <div class="form-group col-md-4">
+                                <label for="edit_despacho_hora_destino" class="required-label">Hora llegada a destino</label>
+                                <input type="time" class="form-control edit-despacho-field" id="edit_despacho_hora_destino" name="hora_llegada_destino" required>
+                            </div>
+                        </div>
+
+                        <div class="edit-section-title">Programación de carga en planta</div>
+                        <div class="form-row">
+                            <div class="form-group col-md-4">
+                                <label for="edit_despacho_formato" class="required-label">Formato</label>
+                                <select class="form-control edit-despacho-field" id="edit_despacho_formato" name="tipo_carga" required>
+                                    <option value="">Seleccione formato</option>
+                                    <option value="Cisterna">Cisterna</option>
+                                    <option value="Contenedor">Contenedor</option>
+                                    <option value="Isotank">Isotank</option>
+                                    <option value="IBC">IBC</option>
+                                </select>
+                            </div>
+                            <div class="form-group col-md-4">
+                                <label for="edit_despacho_orden_carga" class="required-label">Orden de carga</label>
+                                <input type="text" class="form-control edit-despacho-field" id="edit_despacho_orden_carga" name="orden_carga" required>
+                            </div>
+                            <div class="form-group col-md-4">
+                                <label for="edit_despacho_hora_planta" class="required-label">Hora llegada a planta</label>
+                                <input type="time" class="form-control edit-despacho-field" id="edit_despacho_hora_planta" name="hora_llegada_planta" required>
+                            </div>
+                            <div class="form-group col-md-4">
+                                <label for="edit_despacho_bodega" class="required-label">Bodega de origen</label>
+                                <input type="text" class="form-control edit-despacho-field" id="edit_despacho_bodega" name="bodega" required>
+                            </div>
+                            <div class="form-group col-md-4">
+                                <label for="edit_despacho_condicion" class="required-label">Condición de entrega</label>
+                                <select class="form-control edit-despacho-field" id="edit_despacho_condicion" name="condicion_entrega" required>
+                                    <option value="">Seleccione</option>
+                                    <option value="Terramar">Terramar</option>
+                                    <option value="Cliente">Cliente</option>
+                                </select>
+                            </div>
+                            <div class="form-group col-md-4">
+                                <label for="edit_despacho_salida_documento" class="required-label">Salida de documento</label>
+                                <select class="form-control edit-despacho-field" id="edit_despacho_salida_documento" name="salida_documento" required>
+                                    <option value="">Seleccione</option>
+                                    <option value="FE">Factura de cliente</option>
+                                    <option value="GD">Guía de despacho</option>
+                                    <option value="FE_RESERVA">Factura reserva</option>
+                                    <option value="Factura de cliente">Factura de cliente</option>
+                                    <option value="Guía de despacho">Guía de despacho</option>
+                                    <option value="Factura anticipada">Factura anticipada</option>
+                                </select>
+                            </div>
+                            <div class="form-group col-md-4">
+                                <label for="edit_despacho_empresa_transporte" class="required-label">Empresa transporte</label>
+                                <input type="text" class="form-control edit-despacho-field" id="edit_despacho_empresa_transporte" name="empresa_transporte" required>
+                            </div>
+                            <div class="form-group col-md-4">
+                                <label for="edit_despacho_conductor" class="required-label">Conductor</label>
+                                <input type="text" class="form-control edit-despacho-field" id="edit_despacho_conductor" name="conductor" required>
+                            </div>
+                            <div class="form-group col-md-4">
+                                <label for="edit_despacho_patente" class="required-label">Patente</label>
+                                <input type="text" class="form-control text-uppercase edit-despacho-field" id="edit_despacho_patente" name="patente" required>
+                            </div>
+                            <div class="form-group col-md-4">
+                                <label for="edit_despacho_telefono">Teléfono conductor</label>
+                                <input type="text" class="form-control edit-despacho-field" id="edit_despacho_telefono" name="telefono_conductor">
+                            </div>
+                            <div class="form-group col-md-8">
+                                <label for="edit_despacho_secuencia" class="required-label">Secuencia operacional</label>
+                                <select class="form-control edit-despacho-field" id="edit_despacho_secuencia" name="id_secuencia" required></select>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div id="edit_recepcion_fields">
                     <div class="form-row">
                         <div class="form-group col-md-4">
                             <label for="edit_fecha_llegada">Fecha llegada</label>
@@ -2266,11 +2415,7 @@
                     </div>
 
                     <div class="form-row">
-                        <div class="form-group col-md-6">
-                            <label for="id_cliente">Cliente</label>
-                            <select class="form-control" id="id_cliente" name="id_cliente"></select>
-                        </div>
-                        <div class="form-group col-md-6">
+                        <div class="form-group col-md-12">
                             <label for="edit_insumo_sap">Insumo / Producto</label>
                             <select class="form-control" id="edit_insumo_sap"></select>
                         </div>
@@ -2322,6 +2467,7 @@
                                 <option value="">Seleccione estanque</option>
                             </select>
                         </div>
+                    </div>
                     </div>
 
                     <div class="form-group">
@@ -2425,8 +2571,8 @@
             </div>
             <div class="modal-footer">
                 <button type="button" class="btn btn-secondary" data-dismiss="modal">Cerrar</button>
-                {% if request.user|es_asistente_recepcion %}
-                <button type="button" class="btn btn-success" id="btn_revision_aprobar" onclick="aprobarRevisionAsistente()">Aprobar</button>
+                {% if request.user|es_asistente_recepcion or es_asistente_despacho_ingreso %}
+                <button type="button" class="btn btn-success" id="btn_revision_aprobar" onclick="aprobarRevisionAsistente()">{% if es_asistente_despacho_ingreso %}Enviar a Asistente_C_D{% else %}Aprobar{% endif %}</button>
                 {% endif %}
                 {% if request.user|es_guardia %}
                 <button type="button" class="btn btn-success" id="btn_revision_guardia_porteria" onclick="enviarRevisionGuardiaPorteria()" style="display:none;">{% if request.user|es_guardia_porteria %}Autorizo ingreso a planta{% else %}Enviar siguiente etapa{% endif %}</button>
@@ -2573,6 +2719,7 @@
     <script src="/static/assets/js/plugins/buttons.bootstrap4.min.js"></script>
     <script src="/static/assets/js/pages/data-export-custom.js"></script>
     <script>
+    {% include 'home/PLANIFICACION/despacho_carga_js.html' %}
     let ingresoCamionCitacionId = null;
     let revisionAsistenteCitacionId = null;
     let estanqueCamionCitacionId = null;
@@ -2593,10 +2740,13 @@
     let revisionRequiereRutaTransportista = true;
     let revisionRequierePesoInformadoGuia = false;
     let revisionRequiereConfirmacionDatos = false;
+    let revisionRequiereTiposDocumentoDespacho = false;
     let revisionAprobadoAsistente = false;
     let revisionPuedeEditar = false;
     let revisionDatosEdicionActiva = false;
     let revisionDatosOrigen = 'revision';
+    let revisionPaisesTelefono = [];
+    let revisionEsSbh = false;
     let ingresoCamionCamposPorCodigo = {};
     let acdDespachoLotesSap = [];
     let acdDespachoPuedeEditar = false;
@@ -3767,10 +3917,13 @@
 
     function actualizarVisibilidadBlEdicion(tipoOperacion) {
         const esDespacho = String(tipoOperacion || '').toUpperCase() === 'DESPACHO';
+        const usaFormularioDespacho = esDespacho && $('#edit_despacho_fields').length > 0;
         $('#edit_bl_group').toggleClass('d-none', esDespacho);
         $('#edit_bl').prop('disabled', esDespacho);
-        $('#edit_salida_documento_group').toggleClass('d-none', !esDespacho);
-        $('#edit_salida_documento').prop('disabled', !esDespacho).prop('required', esDespacho);
+        $('#edit_salida_documento_group').toggleClass('d-none', !esDespacho || usaFormularioDespacho);
+        $('#edit_salida_documento')
+            .prop('disabled', !esDespacho || usaFormularioDespacho)
+            .prop('required', esDespacho && !usaFormularioDespacho);
         if (esDespacho) {
             editSetValue('edit_bl', '');
         } else {
@@ -4052,36 +4205,46 @@
 
     function editCargarClientesSap(seleccion, textoSeleccion) {
         const clienteSelect = $('#id_cliente');
-        clienteSelect.prop('disabled', true);
-        clienteSelect.empty().append(new Option('Cargando clientes SAP...', '', false, false)).trigger('change.select2');
+        const codigoInicial = String(seleccion || '').trim();
+        const nombreInicial = String(textoSeleccion || codigoInicial).trim();
+        clienteSelect.prop('disabled', true).empty();
+        if (codigoInicial) {
+            const inicial = new Option(nombreInicial, codigoInicial, true, true);
+            $(inicial).attr('data-cardname', nombreInicial);
+            clienteSelect.append(inicial).trigger('change.select2');
+            editSetValue('edit_cliente_codigo', codigoInicial);
+            editSetValue('edit_cliente_nombre', nombreInicial);
+        } else {
+            clienteSelect.append(new Option('Cargando clientes SAP...', '', false, false)).trigger('change.select2');
+        }
         $.ajax({
             url: '/api/sap/clientes/',
             type: 'GET',
+            data: { _empresa_id: empresaIdActiva() },
             success: function (response) {
-                clienteSelect.empty().append(new Option('Seleccione cliente', '', false, false));
                 if (!response.ok) {
                     Swal.fire('Error', response.mensaje || response.message || 'No fue posible cargar clientes SAP.', 'error');
                     return;
                 }
+                clienteSelect.empty().append(new Option('Seleccione cliente', '', false, false));
                 (response.clientes || []).forEach(function (cliente) {
                     const option = new Option(cliente.cardname || cliente.cardcode, cliente.cardcode, false, false);
                     $(option).attr('data-cardname', cliente.cardname || '');
                     clienteSelect.append(option);
                 });
                 editClientesSapCargados = true;
-                if (seleccion) {
-                    editSetOption('#id_cliente', seleccion, textoSeleccion || seleccion, true);
-                    $('#id_cliente option[value="' + String(seleccion).replace(/"/g, '\\"') + '"]').attr('data-cardname', textoSeleccion || '');
+                if (codigoInicial) {
+                    editSetOption('#id_cliente', codigoInicial, nombreInicial, true);
+                    $('#id_cliente option[value="' + codigoInicial.replace(/"/g, '\\"') + '"]').attr('data-cardname', nombreInicial);
                 }
-                editSetValue('edit_cliente_codigo', clienteSelect.val() || '');
-                editSetValue('edit_cliente_nombre', $('#id_cliente option:selected').attr('data-cardname') || $('#id_cliente option:selected').text() || '');
+                editSetValue('edit_cliente_codigo', clienteSelect.val() || codigoInicial);
+                editSetValue('edit_cliente_nombre', $('#id_cliente option:selected').attr('data-cardname') || $('#id_cliente option:selected').text() || nombreInicial);
             },
             complete: function () {
                 clienteSelect.prop('disabled', false).trigger('change.select2');
             }
         });
     }
-
     function inicializarSelectSocioEdicion(selector, url) {
         const $select = $(selector);
         if (!$select.length || !$select.select2) {
@@ -4128,6 +4291,336 @@
             $select.val(null).trigger('change');
         }
     }
+
+    let editDespachoAsignaciones = [];
+    let editDespachoPrevias = {};
+    let editDespachoReemplazos = {};
+    let editDespachoContador = 0;
+
+    function editEsDespacho() {
+        return !$('#edit_despacho_fields').hasClass('d-none');
+    }
+
+    function configurarModalEdicionPorTipo(tipo) {
+        const despacho = String(tipo || '').toUpperCase() === 'DESPACHO';
+        $('#editCitationModalLabel').text(despacho ? 'Editar Citación – Despacho' : 'Editar Citación');
+        $('#edit_despacho_fields').toggleClass('d-none', !despacho);
+        $('#edit_recepcion_fields').toggleClass('d-none', despacho);
+        $('#edit_despacho_fields').find(':input').prop('disabled', !despacho);
+        $('#edit_recepcion_fields').find(':input').prop('disabled', despacho);
+        $('#edit_tipo_operacion').val(despacho ? 'DESPACHO' : 'RECEPCION');
+    }
+
+    function editDespachoDecimal(valor) {
+        let texto = String(valor === null || valor === undefined ? '' : valor).trim();
+        if (!texto) return null;
+        if (texto.indexOf(',') > -1) texto = texto.replace(/\./g, '').replace(',', '.');
+        const numero = Number(texto);
+        return Number.isNaN(numero) ? null : numero;
+    }
+
+    function editDespachoSelectConfig() {
+        return {
+            placeholder: 'Buscar acuerdo SAP QA...',
+            allowClear: true,
+            width: '100%',
+            dropdownParent: $('#editCitationModal'),
+            minimumInputLength: 2,
+            ajax: {
+                url: '/api/sap/despacho-acuerdos/',
+                dataType: 'json',
+                delay: 250,
+                data: function (params) {
+                    return { q: params.term || '', _empresa_id: empresaIdActiva() };
+                },
+                processResults: function (response) {
+                    return {
+                        results: response.ok ? (response.resultados || []).map(function (item, index) {
+                            return {
+                                id: String(item.sap_abs_id || '') + '__' + String(item.linea_acuerdo || index),
+                                text: [
+                                    item.sap_acuerdo_numero || '',
+                                    item.oc_cliente || 'Sin OC',
+                                    item.cliente_nombre || '',
+                                    item.nombre_insumo || item.codigo_insumo || ''
+                                ].filter(Boolean).join(' | '),
+                                sap: item
+                            };
+                        }) : []
+                    };
+                }
+            }
+        };
+    }
+
+    function editDespachoAsignacionPorUi(uiId) {
+        return editDespachoAsignaciones.find(function (item) { return item.ui_id === uiId; }) || null;
+    }
+
+    function editDespachoActualizarDetalle(uiId) {
+        const bloque = $('#edit_despacho_asignaciones .edit-despacho-asignacion[data-ui-id="' + uiId + '"]');
+        const confirmada = editDespachoAsignacionPorUi(uiId);
+        const item = confirmada || editDespachoPrevias[uiId];
+        if (!item) {
+            bloque.find('.edit-despacho-detalle').addClass('d-none');
+            bloque.removeClass('is-confirmed');
+            return;
+        }
+        bloque.find('.edit-despacho-detalle').removeClass('d-none');
+        bloque.find('.js-edit-acuerdo').text(item.contrato_sap || '-');
+        bloque.find('.js-edit-linea').text(item.linea_acuerdo_sap || '-');
+        bloque.find('.js-edit-producto').text(item.nombre_producto_sap || item.codigo_producto_sap || '-');
+        bloque.find('.js-edit-oc').text(item.oc_cliente || '-');
+        bloque.find('.js-edit-planificada').text(item.cantidad_planificada_sap || '-');
+        bloque.find('.js-edit-consumida').text(item.cantidad_consumida_sap || '-');
+        bloque.find('.js-edit-saldo').text(item.saldo_contrato_sap || '-');
+        bloque.find('.js-edit-cantidad').val(item.cantidad_intentada_despachar || '');
+        bloque.toggleClass('is-confirmed', Boolean(confirmada));
+        bloque.find('.js-edit-confirmado').toggleClass('d-none', !confirmada);
+        bloque.find('.js-edit-confirmar').toggleClass('d-none', Boolean(confirmada));
+        bloque.find('.js-edit-reemplazar').toggleClass('d-none', !confirmada);
+        bloque.find('.js-edit-busqueda').prop('disabled', Boolean(confirmada)).trigger('change.select2');
+        editDespachoEvaluarSaldo(uiId);
+    }
+
+    function editDespachoEvaluarSaldo(uiId) {
+        const bloque = $('#edit_despacho_asignaciones .edit-despacho-asignacion[data-ui-id="' + uiId + '"]');
+        const item = editDespachoAsignacionPorUi(uiId) || editDespachoPrevias[uiId];
+        const cantidad = item ? editDespachoDecimal(item.cantidad_intentada_despachar) : null;
+        const saldo = item ? editDespachoDecimal(item.saldo_contrato_sap) : null;
+        bloque.find('.js-edit-supera-saldo').toggleClass('d-none', !(cantidad !== null && saldo !== null && cantidad > saldo));
+    }
+
+    function editDespachoCrearTarjeta(item) {
+        editDespachoContador += 1;
+        const uiId = editDespachoContador;
+        const bloque = $(`
+            <div class="edit-despacho-asignacion" data-ui-id="${uiId}">
+                <div class="edit-despacho-asignacion-header">
+                    <strong class="js-edit-titulo">Contrato SAP</strong>
+                    <div>
+                        <span class="badge badge-success d-none js-edit-confirmado">Contrato confirmado</span>
+                        <button type="button" class="btn btn-outline-secondary btn-sm ml-2 d-none js-edit-reemplazar">Reemplazar</button>
+                        <button type="button" class="btn btn-outline-danger btn-sm ml-2 js-edit-eliminar">Eliminar</button>
+                    </div>
+                </div>
+                <div class="form-group mb-0">
+                    <label>Buscar acuerdo SAP QA</label>
+                    <select class="form-control js-edit-busqueda"></select>
+                </div>
+                <div class="edit-despacho-detalle d-none">
+                    <div class="row">
+                        <div class="col-md-4 mt-3"><small class="text-muted">Acuerdo SAP</small><strong class="d-block js-edit-acuerdo"></strong></div>
+                        <div class="col-md-4 mt-3"><small class="text-muted">Línea</small><strong class="d-block js-edit-linea"></strong></div>
+                        <div class="col-md-4 mt-3"><small class="text-muted">Producto SAP</small><strong class="d-block js-edit-producto"></strong></div>
+                        <div class="col-md-4 mt-3"><small class="text-muted">OC Cliente</small><strong class="d-block js-edit-oc"></strong></div>
+                        <div class="col-md-4 mt-3"><small class="text-muted">Cantidad contrato</small><strong class="d-block js-edit-planificada"></strong></div>
+                        <div class="col-md-4 mt-3"><small class="text-muted">Cantidad consumida</small><strong class="d-block js-edit-consumida"></strong></div>
+                        <div class="col-md-4 mt-3"><small class="text-muted">Saldo</small><strong class="d-block js-edit-saldo"></strong></div>
+                        <div class="col-md-4 mt-3"><label class="required-label">Cantidad intentada a despachar</label><input type="text" class="form-control js-edit-cantidad" inputmode="decimal"></div>
+                    </div>
+                    <div class="alert alert-warning d-none mt-3 mb-0 js-edit-supera-saldo">La cantidad intentada supera el saldo contractual calculado en SAP. Se permite continuar.</div>
+                    <button type="button" class="btn btn-primary btn-sm mt-3 js-edit-confirmar">Confirmar contrato</button>
+                </div>
+            </div>
+        `);
+        $('#edit_despacho_asignaciones').append(bloque);
+        const select = bloque.find('.js-edit-busqueda');
+        select.select2(editDespachoSelectConfig()).on('select2:select', function (event) {
+            editDespachoSeleccionar(uiId, event.params.data.sap || {});
+        }).on('select2:clear', function () {
+            delete editDespachoPrevias[uiId];
+            editDespachoActualizarDetalle(uiId);
+        });
+        bloque.find('.js-edit-cantidad').on('input change', function () {
+            const actual = editDespachoAsignacionPorUi(uiId) || editDespachoPrevias[uiId];
+            if (actual) actual.cantidad_intentada_despachar = $(this).val();
+            editDespachoEvaluarSaldo(uiId);
+        });
+        bloque.find('.js-edit-confirmar').on('click', function () { editDespachoConfirmar(uiId); });
+        bloque.find('.js-edit-reemplazar').on('click', function () { editDespachoReemplazar(uiId); });
+        bloque.find('.js-edit-eliminar').on('click', function () { editDespachoEliminar(uiId); });
+
+        if (item) {
+            item.ui_id = uiId;
+            editDespachoAsignaciones.push(item);
+            const texto = [item.contrato_sap, item.oc_cliente, item.nombre_producto_sap].filter(Boolean).join(' | ');
+            select.append(new Option(texto || item.sap_abs_id, String(item.sap_abs_id) + '__' + String(item.linea_acuerdo_sap), true, true));
+            editDespachoActualizarDetalle(uiId);
+        }
+        editDespachoRenumerar();
+    }
+
+    function editDespachoRenumerar() {
+        $('#edit_despacho_asignaciones .edit-despacho-asignacion').each(function (index) {
+            $(this).find('.js-edit-titulo').text('Contrato SAP ' + (index + 1));
+        });
+    }
+
+    function editDespachoSeleccionar(uiId, sap) {
+        const absId = String(sap.sap_abs_id || '');
+        const linea = String(sap.linea_acuerdo || '');
+        const cliente = String(sap.cliente_codigo || '');
+        const candidatas = editDespachoAsignaciones.concat(Object.values(editDespachoPrevias));
+        const duplicada = candidatas.some(function (item) {
+            return item.ui_id !== uiId && String(item.sap_abs_id) === absId && String(item.linea_acuerdo_sap) === linea;
+        });
+        if (duplicada) {
+            Swal.fire('Contrato no permitido', 'La misma línea de acuerdo SAP ya fue agregada.', 'warning');
+            const select = $('#edit_despacho_asignaciones .edit-despacho-asignacion[data-ui-id="' + uiId + '"] .js-edit-busqueda');
+            select.val(null).trigger('change');
+            delete editDespachoPrevias[uiId];
+            editDespachoActualizarDetalle(uiId);
+            return;
+        }
+        const planificada = editDespachoDecimal(sap.cantidad_planificada);
+        const consumida = editDespachoDecimal(sap.cantidad_consumida);
+        const saldo = editDespachoDecimal(sap.saldo_contrato_sap);
+        editDespachoPrevias[uiId] = {
+            id: editDespachoReemplazos[uiId] || null,
+            ui_id: uiId,
+            sap_abs_id: absId,
+            contrato_sap: String(sap.sap_acuerdo_numero || ''),
+            linea_acuerdo_sap: linea,
+            codigo_producto_sap: String(sap.codigo_insumo || ''),
+            nombre_producto_sap: sap.nombre_insumo || '',
+            cliente_codigo: cliente,
+            cliente_nombre: sap.cliente_nombre || '',
+            oc_cliente: sap.oc_cliente || '',
+            cantidad_planificada_sap: sap.cantidad_planificada,
+            cantidad_consumida_sap: sap.cantidad_consumida,
+            saldo_contrato_sap: saldo !== null ? saldo : (planificada !== null && consumida !== null ? planificada - consumida : ''),
+            unidad_medida: sap.unidad_medida || '',
+            cantidad_intentada_despachar: '',
+            estado: 'PLANIFICADA'
+        };
+        editDespachoActualizarDetalle(uiId);
+        editDespachoSincronizarClienteDesdeContratos();
+    }
+
+    function editDespachoSincronizarClienteDesdeContratos() {
+        const contratos = editDespachoAsignaciones.concat(Object.values(editDespachoPrevias)).filter(function (item) {
+            return item && item.sap_abs_id && String(item.cliente_codigo || '').trim();
+        });
+        const clientes = new Map();
+        contratos.forEach(function (item) {
+            const codigo = String(item.cliente_codigo || '').trim();
+            if (codigo) clientes.set(codigo, String(item.cliente_nombre || codigo).trim());
+        });
+        if (clientes.size !== 1) return '';
+        const entrada = clientes.entries().next().value;
+        const codigo = entrada[0];
+        const nombre = entrada[1] || codigo;
+        editSetOption('#id_cliente', codigo, nombre, true);
+        $('#id_cliente option[value="' + codigo.replace(/"/g, '\\"') + '"]').attr('data-cardname', nombre);
+        editSetValue('edit_cliente_codigo', codigo);
+        editSetValue('edit_cliente_nombre', nombre);
+        return codigo;
+    }
+    function editDespachoConfirmar(uiId) {
+        const item = editDespachoPrevias[uiId];
+        if (!item) {
+            Swal.fire('Contrato no seleccionado', 'Seleccione un acuerdo SAP antes de confirmarlo.', 'warning');
+            return;
+        }
+        const cantidad = editDespachoDecimal(item.cantidad_intentada_despachar);
+        if (!item.contrato_sap || !item.sap_abs_id || !item.linea_acuerdo_sap || !item.codigo_producto_sap || cantidad === null || cantidad <= 0) {
+            Swal.fire('Contrato incompleto', 'Debe indicar acuerdo, AbsID, línea, producto y una cantidad intentada mayor que cero.', 'warning');
+            return;
+        }
+        editDespachoAsignaciones.push(item);
+        delete editDespachoPrevias[uiId];
+        delete editDespachoReemplazos[uiId];
+        editDespachoActualizarDetalle(uiId);
+        editDespachoSincronizarClienteDesdeContratos();
+    }
+
+    function editDespachoReemplazar(uiId) {
+        const item = editDespachoAsignacionPorUi(uiId);
+        if (!item) return;
+        editDespachoAsignaciones = editDespachoAsignaciones.filter(function (actual) { return actual.ui_id !== uiId; });
+        editDespachoReemplazos[uiId] = item.id || null;
+        editDespachoPrevias[uiId] = Object.assign({}, item);
+        const select = $('#edit_despacho_asignaciones .edit-despacho-asignacion[data-ui-id="' + uiId + '"] .js-edit-busqueda');
+        select.prop('disabled', false).trigger('change.select2');
+        editDespachoActualizarDetalle(uiId);
+    }
+
+    function editDespachoEliminar(uiId) {
+        editDespachoAsignaciones = editDespachoAsignaciones.filter(function (item) { return item.ui_id !== uiId; });
+        delete editDespachoPrevias[uiId];
+        delete editDespachoReemplazos[uiId];
+        const bloque = $('#edit_despacho_asignaciones .edit-despacho-asignacion[data-ui-id="' + uiId + '"]');
+        const select = bloque.find('.js-edit-busqueda');
+        if (select.hasClass('select2-hidden-accessible')) select.select2('destroy');
+        bloque.remove();
+        editDespachoRenumerar();
+        editDespachoSincronizarClienteDesdeContratos();
+    }
+
+    function editDespachoReconstruir(asignaciones) {
+        $('#edit_despacho_asignaciones .js-edit-busqueda').each(function () {
+            if ($(this).hasClass('select2-hidden-accessible')) $(this).select2('destroy');
+        });
+        $('#edit_despacho_asignaciones').empty();
+        editDespachoAsignaciones = [];
+        editDespachoPrevias = {};
+        editDespachoReemplazos = {};
+        editDespachoContador = 0;
+        (asignaciones || []).forEach(function (item) { editDespachoCrearTarjeta(Object.assign({}, item)); });
+        if (!(asignaciones || []).length) editDespachoCrearTarjeta(null);
+        editDespachoSincronizarClienteDesdeContratos();
+    }
+
+    function editDespachoValidarYSerializar() {
+        const pendientes = Object.values(editDespachoPrevias).some(function (item) { return item && item.sap_abs_id; });
+        if (pendientes) {
+            Swal.fire('Contrato sin confirmar', 'Debe confirmar el contrato SAP seleccionado antes de actualizar el despacho.', 'warning');
+            return false;
+        }
+        const duplicados = new Set();
+        const clientesContratos = new Set();
+        for (const item of editDespachoAsignaciones) {
+            const cantidad = editDespachoDecimal(item.cantidad_intentada_despachar);
+            const clave = String(item.sap_abs_id) + '__' + String(item.linea_acuerdo_sap);
+            if (!item.contrato_sap || !item.sap_abs_id || !item.linea_acuerdo_sap || !item.codigo_producto_sap || cantidad === null || cantidad <= 0) {
+                Swal.fire('Contrato incompleto', 'Cada contrato debe incluir acuerdo, AbsID, línea, producto y cantidad intentada mayor que cero.', 'warning');
+                return false;
+            }
+            if (duplicados.has(clave)) {
+                Swal.fire('Contrato duplicado', 'No puede repetir la misma línea de acuerdo SAP.', 'warning');
+                return false;
+            }
+            duplicados.add(clave);
+            clientesContratos.add(String(item.cliente_codigo || '').trim().toUpperCase());
+        }
+        clientesContratos.delete('');
+        if (clientesContratos.size > 1) {
+            Swal.fire('Cliente no coincide', 'El cliente del despacho debe coincidir con todos los contratos SAP.', 'warning');
+            return false;
+        }
+        const clienteContratos = clientesContratos.size === 1 ? clientesContratos.values().next().value : '';
+        let cliente = String($('#id_cliente').val() || $('#edit_cliente_codigo').val() || '').trim().toUpperCase();
+        if (!cliente && clienteContratos) {
+            editDespachoSincronizarClienteDesdeContratos();
+            cliente = String($('#id_cliente').val() || $('#edit_cliente_codigo').val() || '').trim().toUpperCase();
+        }
+        if (clienteContratos && cliente !== clienteContratos) {
+            Swal.fire('Cliente no coincide', 'El cliente del despacho debe coincidir con todos los contratos SAP.', 'warning');
+            return false;
+        }
+        const payload = editDespachoAsignaciones.map(function (item, index) {
+            return Object.assign({}, item, { orden: index + 1, estado: item.estado || 'PLANIFICADA' });
+        });
+        $('#edit_despacho_asignaciones_json').val(JSON.stringify(payload));
+        return true;
+    }
+
+    $(document)
+        .off('click.editDespachoAnexar', '#edit_despacho_anexar_contrato')
+        .on('click.editDespachoAnexar', '#edit_despacho_anexar_contrato', function () {
+            editDespachoCrearTarjeta(null);
+        });
 
     function openEditModal(citacionId) {
         $.ajax({url: `/editar-citacion-recepcion-terramar/${citacionId}/`, type: 'GET', success: function(data) { abrirEdicionRecepcionTerramar(citacionId, data); }, error: function(xhr) { if (xhr.status === 404 && xhr.responseJSON && xhr.responseJSON.not_terramar) { openEditModalLegacy(citacionId); return; } Swal.fire('No editable', (xhr.responseJSON && xhr.responseJSON.error) || 'No fue posible cargar la citación para edición.', 'warning'); }});
@@ -4187,6 +4680,7 @@
     function openEditModalLegacy(citacionId) {
         $('#updateCitationForm')[0].reset();
         $('#citation_id').val(citacionId);
+        configurarModalEdicionPorTipo(PLANIFICACION_ES_DESPACHO ? 'DESPACHO' : 'RECEPCION');
         actualizarVisibilidadBlEdicion(PLANIFICACION_ES_DESPACHO ? 'DESPACHO' : '');
         $('#editCitationModal').modal('show');
 
@@ -4286,6 +4780,8 @@
 
                 const detalle = data.detalle_operacional || {};
                 const detalleDespacho = data.detalle_despacho || {};
+                const esDespacho = String(data.tipo_operacion || data.tipo_citacion || '').toUpperCase() === 'DESPACHO';
+                configurarModalEdicionPorTipo(esDespacho ? 'DESPACHO' : 'RECEPCION');
                 $('#tipo_documento').html(data.tipos_documento || '');
                 $('#id_secuencia').html(data.secuencias || '');
                 $('#citation_id').val(citacionId);
@@ -4293,8 +4789,34 @@
                 $('#edit_fecha_llegada').val(data.fecha_llegada || '');
                 $('#edit_tipo_operacion').val(data.tipo_operacion || data.tipo_citacion || '');
                 actualizarVisibilidadBlEdicion(data.tipo_operacion || data.tipo_citacion || '');
-                $('#edit_tipo_carga').val(data.tipo_carga || '');
                 $('#numero_documento').val(data.numero_documento || '');
+                $('#observacion').val(data.observacion || detalle.observacion || '');
+
+                editCargarClientesSap(
+                    (data.cliente && (data.cliente.codigo || data.cliente.id)) || '',
+                    data.cliente ? data.cliente.text : ''
+                );
+
+                if (esDespacho) {
+                    $('#edit_despacho_fecha').val(detalleDespacho.fecha_despacho || '');
+                    $('#edit_despacho_destino').val(detalleDespacho.destino || '');
+                    $('#edit_despacho_hora_destino').val(detalleDespacho.hora_llegada_destino || '');
+                    $('#edit_despacho_formato').val(data.tipo_carga || detalleDespacho.sap_unidad_medida || '');
+                    $('#edit_despacho_orden_carga').val(detalleDespacho.orden_carga || '');
+                    $('#edit_despacho_hora_planta').val(detalleDespacho.hora_llegada_planta || '');
+                    $('#edit_despacho_bodega').val(detalleDespacho.bodega || '');
+                    $('#edit_despacho_condicion').val(detalleDespacho.condicion_entrega || '');
+                    $('#edit_despacho_salida_documento').val(detalleDespacho.salida_documento || '');
+                    $('#edit_despacho_empresa_transporte').val(detalleDespacho.empresa_transporte || '');
+                    $('#edit_despacho_conductor').val(detalleDespacho.conductor || '');
+                    $('#edit_despacho_telefono').val(detalleDespacho.telefono_conductor || '');
+                    $('#edit_despacho_patente').val(detalleDespacho.patente || '');
+                    $('#edit_despacho_secuencia').html(data.secuencias_despacho || data.secuencias || '');
+                    editDespachoReconstruir(data.asignaciones_sap || []);
+                    return;
+                }
+
+                $('#edit_tipo_carga').val(data.tipo_carga || '');
                 $('#edit_inf_24hrs').val(detalle.inf_24hrs || '');
                 $('#edit_salida_documento').val(detalleDespacho.salida_documento || '');
                 $('#edit_codigo').val(detalle.codigo || '');
@@ -4311,12 +4833,6 @@
                 $('#edit_almacen_destino').val(detalle.almacen_destino || '');
                 poblarEstanqueDestinoPorAlmacen('#edit_almacen_destino', '#edit_estanque_destino');
                 $('#edit_estanque_destino').val(detalle.estanque_destino || '');
-                $('#observacion').val(data.observacion || detalle.observacion || '');
-
-                editCargarClientesSap(
-                    (data.cliente && (data.cliente.codigo || data.cliente.id)) || '',
-                    data.cliente ? data.cliente.text : ''
-                );
                 editCargarProductosSap(detalle.codigo || '', detalle.insumo || '');
                 editSetPedidoOptions([], detalle.pedido || '');
                 if (detalle.pedido) {
@@ -4345,15 +4861,22 @@
             return;
         }
 
+        if (editEsDespacho() && !editDespachoValidarYSerializar()) {
+            return;
+        }
+
         const form = document.getElementById('updateCitationForm');
         if (form && !form.checkValidity()) {
             form.reportValidity();
             return;
         }
 
-        editSetValue('edit_insumo_nombre', editInsumoNombreSeleccionado() || $('#edit_insumo_nombre').val());
         editSetValue('edit_cliente_codigo', $('#id_cliente').val() || $('#edit_cliente_codigo').val());
         editSetValue('edit_cliente_nombre', $('#id_cliente option:selected').attr('data-cardname') || $('#id_cliente option:selected').text() || $('#edit_cliente_nombre').val());
+        if (editEsDespacho()) {
+            $('#edit_despacho_patente').val(String($('#edit_despacho_patente').val() || '').trim().toUpperCase());
+        } else {
+        editSetValue('edit_insumo_nombre', editInsumoNombreSeleccionado() || $('#edit_insumo_nombre').val());
         editSetValue('edit_proveedor_value', $('#edit_proveedor_codigo').val() || $('#edit_codigo_proveedor_sap').val());
         const pedidoOption = $('#edit_pedido option:selected');
         const pedidoDocnum = pedidoOption.attr('data-docnum') || String($('#edit_pedido').val() || '').split('__')[0];
@@ -4361,6 +4884,7 @@
             editBloqueandoCambioPedido = true;
             editSetOption('#edit_pedido', pedidoDocnum, pedidoDocnum, true);
             editBloqueandoCambioPedido = false;
+        }
         }
 
         $.ajax({
@@ -4711,6 +5235,11 @@
         const icono = revisionRutaGuardada ? 'fa-check-circle' : 'fa-exclamation-triangle';
         $('#revision_ruta_estado').removeClass('text-success text-warning text-danger').addClass(clase).html('<i class="fas ' + icono + '"></i> ' + escapeHtml(texto));
         actualizarEstadoAprobacionRevision();
+        if (revisionDatosEdicionActiva) {
+            $('#revision_ruta_estado').removeClass('text-success text-danger').addClass('text-warning').html('<i class="fas fa-info-circle"></i> Guarde primero los datos de transporte');
+            $('#btn_guardar_ruta_transportista').prop('disabled', true).text('Guarde los datos primero');
+            return;
+        }
         if (revisionRutaGuardada) {
             $('#btn_guardar_ruta_transportista').prop('disabled', true).text('Ruta guardada');
         }
@@ -4721,7 +5250,9 @@
         }
         revisionRutaGuardada = false;
         actualizarEstadoRutaRevision('Debe guardar ruta antes de aprobar');
-        $('#btn_guardar_ruta_transportista').prop('disabled', false).text('Guardar ruta');
+        if (!revisionDatosEdicionActiva) {
+            $('#btn_guardar_ruta_transportista').prop('disabled', false).text('Guardar ruta');
+        }
     }
 
     function guardarRutaTransportistaRevision() {
@@ -4791,7 +5322,7 @@
         });
     }
 
-    function cargarRutasTransportistaRevision(citacionId, fallbackOptions, fallbackMessage) {
+    function cargarRutasTransportistaRevision(citacionId, fallbackOptions, fallbackMessage, transportistaId) {
         if (!revisionRequiereRutaTransportista) {
             revisionRutasTransportista = [];
             revisionRutaGuardada = true;
@@ -4803,7 +5334,7 @@
         $.ajax({
             url: '/ajax-rutas-transportista-revision/',
             type: 'GET',
-            data: { citacion_id: citacionId },
+            data: { citacion_id: citacionId, transportista_id: transportistaId || '' },
             success: function (response) {
                 const options = response.results || [];
                 const message = options.length ? '' : (response.message || 'El transportista no tiene rutas configuradas.');
@@ -4828,7 +5359,26 @@
         $('#revision_tarifa_id').val(seleccionada ? seleccionada.dataset.tarifaId || '' : '');
     }
 
-function renderRevisionDatosAsistente(data, editable) {
+    function renderCamposTransporteRevision(valores, opcionesPaisTelefono) {
+        const esTerramar = valores.transporte_a_cargo === 'TERRAMAR';
+        const requerido = '<span class="text-danger">*</span>';
+        if (esTerramar) {
+            return `
+                <div class="form-group col-md-6 revision-transporte-campo"><label for="revision_transportista">Empresa transporte ${requerido}</label><select class="form-control" id="revision_transportista" required><option value="${escapeHtml(valores.transportista || '')}" selected>${escapeHtml(valores.transportista || 'Seleccione transportista')}</option></select><input type="hidden" id="revision_transportista_id" value="${escapeHtml(valores.transportista_id || '')}"></div>
+                <div class="form-group col-md-6 revision-transporte-campo"><label for="revision_conductor">Nombre conductor ${requerido}</label><select class="form-control" id="revision_conductor" required><option value="${escapeHtml(valores.conductor || '')}" selected>${escapeHtml(valores.conductor || 'Seleccione conductor')}</option></select><input type="hidden" id="revision_conductor_id" value="${escapeHtml(valores.conductor_id || '')}"></div>
+                <div class="form-group col-md-6 revision-transporte-campo"><label for="revision_rut_conductor">RUT conductor</label><input type="text" class="form-control" id="revision_rut_conductor" value="${escapeHtml(valores.rut_conductor || '')}" readonly></div>
+                <div class="form-group col-md-4 revision-transporte-campo"><label for="revision_telefono_codigo_pais">Código de país</label><select class="form-control" id="revision_telefono_codigo_pais">${opcionesPaisTelefono}</select></div>
+                <div class="form-group col-md-6 revision-transporte-campo"><label for="revision_telefono_conductor">Teléfono conductor ${requerido}</label><input type="text" class="form-control" id="revision_telefono_conductor" value="${escapeHtml(valores.telefono_conductor || '')}" required></div>`;
+        }
+        return `
+            <div class="form-group col-md-6 revision-transporte-campo"><label for="revision_transportista">Empresa transporte ${requerido}</label><input type="text" class="form-control" id="revision_transportista" value="${escapeHtml(valores.transportista || '')}" required></div>
+            <div class="form-group col-md-6 revision-transporte-campo"><label for="revision_conductor">Nombre conductor ${requerido}</label><input type="text" class="form-control" id="revision_conductor" value="${escapeHtml(valores.conductor || '')}" required></div>
+            <div class="form-group col-md-6 revision-transporte-campo"><label for="revision_rut_conductor">RUT conductor ${requerido}</label><input type="text" class="form-control" id="revision_rut_conductor" value="${escapeHtml(valores.rut_conductor || '')}" required></div>
+            <div class="form-group col-md-4 revision-transporte-campo"><label for="revision_telefono_codigo_pais">Código de país</label><select class="form-control" id="revision_telefono_codigo_pais">${opcionesPaisTelefono}</select></div>
+            <div class="form-group col-md-6 revision-transporte-campo"><label for="revision_telefono_conductor">Teléfono conductor ${requerido}</label><input type="text" class="form-control" id="revision_telefono_conductor" value="${escapeHtml(valores.telefono_conductor || '')}" required></div>`;
+    }
+
+ function renderRevisionDatosAsistente(data, editable) {
         const valores = data || {};
         const esRecepcionSbh = !!valores.es_recepcion_sbh;
         const tipoRecepcion = String(valores.tipo_recepcion || '').toUpperCase();
@@ -4905,11 +5455,8 @@ function renderRevisionDatosAsistente(data, editable) {
                 <div class="row">
                     <div class="form-group col-md-6"><label for="revision_transporte_a_cargo">Transporte a cargo de</label><select class="form-control" id="revision_transporte_a_cargo" ${disabled}><option value="TERRAMAR" ${valores.transporte_a_cargo === 'TERRAMAR' ? 'selected' : ''}>Terramar</option><option value="CLIENTE" ${valores.transporte_a_cargo === 'CLIENTE' ? 'selected' : ''}>Cliente</option></select></div>
                     ${camposDocumentales}
-                    ${input('revision_transportista', 'Empresa transporte', valores.transportista)}
-                    ${input('revision_conductor', 'Nombre conductor', valores.conductor)}
-                    ${input('revision_rut_conductor', 'RUT conductor', valores.rut_conductor)}
-                    <div class="form-group col-md-4"><label for="revision_telefono_codigo_pais">Codigo de pais</label><select class="form-control" id="revision_telefono_codigo_pais">${opcionesPaisTelefono}</select></div>${input('revision_telefono_conductor', 'Tel\u00e9fono conductor', valores.telefono_conductor)}
-                    ${input('revision_patente', 'Patente', valores.patente, readonly + ' style="text-transform:uppercase"')}
+                    ${valores.es_sbh ? renderCamposTransporteRevision(valores, opcionesPaisTelefono) : `${input('revision_transportista', 'Empresa transporte', valores.transportista)}${input('revision_conductor', 'Nombre conductor', valores.conductor)}${input('revision_rut_conductor', 'RUT conductor', valores.rut_conductor)}<div class="form-group col-md-4"><label for="revision_telefono_codigo_pais">Codigo de pais</label><select class="form-control" id="revision_telefono_codigo_pais">${opcionesPaisTelefono}</select></div>${input('revision_telefono_conductor', 'Tel\u00e9fono conductor', valores.telefono_conductor)}`}
+                    ${input('revision_patente', 'Patente', valores.patente, readonly + ' style="text-transform:uppercase"', 'revision-campo-patente')}
                     ${input('revision_numero_guia', 'N\u00famero gu\u00eda/documento', valores.numero_guia)}
                 </div>
                 ${editable ? '<small class="text-muted">Al guardar, una ruta de transportista previamente registrada se invalida si cambia el transportista o quien asume el transporte.</small>' : ''}
@@ -4922,6 +5469,13 @@ function renderRevisionDatosAsistente(data, editable) {
         const modalActivo = revisionDatosOrigen === 'estanque' ? $('#ModalEstanqueCamion') : $('#ModalRevisionAsistente');
         const boton = modalActivo.find('#btn_revision_guardar_datos');
         const tipoRecepcionSelector = modalActivo.find('#revision_tipo_recepcion');
+        const invalido = modalActivo.find('#revision_datos_asistente_section :input[required]').toArray().find(function (campo) {
+            return !campo.checkValidity();
+        });
+        if (invalido) {
+            invalido.reportValidity();
+            return;
+        }
         const tipoRecepcion = String(tipoRecepcionSelector.val() || '').toUpperCase();
         if (tipoRecepcionSelector.length && !['NACIONAL', 'EXTRANJERO'].includes(tipoRecepcion)) {
             Swal.fire({ icon: 'warning', title: 'Dato requerido', text: 'Debe seleccionar si la recepci\u00f3n es Nacional o Extranjera.' });
@@ -4976,17 +5530,87 @@ function renderRevisionDatosAsistente(data, editable) {
         });
     }
 
-        function inicializarSelectoresRevisionIngreso() {
-        if (!revisionDatosEdicionActiva || !$.fn.select2 || $('#revision_transporte_a_cargo').val() !== 'TERRAMAR') return;
+    function opcionesPaisRevision(codigoSeleccionado) {
+        const codigo = codigoSeleccionado || '+56';
+        return (revisionPaisesTelefono || []).map(function (pais) {
+            return `<option value="${escapeHtml(pais.codigo_telefonico)}" ${pais.codigo_telefonico === codigo ? 'selected' : ''}>${escapeHtml(pais.nombre + ' (' + pais.codigo_telefonico + ')')}</option>`;
+        }).join('');
+    }
+
+    function actualizarRutaPorModalidadRevision(esTerramar) {
+        revisionRequiereRutaTransportista = esTerramar;
+        if (!esTerramar) {
+            revisionRutasTransportista = [];
+            revisionRutaGuardada = true;
+            $('#bloqueRutaTransportista').remove();
+            actualizarEstadoAprobacionRevision();
+            return;
+        }
+        revisionRutaGuardada = false;
+        if (!$('#bloqueRutaTransportista').length) {
+            $('#revision_validacion_campos').append(renderRevisionRutaTransportistaCampo([], 'Seleccione una empresa de transporte para consultar sus rutas.'));
+        }
+        actualizarEstadoRutaRevision();
+    }
+
+    function reconstruirCamposTransporteRevision(modalidad) {
+        const esTerramar = modalidad === 'TERRAMAR';
+        const modalActivo = revisionDatosOrigen === 'estanque' ? $('#ModalEstanqueCamion') : $('#ModalRevisionAsistente');
+        modalActivo.find('.revision-transporte-campo select').each(function () {
+            if ($(this).data('select2')) $(this).select2('destroy');
+        });
+        modalActivo.find('.revision-transporte-campo').remove();
+        const valores = {
+            transporte_a_cargo: modalidad,
+            transportista: '', transportista_id: '', conductor: '', conductor_id: '',
+            rut_conductor: '', telefono_codigo_pais: '+56', telefono_conductor: ''
+        };
+        modalActivo.find('.revision-campo-patente').before(
+            renderCamposTransporteRevision(valores, opcionesPaisRevision('+56'))
+        );
+        actualizarRutaPorModalidadRevision(esTerramar);
+        inicializarSelectoresRevisionIngreso();
+    }
+
+    function inicializarSelectoresRevisionIngreso() {
+        if (!revisionDatosEdicionActiva || !$.fn.select2) return;
+        const modalActivo = revisionDatosOrigen === 'estanque' ? $('#ModalEstanqueCamion') : $('#ModalRevisionAsistente');
+        const dropdownParent = modalActivo;
+        if ($('#revision_telefono_codigo_pais').data('select2')) $('#revision_telefono_codigo_pais').select2('destroy');
+        $('#revision_telefono_codigo_pais').select2({width: '100%', dropdownParent: dropdownParent});
+        if ($('#revision_transporte_a_cargo').val() !== 'TERRAMAR') return;
         const empresaId = empresaIdActiva();
-        $('#revision_telefono_codigo_pais').select2({width: '100%', dropdownParent: revisionDatosOrigen === 'estanque' ? $('#ModalEstanqueCamion') : $('#ModalRevisionAsistente')});
-        $('#revision_transportista').select2({width: '100%', dropdownParent: $('#ModalRevisionAsistente'), placeholder: 'Seleccione transportista', allowClear: true, ajax: {url: '/ajax/transportistas-ingreso-camion/', dataType: 'json', delay: 250, data: function (p) { return {q: p.term || '', empresa_id: empresaId}; }, processResults: function (d) { return {results: d.results || []}; }}}).on('select2:select', function (e) { const item = e.params.data || {}; $('#revision_transportista_id').val(item.socionegocio_id || ''); $('#revision_conductor').empty().append('<option value="">Seleccione conductor</option>').trigger('change'); $('#revision_conductor_id').val(''); $('#revision_rut_conductor,#revision_telefono_conductor,#revision_patente').val(''); });
-        $('#revision_conductor').select2({width: '100%', dropdownParent: $('#ModalRevisionAsistente'), placeholder: 'Seleccione conductor', allowClear: true, ajax: {url: '/ajax/conductores-ingreso-camion/', dataType: 'json', delay: 250, data: function (p) { return {q: p.term || '', empresa_id: empresaId, transportista_id: $('#revision_transportista_id').val(), transportista: $('#revision_transportista').val()}; }, processResults: function (d) { return {results: d.results || []}; }}}).on('select2:select', function (e) { const item=e.params.data || {}; $('#revision_conductor_id').val(item.conductor_id || ''); $('#revision_rut_conductor').val(item.rut || ''); $('#revision_telefono_codigo_pais').val(item.telefono_codigo_pais || '+56').trigger('change'); $('#revision_telefono_conductor').val(item.telefono || ''); $('#revision_patente').val(item.patente || ''); });
+        if ($('#revision_transportista').data('select2')) $('#revision_transportista').select2('destroy');
+        if ($('#revision_conductor').data('select2')) $('#revision_conductor').select2('destroy');
+        $('#revision_transportista').off('.revisionIngreso').select2({width: '100%', dropdownParent: dropdownParent, placeholder: 'Seleccione transportista', allowClear: true, ajax: {url: '/ajax/transportistas-ingreso-camion/', dataType: 'json', delay: 250, data: function (p) { return {q: p.term || '', empresa_id: empresaId, estricto_empresa: '1'}; }, processResults: function (d) { return {results: d.results || []}; }}}).on('select2:select.revisionIngreso', function (e) {
+            const item = e.params.data || {};
+            const transportistaId = item.socionegocio_id || '';
+            $('#revision_transportista_id').val(transportistaId);
+            revisionRutaGuardada = false;
+            cargarRutasTransportistaRevision(revisionAsistenteCitacionId, [], '', transportistaId);
+        }).on('select2:clear.revisionIngreso', function () {
+            $('#revision_transportista_id').val('');
+            setRevisionRutasTransportista([], 'Seleccione una empresa de transporte para consultar sus rutas.');
+            invalidarRutaRevision();
+        });
+        $('#revision_conductor').off('.revisionIngreso').select2({width: '100%', dropdownParent: dropdownParent, placeholder: 'Seleccione conductor', allowClear: true, ajax: {url: '/ajax/conductores-ingreso-camion/', dataType: 'json', delay: 250, data: function (p) { return {q: p.term || '', empresa_id: empresaId}; }, processResults: function (d) { return {results: d.results || []}; }}}).on('select2:select.revisionIngreso', function (e) {
+            const item=e.params.data || {};
+            $('#revision_conductor_id').val(item.conductor_id || '');
+            $('#revision_rut_conductor').val(item.rut || '');
+            $('#revision_telefono_codigo_pais').val(item.telefono_codigo_pais || '+56').trigger('change');
+            $('#revision_telefono_conductor').val(item.telefono || '');
+        }).on('select2:clear.revisionIngreso', function () {
+            $('#revision_conductor_id,#revision_rut_conductor,#revision_telefono_conductor').val('');
+        });
     }
     $(document).on('click', '#btn_revision_editar_datos', function () { revisionDatosEdicionActiva = true; if (revisionDatosOrigen === 'estanque') { openEstanqueCamionModal(revisionAsistenteCitacionId); } else { openRevisionAsistenteModal(revisionAsistenteCitacionId); } });
     $(document).on('click', '#btn_revision_cancelar_datos', function () { revisionDatosEdicionActiva = false; if (revisionDatosOrigen === 'estanque') { openEstanqueCamionModal(revisionAsistenteCitacionId); } else { openRevisionAsistenteModal(revisionAsistenteCitacionId); } });
 $(document).on('click', '#btn_revision_guardar_datos', guardarDatosRevisionAsistente);
     $(document).on('change', '#revision_transporte_a_cargo', function () {
+        if (revisionEsSbh) {
+            reconstruirCamposTransporteRevision($(this).val() === 'CLIENTE' ? 'CLIENTE' : 'TERRAMAR');
+            return;
+        }
         const esCliente = $(this).val() === 'CLIENTE';
         $('#revision_transportista').prop('disabled', esCliente).val(esCliente ? 'CLIENTE' : $('#revision_transportista').val());
     });
@@ -4994,6 +5618,82 @@ $(document).on('click', '#btn_revision_guardar_datos', guardarDatosRevisionAsist
         const esExtranjero = $(this).val() === 'EXTRANJERO';
         $('.revision-recepcion-extranjero').toggle(esExtranjero);
     });
+    function opcionesSelectDocumentoDespacho(opciones, seleccion) {
+        return (opciones || []).map(function (opcion) {
+            const valor = String(opcion.value || '');
+            return `<option value="${escapeHtml(valor)}" ${valor === String(seleccion || '') ? 'selected' : ''}>${escapeHtml(valor + ' — ' + opcion.text)}</option>`;
+        }).join('');
+    }
+
+    function renderRevisionDatosDocumentoDespacho(data, editable) {
+        const valores = data || {};
+        const disabled = editable ? '' : 'disabled';
+        return `
+            <div class="revision-section" id="revision_documento_despacho_section">
+                <h6>Datos documento de despacho</h6>
+                <div class="row">
+                    <div class="form-group col-md-6">
+                        <label for="revision_tipo_despacho">Tipo de despacho <span class="text-danger">*</span></label>
+                        <select class="form-control" id="revision_tipo_despacho" ${disabled}>
+                            <option value="">Seleccione Tipo de despacho</option>
+                            ${opcionesSelectDocumentoDespacho(valores.opciones_tipo_despacho, valores.tipo_despacho)}
+                        </select>
+                    </div>
+                    <div class="form-group col-md-6">
+                        <label for="revision_tipo_traslado">Tipo de traslado <span class="text-danger">*</span></label>
+                        <select class="form-control" id="revision_tipo_traslado" ${disabled}>
+                            <option value="">Seleccione Tipo de traslado</option>
+                            ${opcionesSelectDocumentoDespacho(valores.opciones_tipo_traslado, valores.tipo_traslado)}
+                        </select>
+                    </div>
+                </div>
+                ${editable ? '<button type="button" class="btn btn-outline-primary btn-sm" id="btn_guardar_documento_despacho" onclick="guardarDatosDocumentoDespachoSbh()">Guardar datos documento</button>' : ''}
+                <small class="ml-2 text-muted" id="revision_documento_despacho_estado"></small>
+            </div>`;
+    }
+
+    function validarTiposDocumentoDespachoFrontend() {
+        const tipoDespacho = String($('#revision_tipo_despacho').val() || '').trim();
+        const tipoTraslado = String($('#revision_tipo_traslado').val() || '').trim();
+        let mensaje = '';
+        if (!tipoDespacho && !tipoTraslado) mensaje = 'Debe seleccionar Tipo de despacho y Tipo de traslado.';
+        else if (!tipoDespacho) mensaje = 'Debe seleccionar Tipo de despacho.';
+        else if (!tipoTraslado) mensaje = 'Debe seleccionar Tipo de traslado.';
+        else if (!['1', '2', '3'].includes(tipoDespacho)) mensaje = 'El Tipo de despacho seleccionado no es válido.';
+        else if (!['1', '2', '3', '4', '5', '6', '7'].includes(tipoTraslado)) mensaje = 'El Tipo de traslado seleccionado no es válido.';
+        return mensaje ? { valido: false, mensaje: mensaje } : {
+            valido: true, tipo_despacho: tipoDespacho, tipo_traslado: tipoTraslado
+        };
+    }
+
+    function guardarDatosDocumentoDespachoSbh() {
+        if (!revisionAsistenteCitacionId || !revisionRequiereTiposDocumentoDespacho) return;
+        const validacion = validarTiposDocumentoDespachoFrontend();
+        if (!validacion.valido) {
+            Swal.fire({ icon: 'warning', title: 'Datos requeridos', text: validacion.mensaje });
+            return;
+        }
+        const boton = $('#btn_guardar_documento_despacho');
+        boton.prop('disabled', true).text('Guardando...');
+        $.ajax({
+            url: `/pla-citacion-guardar-documento-despacho-sbh/${revisionAsistenteCitacionId}/`,
+            type: 'POST',
+            data: {
+                tipo_despacho: validacion.tipo_despacho,
+                tipo_traslado: validacion.tipo_traslado
+            },
+            headers: { 'X-CSRFToken': '{{ csrf_token }}' },
+            success: function (response) {
+                $('#revision_documento_despacho_estado').removeClass('text-danger').addClass('text-success').text(response.message || 'Datos guardados.');
+            },
+            error: function (xhr) {
+                const message = xhr.responseJSON && xhr.responseJSON.message ? xhr.responseJSON.message : 'No fue posible guardar los datos.';
+                $('#revision_documento_despacho_estado').removeClass('text-success').addClass('text-danger').text(message);
+                Swal.fire({ icon: 'warning', title: 'No se pudo guardar', text: message });
+            },
+            complete: function () { boton.prop('disabled', false).text('Guardar datos documento'); }
+        });
+    }
     function renderRevisionValidacion(data, esDespacho) {
         const campos = data.campos_validacion || {};
         const rutas = (data.rutas_transportista && data.rutas_transportista.options) || [];
@@ -5001,7 +5701,7 @@ $(document).on('click', '#btn_revision_guardar_datos', guardarDatosRevisionAsist
         return `
             <div class="revision-section">
                 <h6>Validación Asistente Recepción</h6>
-                <div class="row">
+                <div class="row" id="revision_validacion_campos">
                     ${esDespacho ? '' : `
                     <div class="form-group col-md-6">
                         <label for="revision_bl">BL</label>
@@ -5032,6 +5732,7 @@ $(document).on('click', '#btn_revision_guardar_datos', guardarDatosRevisionAsist
         revisionRequiereRutaTransportista = true;
         revisionRequierePesoInformadoGuia = false;
         revisionRequiereConfirmacionDatos = false;
+        revisionRequiereTiposDocumentoDespacho = false;
         revisionAprobadoAsistente = false;
         revisionPuedeEditar = false;
         revisionRutasTransportista = [];
@@ -5053,9 +5754,12 @@ $(document).on('click', '#btn_revision_guardar_datos', guardarDatosRevisionAsist
                 }
 
                 const puedeEditarRevision = !!response.puede_editar_revision_asistente;
+                revisionPaisesTelefono = (response.datos_edicion_asistente && response.datos_edicion_asistente.paises_telefono) || [];
+                revisionEsSbh = !!(response.datos_edicion_asistente && response.datos_edicion_asistente.es_sbh);
                 revisionPuedeEditar = puedeEditarRevision;
                 revisionAprobadoAsistente = !!response.aprobado_asistente;
                 revisionRequiereConfirmacionDatos = !!response.requiere_confirmacion_datos;
+                revisionRequiereTiposDocumentoDespacho = !!response.requiere_tipos_documento_despacho;
                 revisionRequiereRutaTransportista = !!response.requiere_ruta_transportista && !response.es_flujo_terramar;
                 revisionRequierePesoInformadoGuia = !!response.requiere_peso_informado_guia;
                 revisionRutaGuardada = !!response.ruta_transportista_guardada;
@@ -5064,6 +5768,7 @@ $(document).on('click', '#btn_revision_guardar_datos', guardarDatosRevisionAsist
                     renderRevisionSection('Datos planificación', response.planificacion),
                     renderRevisionSection('Datos citación', response.citacion),
                     esDespachoRevision ? renderRevisionSection('Datos del despacho', response.datos_despacho) : '',
+                    revisionRequiereTiposDocumentoDespacho ? renderRevisionDatosDocumentoDespacho(response.datos_documento_despacho, puedeEditarRevision) : '',
                     esDespachoRevision ? renderRevisionSection('Datos SAP', response.datos_sap) : '',
                     renderRevisionDatosAsistente(
                         response.datos_edicion_asistente || {},
@@ -5112,7 +5817,9 @@ $(document).on('click', '#btn_revision_guardar_datos', guardarDatosRevisionAsist
     }
 
     $(document).on('change', '#revisionDatosValidados', actualizarEstadoAprobacionRevision);
-    $(document).on('input change', '#revision_peso_informado_guia', actualizarEstadoAprobacionRevision);
+    $(document).on('input change', '#revision_peso_informado_guia', actualizarEstadoAprobacionRevision);    $(document).on('change', '#revision_tipo_despacho, #revision_tipo_traslado', function () {
+        $('#revision_documento_despacho_estado').removeClass('text-success text-danger').text('Cambios pendientes de guardar.');
+    });
 
     function aprobarRevisionAsistente() {
         if (!revisionAsistenteCitacionId) {
@@ -5127,6 +5834,14 @@ $(document).on('click', '#btn_revision_guardar_datos', guardarDatosRevisionAsist
             return;
         }
 
+        let tiposDocumento = { valido: true, tipo_despacho: '', tipo_traslado: '' };
+        if (revisionRequiereTiposDocumentoDespacho) {
+            tiposDocumento = validarTiposDocumentoDespachoFrontend();
+            if (!tiposDocumento.valido) {
+                Swal.fire({ icon: 'warning', title: 'Datos requeridos', text: tiposDocumento.mensaje });
+                return;
+            }
+        }
         const pesoInformadoGuia = normalizarTexto($('#revision_peso_informado_guia').val());
         const pesoInformadoNumero = Number(String(pesoInformadoGuia).replace(',', '.'));
         if (revisionRequierePesoInformadoGuia && (!pesoInformadoGuia || !Number.isFinite(pesoInformadoNumero) || pesoInformadoNumero <= 0)) {
@@ -5134,11 +5849,14 @@ $(document).on('click', '#btn_revision_guardar_datos', guardarDatosRevisionAsist
             return;
         }
         const boton = $('#btn_revision_aprobar');
+        const textoOriginalBoton = boton.text();
         boton.prop('disabled', true).text('Procesando...');
         const dataAprobacion = {
             lote_contenedor: $('#revision_lote_contenedor').val(),
             datos_validados: revisionRequiereConfirmacionDatos ? 'true' : '',
-            peso_informado_guia: revisionRequierePesoInformadoGuia ? pesoInformadoGuia : ''
+            peso_informado_guia: revisionRequierePesoInformadoGuia ? pesoInformadoGuia : '',
+            tipo_despacho: tiposDocumento.tipo_despacho,
+            tipo_traslado: tiposDocumento.tipo_traslado
         };
         if ($('#revision_bl').length) {
             dataAprobacion.bl = $('#revision_bl').val();
@@ -5156,7 +5874,7 @@ $(document).on('click', '#btn_revision_guardar_datos', guardarDatosRevisionAsist
                 Swal.fire({ icon: 'warning', title: 'No se pudo aprobar', text: message });
             },
             complete: function () {
-                boton.text('Aprobar');
+                boton.text(textoOriginalBoton);
                 actualizarEstadoAprobacionRevision();
             }
         });
@@ -6691,6 +7409,7 @@ function inicializarConductoresIngresoCamion(limpiarActual) {
     }
 
     function openEstanqueCamionModal(citacionId) {
+        cargaSbh.reset();
         revisionDatosOrigen = 'estanque';
         revisionAsistenteCitacionId = citacionId;
         estanqueCamionCitacionId = citacionId;
@@ -6733,6 +7452,8 @@ function inicializarConductoresIngresoCamion(limpiarActual) {
                 }
 
                 const opciones = response.opciones_estanque || [];
+                revisionPaisesTelefono = (response.datos_edicion_asistente && response.datos_edicion_asistente.paises_telefono) || [];
+                revisionEsSbh = !!(response.datos_edicion_asistente && response.datos_edicion_asistente.es_sbh);
                 const puedeEditar = !!response.puede_editar && !response.enviado_siguiente;
                 estanqueCamionPuedeEditar = puedeEditar;
                 estanqueCamionAlmacenOriginal = response.almacen_codigo || '';
@@ -6794,6 +7515,16 @@ function inicializarConductoresIngresoCamion(limpiarActual) {
                 }
 
                 if (esDespacho) {
+                    if (response.carga_operacional) {
+                        $('#ModalEstanqueCamionLabel').text('Ingreso Datos Asistente Carga y Descarga');
+                        $('#estanque_camion_form_section h6').text('Acuerdos SAP / Carga');
+                        const generales = Object.assign({}, response.datos_despacho || {});
+                        delete generales['Codigo SAP'];
+                        delete generales['Producto SAP'];
+                        $('#estanque_camion_contenido').append(renderRevisionSection('Datos generales del despacho', generales));
+                        cargaSbh.mount(response, puedeEditar);
+                        return;
+                    }
                     $('#estanque_camion_contenido').append(renderRevisionSection('Datos despacho / SAP', response.datos_despacho));
                     $('#ModalEstanqueCamionLabel').text('Ingreso Datos Asistente Carga y Descarga');
                     $('#estanque_camion_form_section h6').text('Ingreso Datos Asistente Carga y Descarga');
@@ -7501,6 +8232,10 @@ function inicializarConductoresIngresoCamion(limpiarActual) {
     }
 
     function guardarEstanqueCamion() {
+        if (cargaSbh.active()) {
+            cargaSbh.save();
+            return;
+        }
         if (!estanqueCamionCitacionId) {
             return;
         }
@@ -7912,6 +8647,10 @@ function inicializarConductoresIngresoCamion(limpiarActual) {
                 return;
             }
 
+            if (cargaSbh.active() && !cargaSbh.beginSend()) {
+                return;
+            }
+
             $.ajax({
                 url: `/pla-citacion-estanque-avanzar/${estanqueCamionCitacionId}/`,
                 type: 'POST',
@@ -7920,6 +8659,7 @@ function inicializarConductoresIngresoCamion(limpiarActual) {
                 },
                 success: function (response) {
                     if (!response.success) {
+                        if (cargaSbh.active()) cargaSbh.endSend();
                         Swal.fire({
                             icon: 'error',
                             title: 'No se pudo enviar',
@@ -7937,6 +8677,7 @@ function inicializarConductoresIngresoCamion(limpiarActual) {
                     });
                 },
                 error: function (xhr) {
+                    if (cargaSbh.active()) cargaSbh.endSend();
                     const message = xhr.responseJSON && xhr.responseJSON.message
                         ? xhr.responseJSON.message
                         : 'No fue posible enviar la citación.';

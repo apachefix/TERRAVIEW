@@ -6,7 +6,7 @@ from unittest.mock import patch
 from django.test import RequestFactory, TestCase
 
 from apps.home import views
-from apps.home.models import CONDUCTOR, EMPRESA, SOCIONEGOCIO
+from apps.home.models import CONDUCTOR, CONDUCTOR_EMPRESA, EMPRESA, SOCIONEGOCIO
 
 
 class ConductoresIndependientesRecepcionSbhTests(TestCase):
@@ -116,9 +116,18 @@ class ConductoresIndependientesRecepcionSbhTests(TestCase):
 
     def test_consulta_no_modifica_asociacion_historica_del_conductor(self):
         sn_original = self.pedro.SN_NID_id
+        empresa_original = self.pedro.EP_NID_id
+        membresias_originales = list(
+            CONDUCTOR_EMPRESA.objects.filter(CON_NID=self.pedro).values_list('id', 'EP_NID_id', 'CEM_BHABILITADO')
+        )
         self._consultar(2, self.transporte_a, es_despacho=0)
         self.pedro.refresh_from_db()
         self.assertEqual(self.pedro.SN_NID_id, sn_original)
+        self.assertEqual(self.pedro.EP_NID_id, empresa_original)
+        self.assertEqual(
+            list(CONDUCTOR_EMPRESA.objects.filter(CON_NID=self.pedro).values_list('id', 'EP_NID_id', 'CEM_BHABILITADO')),
+            membresias_originales,
+        )
 
     def test_despacho_sbh_tambien_usa_padron_global(self):
         resultados = self._consultar(2, self.transporte_a, es_despacho=1)

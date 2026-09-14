@@ -577,16 +577,31 @@
          * como tema de Aceites; estas variables solo cambian con EP_NID = 1.
          */
         body.theme-harinas {
-            --color-primary: #6C8784;
-            --color-primary-900: #425957;
-            --color-primary-800: #526B69;
-            --color-accent: #D36B5C;
-            --color-accent-700: #B95347;
-            --color-secondary: #8FA5A2;
-            --color-secondary-700: #6C8784;
-            --color-light: #E8E3C8;
-            --color-page: #f5f7fa;
-            --color-border: rgba(82, 107, 105, 0.16);
+            --terramar-coral: #D36B5C;
+            --terramar-coral-hover: #B95347;
+            --terramar-verde: #6C8784;
+            --terramar-verde-start: #3F5F5C;
+            --terramar-verde-sidebar: #55706D;
+            --terramar-verde-sidebar-mid: #4F6C69;
+            --terramar-verde-sidebar-end: #5A7471;
+            --terramar-verde-dark: #526B69;
+            --terramar-verde-deep: #425957;
+            --terramar-verde-light: #8FA5A2;
+            --terramar-coral-navigation: #B66F63;
+            --terramar-crema: #E8E3C8;
+            --terramar-crema-soft: rgba(232, 227, 200, 0.18);
+            --terramar-border: rgba(82, 107, 105, 0.16);
+            --terramar-background: #f5f7fa;
+            --color-primary: var(--terramar-verde);
+            --color-primary-900: var(--terramar-verde-deep);
+            --color-primary-800: var(--terramar-verde-dark);
+            --color-accent: var(--terramar-coral);
+            --color-accent-700: var(--terramar-coral-hover);
+            --color-secondary: var(--terramar-verde-light);
+            --color-secondary-700: var(--terramar-verde);
+            --color-light: var(--terramar-crema);
+            --color-page: var(--terramar-background);
+            --color-border: var(--terramar-border);
             --shadow-soft: 0 10px 30px rgba(82, 107, 105, 0.12);
             --shadow-panel: 0 16px 42px rgba(82, 107, 105, 0.16);
         }
@@ -594,26 +609,55 @@
         body.theme-harinas .pcoded-navbar,
         body.theme-harinas .pcoded-navbar.navbar-dark,
         body.theme-harinas .pcoded-navbar.menupos-fixed {
-            background: linear-gradient(180deg, #526B69 0%, #425957 100%) !important;
+            background: linear-gradient(180deg, var(--terramar-verde-start) 0%, var(--terramar-verde-sidebar-mid) 40%, var(--terramar-verde) 72%, var(--terramar-verde-sidebar-end) 100%) !important;
             box-shadow: 10px 0 34px rgba(66, 89, 87, 0.24) !important;
         }
 
-        body.theme-harinas .pcoded-navbar .pcoded-inner-navbar li > a:hover,
+        body.theme-harinas .pcoded-navbar .pcoded-inner-navbar li > a:hover {
+            background: rgba(232, 227, 200, 0.10) !important;
+            color: #fff !important;
+            box-shadow: inset 3px 0 0 rgba(232, 227, 200, 0.34) !important;
+        }
+
         body.theme-harinas .pcoded-navbar .pcoded-inner-navbar li.active > a,
         body.theme-harinas .pcoded-navbar .pcoded-inner-navbar li.pcoded-trigger > a {
-            background: linear-gradient(90deg, rgba(108, 135, 132, 0.35), rgba(232, 227, 200, 0.10)) !important;
-            box-shadow: inset 3px 0 0 #E8E3C8, 0 8px 18px rgba(0, 0, 0, 0.14) !important;
+            background: linear-gradient(90deg, rgba(63, 95, 92, 0.42), rgba(232, 227, 200, 0.10)) !important;
+            color: #fff !important;
+            box-shadow: inset 3px 0 0 var(--terramar-coral-navigation), 0 8px 18px rgba(0, 0, 0, 0.14) !important;
+        }
+
+        body.theme-harinas .pcoded-navbar .pcoded-submenu {
+            background: rgba(63, 95, 92, 0.16) !important;
+            border-left: 1px solid rgba(232, 227, 200, 0.10) !important;
+        }
+
+        body.theme-harinas .pcoded-navbar .sidebar-search-card {
+            background: rgba(63, 95, 92, 0.32) !important;
+            border-color: rgba(232, 227, 200, 0.18) !important;
+        }
+
+        body.theme-harinas .pcoded-navbar .sidebar-search-button {
+            background: var(--terramar-verde-start) !important;
+            border-color: rgba(232, 227, 200, 0.18) !important;
+        }
+
+        body.theme-harinas .pcoded-navbar .sidebar-search-button:hover,
+        body.theme-harinas .pcoded-navbar .sidebar-search-button:focus {
+            background: var(--terramar-verde-sidebar) !important;
+            border-color: rgba(232, 227, 200, 0.30) !important;
         }
 
         body.theme-harinas .pcoded-header,
         body.theme-harinas .pcoded-header.header-orchidgreen,
         body.theme-harinas header.pcoded-header.header-orchidgreen {
-            background: linear-gradient(90deg, #526B69 0%, #6C8784 55%, #8FA5A2 100%) !important;
+            background: linear-gradient(90deg, var(--terramar-verde-start) 0%, var(--terramar-verde) 55%, var(--terramar-coral-navigation) 100%) !important;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.12) !important;
             box-shadow: 0 10px 30px rgba(82, 107, 105, 0.22) !important;
         }
 
         body.theme-harinas .page-header .page-block {
-            background: linear-gradient(90deg, #526B69 0%, #6C8784 55%, #8FA5A2 100%) !important;
+            background: linear-gradient(90deg, var(--terramar-verde-dark) 0%, var(--terramar-verde) 68%, var(--terramar-verde-light) 100%) !important;
+            border-left: 4px solid var(--terramar-coral) !important;
             box-shadow: 0 18px 44px rgba(82, 107, 105, 0.22) !important;
         }
 
@@ -621,16 +665,106 @@
             background: rgba(66, 89, 87, 0.36) !important;
         }
 
+        body.theme-harinas .btn-primary {
+            background: var(--terramar-coral) !important;
+            border-color: var(--terramar-coral) !important;
+            color: #fff !important;
+            box-shadow: 0 8px 18px rgba(211, 107, 92, 0.22) !important;
+        }
+
         body.theme-harinas .btn-primary:hover,
         body.theme-harinas .btn-primary:focus {
-            background: linear-gradient(135deg, #526B69, #6C8784) !important;
-            border-color: #526B69 !important;
-            box-shadow: 0 10px 24px rgba(82, 107, 105, 0.28) !important;
+            background: var(--terramar-coral-hover) !important;
+            border-color: var(--terramar-coral-hover) !important;
+            box-shadow: 0 10px 24px rgba(211, 107, 92, 0.28) !important;
+        }
+
+        body.theme-harinas .btn-secondary,
+        body.theme-harinas .btn-info {
+            background: var(--terramar-verde) !important;
+            border-color: var(--terramar-verde) !important;
+            color: #fff !important;
+        }
+
+        body.theme-harinas .btn-secondary:hover,
+        body.theme-harinas .btn-secondary:focus,
+        body.theme-harinas .btn-info:hover,
+        body.theme-harinas .btn-info:focus {
+            background: var(--terramar-verde-dark) !important;
+            border-color: var(--terramar-verde-dark) !important;
+            color: #fff !important;
+        }
+
+        body.theme-harinas .modal-footer .btn-secondary,
+        body.theme-harinas .modal-footer .btn-default,
+        body.theme-harinas .modal-footer .btn-light {
+            background: #fff !important;
+            border-color: var(--terramar-verde) !important;
+            color: var(--terramar-verde-deep) !important;
+        }
+
+        body.theme-harinas .modal-footer .btn-secondary:hover,
+        body.theme-harinas .modal-footer .btn-default:hover,
+        body.theme-harinas .modal-footer .btn-light:hover {
+            background: var(--terramar-crema-soft) !important;
+            border-color: var(--terramar-verde-dark) !important;
+            color: var(--terramar-verde-deep) !important;
+        }
+
+        body.theme-harinas .modal-footer .btn-primary:hover,
+        body.theme-harinas .modal-footer .btn-info:hover {
+            background: var(--terramar-coral-hover) !important;
+            border-color: var(--terramar-coral-hover) !important;
         }
 
         body.theme-harinas .table thead th,
         body.theme-harinas table.dataTable thead th {
             background: linear-gradient(180deg, rgba(108, 135, 132, 0.14), rgba(108, 135, 132, 0.06)) !important;
+        }
+
+        body.theme-harinas .card .card-header {
+            background: linear-gradient(180deg, #fff 0%, var(--terramar-crema-soft) 100%) !important;
+            border-bottom-color: var(--terramar-border) !important;
+        }
+
+        body.theme-harinas .card .card-header i,
+        body.theme-harinas .card .card-body > i {
+            color: var(--terramar-verde) !important;
+        }
+
+        body.theme-harinas .form-control:focus,
+        body.theme-harinas .custom-select:focus,
+        body.theme-harinas select:focus {
+            border-color: var(--terramar-verde) !important;
+            box-shadow: 0 0 0 0.15rem rgba(108, 135, 132, 0.20) !important;
+        }
+
+        body.theme-harinas .select2-container--default .select2-selection--single,
+        body.theme-harinas .select2-container--default .select2-selection--multiple {
+            border-color: var(--terramar-border) !important;
+            background-color: #fff !important;
+        }
+
+        body.theme-harinas .select2-container--default.select2-container--focus .select2-selection--single,
+        body.theme-harinas .select2-container--default.select2-container--focus .select2-selection--multiple,
+        body.theme-harinas .select2-container--default.select2-container--open .select2-selection--single {
+            border-color: var(--terramar-verde) !important;
+            box-shadow: 0 0 0 0.15rem rgba(108, 135, 132, 0.20) !important;
+        }
+
+        body.theme-harinas .select2-container--default .select2-results__option--highlighted[aria-selected] {
+            background-color: var(--terramar-verde) !important;
+            color: #fff !important;
+        }
+
+        body.theme-harinas .select2-container--default .select2-results__option[aria-selected="true"] {
+            background-color: var(--terramar-crema-soft) !important;
+            color: var(--terramar-verde-deep) !important;
+        }
+
+        body.theme-harinas .modal-header {
+            background: linear-gradient(90deg, var(--terramar-verde-dark), var(--terramar-verde)) !important;
+            border-bottom: 3px solid var(--terramar-coral) !important;
         }
 
         body.theme-harinas .profile-notification .pro-head {
@@ -1102,6 +1236,14 @@
         function showSweetAlert(newNotifications) {
             const notificationMessages = newNotifications.map(function(notification) {
                 const content = (notification[1] || '').toString();
+                const patioAttentionLine = content.split('\n').find(function(line) {
+                    const normalized = line.toLowerCase();
+                    return normalized.indexOf('se presentó en patio de camiones') !== -1
+                        || normalized.indexOf('se presento en patio de camiones') !== -1;
+                });
+                if (patioAttentionLine) {
+                    return '<strong>Camión de despacho requiere atención</strong><br>' + patioAttentionLine;
+                }
                 const patioLine = content.split('\n').find(function(line) {
                     return line.toLowerCase().indexOf('ha ingresado camion patente') !== -1
                         || line.toLowerCase().indexOf('ha ingresado camión patente') !== -1;
@@ -1119,7 +1261,9 @@
                 return content.indexOf('camion ingresado a patio') !== -1
                     || content.indexOf('camión ingresado a patio') !== -1
                     || content.indexOf('ha ingresado camion patente') !== -1
-                    || content.indexOf('ha ingresado camión patente') !== -1;
+                    || content.indexOf('ha ingresado camión patente') !== -1
+                    || content.indexOf('se presentó en patio de camiones') !== -1
+                    || content.indexOf('se presento en patio de camiones') !== -1;
             });
 
             const message = notificationMessages.length === 1

@@ -13,6 +13,7 @@ from datetime import date
 from decimal import Decimal, InvalidOperation
 
 from django.conf import settings
+from django.db import transaction
 from django.utils import timezone
 from requests import HTTPError
 
@@ -22,7 +23,13 @@ from apps.integrations.sap_b1.service_layer_probe import (
     load_config,
 )
 
-from .models import CAMION_PATIO, CITACION_DESPACHO_DETALLE, DATO_OPERACION, OPERACION_PLANTA_LOG
+from .models import (
+    CAMION_PATIO,
+    CITACION_DESPACHO_ASIGNACION_SAP,
+    CITACION_DESPACHO_DETALLE,
+    DATO_OPERACION,
+    OPERACION_PLANTA_LOG,
+)
 from .sap_di_api import HANA_IDENTIFIER_RE, SapDiApiError, _load_config, _rows, consultar_acuerdos_despacho_sap
 
 
@@ -90,6 +97,23 @@ def decimal_o_primero(*valores):
         if decimal is not None:
             return decimal
     return None
+
+
+def fecha_iso(valor):
+    if not valor:
+        return ""
+    if hasattr(valor, "isoformat"):
+        return valor.isoformat()
+    return str(valor).strip()
+
+
+def hora_hhmm(valor):
+    if not valor:
+        return ""
+    if hasattr(valor, "strftime"):
+        return valor.strftime("%H:%M")
+    texto = str(valor).strip()
+    return texto[:5] if re.fullmatch(r"\d{2}:\d{2}(?::\d{2})?", texto) else texto
 
 
 def entero_o_none(valor):
@@ -686,6 +710,10 @@ def _registrar_log_update_sap_despacho(citacion, usuario, success, payload, resp
 
 
 def crear_borrador_sap_despacho(citacion, usuario, allow_duplicate=False):
+    # Ningún endpoint antiguo puede enviar solo la primera asignación de la carga nueva.
+    from .despacho_carga import usa_carga_operacional, MENSAJE_PREPARADO
+    if usa_carga_operacional(citacion):
+        return {'success': False, 'message': MENSAJE_PREPARADO, 'status': {}}
     existing_status = get_sap_despacho_draft_status(citacion)
 
     if existing_status.get("created") and not allow_duplicate:
@@ -1585,7 +1613,247 @@ def normalizar_salida_documento_despacho(valor):
     return SALIDA_DOCUMENTO_DESPACHO_OPCIONES.get(clave, "")
 
 
+def validar_asignaciones_sap_planificadas(data):
+    asignaciones_recibidas = data.get('asignaciones_sap')
+    if asignaciones_recibidas in (None, ''):
+        return []
+    if not isinstance(asignaciones_recibidas, list):
+        raise ValueError('Las asignaciones SAP deben enviarse como una lista.')
+    if not asignaciones_recibidas:
+        return []
+
+    cliente_cabecera = texto_o_primero(data.get('cliente_codigo'), data.get('cliente'))
+    cliente_principal = ''
+    lineas_vistas = set()
+    ids_locales_vistos = set()
+    asignaciones = []
+
+    for indice, asignacion in enumerate(asignaciones_recibidas, start=1):
+        if not isinstance(asignacion, dict):
+            raise ValueError(f'La asignacion SAP {indice} tiene un formato invalido.')
+
+        asignacion_id = asignacion.get('id')
+        if asignacion_id not in (None, ''):
+            try:
+                asignacion_id = int(asignacion_id)
+            except (TypeError, ValueError) as exc:
+                raise ValueError(f'El identificador local de la asignacion SAP {indice} no es valido.') from exc
+            if asignacion_id in ids_locales_vistos:
+                raise ValueError('No puede enviar dos veces la misma asignacion SAP local.')
+            ids_locales_vistos.add(asignacion_id)
+        else:
+            asignacion_id = None
+
+        sap_abs_id = texto_o_primero(asignacion.get('sap_abs_id'), asignacion.get('sap_opor_id'))
+        numero_acuerdo = texto_o_primero(asignacion.get('contrato_sap'), asignacion.get('sap_numero_acuerdo'))
+        linea_acuerdo = texto_o_primero(asignacion.get('linea_acuerdo_sap'), asignacion.get('sap_linea_acuerdo'))
+        codigo_producto = texto_o_primero(asignacion.get('codigo_producto_sap'), asignacion.get('sap_codigo_producto'))
+        cliente_codigo = texto_o_primero(asignacion.get('cliente_codigo'), asignacion.get('sap_cliente_codigo'))
+        cantidad_intentada = decimal_or_none(
+            asignacion.get('cantidad_intentada_despachar', asignacion.get('cantidad_asignada'))
+        )
+        estado = texto_o_primero(
+            asignacion.get('estado'),
+            CITACION_DESPACHO_ASIGNACION_SAP.ESTADO_PLANIFICADA,
+        ).upper()
+
+        if not numero_acuerdo or not sap_abs_id or not linea_acuerdo:
+            raise ValueError(f'La asignacion SAP {indice} debe indicar acuerdo, AbsID y linea.')
+        if not codigo_producto:
+            raise ValueError(f'La asignacion SAP {indice} debe indicar el producto.')
+        if not cliente_codigo:
+            raise ValueError(f'La asignacion SAP {indice} debe indicar el cliente SAP.')
+        if cantidad_intentada is None or cantidad_intentada <= 0:
+            raise ValueError(f'La cantidad intentada a despachar del contrato {indice} debe ser mayor que cero.')
+        if estado not in {
+            CITACION_DESPACHO_ASIGNACION_SAP.ESTADO_PLANIFICADA,
+            CITACION_DESPACHO_ASIGNACION_SAP.ESTADO_ANULADA,
+        }:
+            raise ValueError(f'El estado de la asignacion SAP {indice} no es valido.')
+
+        identidad = (sap_abs_id, linea_acuerdo)
+        if identidad in lineas_vistas:
+            raise ValueError('No puede asignar dos veces la misma linea de acuerdo SAP en un despacho.')
+        lineas_vistas.add(identidad)
+
+        if not cliente_principal:
+            cliente_principal = cliente_codigo
+        if cliente_codigo != cliente_principal:
+            raise ValueError('Todos los contratos SAP del despacho deben pertenecer al mismo cliente.')
+        if cliente_cabecera and cliente_codigo != cliente_cabecera:
+            raise ValueError('El cliente del despacho debe coincidir con el cliente de los contratos SAP.')
+
+        normalizada = {
+            'id': asignacion_id,
+            'sap_abs_id': sap_abs_id,
+            'contrato_sap': numero_acuerdo,
+            'linea_acuerdo_sap': linea_acuerdo,
+            'codigo_producto_sap': codigo_producto,
+            'nombre_producto_sap': texto_o_primero(asignacion.get('nombre_producto_sap'), asignacion.get('sap_nombre_producto')),
+            'cliente_codigo': cliente_codigo,
+            'cliente_nombre': texto_o_primero(asignacion.get('cliente_nombre'), asignacion.get('sap_cliente_nombre')),
+            'oc_cliente': texto_o_primero(asignacion.get('oc_cliente'), asignacion.get('sap_oc_cliente')),
+            'cantidad_planificada_sap': decimal_or_none(asignacion.get('cantidad_planificada_sap')),
+            'cantidad_consumida_sap': decimal_or_none(asignacion.get('cantidad_consumida_sap')),
+            'saldo_contrato_sap': decimal_or_none(asignacion.get('saldo_contrato_sap')),
+            'unidad_medida': texto_o_primero(asignacion.get('unidad_medida'), asignacion.get('sap_unidad_medida')),
+            'cantidad_intentada_despachar': cantidad_intentada,
+            'orden': indice,
+            'estado': estado,
+        }
+        asignaciones.append(normalizada)
+
+    primera = next(
+        (item for item in asignaciones if item['estado'] == CITACION_DESPACHO_ASIGNACION_SAP.ESTADO_PLANIFICADA),
+        asignaciones[0],
+    )
+    data.update({
+        'sap_abs_id': primera['sap_abs_id'],
+        'sap_opor_id': primera['sap_abs_id'],
+        'docentry': primera['sap_abs_id'],
+        'sap_numero_acuerdo': primera['contrato_sap'],
+        'contrato_sap': primera['contrato_sap'],
+        'sap_linea_acuerdo': primera['linea_acuerdo_sap'],
+        'linea_acuerdo_sap': primera['linea_acuerdo_sap'],
+        'sap_cliente_codigo': primera['cliente_codigo'],
+        'sap_cliente_nombre': primera['cliente_nombre'],
+        'sap_oc_cliente': primera['oc_cliente'],
+        'sap_codigo_producto': primera['codigo_producto_sap'],
+        'sap_nombre_producto': primera['nombre_producto_sap'],
+        'sap_cantidad_planificada': primera['cantidad_planificada_sap'],
+        'sap_cantidad_consumida': primera['cantidad_consumida_sap'],
+        'sap_saldo_contrato': primera['saldo_contrato_sap'],
+        'sap_unidad_medida': primera['unidad_medida'],
+        'codigo': primera['codigo_producto_sap'],
+        'insumo': primera['nombre_producto_sap'],
+        'pedido': primera['oc_cliente'],
+        'cantidad_planificada_sap': primera['cantidad_planificada_sap'],
+        'cantidad_consumida_sap': primera['cantidad_consumida_sap'],
+        'saldo_contrato_sap': primera['saldo_contrato_sap'],
+        'cantidad_disponible': primera['saldo_contrato_sap'],
+        'cantidad_intentada_despachar': primera['cantidad_intentada_despachar'],
+    })
+    data['asignaciones_sap'] = asignaciones
+    return asignaciones
+
+
+def serializar_asignaciones_sap_planificadas(citacion, detalle_despacho=None):
+    if detalle_despacho is None:
+        try:
+            detalle_despacho = citacion.detalle_despacho
+        except CITACION_DESPACHO_DETALLE.DoesNotExist:
+            return []
+
+    filas = list(detalle_despacho.asignaciones_sap.all().order_by('CDAS_NORDEN', 'id'))
+    if filas:
+        return [
+            {
+                'id': fila.id,
+                'sap_abs_id': fila.CDAS_CSAP_ABS_ID or '',
+                'contrato_sap': fila.CDAS_CSAP_NUMERO_ACUERDO or '',
+                'linea_acuerdo_sap': fila.CDAS_CSAP_LINEA_ACUERDO or '',
+                'codigo_producto_sap': fila.CDAS_CSAP_CODIGO_PRODUCTO or '',
+                'nombre_producto_sap': fila.CDAS_CSAP_NOMBRE_PRODUCTO or '',
+                'cliente_codigo': fila.CDAS_CSAP_CLIENTE_CODIGO or '',
+                'cliente_nombre': fila.CDAS_CSAP_CLIENTE_NOMBRE or '',
+                'oc_cliente': fila.CDAS_CSAP_OC_CLIENTE or '',
+                'cantidad_planificada_sap': fila.CDAS_NSAP_CANTIDAD_CONTRATO,
+                'cantidad_consumida_sap': fila.CDAS_NSAP_CANTIDAD_CONSUMIDA,
+                'saldo_contrato_sap': fila.CDAS_NSAP_SALDO,
+                'unidad_medida': fila.CDAS_CSAP_UNIDAD_MEDIDA or '',
+                'cantidad_intentada_despachar': fila.CDAS_NCANTIDAD_INTENTADA_DESPACHAR,
+                'orden': fila.CDAS_NORDEN,
+                'estado': fila.CDAS_CESTADO,
+                'legacy': False,
+            }
+            for fila in filas
+        ]
+
+    # Compatibilidad para despachos creados antes de la tabla de asignaciones.
+    if not (
+        detalle_despacho.CDD_CSAP_ABS_ID
+        and detalle_despacho.CDD_CSAP_NUMERO_ACUERDO
+        and detalle_despacho.CDD_CSAP_LINEA_ACUERDO
+        and detalle_despacho.CDD_CSAP_CODIGO_PRODUCTO
+    ):
+        return []
+    cliente_codigo = detalle_despacho.CDD_CSAP_CLIENTE_CODIGO or (
+        citacion.SN_NID.SN_CCODIGO_SAP if citacion.SN_NID else ''
+    )
+    cliente_nombre = detalle_despacho.CDD_CSAP_CLIENTE_NOMBRE or (
+        citacion.SN_NID.SN_CRAZONSOCIAL if citacion.SN_NID else ''
+    )
+    return [{
+        'id': None,
+        'sap_abs_id': detalle_despacho.CDD_CSAP_ABS_ID or '',
+        'contrato_sap': detalle_despacho.CDD_CSAP_NUMERO_ACUERDO or '',
+        'linea_acuerdo_sap': detalle_despacho.CDD_CSAP_LINEA_ACUERDO or '',
+        'codigo_producto_sap': detalle_despacho.CDD_CSAP_CODIGO_PRODUCTO or '',
+        'nombre_producto_sap': detalle_despacho.CDD_CSAP_NOMBRE_PRODUCTO or '',
+        'cliente_codigo': cliente_codigo,
+        'cliente_nombre': cliente_nombre,
+        'oc_cliente': detalle_despacho.CDD_CSAP_OC_CLIENTE or '',
+        'cantidad_planificada_sap': detalle_despacho.CDD_NSAP_CANTIDAD_PLANIFICADA,
+        'cantidad_consumida_sap': detalle_despacho.CDD_NSAP_CANTIDAD_CONSUMIDA,
+        'saldo_contrato_sap': detalle_despacho.CDD_NSAP_SALDO_CONTRATO,
+        'unidad_medida': detalle_despacho.CDD_CSAP_UNIDAD_MEDIDA or '',
+        'cantidad_intentada_despachar': detalle_despacho.CDD_NCANTIDAD_INTENTADA_DESPACHAR,
+        'orden': 1,
+        'estado': CITACION_DESPACHO_ASIGNACION_SAP.ESTADO_PLANIFICADA,
+        'legacy': True,
+    }]
+
+
+def sincronizar_asignaciones_sap_planificadas(detalle, asignaciones, usuario=None):
+    existentes = {
+        fila.id: fila
+        for fila in detalle.asignaciones_sap.select_for_update().all()
+    }
+    ids_recibidos = {item['id'] for item in asignaciones if item.get('id') is not None}
+    ids_desconocidos = ids_recibidos.difference(existentes)
+    if ids_desconocidos:
+        raise ValueError('Una asignacion SAP no pertenece al despacho que se intenta actualizar.')
+
+    detalle.asignaciones_sap.exclude(id__in=ids_recibidos).delete()
+    resultado = []
+    for item in asignaciones:
+        valores = {
+            'EP_NID': detalle.EP_NID,
+            'US_NID': usuario or detalle.US_NID,
+            'CDAS_CSAP_ABS_ID': item['sap_abs_id'],
+            'CDAS_CSAP_NUMERO_ACUERDO': item['contrato_sap'] or None,
+            'CDAS_CSAP_LINEA_ACUERDO': item['linea_acuerdo_sap'],
+            'CDAS_CSAP_CODIGO_PRODUCTO': item['codigo_producto_sap'] or None,
+            'CDAS_CSAP_NOMBRE_PRODUCTO': item['nombre_producto_sap'] or None,
+            'CDAS_CSAP_CLIENTE_CODIGO': item['cliente_codigo'],
+            'CDAS_CSAP_CLIENTE_NOMBRE': item['cliente_nombre'] or None,
+            'CDAS_CSAP_OC_CLIENTE': item['oc_cliente'] or None,
+            'CDAS_NSAP_CANTIDAD_CONTRATO': item['cantidad_planificada_sap'],
+            'CDAS_NSAP_CANTIDAD_CONSUMIDA': item['cantidad_consumida_sap'],
+            'CDAS_NSAP_SALDO': item['saldo_contrato_sap'],
+            'CDAS_CSAP_UNIDAD_MEDIDA': item['unidad_medida'] or None,
+            'CDAS_NCANTIDAD_INTENTADA_DESPACHAR': item['cantidad_intentada_despachar'],
+            'CDAS_NORDEN': item['orden'],
+            'CDAS_CESTADO': item['estado'],
+            'CDAS_FFECHA_SNAPSHOT': timezone.now(),
+        }
+        fila = existentes.get(item.get('id'))
+        if fila is None:
+            fila = CITACION_DESPACHO_ASIGNACION_SAP.objects.create(CDD_NID=detalle, **valores)
+        else:
+            for campo, valor in valores.items():
+                setattr(fila, campo, valor)
+            fila.save()
+        resultado.append(fila)
+    return resultado
+
+
+@transaction.atomic
 def guardar_detalle_despacho_citacion(citacion, data, usuario=None):
+    asignaciones_sap = None
+    if str(citacion.CI_CTIPO or '').upper() == 'DESPACHO' and 'asignaciones_sap' in data:
+        asignaciones_sap = validar_asignaciones_sap_planificadas(data)
+
     if str(citacion.CI_CTIPO or "").upper() != "DESPACHO":
         return None
 
@@ -1609,7 +1877,10 @@ def guardar_detalle_despacho_citacion(citacion, data, usuario=None):
             "CDD_CTELEFONO_CONDUCTOR": texto_o_primero(data.get("telefono_conductor"), observacion_legacy.get("telefono_conductor")),
             "CDD_CPATENTE": texto_o_primero(data.get("patente"), observacion_legacy.get("patente")),
             "CDD_CORDEN_CARGA": texto_o_primero(data.get("orden_carga"), observacion_legacy.get("orden_carga")),
-            "CDD_CVENTANA_HORARIA_DESPACHO": texto_o_primero(data.get("ventana_horaria_despacho"), observacion_legacy.get("ventana_horaria")),
+            "CDD_FFECHA_DESPACHO": data.get("fecha_despacho") or None,
+            "CDD_FHORA_LLEGADA_PLANTA": data.get("hora_llegada_planta") or None,
+            "CDD_FHORA_LLEGADA_DESTINO": data.get("hora_llegada_destino") or None,
+            "CDD_CVENTANA_HORARIA_DESPACHO": texto_o_primero(data.get("ventana_horaria_despacho"), data.get("hora_llegada_planta"), observacion_legacy.get("ventana_horaria")),
             "CDD_NPESO_INFORMADO": decimal_o_primero(data.get("peso_informado"), data.get("peso_informado_despacho"), observacion_legacy.get("peso_informado")),
             "CDD_CBODEGA": texto_o_primero(data.get("bodega"), data.get("estanque_destino"), observacion_legacy.get("bodega")),
             "CDD_CSECUENCIA_OPERACIONAL_CODIGO": texto_o_primero(data.get("secuencia_operacional_codigo"), data.get("secuencia_codigo")),
@@ -1628,6 +1899,31 @@ def guardar_detalle_despacho_citacion(citacion, data, usuario=None):
             "CDD_CSAP_UNIDAD_MEDIDA": texto_o_primero(data.get("sap_unidad_medida"), data.get("tipo_carga")),
         },
     )
+    if asignaciones_sap is not None:
+        detalle.asignaciones_sap.all().delete()
+        CITACION_DESPACHO_ASIGNACION_SAP.objects.bulk_create([
+            CITACION_DESPACHO_ASIGNACION_SAP(
+                CDD_NID=detalle,
+                EP_NID=citacion.EP_NID,
+                US_NID=usuario or citacion.US_NID,
+                CDAS_CSAP_ABS_ID=asignacion['sap_abs_id'],
+                CDAS_CSAP_NUMERO_ACUERDO=asignacion['contrato_sap'] or None,
+                CDAS_CSAP_LINEA_ACUERDO=asignacion['linea_acuerdo_sap'],
+                CDAS_CSAP_CODIGO_PRODUCTO=asignacion['codigo_producto_sap'] or None,
+                CDAS_CSAP_NOMBRE_PRODUCTO=asignacion['nombre_producto_sap'] or None,
+                CDAS_CSAP_CLIENTE_CODIGO=asignacion['cliente_codigo'],
+                CDAS_CSAP_CLIENTE_NOMBRE=asignacion['cliente_nombre'] or None,
+                CDAS_CSAP_OC_CLIENTE=asignacion['oc_cliente'] or None,
+                CDAS_NSAP_CANTIDAD_CONTRATO=asignacion['cantidad_planificada_sap'],
+                CDAS_NSAP_CANTIDAD_CONSUMIDA=asignacion['cantidad_consumida_sap'],
+                CDAS_NSAP_SALDO=asignacion['saldo_contrato_sap'],
+                CDAS_CSAP_UNIDAD_MEDIDA=asignacion['unidad_medida'] or None,
+                CDAS_NCANTIDAD_INTENTADA_DESPACHAR=asignacion['cantidad_intentada_despachar'],
+                CDAS_NORDEN=asignacion['orden'],
+                CDAS_CESTADO=asignacion['estado'],
+            )
+            for asignacion in asignaciones_sap
+        ])
     return detalle
 
 
@@ -1673,6 +1969,9 @@ def detalle_despacho_resumen_dict(citacion, detalle_operacional=None):
         "telefono_conductor": campo("CDD_CTELEFONO_CONDUCTOR", legacy_key="telefono_conductor"),
         "patente": campo("CDD_CPATENTE", legacy_key="patente", operacional_key="bl"),
         "orden_carga": campo("CDD_CORDEN_CARGA", legacy_key="orden_carga"),
+        "fecha_despacho": fecha_iso(getattr(detalle, "CDD_FFECHA_DESPACHO", None) if detalle else None),
+        "hora_llegada_planta": hora_hhmm(getattr(detalle, "CDD_FHORA_LLEGADA_PLANTA", None) if detalle else None) or campo("CDD_CVENTANA_HORARIA_DESPACHO", legacy_key="ventana_horaria"),
+        "hora_llegada_destino": hora_hhmm(getattr(detalle, "CDD_FHORA_LLEGADA_DESTINO", None) if detalle else None),
         "ventana_horaria_despacho": campo("CDD_CVENTANA_HORARIA_DESPACHO", legacy_key="ventana_horaria"),
         "peso_informado": campo_decimal("CDD_NPESO_INFORMADO", legacy_key="peso_informado"),
         "bodega": campo("CDD_CBODEGA", legacy_key="bodega", operacional_key="estanque_destino"),
@@ -1695,8 +1994,8 @@ def detalle_despacho_resumen_dict(citacion, detalle_operacional=None):
     }
 
 
-def consultar_acuerdos_despacho(termino):
-    return consultar_acuerdos_despacho_sap(termino)
+def consultar_acuerdos_despacho(termino, empresa_id=None):
+    return consultar_acuerdos_despacho_sap(termino, empresa_id=empresa_id)
 
 
 def _sap_hana_company_db_despacho():
@@ -1793,5 +2092,8 @@ __all__ = [
     "obtener_docentry_draft_sap_despacho",
     "obtener_peso_salida_sap_despacho",
     "parsear_json_despacho_legacy",
+    "serializar_asignaciones_sap_planificadas",
+    "sincronizar_asignaciones_sap_planificadas",
     "texto_o_primero",
+    "validar_asignaciones_sap_planificadas",
 ]
