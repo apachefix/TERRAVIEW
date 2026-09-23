@@ -107,10 +107,10 @@
                             </select>
                         </div>
                         <div class="form-group">
-                            <label for="patio_es_despacho">&iquest;Es despacho? *</label>
+                            <label for="patio_es_despacho">Tipo de operaci&oacute;n *</label>
                             <select name="es_despacho" id="patio_es_despacho" class="form-control" required>
-                                <option value="0" {% if form_data.es_despacho != '1' %}selected{% endif %}>No</option>
-                                <option value="1" {% if form_data.es_despacho == '1' %}selected{% endif %}>S&iacute;</option>
+                                <option value="0" {% if form_data.es_despacho != '1' %}selected{% endif %}>Recepción</option>
+                                <option value="1" {% if form_data.es_despacho == '1' %}selected{% endif %}>Despacho</option>
                             </select>
                         </div>
                         {% if empresa_activa_id == 2 %}
@@ -120,7 +120,7 @@
                                     {% if form_data.es_despacho == '1' %}disabled{% else %}required{% endif %}>
                                 <option value="">Seleccione</option>
                                 <option value="NACIONAL" {% if form_data.tipo_recepcion == 'NACIONAL' %}selected{% endif %}>Nacional</option>
-                                <option value="EXTRANJERO" {% if form_data.tipo_recepcion == 'EXTRANJERO' %}selected{% endif %}>Extranjero</option>
+                               <option value="IMPORTACION" {% if form_data.tipo_recepcion == 'IMPORTACION' %}selected{% endif %}>Importación</option>
                             </select>
                         </div>
                         {% endif %}
@@ -238,7 +238,7 @@
                         </div>
                         {% if empresa_activa_id == 2 %}
                         <div class="form-group d-none" id="bloque_fecha_produccion_producto">
-                            <label for="patio_fecha_produccion">Fecha producci&oacute;n</label>
+                            <label for="patio_fecha_produccion">Fecha producci&oacute;n <span id="patio_fecha_produccion_requerida" class="text-danger d-none">*</span></label>
                             <input type="text" name="fecha_produccion" id="patio_fecha_produccion"
                                    class="form-control" inputmode="numeric" maxlength="10" autocomplete="off"
                                    placeholder="14/08/2026" value="{{ form_data.fecha_produccion|default:'' }}" disabled>
@@ -394,29 +394,35 @@
         const esRecepcionSbh = Number(PATIO_EMPRESA_ID) === 2 && !esDespacho;
         const selectorTipo = $('#patio_tipo_recepcion');
         const tipo = esRecepcionSbh ? String(selectorTipo.val() || '').toUpperCase() : '';
-        const tieneTipo = tipo === 'NACIONAL' || tipo === 'EXTRANJERO';
-        const esExtranjero = tipo === 'EXTRANJERO';
+        const tieneTipo = ['NACIONAL', 'IMPORTACION', 'EXTRANJERO'].includes(tipo);
+        const esImportacion = tipo === 'IMPORTACION' || tipo === 'EXTRANJERO';
+        const fechaProduccionObligatoria = esRecepcionSbh && ['NACIONAL', 'IMPORTACION'].includes(tipo);
         const camposExtranjeros = $('#patio_cda, #patio_di, #patio_nave_naviera, #patio_sui');
-        const fechasCompartidas = $('#patio_fecha_produccion, #patio_fecha_vencimiento_producto');
+        const fechaProduccion = $('#patio_fecha_produccion');
+        const fechaVencimiento = $('#patio_fecha_vencimiento_producto');
+        const fechasCompartidas = fechaProduccion.add(fechaVencimiento);
         const bl = $('#patio_bl');
         const contenedor = $('#patio_lote_contenedor');
 
         $('#bloque_tipo_recepcion_patio').toggleClass('d-none', !esRecepcionSbh);
         selectorTipo.prop('disabled', !esRecepcionSbh).prop('required', esRecepcionSbh);
         $('#bloque_cda_patio, #bloque_di_patio, #bloque_nave_naviera_patio, #bloque_sui_patio')
-            .toggleClass('d-none', !esRecepcionSbh || !esExtranjero);
-        camposExtranjeros.prop('disabled', !esRecepcionSbh || !esExtranjero).prop('required', false);
+            .toggleClass('d-none', !esRecepcionSbh || !esImportacion);
+        camposExtranjeros.prop('disabled', !esRecepcionSbh || !esImportacion).prop('required', false);
         $('#bloque_fecha_produccion_producto, #bloque_fecha_vencimiento_producto')
             .toggleClass('d-none', !esRecepcionSbh || !tieneTipo);
-        fechasCompartidas.prop('disabled', !esRecepcionSbh || !tieneTipo).prop('required', false);
+        fechasCompartidas.prop('disabled', !esRecepcionSbh || !tieneTipo);
+        fechaProduccion.prop('required', fechaProduccionObligatoria);
+        fechaVencimiento.prop('required', false);
+        $('#patio_fecha_produccion_requerida').toggleClass('d-none', !fechaProduccionObligatoria);
 
         $('#bloque_bl_patio, #bloque_contenedor_patio')
-            .toggleClass('d-none', esRecepcionSbh && !esExtranjero);
-        bl.prop('disabled', esRecepcionSbh && !esExtranjero).prop('required', false);
-        contenedor.prop('disabled', esRecepcionSbh && !esExtranjero).prop('required', false);
+            .toggleClass('d-none', esRecepcionSbh && !esImportacion);
+        bl.prop('disabled', esRecepcionSbh && !esImportacion).prop('required', false);
+        contenedor.prop('disabled', esRecepcionSbh && !esImportacion).prop('required', false);
         $('#patio_contenedor_label').text(esRecepcionSbh ? 'Contenedor' : 'Contenedor / CRT');
 
-        if (limpiar && esRecepcionSbh && !esExtranjero) {
+        if (limpiar && esRecepcionSbh && !esImportacion) {
             camposExtranjeros.add(bl).add(contenedor).val('');
         }
         if (limpiar && !esRecepcionSbh) {

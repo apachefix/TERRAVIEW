@@ -1,5 +1,6 @@
 from pathlib import Path
 from types import SimpleNamespace
+from unittest.mock import patch
 
 from django.http import QueryDict
 from django.test import SimpleTestCase
@@ -8,6 +9,11 @@ from apps.home.views import _normalizar_datos_edicion_camion_patio
 
 
 class RevisionCamionDocumentosRecepcionSbhTests(SimpleTestCase):
+    def setUp(self):
+        patcher = patch('apps.home.views._resolver_conductor_snapshot_camion_patio', return_value=None)
+        patcher.start()
+        self.addCleanup(patcher.stop)
+
     def camion(self, empresa=2, tipo='EXTRANJERO'):
         return SimpleNamespace(
             EP_NID_id=empresa,
@@ -80,7 +86,8 @@ class RevisionCamionDocumentosRecepcionSbhTests(SimpleTestCase):
         template = Path(__file__).resolve().parents[3] / 'apps/templates/home/PLANIFICACION/pla_listone.html'
         contenido = template.read_text(encoding='utf-8')
         self.assertIn('const esRecepcionSbh = !!valores.es_recepcion_sbh', contenido)
-        self.assertIn("tipoRecepcion === 'EXTRANJERO' ? 'selected'", contenido)
+        self.assertIn("tipoRecepcion === 'IMPORTACION' ? 'selected'", contenido)
+        self.assertIn("const opcionExtranjeroHistorico = tipoRecepcion === 'EXTRANJERO'", contenido)
         self.assertIn("tipoRecepcion === 'NACIONAL' ? 'selected'", contenido)
         for campo in (
             'revision_tipo_recepcion', 'revision_cda', 'revision_di',
@@ -90,7 +97,8 @@ class RevisionCamionDocumentosRecepcionSbhTests(SimpleTestCase):
         ):
             self.assertIn(campo, contenido)
         self.assertIn('Object.assign(datosEdicion', contenido)
-        self.assertIn("$('.revision-recepcion-extranjero').toggle(esExtranjero)", contenido)
+        self.assertIn("['IMPORTACION', 'EXTRANJERO'].includes($(this).val())", contenido)
+        self.assertIn("$('.revision-recepcion-extranjero').toggle(esImportacion)", contenido)
 
     def test_payload_backend_usa_campos_reales_y_condicion_sbh(self):
         views = Path(__file__).resolve().parents[1] / 'views.py'

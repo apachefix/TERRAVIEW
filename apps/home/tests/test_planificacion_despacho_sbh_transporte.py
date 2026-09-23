@@ -1,4 +1,7 @@
 from pathlib import Path
+from decimal import Decimal
+from types import SimpleNamespace
+from unittest.mock import patch
 
 from django.contrib.auth import get_user_model
 from django.test import SimpleTestCase, TestCase
@@ -45,8 +48,33 @@ class TransportePorBorradorSbhTests(TestCase):
             CON_BHABILITADO=True,
         )
 
+    def setUp(self):
+        direccion = {
+            'cliente_codigo': 'C001', 'direccion_codigo': 'OSORNO',
+            'tipo_direccion': 'S', 'ciudad': 'Osorno',
+        }
+        parches = (
+            patch('apps.home.views.consultar_direcciones_despacho_sap', return_value=[direccion]),
+            patch('apps.home.views.resolver_destino_despacho_sap', return_value={'comuna_id': 1}),
+            patch('apps.home.views.validar_alternativa_transporte_sbh', side_effect=self._alternativa_valida),
+        )
+        for parche in parches:
+            parche.start()
+            self.addCleanup(parche.stop)
+
+    def _alternativa_valida(self, **datos):
+        transportista = SOCIONEGOCIO.objects.get(pk=datos['transportista_id'])
+        return SimpleNamespace(
+            SN_NID=transportista,
+            RUT_NID_id=int(datos['ruta_id']),
+            id=int(datos['tarifa_id']),
+            TAR_NVALOR=Decimal('1000'),
+        ), ''
+
     def item(self, condicion='Terramar', transportista=None, conductor=None, patente=''):
         return {
+            'cliente_codigo': 'C001',
+            'direccion_despacho_sap_codigo': 'OSORNO',
             'condicion_entrega': condicion,
             'transportado_por': condicion,
             'inf_24hrs': condicion,
@@ -55,6 +83,8 @@ class TransportePorBorradorSbhTests(TestCase):
             'conductor': f'{conductor.CON_CNOMBRE} {conductor.CON_CAPELLIDO}' if conductor else '',
             'conductor_id': str(conductor.id) if conductor else '',
             'patente': patente,
+            'ruta_id': '1',
+            'tarifa_id': '1',
             'salida_documento': 'FE',
         }
 

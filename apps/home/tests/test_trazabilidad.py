@@ -10,6 +10,7 @@ from django.utils import timezone
 from apps.home.models import (
     CALENDARIO,
     CITACION,
+    CITACION_DETALLE_OPERACIONAL,
     EMPRESA,
     ETAPA,
     ETAPA_LOG,
@@ -165,6 +166,19 @@ class TrazabilidadTestCase(TestCase):
         resultado = construir_resultados_trazabilidad([citacion])[0]
         self.assertEqual(resultado['cabecera']['ultima_etapa'], 'Pesaje Entrada')
         self.assertTrue(resultado['etapas'][-1]['actual'])
+
+    def test_trazabilidad_muestra_importacion_persistida(self):
+        CITACION_DETALLE_OPERACIONAL.objects.create(
+            CI_NID=self.citacion,
+            EP_NID=self.empresa,
+            US_NID=self.user,
+            CDO_CTIPO_RECEPCION='IMPORTACION',
+        )
+
+        citacion = queryset_citaciones_trazabilidad(self.empresa.id).get(pk=self.citacion.id)
+        resultado = construir_resultados_trazabilidad([citacion])[0]
+
+        self.assertEqual(resultado['cabecera']['tipo_recepcion'], 'Importación')
 
     def test_operacion_planta_muestra_guia_y_sin_registrar(self):
         request = RequestFactory().get('/')

@@ -11,9 +11,11 @@ from apps.home.models import (
     CITACION,
     CITACION_DESPACHO_ASIGNACION_SAP,
     CITACION_DESPACHO_DETALLE,
+    CONDUCTOR,
     EMPRESA,
     PLANIFICACION,
     SECUENCIA,
+    SOCIONEGOCIO,
 )
 from apps.home.sap_despacho_payload import construir_payload_despacho
 from apps.home import despacho_carga
@@ -84,6 +86,105 @@ class PayloadDespachoSBHTests(TestCase):
                    "DocDate": "2026-08-26", "DocumentLines": [{"ItemCode": "800041", "AgreementNo": 5000,
                    "WarehouseCode": "TK02", "Quantity": 1, "BatchNumbers": [{"ItemCode": "800041", "BatchNumber": "C", "Quantity": 1}]}]},
         }
+
+    @patch("apps.home.sap_despacho_payload._datos_operacion", return_value={"REV_TIPO_DESPACHO": "2", "REV_TIPO_TRASLADO": "2"})
+    @patch("apps.home.sap_despacho_payload.preparar_payloads")
+    def test_udf_conductor_y_transportista_maestros_se_replican_en_cada_draft(self, preparar, _datos):
+        preparar.return_value = self.base_payloads()
+        transportista = SOCIONEGOCIO.objects.create(
+            EP_NID=self.empresa,
+            SN_CRAZONSOCIAL="LOGISTICA & TRANSPORTE PASCAL LTDA",
+            SN_CRUT="77665886-3",
+            SN_CTIPO="S",
+        )
+        conductor = CONDUCTOR.objects.create(
+            EP_NID=self.empresa,
+            SN_NID=transportista,
+            US_NID=self.user,
+            CON_CNOMBRE="JUAN PEREZ PRUEBA",
+            CON_CAPELLIDO="PRUEBA",
+            CON_CRUT="11111111-1",
+            CON_CCODIGO_PAIS_TELEFONO="+56",
+            CON_CTELEFONO="912345678",
+        )
+        self.citacion.CON_NID = conductor
+        self.citacion.save(update_fields=["CON_NID"])
+        camion = SimpleNamespace(
+            CPA_CTRANSPORTISTA_DECLARADO="SNAPSHOT NO USAR",
+            CPA_CNOMBRE_CONDUCTOR="SNAPSHOT NO USAR",
+            CPA_CRUT_CONDUCTOR="00-0",
+            CPA_CTELEFONO_CONDUCTOR="+56000000000",
+            CPA_CPATENTE="ABCD12",
+            CPA_CPATENTE_RAMPLA="RAM123",
+        )
+
+        payloads = construir_payload_despacho(
+            self.citacion, self.config(), camion=camion, series=116,
+        )
+
+        esperado = {
+            "U_NXRutChofer": "11111111-1",
+            "U_NXNombreChofer": "JUAN PEREZ PRUEBA",
+            "U_NXTelefonoChofer": "912345678",
+            "U_NXRutTransporte": "77665886-3",
+            "U_NXNombreTransporte": "LOGISTICA & TRANSPORTE PASCAL LTDA",
+        }
+        self.assertEqual(set(payloads), {4138, 5000})
+        for payload in payloads.values():
+            self.assertEqual({campo: payload[campo] for campo in esperado}, esperado)
+            self.assertEqual(payload["U_NXPatente"], "ABCD12")
+            self.assertEqual(payload["U_NXSemi"], "RAM123")
+
+    @patch("apps.home.sap_despacho_payload._datos_operacion", return_value={"REV_TIPO_DESPACHO": "2", "REV_TIPO_TRASLADO": "2"})
+    @patch("apps.home.sap_despacho_payload.preparar_payloads")
+    def test_conductor_sin_transportista_no_bloquea_ni_resuelve_por_texto(self, preparar, _datos):
+        preparar.return_value = self.base_payloads()
+        conductor = CONDUCTOR.objects.create(
+            EP_NID=self.empresa,
+            SN_NID=None,
+            US_NID=self.user,
+            CON_CNOMBRE="CONDUCTOR SIN TRANSPORTISTA",
+            CON_CAPELLIDO="PRUEBA",
+            CON_CRUT="22222222-2",
+            CON_CTELEFONO="987654321",
+        )
+        self.citacion.CON_NID = conductor
+        self.citacion.save(update_fields=["CON_NID"])
+        camion = SimpleNamespace(
+            CPA_CTRANSPORTISTA_DECLARADO="NO RESOLVER POR ESTE TEXTO",
+            CPA_CNOMBRE_CONDUCTOR="SNAPSHOT",
+            CPA_CRUT_CONDUCTOR="00-0",
+            CPA_CTELEFONO_CONDUCTOR="000",
+            CPA_CPATENTE="ABCD12",
+            CPA_CPATENTE_RAMPLA="RAM123",
+        )
+
+        payloads = construir_payload_despacho(
+            self.citacion, self.config(), camion=camion, series=116,
+        )
+
+        for payload in payloads.values():
+            self.assertEqual(payload["U_NXRutChofer"], "22222222-2")
+            self.assertEqual(payload["U_NXNombreChofer"], "CONDUCTOR SIN TRANSPORTISTA")
+            self.assertEqual(payload["U_NXTelefonoChofer"], "987654321")
+            self.assertEqual(payload["U_NXRutTransporte"], "")
+            self.assertEqual(payload["U_NXNombreTransporte"], "")
+
+    @patch("apps.home.sap_despacho_payload._datos_operacion", return_value={"REV_TIPO_DESPACHO": "2", "REV_TIPO_TRASLADO": "2"})
+    @patch("apps.home.sap_despacho_payload.preparar_payloads")
+    def test_datos_maestros_ausentes_no_bloquean_draft(self, preparar, _datos):
+        preparar.return_value = self.base_payloads()
+
+        payloads = construir_payload_despacho(
+            self.citacion, self.config(), camion=None, series=116,
+        )
+
+        for payload in payloads.values():
+            self.assertEqual(payload["U_NXRutChofer"], "")
+            self.assertEqual(payload["U_NXNombreChofer"], "")
+            self.assertEqual(payload["U_NXTelefonoChofer"], "")
+            self.assertEqual(payload["U_NXRutTransporte"], "")
+            self.assertEqual(payload["U_NXNombreTransporte"], "")
 
     @patch("apps.home.sap_despacho_payload._datos_operacion", return_value={"REV_TIPO_DESPACHO": "2", "REV_TIPO_TRASLADO": "2"})
     @patch("apps.home.sap_despacho_payload.preparar_payloads")

@@ -171,10 +171,22 @@ def validar_lote_borradores_sbh(citaciones, resolver_acuerdo=None):
             fila_sap = resolver_acuerdo(asignacion)
             if not fila_sap:
                 raise ValueError(f'El contrato SAP {indice} no existe o ya no esta disponible en SAP.')
+            oc_cliente = str(fila_sap.get('oc_cliente') or '').strip()
+            if not oc_cliente:
+                numero_acuerdo = str(
+                    fila_sap.get('sap_acuerdo_numero')
+                    or asignacion.get('contrato_sap')
+                    or asignacion.get('sap_numero_acuerdo')
+                    or ''
+                ).strip()
+                raise ValueError(
+                    f'El acuerdo SAP {numero_acuerdo} no posee una OC asociada '
+                    'y no puede utilizarse para planificar.'
+                )
             asignacion.update({
                 'nombre_producto_sap': str(fila_sap.get('nombre_insumo') or '').strip(),
                 'cliente_nombre': str(fila_sap.get('cliente_nombre') or '').strip(),
-                'oc_cliente': str(fila_sap.get('oc_cliente') or '').strip(),
+                'oc_cliente': oc_cliente,
                 'cantidad_planificada_sap': fila_sap.get('cantidad_planificada'),
                 'cantidad_consumida_sap': fila_sap.get('cantidad_consumida'),
                 'saldo_contrato_sap': fila_sap.get('saldo_contrato_sap'),

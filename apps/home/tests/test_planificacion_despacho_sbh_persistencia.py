@@ -6,8 +6,9 @@ from django.test import RequestFactory, TestCase
 
 from apps.home import views
 from apps.home.models import (
-    CAMION, CITACION, CITACION_DESPACHO_ASIGNACION_SAP,
-    CONDUCTOR, EMPRESA, ITEM, PLANIFICACION, SECUENCIA, SOCIONEGOCIO,
+    CAMION, CITACION, CITACION_DESPACHO_ASIGNACION_SAP, COMUNA,
+    CONDUCTOR, EMPRESA, ITEM, PLANIFICACION, PROVINCIA, REGION, RUTA,
+    SECUENCIA, SOCIONEGOCIO, TARIFA_GLOBAL,
 )
 
 
@@ -47,6 +48,33 @@ class PersistenciaPlanificacionDespachoSbhTests(TestCase):
             )
             for indice, nombre in enumerate(('BRETTI', 'PASCAL', 'OCEAN TRUCK'), start=1)
         ]
+        region = REGION.objects.create(RG_CNOMBRE='Biobío', RG_CCODIGO='VIII')
+        provincia = PROVINCIA.objects.create(
+            RG_NID=region, PV_CNOMBRE='Prueba', PV_CCODIGO='PRUEBA'
+        )
+        coronel = COMUNA.objects.create(
+            PV_NID=provincia, COM_CNOMBRE='Coronel', COM_CCODIGO='COR'
+        )
+        osorno = COMUNA.objects.create(
+            PV_NID=provincia, COM_CNOMBRE='Osorno', COM_CCODIGO='OSO'
+        )
+        cls.ruta = RUTA.objects.create(
+            EP_NID=cls.empresa,
+            RG_NID_INICIO=region, PV_NID_INICIO=provincia, COM_NID_INICIO=coronel,
+            RG_NID_TERMINO=region, PV_NID_TERMINO=provincia, COM_NID_TERMINO=osorno,
+            RUT_NTIEMPOMAXIMOENTREGA=1, RUT_NTIEMPOESTADIAPLANTA=1,
+            RUT_CNOMBRE='CORONEL -> OSORNO', RUT_CCODIGO='COR-OSO',
+            RUT_BHABILITADO=True,
+        )
+        cls.tarifas = [
+            TARIFA_GLOBAL.objects.create(
+                EP_NID=cls.empresa, RUT_NID=cls.ruta, SN_NID=transportista,
+                TAR_NVALOR=100000 + indice,
+                TAR_CNOMBRETARIFA=f'Tarifa {indice}', TAR_CTIPOTARIFA='FLETE',
+                TAR_CDIVISA='CLP', TAR_BHABILITADO=True,
+            )
+            for indice, transportista in enumerate(cls.transportistas, start=1)
+        ]
         cls.conductor = CONDUCTOR.objects.create(
             EP_NID=cls.empresa, US_NID=cls.usuario,
             CON_CNOMBRE='Conductor', CON_CAPELLIDO='Dos', CON_CRUT='11111111-1',
@@ -80,6 +108,8 @@ class PersistenciaPlanificacionDespachoSbhTests(TestCase):
                 'numero_borrador': indice + 1,
                 'cliente': 'C001',
                 'cliente_codigo': 'C001',
+                'direccion_despacho_sap_codigo': 'OSORNO',
+                'direccion_despacho_sap_texto': 'OSORNO',
                 'cliente_nombre': 'Cliente Uno',
                 'inf_24hrs': 'Cliente',
                 'condicion_entrega': 'Cliente',
@@ -134,6 +164,10 @@ class PersistenciaPlanificacionDespachoSbhTests(TestCase):
             patch('apps.home.views.validar_lote_borradores_sbh'),
             patch('apps.home.views.guardar_detalle_operacional_citacion'),
             patch('apps.home.views.guardar_datos_planificacion_operacional'),
+            patch('apps.home.views.consultar_direcciones_despacho_sap', return_value=[{
+                'cliente_codigo': 'C001', 'direccion_codigo': 'OSORNO',
+                'tipo_direccion': 'S', 'ciudad': 'Osorno',
+            }]),
         )
 
     def test_crea_exactamente_una_citacion_y_transporte_por_borrador(self):
@@ -142,22 +176,26 @@ class PersistenciaPlanificacionDespachoSbhTests(TestCase):
             'condicion_entrega': 'Terramar', 'transportado_por': 'Terramar',
             'inf_24hrs': 'Terramar', 'empresa_transporte': 'BRETTI',
             'empresa_transporte_id': str(self.transportistas[0].id),
+            'ruta_id': str(self.ruta.id), 'tarifa_id': str(self.tarifas[0].id),
         })
         borradores[1].update({
             'condicion_entrega': 'Terramar', 'transportado_por': 'Terramar',
             'inf_24hrs': 'Terramar', 'empresa_transporte': 'PASCAL',
             'empresa_transporte_id': str(self.transportistas[1].id),
+            'ruta_id': str(self.ruta.id), 'tarifa_id': str(self.tarifas[1].id),
             'conductor': 'Conductor Dos', 'conductor_id': str(self.conductor.id),
         })
         borradores[2].update({
             'condicion_entrega': 'Terramar', 'transportado_por': 'Terramar',
             'inf_24hrs': 'Terramar', 'empresa_transporte': 'OCEAN TRUCK',
-            'empresa_transporte_id': str(self.transportistas[2].id), 'patente': 'ABCD12',
+            'empresa_transporte_id': str(self.transportistas[2].id),
+            'ruta_id': str(self.ruta.id), 'tarifa_id': str(self.tarifas[2].id),
+            'patente': 'ABCD12',
         })
         camiones_antes = CAMION.objects.count()
         conductores_antes = CONDUCTOR.objects.count()
         parches = self.parches_comunes()
-        with parches[0], parches[1], parches[2], parches[3]:
+        with parches[0], parches[1], parches[2], parches[3], parches[4]:
             response = views.CREAR_PLANIFICACION_CITACION(self.request(borradores))
 
         data = json.loads(response.content)
@@ -176,7 +214,19 @@ class PersistenciaPlanificacionDespachoSbhTests(TestCase):
             [citacion.CON_NID_id for citacion in citaciones],
             [None, self.conductor.id, None, None],
         )
+        self.assertEqual([citacion.RUT_NID_id for citacion in citaciones[:3]], [self.ruta.id] * 3)
+        self.assertEqual(
+            [citacion.TAR_NID_id for citacion in citaciones[:3]], [tarifa.id for tarifa in self.tarifas]
+        )
+        self.assertEqual(
+            [citacion.CI_NVALORTARIFA for citacion in citaciones[:3]],
+            [tarifa.TAR_NVALOR for tarifa in self.tarifas],
+        )
         detalles = [citacion.detalle_despacho for citacion in citaciones]
+        self.assertEqual(
+            [detalle.CDD_CDESTINO for detalle in detalles],
+            ['OSORNO', 'OSORNO', 'OSORNO', 'OSORNO'],
+        )
         self.assertEqual(
             [detalle.CDD_CEMPRESA_TRANSPORTE for detalle in detalles],
             ['BRETTI', 'PASCAL', 'OCEAN TRUCK', ''],
@@ -192,7 +242,7 @@ class PersistenciaPlanificacionDespachoSbhTests(TestCase):
         planes_antes = PLANIFICACION.objects.count()
         citaciones_antes = CITACION.objects.count()
         parches = self.parches_comunes()
-        with parches[0], parches[1], parches[2], parches[3], patch(
+        with parches[0], parches[1], parches[2], parches[3], parches[4], patch(
             'apps.home.views.guardar_detalle_despacho_citacion',
             side_effect=[None, None, RuntimeError('fallo controlado')],
         ):

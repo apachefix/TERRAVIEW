@@ -91,12 +91,22 @@ def _accion_resultado(estado, cambiado):
         return 'SIN_CAMBIOS'
     if estado == RESULTADO_CALIDAD_OPERACION.Estado.APROBADO:
         return 'ETAPA_CERRADA_Y_AVANZADA'
+    if estado == RESULTADO_CALIDAD_OPERACION.Estado.RECHAZADO_PENDIENTE_REVISION:
+        return 'PENDIENTE_REVISION_MANUAL'
     if estado == RESULTADO_CALIDAD_OPERACION.Estado.RECHAZADO:
         return 'FLUJO_FINALIZADO_SALIDA_AUTORIZADA'
     return 'ESPERA_APROBACION_CLIENTE'
 
 
 def _validar_reglas_origen(resultado, estado, origen):
+    if (
+        resultado.RCO_CESTADO
+        == RESULTADO_CALIDAD_OPERACION.Estado.RECHAZADO_PENDIENTE_REVISION
+    ):
+        return (
+            'TRANSICION_INVALIDA',
+            'El rechazo automatico requiere una decision manual del perfil CALIDAD.',
+        )
     if origen == RESULTADO_CALIDAD_OPERACION.Origen.CORREO_CLIENTE:
         if estado not in ESTADOS_DEFINITIVOS:
             return 'TRANSICION_INVALIDA', 'CORREO_CLIENTE solo puede enviar APROBADO o RECHAZADO.'
@@ -182,6 +192,7 @@ def procesar_evento_integracion_calidad(datos):
                         usuario=None,
                         responsable_sistema=responsable_sistema,
                         fecha_resultado=datos.get('fecha_resultado'),
+                        evento_integracion=evento,
                     )
             except ValueError:
                 return _actualizar_error(

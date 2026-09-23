@@ -7,8 +7,10 @@ datos para su uso posterior, principalmente en Pesaje Salida de Despacho.
 """
 
 import json
+import os
 import re
 import unicodedata
+from copy import deepcopy
 from datetime import date
 from decimal import Decimal, InvalidOperation
 
@@ -25,6 +27,8 @@ from apps.integrations.sap_b1.service_layer_probe import (
 
 from .models import (
     CAMION_PATIO,
+    CITACION_DESPACHO_CARGA,
+    CITACION_DESPACHO_DRAFT_SAP,
     CITACION_DESPACHO_ASIGNACION_SAP,
     CITACION_DESPACHO_DETALLE,
     DATO_OPERACION,
@@ -272,7 +276,680 @@ def obtener_peso_salida_sap_despacho(citacion):
     )
 
 
+def obtener_peso_entrada_sap_despacho(citacion):
+    dato = _dato_operacion(citacion, "OP_TICKET_PESAJE_ENT")
+    metadata = parse_json_text(dato.DO_CVALOR if dato else "")
+    return decimal_o_primero(
+        metadata.get("peso_neto"),
+        getattr(dato, "DO_NPESO", None) if dato else None,
+    )
+
+
+def _datos_semanticos_ticket_despacho(citacion, tipo_ticket):
+    codigo = f"OP_TICKET_PESAJE_{tipo_ticket}"
+    dato = _dato_operacion(citacion, codigo)
+    if not dato:
+        return {}, f"No existe ticket de pesaje {tipo_ticket} persistido."
+    metadata = parse_json_text(dato.DO_CVALOR)
+    tiene_semantica = (
+        tipo_ticket == "ENT" and metadata.get("peso_entrada_kg") not in [None, ""]
+    ) or (
+        tipo_ticket == "SAL"
+        and metadata.get("peso_neto_producto_kg") not in [None, ""]
+        and metadata.get("fuente_peso_neto")
+    )
+    if tiene_semantica:
+        return metadata, ""
+
+    ruta_pdf = texto_o_primero(metadata.get("ruta_real_pdf"))
+    if not ruta_pdf or not os.path.isfile(ruta_pdf):
+        return {}, (
+            f"El ticket {tipo_ticket} es histórico y no se puede reconstruir "
+            "semánticamente porque su PDF no está disponible."
+        )
+    try:
+        from .views import _extraer_datos_ticket_pesaje
+
+        reconstruido = _extraer_datos_ticket_pesaje(
+            ruta_pdf,
+            tipo_ticket,
+            semantica_despacho_sbh=True,
+        )
+    except (OSError, ValueError) as exc:
+        return {}, f"No se pudo interpretar semánticamente el ticket {tipo_ticket}: {exc}"
+    reconstruido["ruta_real_pdf"] = ruta_pdf
+    reconstruido["reconstruido_desde_pdf"] = True
+    return reconstruido, ""
+
+
+def obtener_pesaje_real_despacho(citacion):
+    entrada_ticket, error_entrada = _datos_semanticos_ticket_despacho(citacion, "ENT")
+    salida_ticket, error_salida = _datos_semanticos_ticket_despacho(citacion, "SAL")
+    errores = [error for error in (error_entrada, error_salida) if error]
+
+    entrada_registrada = decimal_or_none(entrada_ticket.get("peso_entrada_kg"))
+    entrada_en_salida = decimal_or_none(salida_ticket.get("peso_entrada_kg"))
+    entrada = entrada_en_salida if entrada_en_salida is not None else entrada_registrada
+    salida_bruta = decimal_or_none(salida_ticket.get("peso_salida_bruto_kg"))
+    neto_producto = decimal_or_none(salida_ticket.get("peso_neto_producto_kg"))
+    fuente = texto_o_primero(salida_ticket.get("fuente_peso_neto"))
+
+    if entrada_registrada is not None and entrada_en_salida is not None and entrada_registrada != entrada_en_salida:
+        errores.append(
+            "El peso de entrada del ticket ENT no coincide con la primera pesada del ticket SAL."
+        )
+    if entrada is None:
+        errores.append("No se pudo determinar el peso de entrada con evidencia del ticket.")
+    if neto_producto is None:
+        errores.append("No se pudo determinar el peso neto de producto con evidencia del ticket.")
+    if not fuente:
+        errores.append("No se pudo determinar la fuente semántica del peso neto de producto.")
+
+    neto_calculado = None
+    diferencia = None
+    control_disponible = entrada is not None and salida_bruta is not None
+    if control_disponible:
+        neto_calculado = salida_bruta - entrada
+        if neto_calculado < 0:
+            errores.append("El peso bruto de salida es menor al peso de entrada.")
+        if neto_producto is not None:
+            diferencia = neto_calculado - neto_producto
+            if diferencia != 0:
+                errores.append(
+                    "El Peso Neto explícito no coincide con peso salida bruto - peso entrada."
+                )
+
+    if neto_producto is not None and neto_producto <= 0:
+        errores.append("El peso neto de producto debe ser mayor que cero.")
+
+    etiquetas_fuente = {
+        "ticket_explicito": "Ticket — Peso Neto explícito",
+        "calculado_desde_pesadas": "Calculado desde pesadas del ticket",
+    }
+    return {
+        "peso_entrada_kg": entrada,
+        "peso_entrada_ticket_ent_kg": entrada_registrada,
+        "peso_entrada_ticket_sal_kg": entrada_en_salida,
+        "peso_salida_bruto_kg": salida_bruta,
+        "peso_neto_producto_kg": neto_producto,
+        "peso_neto_calculado_kg": neto_calculado,
+        "diferencia_control_kg": diferencia,
+        "fuente_peso_neto": fuente,
+        "fuente_peso_neto_label": etiquetas_fuente.get(fuente, fuente),
+        "control_disponible": control_disponible,
+        "control_pesaje_ok": control_disponible and diferencia == 0,
+        "cantidad_real_mt": (
+            neto_producto / Decimal("1000")
+            if neto_producto is not None
+            else None
+        ),
+        "errors": errores,
+    }
+
+
+def calcular_peso_real_despachado(citacion):
+    """Retorna entrada, salida bruta, neto de producto y neto MT."""
+    pesaje = obtener_pesaje_real_despacho(citacion)
+    return (
+        pesaje["peso_entrada_kg"],
+        pesaje["peso_salida_bruto_kg"],
+        pesaje["peso_neto_producto_kg"],
+        pesaje["cantidad_real_mt"],
+    )
+
+
+def distribuir_cantidad_secuencial(cantidades_originales, cantidad_real):
+    """Conserva los primeros valores y deja el remanente en el ultimo usado."""
+    originales = [decimal_or_none(valor) for valor in cantidades_originales]
+    total = decimal_or_none(cantidad_real)
+    if total is None or total < 0 or not originales or any(valor is None or valor < 0 for valor in originales):
+        raise ValueError("No se puede distribuir una cantidad real u original invalida.")
+    resultado = []
+    remanente = total
+    for indice, original in enumerate(originales):
+        asignado = remanente if indice == len(originales) - 1 else min(original, remanente)
+        resultado.append(asignado)
+        remanente -= asignado
+    if any(valor < 0 for valor in resultado) or sum(resultado, Decimal("0")) != total:
+        raise ValueError("La distribucion final de cantidades no es consistente.")
+    return resultado
+
+
+def _validar_payload_patch_completo(payload_original, payload_final, cantidad_real):
+    """Valida cantidades e identidades de la colección final antes del PATCH."""
+    total = decimal_or_none(cantidad_real)
+    lineas_originales = (payload_original or {}).get("DocumentLines") or []
+    lineas_finales = (payload_final or {}).get("DocumentLines") or []
+    if total is None or total < 0 or not lineas_originales:
+        raise ValueError("No se puede validar el payload PATCH sin cantidad y lineas originales.")
+
+    cantidades_linea = distribuir_cantidad_secuencial(
+        [linea.get("Quantity") for linea in lineas_originales],
+        total,
+    )
+    esperadas = [
+        (linea, cantidad_linea)
+        for linea, cantidad_linea in zip(lineas_originales, cantidades_linea)
+        if cantidad_linea > 0
+    ]
+    if len(lineas_finales) != len(esperadas):
+        raise ValueError(
+            "La colección DocumentLines del PATCH no representa todas las lineas finales."
+        )
+
+    resumen_lineas = []
+    suma_lineas = Decimal("0")
+    suma_lotes_documento = Decimal("0")
+    for indice, ((linea_original, cantidad_linea), linea_final) in enumerate(
+        zip(esperadas, lineas_finales),
+        start=1,
+    ):
+        for campo in ("ItemCode", "AgreementNo", "WarehouseCode"):
+            if linea_final.get(campo) != linea_original.get(campo):
+                raise ValueError(
+                    f"DocumentLine {indice}: el PATCH no conserva {campo}."
+                )
+        cantidad_final_linea = decimal_or_none(linea_final.get("Quantity"))
+        if cantidad_final_linea != cantidad_linea:
+            raise ValueError(
+                f"DocumentLine {indice}: Quantity no coincide con la distribución calculada."
+            )
+
+        lotes_originales = linea_original.get("BatchNumbers") or []
+        if not lotes_originales:
+            raise ValueError(f"DocumentLine {indice}: faltan lotes originales.")
+        cantidades_lote = distribuir_cantidad_secuencial(
+            [lote.get("Quantity") for lote in lotes_originales],
+            cantidad_linea,
+        )
+        lotes_esperados = [
+            (lote, cantidad_lote)
+            for lote, cantidad_lote in zip(lotes_originales, cantidades_lote)
+            if cantidad_lote > 0
+        ]
+        lotes_finales = linea_final.get("BatchNumbers") or []
+        if len(lotes_finales) != len(lotes_esperados):
+            raise ValueError(
+                f"DocumentLine {indice}: la colección BatchNumbers no contiene todos los lotes finales."
+            )
+
+        cantidades_vistas = Decimal("0")
+        nombres_vistos = set()
+        lotes_resumen = []
+        for (lote_original, cantidad_lote), lote_final in zip(
+            lotes_esperados,
+            lotes_finales,
+        ):
+            batch_original = str(lote_original.get("BatchNumber") or "").strip()
+            batch_final = str(lote_final.get("BatchNumber") or "").strip()
+            if not batch_original or batch_final != batch_original:
+                raise ValueError(
+                    f"DocumentLine {indice}: el PATCH no conserva BatchNumber."
+                )
+            if batch_final in nombres_vistos:
+                raise ValueError(
+                    f"DocumentLine {indice}: BatchNumber duplicado en el PATCH."
+                )
+            nombres_vistos.add(batch_final)
+            cantidad_final_lote = decimal_or_none(lote_final.get("Quantity"))
+            if cantidad_final_lote != cantidad_lote or cantidad_final_lote <= 0:
+                raise ValueError(
+                    f"DocumentLine {indice}: Quantity de lote inválida."
+                )
+            cantidades_vistas += cantidad_final_lote
+            lotes_resumen.append({
+                "batch_number": batch_final,
+                "quantity": json_safe(cantidad_final_lote),
+            })
+
+        if cantidades_vistas != cantidad_final_linea:
+            raise ValueError(
+                "SUM(BatchNumbers.Quantity) no coincide con DocumentLine.Quantity."
+            )
+        suma_lineas += cantidad_final_linea
+        suma_lotes_documento += cantidades_vistas
+        resumen_lineas.append({
+            "document_line": indice,
+            "quantity": json_safe(cantidad_final_linea),
+            "suma_lotes": json_safe(cantidades_vistas),
+            "lotes": lotes_resumen,
+            "validacion": "OK",
+        })
+
+    if suma_lineas != total:
+        raise ValueError(
+            "SUM(DocumentLines.Quantity) no coincide con la cantidad final del acuerdo."
+        )
+    return {
+        "cantidad_total_documento": json_safe(total),
+        "suma_lineas": json_safe(suma_lineas),
+        "suma_lotes": json_safe(suma_lotes_documento),
+        "coleccion_final_completa": True,
+        "validacion": "OK",
+        "lineas": resumen_lineas,
+    }
+
+
+def _distribuir_payload_draft(payload_original, cantidad_real):
+    payload = deepcopy(payload_original or {})
+    lineas = payload.get("DocumentLines") or []
+    if not lineas:
+        raise ValueError("Falta informacion de lineas en el Draft SAP.")
+    cantidades_linea = distribuir_cantidad_secuencial([linea.get("Quantity") for linea in lineas], cantidad_real)
+    for linea, cantidad_linea in zip(lineas, cantidades_linea):
+        lotes = linea.get("BatchNumbers") or []
+        if not lotes:
+            raise ValueError("Falta informacion de lotes en el Draft SAP.")
+        cantidades_lote = distribuir_cantidad_secuencial([lote.get("Quantity") for lote in lotes], cantidad_linea)
+        linea["Quantity"] = json_safe(cantidad_linea)
+        for lote, cantidad_lote in zip(lotes, cantidades_lote):
+            lote["Quantity"] = json_safe(cantidad_lote)
+        linea["BatchNumbers"] = [lote for lote in lotes if decimal_or_none(lote["Quantity"]) > 0]
+        if sum((decimal_or_none(lote["Quantity"]) for lote in linea["BatchNumbers"]), Decimal("0")) != cantidad_linea:
+            raise ValueError("SUM(BatchNumbers.Quantity) no coincide con DocumentLine.Quantity.")
+    payload["DocumentLines"] = [linea for linea in lineas if decimal_or_none(linea["Quantity"]) > 0]
+    if sum((decimal_or_none(linea["Quantity"]) for linea in payload["DocumentLines"]), Decimal("0")) != cantidad_real:
+        raise ValueError("SUM(DocumentLines.Quantity) no coincide con la cantidad real del acuerdo.")
+    _validar_payload_patch_completo(payload_original, payload, cantidad_real)
+    return payload
+
+
+def _auditoria_update_operacional(draft):
+    respuesta = draft.respuesta if isinstance(draft.respuesta, dict) else {}
+    auditoria = respuesta.get("actualizacion_peso_real")
+    return auditoria if isinstance(auditoria, dict) else {}
+
+
+def construir_preview_update_drafts_operacionales(citacion):
+    pesaje = obtener_pesaje_real_despacho(citacion)
+    errors = list(pesaje["errors"])
+    entrada = pesaje["peso_entrada_kg"]
+    salida = pesaje["peso_salida_bruto_kg"]
+    neto_kg = pesaje["peso_neto_producto_kg"]
+    neto_mt = pesaje["cantidad_real_mt"]
+
+    carga = (
+        CITACION_DESPACHO_CARGA.objects
+        .prefetch_related("acuerdos__draft")
+        .filter(CI_NID=citacion)
+        .first()
+    )
+    acuerdos = list(carga.acuerdos.all()) if carga else []
+    if not acuerdos:
+        errors.append("No existe distribucion operacional de acuerdos para actualizar SAP.")
+
+    drafts = []
+    productos = set()
+    for acuerdo in acuerdos:
+        try:
+            draft = acuerdo.draft
+        except CITACION_DESPACHO_DRAFT_SAP.DoesNotExist:
+            draft = None
+        if not draft or not str(draft.docentry or "").strip() or draft.estado not in {"CREADO", "ACTUALIZADO"}:
+            errors.append(f"No existe Draft SAP creado para el acuerdo {acuerdo.numero_acuerdo}.")
+            continue
+        if entero_o_none(draft.docentry) is None:
+            errors.append(f"DocEntry invalido para el acuerdo {acuerdo.numero_acuerdo}.")
+            continue
+        lineas = (draft.payload or {}).get("DocumentLines") or []
+        productos.update(str(linea.get("ItemCode") or "").strip() for linea in lineas if linea.get("ItemCode"))
+        drafts.append((acuerdo, draft))
+    if len(productos) > 1:
+        errors.append("No existe regla de negocio para distribuir el pesaje entre productos distintos.")
+
+    documentos = []
+    if not errors and neto_mt is not None:
+        cantidades_acuerdo = distribuir_cantidad_secuencial(
+            [acuerdo.cantidad for acuerdo, _ in drafts], neto_mt
+        )
+        for (acuerdo, draft), cantidad_acuerdo in zip(drafts, cantidades_acuerdo):
+            try:
+                payload_final = _distribuir_payload_draft(draft.payload, cantidad_acuerdo)
+                validacion_patch = _validar_payload_patch_completo(
+                    draft.payload,
+                    payload_final,
+                    cantidad_acuerdo,
+                )
+            except ValueError as exc:
+                errors.append(f"Acuerdo {acuerdo.numero_acuerdo}: {exc}")
+                continue
+            documentos.append({
+                "acuerdo_id": acuerdo.id,
+                "sap_abs_id": acuerdo.sap_abs_id,
+                "numero_acuerdo": acuerdo.numero_acuerdo,
+                "docentry": entero_o_none(draft.docentry),
+                "docnum": draft.docnum,
+                "cantidad_original": json_safe(acuerdo.cantidad),
+                "cantidad_final": json_safe(cantidad_acuerdo),
+                "payload_original": deepcopy(draft.payload),
+                "payload": payload_final,
+                "validacion_patch": validacion_patch,
+                "actualizado": bool(_auditoria_update_operacional(draft).get("success")),
+            })
+
+    total_planificado = sum((acuerdo.cantidad for acuerdo in acuerdos), Decimal("0"))
+    if documentos:
+        total_final = sum((decimal_or_none(item["cantidad_final"]) for item in documentos), Decimal("0"))
+        if total_final != neto_mt:
+            errors.append("La suma final de documentos SAP no coincide con el peso real despachado.")
+    return {
+        "aplicable": bool(carga),
+        "errors": errors,
+        "source_data": {
+            "peso_entrada_kg": json_safe(entrada),
+            "peso_salida_kg": json_safe(salida),
+            "peso_salida_bruto_kg": json_safe(salida),
+            "peso_real_kg": json_safe(neto_kg),
+            "peso_neto_producto_kg": json_safe(neto_kg),
+            "peso_neto_calculado_kg": json_safe(pesaje["peso_neto_calculado_kg"]),
+            "diferencia_control_kg": json_safe(pesaje["diferencia_control_kg"]),
+            "fuente_peso_neto": pesaje["fuente_peso_neto"],
+            "fuente_peso_neto_label": pesaje["fuente_peso_neto_label"],
+            "control_disponible": pesaje["control_disponible"],
+            "control_pesaje_ok": pesaje["control_pesaje_ok"],
+            "cantidad_real_mt": json_safe(neto_mt),
+            "cantidad_planificada_mt": json_safe(total_planificado),
+            "diferencia_mt": json_safe(neto_mt - total_planificado) if neto_mt is not None else None,
+            "formula": "peso_neto_producto_kg",
+        },
+        "documentos": documentos,
+    }
+
+
+def _resumen_lineas_preview(payload):
+    resumen = []
+    for indice, linea in enumerate((payload or {}).get("DocumentLines") or [], start=1):
+        cantidad_linea = decimal_or_none(linea.get("Quantity"))
+        lotes = deepcopy(linea.get("BatchNumbers") or [])
+        suma_lotes = sum(
+            (decimal_or_none(lote.get("Quantity")) or Decimal("0") for lote in lotes),
+            Decimal("0"),
+        )
+        resumen.append({
+            "document_line": indice,
+            "item_code": linea.get("ItemCode"),
+            "warehouse_code": linea.get("WarehouseCode"),
+            "agreement_no": linea.get("AgreementNo"),
+            "quantity": json_safe(cantidad_linea),
+            "batch_numbers": lotes,
+            "suma_lotes": json_safe(suma_lotes),
+            "suma_lotes_igual_linea": cantidad_linea is not None and suma_lotes == cantidad_linea,
+        })
+    return resumen
+
+
+def _sanitizar_datos_preview(valor):
+    claves_sensibles = {
+        "authorization", "cookie", "cookies", "password", "routeid",
+        "b1session", "sap_password", "sap_user", "sap_username", "sessionid",
+        "set-cookie", "token", "username",
+    }
+    if isinstance(valor, dict):
+        return {
+            clave: "[OCULTO]" if str(clave).lower() in claves_sensibles else _sanitizar_datos_preview(item)
+            for clave, item in valor.items()
+        }
+    if isinstance(valor, list):
+        return [_sanitizar_datos_preview(item) for item in valor]
+    return json_safe(valor)
+
+
+def construir_diagnostico_preview_update_drafts_operacionales(citacion):
+    """Construye el diagnostico del PATCH operacional sin abrir sesion ni escribir en SAP/DB."""
+    preview_real = construir_preview_update_drafts_operacionales(citacion)
+    source = preview_real.get("source_data") or {}
+    carga = (
+        CITACION_DESPACHO_CARGA.objects
+        .prefetch_related("acuerdos__draft")
+        .filter(CI_NID=citacion)
+        .first()
+    )
+    acuerdos = list(carga.acuerdos.all()) if carga else []
+    finales_por_acuerdo = {
+        item["acuerdo_id"]: item for item in preview_real.get("documentos") or []
+    }
+    documentos = []
+    productos = set()
+    docentries = []
+
+    for acuerdo in acuerdos:
+        try:
+            draft = acuerdo.draft
+        except CITACION_DESPACHO_DRAFT_SAP.DoesNotExist:
+            draft = None
+        original = deepcopy(draft.payload) if draft and isinstance(draft.payload, dict) else {}
+        for linea in original.get("DocumentLines") or []:
+            if linea.get("ItemCode"):
+                productos.add(str(linea["ItemCode"]).strip())
+        final_real = finales_por_acuerdo.get(acuerdo.id)
+        payload_patch = deepcopy(final_real["payload"]) if final_real else None
+        distribucion_final = _resumen_lineas_preview(payload_patch) if payload_patch else []
+        suma_lineas = sum(
+            (decimal_or_none(linea.get("Quantity")) or Decimal("0") for linea in (payload_patch or {}).get("DocumentLines") or []),
+            Decimal("0"),
+        )
+        cantidad_final = decimal_or_none(final_real.get("cantidad_final")) if final_real else None
+        docentry = entero_o_none(draft.docentry) if draft else None
+        if docentry is not None:
+            docentries.append(docentry)
+        lotes_validos = bool(distribucion_final) and all(
+            linea["suma_lotes_igual_linea"] for linea in distribucion_final
+        )
+        lineas_validas = cantidad_final is not None and suma_lineas == cantidad_final
+        suma_lotes = sum(
+            (
+                decimal_or_none(linea.get("suma_lotes")) or Decimal("0")
+                for linea in distribucion_final
+            ),
+            Decimal("0"),
+        )
+        validacion_patch = deepcopy(
+            (final_real or {}).get("validacion_patch") or {}
+        )
+        documentos.append({
+            "acuerdo": {
+                "id": acuerdo.id,
+                "numero_visible": acuerdo.numero_acuerdo,
+                "sap_abs_id": acuerdo.sap_abs_id,
+            },
+            "draft": {
+                "encontrado": draft is not None,
+                "docentry": docentry,
+                "docnum": draft.docnum if draft else None,
+                "estado": draft.estado if draft else None,
+            },
+            "pesajes": deepcopy(source),
+            "cantidad_operacional": {
+                "original_mt": json_safe(acuerdo.cantidad),
+                "final_mt": json_safe(cantidad_final),
+            },
+            "endpoint": f"PATCH /Drafts({docentry})" if docentry is not None else None,
+            "headers": {"B1S-ReplaceCollectionsOnPatch": "true"},
+            "payload_original": original,
+            "distribucion_original": _resumen_lineas_preview(original),
+            "distribucion_final": distribucion_final,
+            "payload_patch": payload_patch,
+            "validacion": {
+                "suma_lotes_igual_linea": lotes_validos,
+                "suma_lotes": json_safe(suma_lotes),
+                "suma_lineas": json_safe(suma_lineas),
+                "suma_lineas_igual_acuerdo": lineas_validas,
+                "coleccion_final_completa": bool(
+                    validacion_patch.get("coleccion_final_completa")
+                ),
+                "resultado": (
+                    "OK"
+                    if lotes_validos
+                    and lineas_validas
+                    and validacion_patch.get("coleccion_final_completa")
+                    else "INVÁLIDO"
+                ),
+            },
+            "ultima_actualizacion_registrada": _sanitizar_datos_preview(
+                _auditoria_update_operacional(draft) if draft else {}
+            ),
+        })
+
+    validacion = {
+        "draft_encontrado": bool(documentos) and all(item["draft"]["encontrado"] for item in documentos),
+        "docentry_valido": bool(documentos) and all(item["draft"]["docentry"] is not None for item in documentos),
+        "pesaje_entrada_disponible": source.get("peso_entrada_kg") is not None,
+        "pesaje_salida_bruto_disponible": source.get("peso_salida_bruto_kg") is not None,
+        "peso_neto_producto_disponible": source.get("peso_neto_producto_kg") is not None,
+        "fuente_peso_neto_identificada": bool(source.get("fuente_peso_neto")),
+        "control_pesaje_ok": (
+            not source.get("control_disponible")
+            or bool(source.get("control_pesaje_ok"))
+        ),
+        "peso_real_positivo": (decimal_or_none(source.get("peso_real_kg")) or Decimal("0")) > 0,
+        "suma_lotes_igual_linea": bool(documentos) and all(item["validacion"]["suma_lotes_igual_linea"] for item in documentos),
+        "suma_lineas_igual_acuerdo": bool(documentos) and all(item["validacion"]["suma_lineas_igual_acuerdo"] for item in documentos),
+        "coleccion_final_completa": bool(documentos) and all(item["validacion"]["coleccion_final_completa"] for item in documentos),
+        "acuerdos_separados_correctamente": bool(documentos) and len(docentries) == len(documentos) == len(set(docentries)),
+        "productos_compatibles_multiacuerdo": len(productos) <= 1,
+    }
+    motivos = list(preview_real.get("errors") or [])
+    for clave, correcto in validacion.items():
+        if not correcto:
+            motivos.append(f"Validacion fallida: {clave.replace('_', ' ')}.")
+    return json_safe({
+        "success": not motivos,
+        "resultado": "PREVIEW V\u00c1LIDO" if not motivos else "PREVIEW INV\u00c1LIDO",
+        "citacion": citacion.pk,
+        "documentos": documentos,
+        "validacion_estructural": validacion,
+        "motivos": motivos,
+    })
+
+def _get_sap_despacho_update_status_operacional(citacion):
+    preview = construir_preview_update_drafts_operacionales(citacion)
+    drafts = list(
+        CITACION_DESPACHO_DRAFT_SAP.objects
+        .filter(acuerdo__carga__CI_NID=citacion)
+        .select_related("acuerdo")
+        .order_by("acuerdo__orden", "acuerdo_id")
+    )
+    auditorias = [_auditoria_update_operacional(draft) for draft in drafts]
+    updated = bool(drafts) and all(auditoria.get("success") for auditoria in auditorias)
+    is_error = any(auditoria and not auditoria.get("success") for auditoria in auditorias)
+    estado = SAP_DESPACHO_UPDATE_ESTADO_ACTUALIZADO if updated else (
+        SAP_DESPACHO_UPDATE_ESTADO_ERROR if is_error else SAP_DESPACHO_UPDATE_ESTADO_PENDIENTE
+    )
+    source = preview.get("source_data") or {}
+    request_json = {"Drafts": [item["payload"] for item in preview.get("documentos") or []]}
+    response_json = {"Drafts": [auditoria.get("response") or {} for auditoria in auditorias if auditoria]}
+    ultimo = drafts[-1] if drafts else None
+    usuario = next((str(a.get("usuario") or "") for a in reversed(auditorias) if a.get("usuario")), "")
+    return {
+        "updated": updated,
+        "is_error": is_error,
+        "estado": estado,
+        "label": "Documentos SAP actualizados" if updated else ("Error al actualizar SAP" if is_error else "Pendiente de actualizar SAP"),
+        "result_label": "OK" if updated else ("ERROR" if is_error else "PENDIENTE"),
+        "css_estado": "ok" if updated else ("error" if is_error else "pending"),
+        "resumen_mensaje": (
+            "Drafts SAP actualizados con la cantidad fisicamente despachada."
+            if updated else "Debe actualizar los documentos SAP con el peso real antes de autorizar la salida."
+        ),
+        "error_message": next((draft.error for draft in drafts if draft.error), ""),
+        "docentry": drafts[0].docentry if len(drafts) == 1 else "",
+        "docnum": drafts[0].docnum if len(drafts) == 1 else "",
+        "peso_entrada": source.get("peso_entrada_kg"),
+        "peso_salida": source.get("peso_salida_kg"),
+        "peso_real_kg": source.get("peso_real_kg"),
+        "cantidad_real_mt": source.get("cantidad_real_mt"),
+        "cantidad_planificada_mt": source.get("cantidad_planificada_mt"),
+        "diferencia_mt": source.get("diferencia_mt"),
+        "distribucion": preview.get("documentos") or [],
+        "preview_errors": preview.get("errors") or [],
+        "request_json": request_json,
+        "response_json": response_json,
+        "request_json_pretty": json_pretty(request_json),
+        "response_json_pretty": json_pretty(response_json),
+        "fecha_hora": timezone.localtime(ultimo.actualizado).strftime("%d/%m/%Y %H:%M") if ultimo else "",
+        "usuario": usuario,
+    }
+
+
+def actualizar_borradores_sap_despacho_operacionales(citacion, usuario, allow_retry=False, client_factory=SapServiceLayerClient):
+    preview = construir_preview_update_drafts_operacionales(citacion)
+    if preview.get("errors") or not preview.get("documentos"):
+        return {
+            "success": False,
+            "message": (preview.get("errors") or ["Faltan datos para actualizar SAP."])[0],
+            "preview": preview,
+            "status": _get_sap_despacho_update_status_operacional(citacion),
+        }
+    if all(item.get("actualizado") for item in preview["documentos"]) and not allow_retry:
+        return {"success": True, "message": "Documentos SAP ya actualizados.", "preview": preview,
+                "status": _get_sap_despacho_update_status_operacional(citacion)}
+
+    try:
+        for item in preview["documentos"]:
+            _validar_payload_patch_completo(
+                item["payload_original"],
+                item["payload"],
+                decimal_or_none(item["cantidad_final"]),
+            )
+    except ValueError as exc:
+        return {
+            "success": False,
+            "message": f"PATCH SAP bloqueado por validación estructural: {exc}",
+            "preview": preview,
+            "status": _get_sap_despacho_update_status_operacional(citacion),
+        }
+
+    client = client_factory(load_config(citacion.EP_NID_id, for_write=True))
+    resultados = []
+    try:
+        client.login()
+        for item in preview["documentos"]:
+            draft = CITACION_DESPACHO_DRAFT_SAP.objects.get(acuerdo_id=item["acuerdo_id"])
+            if item.get("actualizado") and not allow_retry:
+                resultados.append({"docentry": draft.docentry, "reutilizado": True})
+                continue
+            try:
+                response = client.patch_draft(item["docentry"], item["payload"], replace_collections=True)
+                data = response.get("data") or {"status_code": response.get("status_code")}
+                respuesta = deepcopy(draft.respuesta) if isinstance(draft.respuesta, dict) else {}
+                if respuesta and "creacion" not in respuesta and "actualizacion_peso_real" not in respuesta:
+                    respuesta = {"creacion": respuesta}
+                respuesta["actualizacion_peso_real"] = {
+                    "success": True, "request": item["payload"], "response": data,
+                    "peso_entrada_kg": preview["source_data"]["peso_entrada_kg"],
+                    "peso_salida_kg": preview["source_data"]["peso_salida_kg"],
+                    "peso_real_kg": preview["source_data"]["peso_real_kg"],
+                    "cantidad_final_mt": item["cantidad_final"],
+                    "usuario": getattr(usuario, "username", ""), "fecha_iso": timezone.now().isoformat(),
+                }
+                draft.respuesta = respuesta
+                draft.error = ""
+                draft.save(update_fields=["respuesta", "error", "actualizado"])
+                resultados.append({"docentry": draft.docentry, "reutilizado": False})
+            except Exception as exc:
+                respuesta = deepcopy(draft.respuesta) if isinstance(draft.respuesta, dict) else {}
+                if respuesta and "creacion" not in respuesta and "actualizacion_peso_real" not in respuesta:
+                    respuesta = {"creacion": respuesta}
+                respuesta["actualizacion_peso_real"] = {
+                    "success": False, "request": item["payload"], "response": _extract_sap_error(exc),
+                    "usuario": getattr(usuario, "username", ""), "fecha_iso": timezone.now().isoformat(),
+                }
+                draft.respuesta = respuesta
+                draft.error = _sap_error_short_message(respuesta["actualizacion_peso_real"]["response"]) or str(exc)
+                draft.save(update_fields=["respuesta", "error", "actualizado"])
+                return {"success": False, "message": f"No fue posible actualizar el Draft SAP {draft.docentry}.",
+                        "preview": preview, "resultados": resultados,
+                        "status": _get_sap_despacho_update_status_operacional(citacion)}
+    finally:
+        client.logout()
+    return {"success": True, "message": "Documentos SAP actualizados con el peso real despachado.",
+            "preview": preview, "resultados": resultados,
+            "status": _get_sap_despacho_update_status_operacional(citacion)}
+
+
 def get_sap_despacho_update_status(citacion):
+    if CITACION_DESPACHO_CARGA.objects.filter(CI_NID=citacion).exists():
+        return _get_sap_despacho_update_status_operacional(citacion)
     detalle = _detalle_despacho(citacion)
     peso_salida_actual = obtener_peso_salida_sap_despacho(citacion)
     if not detalle:
@@ -1123,6 +1800,8 @@ def crear_borrador_sap_despacho(citacion, usuario, allow_duplicate=False):
     }
 
 def actualizar_borrador_sap_despacho(citacion, usuario, allow_retry=False):
+    if CITACION_DESPACHO_CARGA.objects.filter(CI_NID=citacion).exists():
+        return actualizar_borradores_sap_despacho_operacionales(citacion, usuario, allow_retry=allow_retry)
     existing_status = get_sap_despacho_update_status(citacion)
 
     if existing_status.get("updated") and not allow_retry:
@@ -2085,6 +2764,11 @@ __all__ = [
     "detalle_despacho_resumen_dict",
     "get_sap_despacho_draft_status",
     "get_sap_despacho_update_status",
+    "calcular_peso_real_despachado",
+    "construir_preview_update_drafts_operacionales",
+    "construir_diagnostico_preview_update_drafts_operacionales",
+    "distribuir_cantidad_secuencial",
+    "obtener_peso_entrada_sap_despacho",
     "guardar_detalle_despacho_citacion",
     "guardar_respuesta_borrador_sap_despacho",
     "guardar_respuesta_update_sap_despacho",

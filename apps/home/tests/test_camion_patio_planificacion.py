@@ -49,10 +49,11 @@ class ConsultaPatenteTerramarTests(SimpleTestCase):
 
 
 class RegistroDesdePlanificacionTests(SimpleTestCase):
-    def test_post_persiste_fk_y_ejecuta_asociacion_automatica(self):
+    def test_post_conserva_citacion_como_sugerencia_sin_asociar(self):
         request = RequestFactory().post('/camiones-patio/registrar/', {
             '_empresa_id': '1', 'carga_desde_planificacion': '1', 'citacion_planificada_id': '38629',
             'planificacion_planificada_id': '1221', 'transporte_a_cargo': 'TERRAMAR', 'patente': 'JWRS50',
+            'conductor_id': '77',
             'rut_conductor': '26579766-0', 'telefono_conductor': '926483068', 'telefono_codigo_pais': '+56',
             'conductor': 'ALEXANDER YHONIZ', 'transportista': 'TRANSPORTES SAEZ LIMITADA', 'proveedor': 'Proveedor',
             'cliente': 'Cliente', 'tipo_documento': 'GD', 'numero_guia': '1201112', 'insumo_declarado_guia': 'HARINA DE VISCERA 60%'
@@ -64,6 +65,12 @@ class RegistroDesdePlanificacionTests(SimpleTestCase):
             PL_NID=SimpleNamespace(id=1221), PL_NID_id=1221,
         )
         camion = SimpleNamespace(id=9, CPA_CPATENTE='JWRS50')
+        conductor = SimpleNamespace(
+            id=77,
+            CON_CNOMBRE='ALEXANDER',
+            CON_CAPELLIDO='YHONIZ',
+            CON_CRUT='26579766-0',
+        )
         create_camion = MagicMock(return_value=camion)
         asociar = MagicMock(return_value={})
         with patch.object(views, 'usuario_puede_registrar_camion_patio', return_value=True), \
@@ -75,6 +82,7 @@ class RegistroDesdePlanificacionTests(SimpleTestCase):
              patch.object(views, '_usuario_tiene_acceso_empresa', return_value=True), \
              patch.object(views, '_citacion_terramar_disponible_para_llegada', return_value=True), \
              patch.object(views, 'es_citacion_recepcion_terramar', return_value=True), \
+             patch.object(views.CONDUCTOR.objects, 'filter', return_value=MagicMock(first=MagicMock(return_value=conductor))), \
              patch.object(views.CITACION_RECEPCION_TERRAMAR_DETALLE.objects, 'filter', return_value=MagicMock(first=MagicMock(return_value=SimpleNamespace(RTD_CPATENTE='JWRS50')))), \
              patch.object(views.CAMION_PATIO.objects, 'create', create_camion), \
              patch.object(views.CAMION_PATIO_TRAZABILIDAD_PLANIFICACION.objects, 'create'), \
@@ -85,9 +93,8 @@ class RegistroDesdePlanificacionTests(SimpleTestCase):
              patch.object(views, 'redirect', return_value=SimpleNamespace(status_code=302)):
             response = views.CAMIONES_PATIO_REGISTRAR(request)
         self.assertEqual(response.status_code, 302)
-        self.assertIs(create_camion.call_args.kwargs['CI_NID'], citacion)
-        self.assertEqual(asociar.call_args.kwargs['origen'], 'REGISTRO_AUTOMATICO_TERRAMAR')
-        self.assertIs(asociar.call_args.kwargs['citacion'], citacion)
+        self.assertIsNone(create_camion.call_args.kwargs['CI_NID'])
+        asociar.assert_not_called()
 
 
 class ClientePatioDespachoTests(SimpleTestCase):

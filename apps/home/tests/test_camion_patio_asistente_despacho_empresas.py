@@ -41,6 +41,8 @@ class AsociacionDirectaAsistenteDespachoEmpresasTests(SimpleTestCase):
             id=38700,
             CI_CTIPO=tipo_citacion,
             PL_NID=None,
+            CON_NID_id=None,
+            save=MagicMock(),
         )
         camiones = MagicMock()
         camiones.select_related.return_value.prefetch_related.return_value.get.return_value = camion
@@ -53,6 +55,10 @@ class AsociacionDirectaAsistenteDespachoEmpresasTests(SimpleTestCase):
             'adjuntos_guardados': [],
             'log_asociacion': SimpleNamespace(id=55),
             'siguiente_etapa': SimpleNamespace(ET_CCODIGO='SIGUIENTE'),
+        }
+        validacion = {
+            'aplica': True, 'valido': True, 'errores': [], 'campos': [],
+            'conductor': SimpleNamespace(id=41), 'transportista': SimpleNamespace(id=31),
         }
         request = self.factory.post(
             f'/camiones-patio/{camion.id}/asociar/',
@@ -68,6 +74,7 @@ class AsociacionDirectaAsistenteDespachoEmpresasTests(SimpleTestCase):
              patch.object(views, '_es_camion_despacho_patio', return_value=tipo_citacion == views.CIT_DESPACHO), \
              patch.object(views, 'usuario_es_asistente_despacho_empresa', return_value=True), \
              patch.object(views, 'citacion_disponible_para_asociar_camion_patio', return_value=True), \
+             patch.object(views, '_validar_datos_asociacion_camion_despacho_sbh', return_value=validacion), \
              patch.object(views, 'resolver_notificaciones_camion_patio_asistente_despacho', return_value=1) as resolver, \
              patch.object(views, '_asociar_camion_patio_a_citacion', return_value=resultado) as asociar:
             response = views.CAMION_PATIO_ASOCIAR(request, camion.id)

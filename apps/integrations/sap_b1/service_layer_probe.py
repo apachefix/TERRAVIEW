@@ -203,8 +203,8 @@ class SapServiceLayerClient:
     def post_draft(self, payload: Dict[str, Any]) -> Dict[str, Any]:
         return self.post_json("Drafts", payload, diagnostic_context="POST Drafts")
 
-    def patch_json(self, path: str, payload: Dict[str, Any], diagnostic_context: str = "PATCH autenticado") -> Dict[str, Any]:
-        response = self._request("PATCH", path, json=payload, diagnostic_context=diagnostic_context)
+    def patch_json(self, path: str, payload: Dict[str, Any], diagnostic_context: str = "PATCH autenticado", headers=None) -> Dict[str, Any]:
+        response = self._request("PATCH", path, json=payload, headers=headers, diagnostic_context=diagnostic_context)
         if response.status_code >= 400:
             self._json_or_error(response, diagnostic_context)
         try:
@@ -217,8 +217,12 @@ class SapServiceLayerClient:
             "data": data,
         }
 
-    def patch_draft(self, docentry: int, payload: Dict[str, Any]) -> Dict[str, Any]:
-        return self.patch_json(f"Drafts({int(docentry)})", payload, diagnostic_context=f"PATCH Drafts({int(docentry)})")
+    def patch_draft(self, docentry: int, payload: Dict[str, Any], *, replace_collections: bool = False) -> Dict[str, Any]:
+        headers = {"B1S-ReplaceCollectionsOnPatch": "true"} if replace_collections else None
+        return self.patch_json(
+            f"Drafts({int(docentry)})", payload,
+            diagnostic_context=f"PATCH Drafts({int(docentry)})", headers=headers,
+        )
 
     def logout(self) -> None:
         if not self.logged_in:

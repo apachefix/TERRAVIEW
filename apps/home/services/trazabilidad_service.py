@@ -54,6 +54,15 @@ def _primero(*valores):
     return ''
 
 
+def _etiqueta_tipo_recepcion(valor):
+    texto = _texto(valor)
+    return {
+        'NACIONAL': 'Nacional',
+        'EXTRANJERO': 'Extranjero',
+        'IMPORTACION': 'Importación',
+    }.get(texto.upper(), texto)
+
+
 def _usuario_nombre(usuario):
     if not usuario:
         return ''
@@ -321,6 +330,9 @@ def _cabecera(citacion, datos, camiones):
         ),
         'empresa': citacion.EP_NID.EP_CRAZONSOCIAL,
         'tipo': _primero(citacion.CI_CTIPO, citacion.PL_NID.PL_CTIPOCUPO),
+        'tipo_recepcion': _etiqueta_tipo_recepcion(
+            getattr(detalle_operacional, 'CDO_CTIPO_RECEPCION', '')
+        ) if not es_despacho else '',
         'flujo': _primero(getattr(citacion.SC_NID, 'SE_CNOMBRE', ''), getattr(citacion.SC_NID, 'SE_CCODIGO', '')),
         'codigo_sap': codigo_sap,
         'nombre_articulo_sap': articulo_sap,

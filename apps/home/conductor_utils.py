@@ -12,7 +12,7 @@ def normalizar_rut_chileno(valor):
         return ''
 
     limpio = re.sub(r'[.\s-]', '', texto)
-    if not re.fullmatch(r'\d{2,8}[0-9K]', limpio):
+    if not re.fullmatch(r'\d{7,8}[0-9K]', limpio):
         raise RutChilenoInvalido('RUT inválido. Revise el número ingresado.')
 
     cuerpo_texto, dv_informado = limpio[:-1], limpio[-1]

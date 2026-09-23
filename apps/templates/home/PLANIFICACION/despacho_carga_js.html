@@ -26,6 +26,7 @@ const cargaSbh = (() => {
     };
     const validDate = value => /^\d{4}-\d{2}-\d{2}$/.test(String(value || '')) && !Number.isNaN(Date.parse(value));
     const usable = row => !validDate(row.fecha_vencimiento) || row.fecha_vencimiento >= state.hoy;
+    const operationallyAvailable = row => units(row.disponible ?? row.stock) > 0;
     const otherUse = (block, batch) => {
         let result = 0;
         state.acuerdos.forEach(a => a.estanques.forEach(b => {
@@ -40,7 +41,7 @@ const cargaSbh = (() => {
         // Solo se autocompletan lotes fechados. Sin fecha: elección explícita.
         let remaining = units(block.cantidad);
         block.lotes = [];
-        stock(block).filter(row => usable(row) && validDate(row.fecha_vencimiento)).forEach(row => {
+        stock(block).filter(row => operationallyAvailable(row) && usable(row) && validDate(row.fecha_vencimiento)).forEach(row => {
             const available = Math.max(0, units(row.stock) - otherUse(block, String(row.batch_number)));
             const take = Math.max(0, Math.min(remaining, available));
             if (take) block.lotes.push({batch_number: String(row.batch_number), cantidad: qty(take)});
@@ -78,8 +79,6 @@ const cargaSbh = (() => {
         if (b.warehouse_code && !warehouses.includes(b.warehouse_code)) warehouses.push(b.warehouse_code);
         const products = catalog.productos.filter(p => (catalog.stocks[p.item_code] || []).some(r => String(r.warehouse_code) === b.warehouse_code && usable(r)));
         const rows = stock(b);
-        // Preserve persisted lots in read-only mode or when SAP stock has changed.
-        const missing = b.lotes.filter(l => !rows.some(r => String(r.batch_number) === l.batch_number));
         return `<div class="border rounded p-3 mb-3" data-bloque="${bi}"><div class="d-flex justify-content-between align-items-center mb-2"><strong>Estanque origen #${bi + 1}</strong>
             <button type="button" class="btn btn-outline-danger btn-sm" data-remove ${disabled} ${agreement.estanques.length <= 1 ? 'disabled' : ''}>Eliminar estanque</button></div>
             <div class="row"><div class="col-md-6 form-group"><label>Estanque / Warehouse</label><select data-warehouse class="form-control" ${disabled}><option value="">Seleccione estanque</option>
@@ -89,16 +88,21 @@ const cargaSbh = (() => {
             ${b.item_code ? `<small>Precargado/seleccionado: ${esc(b.item_code)} · línea ${esc(b.linea_acuerdo)}</small>` : ''}</div></div>
             <label>Cantidad del estanque/producto</label><div class="input-group mb-2"><input data-bcantidad class="form-control" type="number" step="0.00001" min="0.00001" value="${esc(b.cantidad)}" ${disabled}>
             <div class="input-group-append"><button type="button" class="btn btn-outline-primary" data-fefo ${disabled}>Distribuir FEFO</button></div></div>
-            <div class="table-responsive"><table class="table table-sm mb-0"><thead><tr><th>Lote</th><th>Vencimiento</th><th>Disponible en estanque</th><th>Cantidad a utilizar</th></tr></thead><tbody>
+            <div class="table-responsive"><table class="table table-sm mb-0 sbh-lotes-table"><thead><tr><th>Lote</th><th>Vencimiento</th><th>Stock SAP</th><th>Reservado</th><th class="sbh-col-disponibilidad">Disponibilidad<br>operacional</th><th class="sbh-col-cantidad">Cantidad a utilizar</th></tr></thead><tbody>
             ${rows.map(row => {
                 const batch = String(row.batch_number), dated = validDate(row.fecha_vencimiento);
-                const blocked = !usable(row) || rows.some(earlier => usable(earlier) && validDate(earlier.fecha_vencimiento)
+                const reserved = !operationallyAvailable(row);
+                const blocked = reserved || !usable(row) || rows.some(earlier => operationallyAvailable(earlier) && usable(earlier) && validDate(earlier.fecha_vencimiento)
                     && (!dated || earlier.fecha_vencimiento < row.fecha_vencimiento)
                     && selected(b, String(earlier.batch_number)) + otherUse(b, String(earlier.batch_number)) < units(earlier.stock));
-                return `<tr><td>${esc(batch)}</td><td>${esc(dated ? row.fecha_vencimiento : 'Sin fecha')}${!usable(row) ? ' · Vencido' : ''}</td><td>${esc(row.stock)}</td>
-                    <td><input aria-label="Cantidad lote ${esc(batch)}" data-lote="${esc(batch)}" class="form-control form-control-sm" type="number" step="0.00001" min="0" max="${esc(row.stock)}" value="${esc(qty(selected(b, batch)))}" ${disabled} ${blocked ? 'disabled title="Prioridad FEFO o lote vencido"' : ''}></td></tr>`;
-            }).join('')}${missing.map(l => `<tr class="text-warning"><td>${esc(l.batch_number)}</td><td>${esc(l.fecha_vencimiento || 'Sin fecha')}</td><td>No disponible actualmente</td><td>${esc(l.cantidad)} <button type="button" class="btn btn-link btn-sm" data-quitar-lote="${esc(l.batch_number)}" ${disabled}>Quitar</button></td></tr>`).join('')}
-            ${!rows.length && !missing.length ? '<tr><td colspan="4">Seleccione un estanque y producto con stock.</td></tr>' : ''}</tbody></table></div>
+                const traces = (row.reservas || []).map(r => `Citación ${esc(r.citacion_id)} · Acuerdo ${esc(r.acuerdo || r.sap_abs_id)} · ${esc(r.cantidad)}`).join('<br>');
+                return `<tr><td>${esc(batch)}</td><td>${esc(dated ? row.fecha_vencimiento : 'Sin fecha')}</td>
+                    <td>${esc(row.stock_sap ?? row.stock)}</td>
+                    <td>${esc(row.reservado || '0')}${traces ? `<div class="small text-muted">${traces}</div>` : ''}</td>
+                    <td class="sbh-col-disponibilidad"><div class="sbh-disponibilidad-compacta"><span class="badge ${reserved ? 'badge-secondary' : 'badge-success'}">${reserved ? 'RESERVADO' : 'DISPONIBLE'}</span><span class="sbh-disponibilidad-valor">${esc(row.disponible ?? row.stock)}</span></div></td>
+                    <td class="sbh-col-cantidad"><input aria-label="Cantidad lote ${esc(batch)}" data-lote="${esc(batch)}" class="form-control form-control-sm" type="number" step="0.00001" min="0" max="${esc(row.disponible ?? row.stock)}" value="${esc(qty(selected(b, batch)))}" ${disabled} ${blocked ? 'disabled title="Sin disponibilidad operacional o prioridad FEFO"' : ''}></td></tr>`;
+            }).join('')}
+            ${!rows.length ? '<tr><td colspan="6">Seleccione un estanque y producto con stock SAP.</td></tr>' : ''}</tbody></table></div>
             <small class="text-muted">FEFO obligatorio. Lotes sin fecha: selección manual al agotar los fechados. Cantidad seleccionada: ${qty(b.lotes.reduce((sum, l) => sum + units(l.cantidad), 0))}</small></div>`;
     }
     function bind() {
@@ -183,6 +187,22 @@ const cargaSbh = (() => {
         sending = true; render(); return true;
     }
     function endSend() { sending = false; if (state) render(); }
+    async function invalidateAndReload(message) {
+        if (!state) return;
+        sending = false;
+        changesPending = true;
+        state.guardado = false;
+        state.puede_avanzar = false;
+        const token = serial;
+        render();
+        await loadCatalogs(token);
+        if (token !== serial || !state) return;
+        changesPending = true;
+        state.guardado = false;
+        state.puede_avanzar = false;
+        error(message || 'La disponibilidad cambió. Revise, seleccione y guarde nuevamente.');
+        render();
+    }
     const status = () => {
         const distributed = state?.acuerdos?.reduce((sum, acuerdo) => sum + units(acuerdo.cantidad), 0) || 0;
         return {
@@ -197,5 +217,5 @@ const cargaSbh = (() => {
             disabled: !canAdvance(),
         };
     };
-    return {mount, save, beginSend, endSend, status, active: () => state !== null, reset: () => { serial++; state = null; sending = false; changesPending = false; }};
+    return {mount, save, beginSend, endSend, invalidateAndReload, status, active: () => state !== null, reset: () => { serial++; state = null; sending = false; changesPending = false; }};
 })();

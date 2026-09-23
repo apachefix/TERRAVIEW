@@ -334,6 +334,60 @@
         background: #fff;
     }
 
+    #ModalEstanqueCamion .sbh-lotes-table th,
+    #ModalEstanqueCamion .sbh-lotes-table td {
+        vertical-align: middle;
+    }
+
+    #ModalEstanqueCamion .sbh-lotes-table .sbh-col-disponibilidad {
+        width: 7rem;
+        min-width: 7rem;
+        max-width: 7rem;
+        padding-left: .35rem;
+        padding-right: .35rem;
+        text-align: center;
+    }
+
+    #ModalEstanqueCamion .sbh-disponibilidad-compacta {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: .2rem;
+        line-height: 1.05;
+    }
+
+    #ModalEstanqueCamion .sbh-disponibilidad-compacta .badge {
+        padding: .25em .45em;
+        font-size: .68rem;
+    }
+
+    #ModalEstanqueCamion .sbh-disponibilidad-valor {
+        font-size: .82rem;
+        font-variant-numeric: tabular-nums;
+        white-space: nowrap;
+    }
+
+    #ModalEstanqueCamion .sbh-lotes-table .sbh-col-cantidad {
+        width: 8.25rem;
+        min-width: 8.25rem;
+        padding-left: .35rem;
+        padding-right: .35rem;
+    }
+
+    @media (max-width: 576px) {
+        #ModalEstanqueCamion .sbh-lotes-table .sbh-col-disponibilidad {
+            width: 6.5rem;
+            min-width: 6.5rem;
+            max-width: 6.5rem;
+        }
+
+        #ModalEstanqueCamion .sbh-lotes-table .sbh-col-cantidad {
+            width: 7.5rem;
+            min-width: 7.5rem;
+        }
+    }
+
     .sap-guia-summary {
         display: grid;
         grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
@@ -2738,6 +2792,7 @@
     let revisionGuardiaAutorizaPlanta = false;
     let revisionRutaGuardada = false;
     let revisionRequiereRutaTransportista = true;
+    let revisionCondicionEntregaPermiteRuta = true;
     let revisionRequierePesoInformadoGuia = false;
     let revisionRequiereConfirmacionDatos = false;
     let revisionRequiereTiposDocumentoDespacho = false;
@@ -5382,7 +5437,7 @@
         const valores = data || {};
         const esRecepcionSbh = !!valores.es_recepcion_sbh;
         const tipoRecepcion = String(valores.tipo_recepcion || '').toUpperCase();
-        const esExtranjero = tipoRecepcion === 'EXTRANJERO';
+        const esImportacion = ['IMPORTACION', 'EXTRANJERO'].includes(tipoRecepcion);
         const resumenAsistente = {
             'Transporte a cargo de': valores.transporte_a_cargo === 'CLIENTE' ? 'Cliente' : 'Terramar',
             'Empresa transporte': valores.transportista,
@@ -5393,8 +5448,8 @@
             'N\u00famero gu\u00eda/documento': valores.numero_guia
         };
         if (esRecepcionSbh) {
-            resumenAsistente['Tipo recepci\u00f3n'] = tipoRecepcion === 'EXTRANJERO' ? 'Extranjero' : (tipoRecepcion === 'NACIONAL' ? 'Nacional' : 'Sin informaci\u00f3n');
-            if (esExtranjero) {
+            resumenAsistente['Tipo recepci\u00f3n'] = tipoRecepcion === 'IMPORTACION' ? 'Importaci\u00f3n' : (tipoRecepcion === 'EXTRANJERO' ? 'Extranjero' : (tipoRecepcion === 'NACIONAL' ? 'Nacional' : 'Sin informaci\u00f3n'));
+            if (esImportacion) {
                 resumenAsistente.CDA = valores.cda;
                 resumenAsistente.DI = valores.di;
                 resumenAsistente.BL = valores.bl;
@@ -5403,7 +5458,7 @@
             }
             resumenAsistente['Fecha producci\u00f3n'] = valores.fecha_produccion;
             resumenAsistente['Fecha vencimiento'] = valores.fecha_vencimiento;
-            if (esExtranjero) resumenAsistente.SUI = valores.sui;
+            if (esImportacion) resumenAsistente.SUI = valores.sui;
         } else {
             resumenAsistente.BL = valores.bl;
             resumenAsistente['Lote / Contenedor'] = valores.lote_contenedor;
@@ -5434,9 +5489,12 @@
             }
             return `<div class="${wrapper}"${style}><label for="${id}">${label}</label><input type="text" class="form-control" id="${id}" value="${escapeHtml(value || '')}" ${extra || readonly}></div>`;
         };
-        const estiloExtranjero = esExtranjero ? '' : 'display:none;';
+        const estiloExtranjero = esImportacion ? '' : 'display:none;';
+        const opcionExtranjeroHistorico = tipoRecepcion === 'EXTRANJERO'
+            ? '<option value="EXTRANJERO" selected>Extranjero</option>'
+            : '';
         const camposDocumentales = esRecepcionSbh
-            ? `<div class="form-group col-md-6"><label for="revision_tipo_recepcion">Tipo de recepci\u00f3n <span class="text-danger">*</span></label><select class="form-control" id="revision_tipo_recepcion" required><option value="">Seleccione...</option><option value="NACIONAL" ${tipoRecepcion === 'NACIONAL' ? 'selected' : ''}>Nacional</option><option value="EXTRANJERO" ${tipoRecepcion === 'EXTRANJERO' ? 'selected' : ''}>Extranjero</option></select></div>
+            ? `<div class="form-group col-md-6"><label for="revision_tipo_recepcion">Tipo de recepci\u00f3n <span class="text-danger">*</span></label><select class="form-control" id="revision_tipo_recepcion" required><option value="">Seleccione...</option><option value="NACIONAL" ${tipoRecepcion === 'NACIONAL' ? 'selected' : ''}>Nacional</option><option value="IMPORTACION" ${tipoRecepcion === 'IMPORTACION' ? 'selected' : ''}>Importación</option>${opcionExtranjeroHistorico}</select></div>
                 ${input('revision_cda', 'CDA', valores.cda, '', 'revision-recepcion-extranjero', estiloExtranjero)}
                 ${input('revision_di', 'DI', valores.di, '', 'revision-recepcion-extranjero', estiloExtranjero)}
                 ${input('revision_bl_edicion', 'BL', valores.bl, '', 'revision-recepcion-extranjero', estiloExtranjero)}
@@ -5477,8 +5535,8 @@
             return;
         }
         const tipoRecepcion = String(tipoRecepcionSelector.val() || '').toUpperCase();
-        if (tipoRecepcionSelector.length && !['NACIONAL', 'EXTRANJERO'].includes(tipoRecepcion)) {
-            Swal.fire({ icon: 'warning', title: 'Dato requerido', text: 'Debe seleccionar si la recepci\u00f3n es Nacional o Extranjera.' });
+        if (tipoRecepcionSelector.length && !['NACIONAL', 'IMPORTACION', 'EXTRANJERO'].includes(tipoRecepcion)) {
+            Swal.fire({ icon: 'warning', title: 'Dato requerido', text: 'Debe seleccionar si la recepci\u00f3n es Nacional o Importaci\u00f3n.' });
             return;
         }
         const datosEdicion = {
@@ -5538,8 +5596,9 @@
     }
 
     function actualizarRutaPorModalidadRevision(esTerramar) {
-        revisionRequiereRutaTransportista = esTerramar;
-        if (!esTerramar) {
+        const requiereRuta = esTerramar && revisionCondicionEntregaPermiteRuta;
+        revisionRequiereRutaTransportista = requiereRuta;
+        if (!requiereRuta) {
             revisionRutasTransportista = [];
             revisionRutaGuardada = true;
             $('#bloqueRutaTransportista').remove();
@@ -5615,8 +5674,8 @@ $(document).on('click', '#btn_revision_guardar_datos', guardarDatosRevisionAsist
         $('#revision_transportista').prop('disabled', esCliente).val(esCliente ? 'CLIENTE' : $('#revision_transportista').val());
     });
     $(document).on('change', '#revision_tipo_recepcion', function () {
-        const esExtranjero = $(this).val() === 'EXTRANJERO';
-        $('.revision-recepcion-extranjero').toggle(esExtranjero);
+        const esImportacion = ['IMPORTACION', 'EXTRANJERO'].includes($(this).val());
+        $('.revision-recepcion-extranjero').toggle(esImportacion);
     });
     function opcionesSelectDocumentoDespacho(opciones, seleccion) {
         return (opciones || []).map(function (opcion) {
@@ -5730,6 +5789,7 @@ $(document).on('click', '#btn_revision_guardar_datos', guardarDatosRevisionAsist
         revisionGuardiaAutorizaPlanta = false;
         revisionRutaGuardada = false;
         revisionRequiereRutaTransportista = true;
+        revisionCondicionEntregaPermiteRuta = true;
         revisionRequierePesoInformadoGuia = false;
         revisionRequiereConfirmacionDatos = false;
         revisionRequiereTiposDocumentoDespacho = false;
@@ -5760,6 +5820,7 @@ $(document).on('click', '#btn_revision_guardar_datos', guardarDatosRevisionAsist
                 revisionAprobadoAsistente = !!response.aprobado_asistente;
                 revisionRequiereConfirmacionDatos = !!response.requiere_confirmacion_datos;
                 revisionRequiereTiposDocumentoDespacho = !!response.requiere_tipos_documento_despacho;
+                revisionCondicionEntregaPermiteRuta = String(response.condicion_entrega || '').toUpperCase() !== 'CLIENTE';
                 revisionRequiereRutaTransportista = !!response.requiere_ruta_transportista && !response.es_flujo_terramar;
                 revisionRequierePesoInformadoGuia = !!response.requiere_peso_informado_guia;
                 revisionRutaGuardada = !!response.ruta_transportista_guardada;
@@ -7100,7 +7161,7 @@ function inicializarConductoresIngresoCamion(limpiarActual) {
         if (estanqueCamionEsRecepcionEstanqueSbh) {
             $('#btn_crear_borrador_sap_recepcion').hide().prop('disabled', true);
             $('#sap_recepcion_draft_panel').empty().hide();
-            $('#btn_enviar_estanque').prop('disabled', !puedeEditar || !estanqueGuardado || !pesoGuardado || !creado);
+            $('#btn_enviar_estanque').prop('disabled', !puedeEditar || !estanqueGuardado || !pesoGuardado);
             return;
         }
         $('#btn_crear_borrador_sap_recepcion')
@@ -7504,7 +7565,7 @@ function inicializarConductoresIngresoCamion(limpiarActual) {
                         renderRevisionSection('Aprobación Asistente recepción', response.aprobacion),
                         renderRevisionDocuments(response.documentos)
                     ].join('');
-                    $('#estanque_camion_contenido').html(terramarHtml || '<div class="text-muted">Sin informaci?n registrada.</div>');
+                    $('#estanque_camion_contenido').html(terramarHtml || '<div class="text-muted">Sin información registrada.</div>');
                     $('#solicitud_ingreso_descarga').off('change.terramar').on('change.terramar', function () {
                         $('#btn_enviar_estanque').prop('disabled', !puedeEditar || !this.checked);
                     });
@@ -8579,7 +8640,7 @@ function inicializarConductoresIngresoCamion(limpiarActual) {
             if (!$('#solicitud_ingreso_descarga').is(':checked')) {
                 Swal.fire({
                     icon: 'warning',
-                    title: 'Confirmaci?n requerida',
+                    title: 'Confirmación requerida',
                     text: 'Debe confirmar la solicitud de ingreso a descarga.'
                 });
                 return;
@@ -8677,14 +8738,20 @@ function inicializarConductoresIngresoCamion(limpiarActual) {
                     });
                 },
                 error: function (xhr) {
-                    if (cargaSbh.active()) cargaSbh.endSend();
                     const message = xhr.responseJSON && xhr.responseJSON.message
                         ? xhr.responseJSON.message
                         : 'No fue posible enviar la citación.';
+                    const requiereReseleccion = Boolean(
+                        xhr.responseJSON && xhr.responseJSON.requiere_reseleccion
+                    );
+                    if (cargaSbh.active()) {
+                        if (requiereReseleccion) cargaSbh.invalidateAndReload(message);
+                        else cargaSbh.endSend();
+                    }
 
                     Swal.fire({
                         icon: 'warning',
-                        title: 'No se pudo enviar',
+                        title: requiereReseleccion ? 'Debe revisar los lotes' : 'No se pudo enviar',
                         text: message
                     });
                 }

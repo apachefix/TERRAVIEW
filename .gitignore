@@ -54,4 +54,5 @@ loginSL.json
 
 # django settings sensibles
 core/settings.py
-apps/core/settings.py
+apps/core/settings.pyapps/tickets/*.pdf
+/apps/tickets/*.pdf

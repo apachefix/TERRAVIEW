@@ -7,7 +7,8 @@ from django.db import transaction
 from django.utils import timezone
 
 from .models import (
-    CITACION, CITACION_DESPACHO_CARGA, CITACION_DESPACHO_DETALLE, DATO_OPERACION,
+    CAMION_PATIO, CITACION, CITACION_DESPACHO_CARGA,
+    CITACION_DESPACHO_DETALLE, DATO_OPERACION, EMPRESA,
     CITACION_DESPACHO_ACUERDO_OPERACIONAL as Acuerdo,
     CITACION_DESPACHO_ACUERDO_ESTANQUE as Estanque,
     CITACION_DESPACHO_ACUERDO_LOTE as Lote,
@@ -15,6 +16,7 @@ from .models import (
 )
 from .sap_despacho import serializar_asignaciones_sap_planificadas, _draft_series
 from .sap_despacho_carga import consultar_productos_acuerdo, consultar_stock_producto
+from .sap_despacho_documentos import reserva_acuerdo_liberada
 
 
 MENSAJE_PREPARADO = 'Carga guardada y lista para enviar a SAP.'
@@ -22,6 +24,16 @@ MENSAJE_PREPARADO = 'Carga guardada y lista para enviar a SAP.'
 
 class CargaInvalida(ValueError):
     pass
+
+
+def decimal_stock(valor):
+    try:
+        numero = Decimal(str(valor).replace(',', '.'))
+    except (InvalidOperation, ValueError, TypeError):
+        raise CargaInvalida('SAP informó una cantidad de stock inválida.')
+    if not numero.is_finite() or numero < 0:
+        raise CargaInvalida('SAP informó una cantidad de stock inválida.')
+    return numero
 
 
 def cantidad(valor):
@@ -100,7 +112,104 @@ def catalogo_acuerdo(citacion, abs_id):
         item = str(p['item_code'])
         if item not in stocks:
             stocks[item] = consultar_stock_producto(item)
-    return {'productos': productos, 'stocks': stocks}
+    return {
+        'productos': productos,
+        'stocks': aplicar_disponibilidad_operacional(citacion, stocks),
+    }
+
+
+def _citacion_mantiene_reserva(citacion):
+    if (
+        not citacion.CI_BHABILITADO
+        or citacion.CI_BARCHIVADO
+        or str(citacion.CI_CESTADO or '').strip().upper() in {'RECHAZADO', 'TERMINADO'}
+    ):
+        return False
+    camiones = list(citacion.camiones_patio.all())
+    return not camiones or any(
+        camion.CPA_CESTADO not in {
+            CAMION_PATIO.ESTADO_RECHAZADO,
+            CAMION_PATIO.ESTADO_CANCELADO,
+        }
+        for camion in camiones
+    )
+
+
+def reservas_activas(excluir_citacion_id=None, stocks=None):
+    """Agrega reservas vigentes por ItemCode, WarehouseCode y BatchNumber."""
+    lotes = (
+        Lote.objects
+        .select_related('estanque__acuerdo__carga__CI_NID', 'estanque__acuerdo__draft')
+        .prefetch_related('estanque__acuerdo__carga__CI_NID__camiones_patio')
+        .filter(
+            estanque__acuerdo__carga__CI_NID__EP_NID_id=2,
+            estanque__acuerdo__carga__CI_NID__CI_CTIPO__iexact='DESPACHO',
+        )
+        .order_by('estanque__acuerdo__carga__CI_NID_id', 'estanque__acuerdo__orden', 'id')
+    )
+    if excluir_citacion_id is not None:
+        lotes = lotes.exclude(
+            estanque__acuerdo__carga__CI_NID_id=excluir_citacion_id,
+        )
+    cantidades = defaultdict(Decimal)
+    trazabilidad = defaultdict(list)
+    for lote in lotes:
+        acuerdo = lote.estanque.acuerdo
+        citacion = acuerdo.carga.CI_NID
+        if not _citacion_mantiene_reserva(citacion):
+            continue
+        try:
+            draft = acuerdo.draft
+        except Draft.DoesNotExist:
+            draft = None
+        if draft and reserva_acuerdo_liberada(draft, stocks=stocks):
+            continue
+        clave = (
+            str(lote.estanque.item_code),
+            str(lote.estanque.warehouse_code),
+            str(lote.batch_number),
+        )
+        cantidades[clave] += lote.cantidad
+        trazabilidad[clave].append({
+            'citacion_id': citacion.id,
+            'acuerdo': acuerdo.numero_acuerdo,
+            'sap_abs_id': acuerdo.sap_abs_id,
+            'cantidad': str(lote.cantidad),
+        })
+    return {'cantidades': dict(cantidades), 'trazabilidad': dict(trazabilidad)}
+
+
+def aplicar_disponibilidad_operacional(citacion, stocks):
+    reservas = reservas_activas(
+        excluir_citacion_id=citacion.id,
+        stocks=stocks,
+    )
+    resultado = {}
+    for item_code, filas in stocks.items():
+        disponibles = []
+        for original in filas:
+            fila = dict(original)
+            stock_sap = decimal_stock(fila.get('stock'))
+            if stock_sap <= 0:
+                continue
+            clave = (
+                str(fila.get('item_code') or item_code),
+                str(fila.get('warehouse_code') or ''),
+                str(fila.get('batch_number') or ''),
+            )
+            reservado = reservas['cantidades'].get(clave, Decimal('0'))
+            disponible = max(Decimal('0'), stock_sap - reservado)
+            fila.update({
+                'stock_sap': str(stock_sap),
+                'reservado': str(reservado),
+                'disponible': str(disponible),
+                'stock': str(disponible),
+                'estado_operacional': 'DISPONIBLE' if disponible > 0 else 'RESERVADO',
+                'reservas': reservas['trazabilidad'].get(clave, []),
+            })
+            disponibles.append(fila)
+        resultado[str(item_code)] = disponibles
+    return resultado
 
 
 def validar_fefo(stock, seleccion, hoy=None):
@@ -118,7 +227,7 @@ def validar_fefo(stock, seleccion, hoy=None):
         vence = fecha_sap(row.get('fecha_vencimiento'))
         if vence and vence < hoy:
             continue
-        disponibles[batch] = (cantidad(row['stock']), vence)
+        disponibles[batch] = (decimal_stock(row['stock']), vence)
     for batch, qty in seleccion.items():
         if batch not in disponibles or qty > disponibles[batch][0]:
             raise CargaInvalida('Lote no disponible, vencido o cantidad mayor que su stock.')
@@ -198,7 +307,8 @@ def validar_configuracion(citacion, data, catalogos=None):
                 usados[clave][batch] += qty
                 sap = por_batch[batch]
                 seleccionados.append({'batch_number': batch, 'cantidad': qty,
-                    'stock_snapshot': cantidad(sap['stock']), 'fecha_vencimiento': fecha_sap(sap.get('fecha_vencimiento'))})
+                    'stock_snapshot': decimal_stock(sap.get('stock_sap', sap['stock'])),
+                    'fecha_vencimiento': fecha_sap(sap.get('fecha_vencimiento'))})
             qty = cantidad(bloque.get('cantidad'))
             if sum(l['cantidad'] for l in seleccionados) != qty:
                 raise CargaInvalida('La suma de lotes debe coincidir con la cantidad del estanque/producto.')
@@ -250,6 +360,7 @@ def preparar_payloads(citacion, configuracion):
 
 @transaction.atomic
 def guardar_carga(citacion, data, usuario):
+    EMPRESA.objects.select_for_update().get(pk=2)
     # Bloqueo del padre: serializa incluso la primera creación.
     citacion = CITACION.objects.select_for_update().get(pk=citacion.pk)
     validar_ambito(citacion)

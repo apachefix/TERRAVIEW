@@ -1,3 +1,4 @@
+import json
 from concurrent.futures import ThreadPoolExecutor
 from datetime import date, datetime, timezone as dt_timezone
 from decimal import Decimal
@@ -341,22 +342,26 @@ class CargaPorEstanqueTests(CargaEstanqueFixture, TestCase):
         self.assertEqual(response.status_code, 200)
         for texto in ('Acuerdo 429', '3528', '16300', 'Acuerdo 426', '3529', '16301'):
             self.assertContains(response, texto)
-        self.assertContains(response, 'Actualización SAP bloqueada')
+        self.assertContains(response, 'sin tolerancia porcentual')
 
-    def test_actualizacion_sap_operacional_queda_bloqueada_sin_mutacion_real(self):
+    def test_actualizacion_sap_operacional_invoca_actualizacion_por_acuerdo(self):
         self.estanque()
         self.crear_draft()
         self.preparar_autorizacion()
         self.assertEqual(self.guardar_ultimas().status_code, 200)
 
-        with patch.object(views, 'sap_despacho_actualizar_borrador') as actualizar:
+        with patch.object(
+            views,
+            'sap_despacho_actualizar_borrador',
+            return_value={'success': True, 'status': {'updated': True}},
+        ) as actualizar:
             response = self.request(
                 views.ajax_operacion_planta_actualizar_sap_despacho,
                 self.asistente_despacho,
             )
-        self.assertEqual(response.status_code, 409)
-        self.assertIn('Quantity', response.content.decode('utf-8'))
-        actualizar.assert_not_called()
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(json.loads(response.content)['success'])
+        actualizar.assert_called_once_with(self.citacion, self.asistente_despacho, allow_retry=False)
 
         with patch.object(
             views,
@@ -380,7 +385,8 @@ class CargaPorEstanqueTests(CargaEstanqueFixture, TestCase):
         self.preparar_autorizacion()
         self.guardar_ultimas()
         with patch.object(views, 'get_sap_despacho_draft_status', return_value={'created': True}), \
-             patch.object(views, 'get_sap_despacho_update_status', return_value={'updated': True, 'is_error': False}):
+             patch.object(views, 'get_sap_despacho_update_status', return_value={'updated': True, 'is_error': False}), \
+             patch.object(views, 'verificar_documentos_definitivos', return_value={'completo': True, 'documentos': []}):
             conformidad = self.request(
                 views.ajax_operacion_planta_autorizar_salida,
                 self.asistente_despacho,

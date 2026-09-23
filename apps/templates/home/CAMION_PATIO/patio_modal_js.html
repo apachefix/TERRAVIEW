@@ -67,13 +67,46 @@
             '</div>';
     }
 
+    function patioRutValido(valor) {
+        const limpio = String(valor || '').trim().toUpperCase().replace(/[.\s-]/g, '');
+        if (!/^\d{7,8}[0-9K]$/.test(limpio)) return false;
+        const cuerpo = limpio.slice(0, -1);
+        const dvInformado = limpio.slice(-1);
+        let suma = 0;
+        let factor = 2;
+        for (let indice = cuerpo.length - 1; indice >= 0; indice -= 1) {
+            suma += Number(cuerpo.charAt(indice)) * factor;
+            factor = factor === 7 ? 2 : factor + 1;
+        }
+        const resultado = 11 - (suma % 11);
+        const dvEsperado = resultado === 11 ? '0' : (resultado === 10 ? 'K' : String(resultado));
+        return dvInformado === dvEsperado;
+    }
+
+    function patioRutField(value) {
+        return '<div class="form-group mb-0">' +
+            '<label>RUT conductor *</label>' +
+            '<input type="text" class="form-control" name="rut_conductor" value="' + patioEscape(value || '') + '" required>' +
+            '<div class="invalid-feedback">RUT inválido. Revise número y dígito verificador.</div>' +
+            '</div>';
+    }
+
+    function patioValidarRutEdicion() {
+        const input = $('#patioEditForm [name="rut_conductor"]');
+        if (!input.length) return true;
+        const valido = patioRutValido(input.val());
+        input.toggleClass('is-invalid', !valido);
+        return valido;
+    }
+
     function patioTipoRecepcionField(camion) {
         return '<div class="form-group mb-0">' +
             '<label>Tipo de recepci\u00f3n *</label>' +
             '<select class="form-control" id="patioEditTipoRecepcion" name="tipo_recepcion" required>' +
             '<option value="">Seleccione...</option>' +
             '<option value="NACIONAL"' + (camion.tipo_recepcion === 'NACIONAL' ? ' selected' : '') + '>Nacional</option>' +
-            '<option value="EXTRANJERO"' + (camion.tipo_recepcion === 'EXTRANJERO' ? ' selected' : '') + '>Extranjero</option>' +
+            '<option value="IMPORTACION"' + (camion.tipo_recepcion === 'IMPORTACION' ? ' selected' : '') + '>Importación</option>' +
+            (camion.tipo_recepcion === 'EXTRANJERO' ? '<option value="EXTRANJERO" selected>Extranjero</option>' : '') +
             '</select></div>';
     }
 
@@ -89,9 +122,9 @@
     function patioActualizarCamposRecepcionEdicion(limpiar) {
         const select = $('#patioEditTipoRecepcion');
         if (!select.length) return;
-        const esExtranjero = select.val() === 'EXTRANJERO';
-        $('.patio-edit-extranjero').toggle(esExtranjero).find(':input').prop('disabled', !esExtranjero);
-        if (limpiar && !esExtranjero) $('.patio-edit-extranjero :input').val('');
+        const esImportacion = ['IMPORTACION', 'EXTRANJERO'].includes(select.val());
+        $('.patio-edit-extranjero').toggle(esImportacion).find(':input').prop('disabled', !esImportacion);
+        if (limpiar && !esImportacion) $('.patio-edit-extranjero :input').val('');
     }
 
     function patioRenderFormEdicion(camion) {
@@ -112,12 +145,13 @@
                 patioField('bl', 'BL', camion.bl, false) +
                 patioField('lote_contenedor', 'Lote/contenedor', camion.lote_contenedor, false);
         }
-        return '<form id="patioEditForm">' +
+return '<form id="patioEditForm">' +
+            '<input type="hidden" name="conductor_id" value="' + patioEscape(camion.conductor_id || '') + '">' +
             '<div class="patio-edit-form-grid">' +
             patioTransporteCargoField(camion) +
             patioField('transportista', 'Empresa transporte', camion.transportista, true) +
             patioField('conductor', 'Nombre conductor', camion.conductor, true) +
-            patioField('rut_conductor', 'RUT conductor', camion.rut_conductor, true) +
+            patioRutField(camion.rut_conductor) +
             patioField('telefono_conductor', 'Celular conductor', camion.telefono, true) +
             patioField('telefono_codigo_pais', 'Codigo pais', camion.telefono_codigo_pais, true) +
             patioField('patente', 'Patente camion', camion.patente, true) +
@@ -209,6 +243,9 @@
     function renderPatioDetalle(data) {
         const camion = data.camion || {};
         const permisos = data.permisos || {};
+        const validacionAsociacion = data.validacion_asociacion || {};
+        const camposInvalidos = validacionAsociacion.campos || [];
+        const datosBloqueanAsociacion = !!validacionAsociacion.aplica && !validacionAsociacion.valido;
         patioDetalleActual = data;
         patioCamionActual = camion;
         patioCitacionSeleccionada = null;
@@ -216,7 +253,7 @@
         const citacionAprobadaId = camion.solicitud_citacion_id || null;
         $('#btnAsociarCamionPatio')
             .toggle(!!permisos.puede_asociar)
-            .prop('disabled', !permisos.puede_asociar || camion.estado === 'ASOCIADO_CITACION' || solicitudBloqueaAsociacion || permisos.asociacion_directa_asistente_despacho)
+            .prop('disabled', !permisos.puede_asociar || camion.estado === 'ASOCIADO_CITACION' || solicitudBloqueaAsociacion || permisos.asociacion_directa_asistente_despacho || datosBloqueanAsociacion)
             .text(permisos.asociacion_directa_asistente_despacho ? 'Seleccione una citacion' : 'Buscar citacion');
         patioRenderNoPlanificado(camion, permisos);
         $('#patioCitacionAprobada').toggle(!!citacionAprobadaId);
@@ -231,10 +268,18 @@
         } else {
             $('#patioModalAlert').hide().text('');
         }
+        const validacionHtml = datosBloqueanAsociacion
+            ? '<div class="alert alert-warning mb-3"><strong>Datos obligatorios incompletos.</strong>' +
+              '<ul class="mb-1 mt-2">' + (validacionAsociacion.errores || []).map(function (error) {
+                  return '<li>' + patioEscape(error) + '</li>';
+              }).join('') + '</ul>Use <strong>Editar datos</strong> para completar conductor y transportista antes de asociar.</div>'
+            : '';
         const fields = [
             ['Estado', camion.estado_visible || camion.estado], ['Patente', camion.patente],
-            ['Conductor', camion.conductor], ['RUT', camion.rut_conductor], ['Telefono', camion.telefono],
-            ['Transportista', camion.transportista], ['Proveedor declarado', camion.proveedor],
+            ['Conductor', camion.conductor, 'conductor'], ['RUT', camion.rut_conductor, 'rut_conductor'],
+            ['Código país', camion.telefono_codigo_pais, 'telefono_codigo_pais'],
+            ['Teléfono', camion.telefono, 'telefono_conductor'],
+            ['Transportista', camion.transportista, 'transportista'], ['Proveedor declarado', camion.proveedor],
             ['Insumo declarado en guia', camion.insumo_declarado_guia],
             ['Cliente declarado', camion.cliente], ['Guia/documento', camion.guia]
         ];
@@ -265,12 +310,16 @@
         }
         fields.push(['Guardia', camion.guardia], ['Llegada', camion.llegada], ['Observacion', camion.observacion]);
         $('#patioModalContent').html(
-            '<div id="patioDataView"><div class="patio-detail-grid">' + fields.map(function (field) {
-                return '<div class="patio-detail-item"><div class="patio-detail-label">' + patioEscape(field[0]) + '</div><div>' + patioEscape(field[1] || '-') + '</div></div>';
+            validacionHtml + '<div id="patioDataView"><div class="patio-detail-grid">' + fields.map(function (field) {
+                const claseInvalida = field[2] && camposInvalidos.includes(field[2]) ? ' border border-danger rounded p-2' : '';
+                return '<div class="patio-detail-item' + claseInvalida + '"><div class="patio-detail-label">' + patioEscape(field[0]) + '</div><div>' + patioEscape(field[1] || '-') + '</div></div>';
             }).join('') + '</div></div>' +
             '<div id="patioEditView" style="display:none;">' + patioRenderFormEdicion(camion) + '</div>' +
             '<h6 class="mt-3">Documentos</h6>' + patioRenderDocumentos(data)
         );
+        camposInvalidos.forEach(function (campo) {
+            $('#patioEditForm [name="' + campo + '"]').addClass('is-invalid');
+        });
         const citaciones = data.citaciones || [];
         $('#patioCitacionesList').html(citaciones.length ? citaciones.map(function (cit) {
             const tipo = cit.tipo_label || cit.tipo || 'RECEPCION';
@@ -417,8 +466,10 @@
         patioCitacionSeleccionada = $(this).data('citacion-id');
         const solicitudBloquea = patioCamionActual && ['PENDIENTE', 'APROBADO_PENDIENTE_PLANIFICACION'].includes(patioCamionActual.solicitud_estado);
         const permisos = (patioDetalleActual || {}).permisos || {};
+        const validacion = (patioDetalleActual || {}).validacion_asociacion || {};
+        const datosBloquean = !!validacion.aplica && !validacion.valido;
         $('#btnAsociarCamionPatio')
-            .prop('disabled', !permisos.puede_asociar || !patioCamionActual || patioCamionActual.estado === 'ASOCIADO_CITACION' || solicitudBloquea)
+            .prop('disabled', !permisos.puede_asociar || !patioCamionActual || patioCamionActual.estado === 'ASOCIADO_CITACION' || solicitudBloquea || datosBloquean)
             .text(permisos.asociacion_directa_asistente_despacho ? 'Confirmar asociacion' : 'Buscar citacion');
     });
 
@@ -507,9 +558,13 @@
         $('#btnEditarCamionPatio').show();
     });
 
+$(document).on('input blur', '#patioEditForm [name="rut_conductor"]', function () {
+        patioValidarRutEdicion();
+    });
+
     $(document).on('submit', '#patioEditForm', function (event) {
         event.preventDefault();
-        if (!patioCamionActual) return;
+        if (!patioCamionActual || !patioValidarRutEdicion()) return;
         $.ajax({
             url: '/camiones-patio/' + patioCamionActual.id + '/actualizar/',
             type: 'POST',
@@ -579,6 +634,13 @@
 
     function asociarDespachoSeleccionado() {
         if (!patioCamionActual || !patioCitacionSeleccionada) return;
+        const validacion = (patioDetalleActual || {}).validacion_asociacion || {};
+        if (validacion.aplica && !validacion.valido) {
+            patioAlert((validacion.errores || ['Complete conductor y transportista antes de asociar.']).join(' '), 'warning');
+            $('#patioDataView').hide();
+            $('#patioEditView').show();
+            return;
+        }
         Swal.fire({
             icon: 'question',
             title: 'Confirmar asociacion',
@@ -600,7 +662,21 @@
                 });
             }).fail(function(xhr) {
                 const response = xhr.responseJSON || {};
-                patioAlert(response.message || 'No fue posible asociar la citacion.', 'danger');
+                const mensaje = response.message || 'No fue posible asociar la citacion.';
+                patioAlert(mensaje, 'danger');
+                if (response.code === 'RUT_CONDUCTOR_INVALIDO') {
+                    Swal.fire({
+                        icon: 'error',
+                        title: 'No asociado',
+                        text: mensaje,
+                        confirmButtonText: 'Editar datos'
+                    }).then(function () {
+                        $('#patioDataView').hide();
+                        $('#patioEditView').show();
+                        $('#btnEditarCamionPatio').hide();
+                        $('#patioEditForm [name="rut_conductor"]').trigger('focus');
+                    });
+                }
             });
         });
     }

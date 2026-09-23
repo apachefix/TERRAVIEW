@@ -189,7 +189,7 @@ class OperacionPlantaTerramarEtapa2Tests(TestCase):
             CD_CNOMBRE_ARCHIVO='sernapesca_original.png',
             US_SUBE_NID=self.recepcion,
         )
-        camion = CAMION_PATIO.objects.create(
+        self.camion = CAMION_PATIO.objects.create(
             EP_NID=self.empresa,
             CI_NID=self.citacion,
             CPA_CPATENTE='ABCD12',
@@ -202,7 +202,7 @@ class OperacionPlantaTerramarEtapa2Tests(TestCase):
         )
         with open(self.pdf_path, 'rb') as source:
             CAMION_PATIO_ADJUNTO.objects.create(
-                CPA_NID=camion,
+                CPA_NID=self.camion,
                 CPA_FARCHIVO=ContentFile(source.read(), name='guia_duplicada.pdf'),
                 CPA_CTIPO_DOCUMENTO=CAMION_PATIO_ADJUNTO.TIPO_GUIA,
                 US_CARGA_ID=self.recepcion,
@@ -211,7 +211,7 @@ class OperacionPlantaTerramarEtapa2Tests(TestCase):
         self._crear_pdf(patio_other_path, 'DOCUMENTO PATIO DIFERENTE')
         with open(patio_other_path, 'rb') as source:
             CAMION_PATIO_ADJUNTO.objects.create(
-                CPA_NID=camion,
+                CPA_NID=self.camion,
                 CPA_FARCHIVO=ContentFile(source.read(), name='patio_otro.pdf'),
                 CPA_CTIPO_DOCUMENTO=CAMION_PATIO_ADJUNTO.TIPO_OTRO,
                 US_CARGA_ID=self.recepcion,
@@ -546,16 +546,164 @@ class OperacionPlantaTerramarEtapa2Tests(TestCase):
             {'paso': 'Confirmar Salida'},
         )
         self.assertEqual(wrong_user.status_code, 403, wrong_user.content)
-        confirmed = self.post(
-            self.guardia,
-            'operacion_planta_guardar_paso',
-            {'paso': 'Confirmar Salida', 'observacion': 'Salida física confirmada.'},
-        )
+        with patch.object(views, 'liberar_reservas_estanque_citacion') as liberar_reservas:
+            confirmed = self.post(
+                self.guardia,
+                'operacion_planta_guardar_paso',
+                {'paso': 'Confirmar Salida', 'observacion': 'Salida física confirmada.'},
+            )
+        liberar_reservas.assert_not_called()
         self.assertEqual(confirmed.status_code, 200, confirmed.content)
         self.citacion.refresh_from_db()
+        self.camion.refresh_from_db()
         self.assertEqual(self.citacion.CI_CESTADO, views.CIT_TERMINADO)
+        self.assertEqual(
+            self.camion.CPA_CESTADO,
+            CAMION_PATIO.ESTADO_SALIDA_CONFIRMADA,
+        )
+        self.assertEqual(self.camion.CI_NID_id, self.citacion.id)
+        self.assertIsNone(
+            views._camion_patio_activo_por_patente(
+                self.camion.CPA_CPATENTE, self.empresa.id,
+            )
+        )
+        self.client.force_login(self.guardia)
+        estado_response = self.client.get(
+            reverse('estado_camion_ajax'),
+            {
+                '_empresa_id': self.empresa.id,
+                'empresa_id': self.empresa.id,
+                'patente': self.camion.CPA_CPATENTE,
+            },
+        )
+        self.assertNotIn(
+            estado_response.json().get('tipo_resultado'),
+            {'PROCESO_ACTIVO', 'INGRESO_PATIO_PENDIENTE'},
+        )
+        nuevo_camion = CAMION_PATIO.objects.create(
+            EP_NID=self.empresa,
+            CPA_CPATENTE=self.camion.CPA_CPATENTE,
+            CPA_CNOMBRE_CONDUCTOR='Nuevo ciclo',
+            CPA_CTIPO_DOCUMENTO=CAMION_PATIO.TIPO_DOCUMENTO_GUIA_DESPACHO,
+            CPA_CESTADO=CAMION_PATIO.ESTADO_PENDIENTE_ASOCIACION,
+            US_GUARDIA_ID=self.guardia,
+        )
+        self.assertNotEqual(nuevo_camion.id, self.camion.id)
+        self.assertTrue(CAMION_PATIO.objects.filter(pk=self.camion.id).exists())
+        self.assertEqual(
+            views._camion_patio_activo_por_patente(
+                self.camion.CPA_CPATENTE, self.empresa.id,
+            ).id,
+            nuevo_camion.id,
+        )
         repeated = self.post(self.guardia, 'operacion_planta_guardar_paso', {'paso': 'Confirmar Salida'})
         self.assertEqual(repeated.status_code, 409, repeated.content)
+
+    def test_confirmar_salida_no_completado_no_cierra_ciclo(self):
+        OPERACION_PLANTA_LOG.objects.create(
+            US_NID=self.guardia,
+            EP_NID=self.empresa,
+            PL_NID=self.planificacion,
+            CI_NID=self.citacion,
+            OPL_CPASO=views.PASO_CONFIRMAR_SALIDA,
+            OPL_CPERFIL_RESPONSABLE='GUARDIA PORTERIA',
+            OPL_CESTADO=OPERACION_PLANTA_LOG.ESTADO_PENDIENTE,
+        )
+
+        activo = views._camion_patio_activo_por_patente(
+            self.camion.CPA_CPATENTE, self.empresa.id,
+        )
+        self.assertEqual(activo.id, self.camion.id)
+        self.camion.refresh_from_db()
+        self.assertEqual(
+            self.camion.CPA_CESTADO,
+            CAMION_PATIO.ESTADO_ASOCIADO_CITACION,
+        )
+
+    def test_asociado_legado_con_salida_completada_se_normaliza_lazy(self):
+        citacion_historica_id = self.camion.CI_NID_id
+        fecha_actualizacion_anterior = self.camion.CPA_FFECHAACTUALIZACION
+        OPERACION_PLANTA_LOG.objects.create(
+            US_NID=self.guardia,
+            EP_NID=self.empresa,
+            PL_NID=self.planificacion,
+            CI_NID=self.citacion,
+            OPL_CPASO=views.PASO_CONFIRMAR_SALIDA,
+            OPL_CPERFIL_RESPONSABLE='GUARDIA PORTERIA',
+            OPL_CESTADO=OPERACION_PLANTA_LOG.ESTADO_COMPLETADO,
+        )
+
+        self.assertIsNone(views._camion_patio_activo_por_patente(
+            self.camion.CPA_CPATENTE, self.empresa.id,
+        ))
+        self.camion.refresh_from_db()
+        self.assertEqual(
+            self.camion.CPA_CESTADO,
+            CAMION_PATIO.ESTADO_SALIDA_CONFIRMADA,
+        )
+        self.assertEqual(self.camion.CI_NID_id, citacion_historica_id)
+        self.assertGreater(
+            self.camion.CPA_FFECHAACTUALIZACION,
+            fecha_actualizacion_anterior,
+        )
+
+        self.client.force_login(self.guardia)
+        estado = self.client.get(reverse('estado_camion_ajax'), {
+            '_empresa_id': self.empresa.id,
+            'empresa_id': self.empresa.id,
+            'patente': self.camion.CPA_CPATENTE,
+        })
+        self.assertNotIn(
+            estado.json().get('tipo_resultado'),
+            {'PROCESO_ACTIVO', 'INGRESO_PATIO_PENDIENTE'},
+        )
+
+    def test_estados_pendiente_y_asociado_bloquean_como_ciclos_activos(self):
+        asociado = views._camion_patio_activo_por_patente(
+            self.camion.CPA_CPATENTE, self.empresa.id,
+        )
+        self.assertEqual(asociado.id, self.camion.id)
+        pendiente = CAMION_PATIO.objects.create(
+            EP_NID=self.empresa,
+            CPA_CPATENTE='PEND01',
+            CPA_CNOMBRE_CONDUCTOR='Pendiente',
+            CPA_CTIPO_DOCUMENTO=CAMION_PATIO.TIPO_DOCUMENTO_GUIA_DESPACHO,
+            CPA_CESTADO=CAMION_PATIO.ESTADO_PENDIENTE_ASOCIACION,
+            US_GUARDIA_ID=self.guardia,
+        )
+        self.assertEqual(
+            views._camion_patio_activo_por_patente('PEND01', self.empresa.id).id,
+            pendiente.id,
+        )
+
+    def test_error_al_cerrar_camion_revierte_confirmacion_de_salida(self):
+        self.assertEqual(self.validar_documentacion().status_code, 200)
+        self.assertEqual(self.timbrar().status_code, 200)
+        self.assertEqual(
+            self.post(self.despacho, 'ajax_operacion_planta_autorizar_salida').status_code,
+            200,
+        )
+        with patch.object(
+            views, '_cerrar_ciclo_camion_patio',
+            side_effect=RuntimeError('fallo controlado'),
+        ):
+            with self.assertRaises(RuntimeError):
+                self.post(
+                    self.guardia,
+                    'operacion_planta_guardar_paso',
+                    {'paso': 'Confirmar Salida'},
+                )
+        self.citacion.refresh_from_db()
+        self.camion.refresh_from_db()
+        self.assertEqual(self.citacion.CI_CESTADO, 'EN PROCESO')
+        self.assertEqual(
+            self.camion.CPA_CESTADO,
+            CAMION_PATIO.ESTADO_ASOCIADO_CITACION,
+        )
+        self.assertFalse(OPERACION_PLANTA_LOG.objects.filter(
+            CI_NID=self.citacion,
+            OPL_CPASO='Confirmar Salida',
+        ).exists())
 
     def test_formato_obligatorio_no_compatible_bloquea_autorizacion_sin_corromper(self):
         unsupported = os.path.join(self.tempdir.name, 'documento_obligatorio.txt')

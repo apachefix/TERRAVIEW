@@ -1,31 +1,46 @@
 import json
+import logging
+from functools import partial
 
+from django.contrib.auth import get_user_model
 from django.db import transaction
 from django.utils import timezone
 
+from apps.home.sap_recepcion import get_goods_receipt_draft_guide_status
 from apps.home.models import (
     CAMPO,
     CITACION,
     DATO_OPERACION,
+    EVENTO_INTEGRACION_CALIDAD,
     OPERACION_PLANTA_LOG,
     RESULTADO_CALIDAD_HISTORIAL,
     RESULTADO_CALIDAD_OPERACION,
 )
 
+logger = logging.getLogger(__name__)
 
 PASO_ANALISIS_CALIDAD = 'Analisis y calidad'
 PASO_RESULTADO_CALIDAD = 'Resultado Calidad'
 CAMPO_RESULTADO_CALIDAD = 'OP_RESULTADO_CALIDAD'
 PERFIL_CALIDAD = 'CALIDAD'
+MENSAJE_RECHAZO_PENDIENTE_REVISION = (
+    'Resultado rechazado por analisis automatico. '
+    'Pendiente de revision manual de Calidad.'
+)
 MENSAJE_SALIDA_RECHAZO = 'Camión autorizado para salir de planta por rechazo de calidad'
 
 TRANSICIONES_PERMITIDAS = {
     RESULTADO_CALIDAD_OPERACION.Estado.PENDIENTE: {
         RESULTADO_CALIDAD_OPERACION.Estado.APROBADO,
         RESULTADO_CALIDAD_OPERACION.Estado.RECHAZADO,
+        RESULTADO_CALIDAD_OPERACION.Estado.RECHAZADO_PENDIENTE_REVISION,
         RESULTADO_CALIDAD_OPERACION.Estado.APRUEBA_CLIENTE,
     },
     RESULTADO_CALIDAD_OPERACION.Estado.APRUEBA_CLIENTE: {
+        RESULTADO_CALIDAD_OPERACION.Estado.APROBADO,
+        RESULTADO_CALIDAD_OPERACION.Estado.RECHAZADO,
+    },
+    RESULTADO_CALIDAD_OPERACION.Estado.RECHAZADO_PENDIENTE_REVISION: {
         RESULTADO_CALIDAD_OPERACION.Estado.APROBADO,
         RESULTADO_CALIDAD_OPERACION.Estado.RECHAZADO,
     },
@@ -115,6 +130,102 @@ def _usuario_responsable(citacion, usuario):
     if citacion.PL_NID and citacion.PL_NID.US_NID_id:
         return citacion.PL_NID.US_NID
     raise ValueError('Se requiere un usuario responsable para registrar calidad.')
+
+
+def es_flujo_recepcion_estanque_sbh_calidad(citacion):
+    tipo = str(
+        citacion.CI_CTIPO
+        or (citacion.PL_NID.PL_CTIPOCUPO if citacion.PL_NID else '')
+        or ''
+    ).strip().upper()
+    secuencia = str(
+        citacion.SC_NID.SE_CCODIGO if citacion.SC_NID else ''
+    ).strip().upper()
+    return bool(
+        citacion.EP_NID_id == 2
+        and tipo == 'RECEPCION'
+        and secuencia == 'RECEPCION_ESTANQUE_SBH'
+    )
+
+
+def es_rechazo_bot_revisable(citacion, evento_integracion):
+    # Solo un evento externo persistido habilita el estado intermedio.
+    if not es_flujo_recepcion_estanque_sbh_calidad(citacion):
+        return False
+    if not evento_integracion or not getattr(evento_integracion, 'pk', None):
+        return False
+    return bool(
+        evento_integracion.EP_NID_id == citacion.EP_NID_id
+        and evento_integracion.CI_NID_id == citacion.pk
+        and evento_integracion.RCO_NID_id
+        and evento_integracion.RCO_NID.CI_NID_id == citacion.pk
+        and evento_integracion.EIC_CESTADO_SOLICITADO
+        == RESULTADO_CALIDAD_OPERACION.Estado.RECHAZADO
+        and evento_integracion.EIC_CORIGEN
+        == RESULTADO_CALIDAD_OPERACION.Origen.EXCEL_CALIDAD
+        and not evento_integracion.EIC_BDUPLICADO
+    )
+
+
+def _crear_borrador_sap_recepcion_interno_post_commit(citacion, usuario):
+    # Import diferido para reutilizar el orquestador actual sin crear un ciclo
+    # de imports entre views.py y el servicio canónico de Calidad.
+    from apps.home.views import crear_borrador_sap_recepcion_interno
+    return crear_borrador_sap_recepcion_interno(citacion, usuario)
+
+
+def crear_borrador_sap_recepcion_por_calidad_aprobada(citacion_id, usuario_id):
+    """Revalida y serializa el envío SAP después del commit de Calidad."""
+    try:
+        with transaction.atomic():
+            citacion = CITACION.objects.select_for_update().get(pk=citacion_id)
+            if not es_flujo_recepcion_estanque_sbh_calidad(citacion):
+                return {'success': True, 'skipped': True, 'reason': 'flujo_no_aplicable'}
+
+            resultado_calidad = RESULTADO_CALIDAD_OPERACION.objects.select_for_update().filter(
+                CI_NID=citacion,
+            ).first()
+            if (
+                not resultado_calidad
+                or resultado_calidad.RCO_CESTADO != RESULTADO_CALIDAD_OPERACION.Estado.APROBADO
+            ):
+                return {'success': True, 'skipped': True, 'reason': 'calidad_no_aprobada'}
+
+            estado_draft = get_goods_receipt_draft_guide_status(citacion)
+            if estado_draft.get('sent') and estado_draft.get('docentry'):
+                return {
+                    'success': True,
+                    'reused': True,
+                    'status': estado_draft,
+                }
+
+            usuario = get_user_model().objects.filter(pk=usuario_id).first()
+            usuario = usuario or _usuario_responsable(citacion, None)
+            return _crear_borrador_sap_recepcion_interno_post_commit(citacion, usuario)
+    except CITACION.DoesNotExist:
+        logger.warning(
+            'No se creó borrador SAP post-calidad: citación %s inexistente.',
+            citacion_id,
+        )
+        return {'success': False, 'message': 'Citación no encontrada.'}
+    except Exception:
+        # Calidad ya fue confirmada; un error externo nunca debe revertirla.
+        logger.exception(
+            'Error al crear borrador SAP post-calidad para citación %s.',
+            citacion_id,
+        )
+        return {'success': False, 'message': 'No fue posible crear el borrador SAP post-calidad.'}
+
+
+def _agendar_borrador_sap_recepcion_aprobada(citacion, usuario):
+    if not es_flujo_recepcion_estanque_sbh_calidad(citacion):
+        return False
+    transaction.on_commit(partial(
+        crear_borrador_sap_recepcion_por_calidad_aprobada,
+        citacion.pk,
+        usuario.pk,
+    ))
+    return True
 
 
 def _responsable_texto(usuario, responsable_sistema):
@@ -255,20 +366,44 @@ def asegurar_calidad_iniciada(proceso_operacion, usuario=None, origen=RESULTADO_
 
 
 @transaction.atomic
-def procesar_resultado_calidad(proceso_operacion, estado_solicitado, origen, observacion='', usuario=None, responsable_sistema='', fecha_resultado=None):
+def procesar_resultado_calidad(
+    proceso_operacion,
+    estado_solicitado,
+    origen,
+    observacion='',
+    usuario=None,
+    responsable_sistema='',
+    fecha_resultado=None,
+    evento_integracion=None,
+):
     citacion_id = proceso_operacion.pk if isinstance(proceso_operacion, CITACION) else proceso_operacion
     citacion = CITACION.objects.select_for_update().get(pk=citacion_id)
     usuario = _usuario_responsable(citacion, usuario)
     if origen not in RESULTADO_CALIDAD_OPERACION.Origen.values:
         raise ValueError('Origen de calidad no valido.')
-    estado_nuevo = str(estado_solicitado or '').strip().upper()
-    if estado_nuevo not in RESULTADO_CALIDAD_OPERACION.Estado.values:
+    estado_solicitado_normalizado = str(estado_solicitado or '').strip().upper()
+    if estado_solicitado_normalizado not in RESULTADO_CALIDAD_OPERACION.Estado.values:
         raise ValueError('Estado de calidad no valido.')
+    if (
+        estado_solicitado_normalizado
+        == RESULTADO_CALIDAD_OPERACION.Estado.RECHAZADO_PENDIENTE_REVISION
+    ):
+        raise ValueError(
+            'El estado pendiente de revision solo puede originarse desde un rechazo BOT validado.'
+        )
 
     registro, _ = asegurar_calidad_iniciada(citacion, usuario, origen, responsable_sistema)
     registro = RESULTADO_CALIDAD_OPERACION.objects.select_for_update().get(pk=registro.pk)
+    estado_nuevo = estado_solicitado_normalizado
+    if (
+        estado_solicitado_normalizado == RESULTADO_CALIDAD_OPERACION.Estado.RECHAZADO
+        and es_rechazo_bot_revisable(citacion, evento_integracion)
+    ):
+        estado_nuevo = RESULTADO_CALIDAD_OPERACION.Estado.RECHAZADO_PENDIENTE_REVISION
     estado_anterior = registro.RCO_CESTADO
     if estado_nuevo == estado_anterior:
+        if estado_nuevo == RESULTADO_CALIDAD_OPERACION.Estado.APROBADO:
+            _agendar_borrador_sap_recepcion_aprobada(citacion, usuario)
         return registro, False
     if estado_nuevo not in TRANSICIONES_PERMITIDAS.get(estado_anterior, set()):
         raise ValueError(f'Transicion de calidad no permitida: {estado_anterior} -> {estado_nuevo}.')
@@ -287,6 +422,12 @@ def procesar_resultado_calidad(proceso_operacion, estado_solicitado, origen, obs
     if estado_nuevo == RESULTADO_CALIDAD_OPERACION.Estado.APRUEBA_CLIENTE:
         registro.RCO_FSOLICITUD_CLIENTE = fecha
         evento = 'CALIDAD_APRUEBA_CLIENTE'
+    elif estado_nuevo == RESULTADO_CALIDAD_OPERACION.Estado.RECHAZADO_PENDIENTE_REVISION:
+        registro.RCO_FRESOLUCION_FINAL = None
+        registro.RCO_FCIERRE = None
+        registro.RCO_BCIERRE_AUTOMATICO = False
+        registro.RCO_BAUTORIZA_SALIDA = False
+        evento = 'CALIDAD_RECHAZADA_PENDIENTE_REVISION'
     else:
         registro.RCO_FRESOLUCION_FINAL = fecha
         registro.RCO_FCIERRE = fecha
@@ -294,6 +435,12 @@ def procesar_resultado_calidad(proceso_operacion, estado_solicitado, origen, obs
         registro.RCO_BAUTORIZA_SALIDA = estado_nuevo == RESULTADO_CALIDAD_OPERACION.Estado.RECHAZADO
         if estado_anterior == RESULTADO_CALIDAD_OPERACION.Estado.APRUEBA_CLIENTE:
             evento = f'CALIDAD_RESPUESTA_CLIENTE_{"APROBADA" if estado_nuevo == RESULTADO_CALIDAD_OPERACION.Estado.APROBADO else "RECHAZADA"}'
+        elif estado_anterior == RESULTADO_CALIDAD_OPERACION.Estado.RECHAZADO_PENDIENTE_REVISION:
+            evento = (
+                'CALIDAD_REVISION_MANUAL_APROBADA'
+                if estado_nuevo == RESULTADO_CALIDAD_OPERACION.Estado.APROBADO
+                else 'CALIDAD_REVISION_MANUAL_RECHAZADA'
+            )
         else:
             evento = 'CALIDAD_APROBADA' if estado_nuevo == RESULTADO_CALIDAD_OPERACION.Estado.APROBADO else 'CALIDAD_RECHAZADA'
 
@@ -304,6 +451,8 @@ def procesar_resultado_calidad(proceso_operacion, estado_solicitado, origen, obs
 
     if estado_nuevo == RESULTADO_CALIDAD_OPERACION.Estado.APRUEBA_CLIENTE:
         _crear_log(registro, usuario, 'CALIDAD_ESPERANDO_CLIENTE', detalle)
+    elif estado_nuevo == RESULTADO_CALIDAD_OPERACION.Estado.RECHAZADO_PENDIENTE_REVISION:
+        _crear_log(registro, usuario, 'CALIDAD_PENDIENTE_REVISION_MANUAL', detalle)
     else:
         OPERACION_PLANTA_LOG.objects.get_or_create(
             CI_NID=citacion,
@@ -330,6 +479,8 @@ def procesar_resultado_calidad(proceso_operacion, estado_solicitado, origen, obs
                 citacion.save(update_fields=['CI_CESTADO', 'CI_FFECHATERMINO'])
 
     _sincronizar_metadata_legacy(registro, usuario, fecha)
+    if estado_nuevo == RESULTADO_CALIDAD_OPERACION.Estado.APROBADO:
+        _agendar_borrador_sap_recepcion_aprobada(citacion, usuario)
     return registro, True
 
 
@@ -345,6 +496,7 @@ def serializar_resultado_calidad(registro, ahora=None):
         registro.Estado.PENDIENTE: 'En espera de resultados de análisis',
         registro.Estado.APROBADO: 'Resultado de calidad: APROBADO',
         registro.Estado.RECHAZADO: MENSAJE_SALIDA_RECHAZO,
+        registro.Estado.RECHAZADO_PENDIENTE_REVISION: MENSAJE_RECHAZO_PENDIENTE_REVISION,
         registro.Estado.APRUEBA_CLIENTE: 'Análisis interno finalizado. En espera de aprobación del cliente.',
     }
     return {

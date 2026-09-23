@@ -56,18 +56,39 @@ def construir_payload_despacho(
     camion = camion or CAMION_PATIO.objects.filter(CI_NID=citacion).order_by(
         "-CPA_FFECHAASOCIACION", "-id"
     ).first()
-    if camion is not None:
+    conductor_maestro = getattr(citacion, "CON_NID", None) if getattr(citacion, "CON_NID_id", None) else None
+    if conductor_maestro is not None:
+        transportista_maestro = (
+            getattr(conductor_maestro, "SN_NID", None)
+            if getattr(conductor_maestro, "SN_NID_id", None)
+            else None
+        )
+        conductor = str(getattr(conductor_maestro, "CON_CNOMBRE", "") or "").strip()
+        rut_conductor = str(getattr(conductor_maestro, "CON_CRUT", "") or "").strip()
+        telefono = str(getattr(conductor_maestro, "CON_CTELEFONO", "") or "").strip()
+        transportista = str(
+            getattr(transportista_maestro, "SN_CRAZONSOCIAL", "") or ""
+        ).strip()
+        rut_transportista = str(
+            getattr(transportista_maestro, "SN_CRUT", "") or ""
+        ).strip()
+    elif camion is not None:
         transportista = str(getattr(camion, "CPA_CTRANSPORTISTA_DECLARADO", "") or "").strip()
         conductor = str(getattr(camion, "CPA_CNOMBRE_CONDUCTOR", "") or "").strip()
         rut_conductor = str(getattr(camion, "CPA_CRUT_CONDUCTOR", "") or "").strip()
         telefono = str(getattr(camion, "CPA_CTELEFONO_CONDUCTOR", "") or "").strip()
-        patente = str(getattr(camion, "CPA_CPATENTE", "") or "").strip()
-        semi = str(getattr(camion, "CPA_CPATENTE_RAMPLA", "") or "").strip()
+        rut_transportista = str(datos_documento.get("rut_transporte") or "").strip()
     else:
         transportista = str(datos_documento.get("transportista") or datos.get("ING_EMPRESA_TRANSPORTE") or "").strip()
         conductor = str(datos_documento.get("conductor") or datos.get("ING_NOMBRE_CONDUCTOR") or "").strip()
         rut_conductor = str(datos_documento.get("rut_conductor") or datos.get("ING_RUT_CONDUCTOR") or "").strip()
         telefono = str(datos_documento.get("telefono_conductor") or datos.get("ING_TELEFONO_CONDUCTOR") or "").strip()
+        rut_transportista = str(datos_documento.get("rut_transporte") or "").strip()
+
+    if camion is not None:
+        patente = str(getattr(camion, "CPA_CPATENTE", "") or "").strip()
+        semi = str(getattr(camion, "CPA_CPATENTE_RAMPLA", "") or "").strip()
+    else:
         patente = str(datos_documento.get("patente") or datos.get("ING_PATENTE") or "").strip()
         semi = str(datos_documento.get("semi") or "").strip()
 
@@ -98,7 +119,7 @@ def construir_payload_despacho(
                 "Indicator": str(indicator or "").strip(),
                 "U_NXIndTras": tipo_traslado,
                 "U_NXTipoDesp": tipo_despacho,
-                "U_NXRutTransporte": str(datos_documento.get("rut_transporte") or "").strip(),
+                "U_NXRutTransporte": rut_transportista,
                 "U_NXNombreTransporte": transportista,
                 "U_NXRutChofer": rut_conductor,
                 "U_NXNombreChofer": conductor,

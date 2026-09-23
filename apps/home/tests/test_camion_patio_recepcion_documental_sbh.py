@@ -23,6 +23,7 @@ class RegistroDocumentalRecepcionSbhTests(SimpleTestCase):
             'transportista': 'Transporte prueba',
             'transportista_id': '777',
             'conductor': 'Conductor prueba',
+            'conductor_id': '55',
             'patente': 'ABCD12',
             'rut_conductor': '11111111-1',
             'telefono_codigo_pais': '+56',
@@ -54,15 +55,24 @@ class RegistroDocumentalRecepcionSbhTests(SimpleTestCase):
         transportista_sbh = MagicMock(SN_CRAZONSOCIAL='Transporte prueba')
         maestro_transportistas = MagicMock()
         maestro_transportistas.filter.return_value.first.return_value = transportista_sbh
+        conductor_maestro = SimpleNamespace(
+            CON_CNOMBRE='Conductor',
+            CON_CAPELLIDO='prueba',
+            CON_CRUT='11111111-1',
+        )
+        maestro_conductores = MagicMock()
+        maestro_conductores.first.return_value = conductor_maestro
         parches = (
             patch.object(views, 'usuario_puede_registrar_camion_patio', return_value=True),
             patch.object(views, 'Verificar_empresa', return_value=2),
             patch.object(views.EMPRESA.objects, 'filter', return_value=MagicMock(first=MagicMock(return_value=empresa))),
             patch.object(views, '_validar_carga_planificada_patio', return_value=(None, None)),
             patch.object(views, 'queryset_transportistas_validos_ingreso_camion', return_value=maestro_transportistas),
+            patch.object(views.CONDUCTOR.objects, 'filter', return_value=maestro_conductores),
             patch.object(views, 'normalize_international_phone', return_value={'country_code': '+56', 'local_number': '912345678'}),
             patch.object(views.transaction, 'atomic', return_value=nullcontext()),
             patch.object(views.CAMION_PATIO.objects, 'create', create_mock),
+            patch.object(views.CAMION_PATIO_TRAZABILIDAD_PLANIFICACION.objects, 'create'),
             patch.object(views, 'registrar_log_camion_no_planificado'),
             patch.object(views, 'notificar_camion_patio_nuevo', return_value=0),
             patch.object(views, '_render_camiones_patio_registrar', render_mock),
@@ -95,7 +105,7 @@ class RegistroDocumentalRecepcionSbhTests(SimpleTestCase):
 
     def test_tipo_vacio_e_invalido_se_rechazan_con_mensaje_exacto(self):
         casos = (
-            ('', 'Debe seleccionar si la recepción es Nacional o Extranjera.'),
+            ('', 'Debe seleccionar si la recepción es Nacional o Importación.'),
             ('IMPORTADO', 'Tipo de recepción inválido.'),
         )
         for valor, mensaje in casos:
@@ -105,9 +115,21 @@ class RegistroDocumentalRecepcionSbhTests(SimpleTestCase):
                 create_mock.assert_not_called()
                 self.assertEqual(error_mock.call_args.args[1], mensaje)
 
-    def test_nacional_permite_fechas_vacias_y_limpia_campos_extranjeros(self):
+    def test_nacional_rechaza_fecha_produccion_vacia(self):
         datos = self._datos(tipo='NACIONAL')
         datos['fecha_produccion'] = ''
+
+        response, create_mock, error_mock = self._ejecutar(datos)
+
+        self.assertEqual(response.status_code, 400)
+        create_mock.assert_not_called()
+        self.assertEqual(
+            error_mock.call_args.args[1],
+            'Debe ingresar la fecha de producción.',
+        )
+
+    def test_nacional_con_fecha_permite_guardar_y_limpia_campos_extranjeros(self):
+        datos = self._datos(tipo='NACIONAL')
         datos['fecha_vencimiento_producto'] = ''
         response, create_mock, _ = self._ejecutar(datos)
         self.assertEqual(response.status_code, 302)
@@ -115,17 +137,17 @@ class RegistroDocumentalRecepcionSbhTests(SimpleTestCase):
         self.assertEqual(guardado['CPA_CTIPO_RECEPCION'], 'NACIONAL')
         for campo in ('CPA_CCDA', 'CPA_CDI', 'CPA_CNAVE_NAVIERA', 'CPA_CSUI', 'CPA_CBL', 'CPA_CLOTE_CONTENEDOR'):
             self.assertEqual(guardado[campo], '')
-        self.assertEqual(guardado['CPA_CFECHAPRODUCCION'], '')
+        self.assertEqual(guardado['CPA_CFECHAPRODUCCION'], '01082026')
         self.assertEqual(guardado['CPA_CFECHAVENCIMIENTOPRODUCTO'], '')
 
-    def test_extranjero_persiste_datos_parciales_y_fechas_normalizadas(self):
-        datos = self._datos(tipo='extranjero')
+    def test_importacion_persiste_datos_parciales_y_fechas_normalizadas(self):
+        datos = self._datos(tipo='importacion')
         datos['cda'] = ''
         datos['sui'] = ''
         response, create_mock, _ = self._ejecutar(datos)
         self.assertEqual(response.status_code, 302)
         guardado = create_mock.call_args.kwargs
-        self.assertEqual(guardado['CPA_CTIPO_RECEPCION'], 'EXTRANJERO')
+        self.assertEqual(guardado['CPA_CTIPO_RECEPCION'], 'IMPORTACION')
         self.assertEqual(guardado['CPA_CCDA'], '')
         self.assertEqual(guardado['CPA_CDI'], 'DI001')
         self.assertEqual(guardado['CPA_CBL'], 'BL001')
@@ -134,6 +156,28 @@ class RegistroDocumentalRecepcionSbhTests(SimpleTestCase):
         self.assertEqual(guardado['CPA_CFECHAPRODUCCION'], '01082026')
         self.assertEqual(guardado['CPA_CFECHAVENCIMIENTOPRODUCTO'], '01082027')
         self.assertEqual(guardado['CPA_CSUI'], '')
+
+    def test_importacion_rechaza_fecha_produccion_vacia(self):
+        datos = self._datos(tipo='IMPORTACION')
+        datos['fecha_produccion'] = ''
+
+        response, create_mock, error_mock = self._ejecutar(datos)
+
+        self.assertEqual(response.status_code, 400)
+        create_mock.assert_not_called()
+        self.assertEqual(
+            error_mock.call_args.args[1],
+            'Debe ingresar la fecha de producción.',
+        )
+
+    def test_nuevo_registro_rechaza_extranjero_historico(self):
+        response, create_mock, error_mock = self._ejecutar(
+            self._datos(tipo='EXTRANJERO')
+        )
+
+        self.assertEqual(response.status_code, 400)
+        create_mock.assert_not_called()
+        self.assertEqual(error_mock.call_args.args[1], 'Tipo de recepción inválido.')
 
     def test_despacho_no_exige_tipo_y_conserva_bl_contenedor(self):
         datos = self._datos(tipo='', es_despacho='1')
@@ -155,6 +199,22 @@ class RegistroDocumentalRecepcionSbhTests(SimpleTestCase):
             'patio_fecha_vencimiento_producto', 'patio_sui',
         ):
             self.assertIn(f'id="{identificador}"', contenido)
+        selector_operacion = contenido.split('id="patio_es_despacho"', 1)[1].split('</select>', 1)[0]
+        self.assertIn('Tipo de operaci&oacute;n *', contenido)
+        self.assertIn('<option value="0"', selector_operacion)
+        self.assertIn('>Recepción</option>', selector_operacion)
+        self.assertIn('<option value="1"', selector_operacion)
+        self.assertIn('>Despacho</option>', selector_operacion)
+
+        selector_recepcion = contenido.split('id="patio_tipo_recepcion"', 1)[1].split('</select>', 1)[0]
+        self.assertIn('<option value="NACIONAL"', selector_recepcion)
+        self.assertIn('<option value="IMPORTACION"', selector_recepcion)
+        self.assertNotIn('<option value="EXTRANJERO"', selector_recepcion)
+        self.assertIn("const esImportacion = tipo === 'IMPORTACION' || tipo === 'EXTRANJERO';", contenido)
+        self.assertIn("const fechaProduccionObligatoria = esRecepcionSbh && ['NACIONAL', 'IMPORTACION'].includes(tipo);", contenido)
+        self.assertIn("fechaProduccion.prop('required', fechaProduccionObligatoria)", contenido)
+        self.assertIn("fechaVencimiento.prop('required', false)", contenido)
+        self.assertIn("selectorTipo.prop('disabled', !esRecepcionSbh).prop('required', esRecepcionSbh)", contenido)
         self.assertIn("camposExtranjeros.add(bl).add(contenedor).val('')", contenido)
         self.assertIn(".prop('required', false)", contenido)
 
@@ -180,6 +240,7 @@ class SerializacionDocumentalRecepcionSbhTests(SimpleTestCase):
         ):
             data = views._serializar_camion_patio(camion)
         self.assertEqual(data['tipo_recepcion'], 'EXTRANJERO')
+        self.assertEqual(data['tipo_recepcion_label'], 'Extranjero')
         self.assertEqual(data['cda'], 'CDA001')
         self.assertEqual(data['di'], 'DI001')
         self.assertEqual(data['nave_naviera'], 'MSC')

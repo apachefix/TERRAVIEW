@@ -1410,6 +1410,50 @@
         background: rgba(255, 255, 255, 0.72);
     }
 
+    /* Ciclo compartido por Vapor y Toma de muestra, independiente del cronometro real. */
+    .op-vapor-hourglass {
+        display: block;
+        width: 64px;
+        height: 88px;
+        margin: 0 auto;
+        overflow: visible;
+    }
+    .op-vapor-hourglass-turn { transform-origin: 32px 44px; }
+    .op-vapor-sand-top { transform-origin: 32px 43px; }
+    .op-vapor-sand-bottom { transform-origin: 32px 68px; transform: scaleY(0); }
+    .op-vapor-sand-stream { opacity: 0; }
+    .op-vapor-hourglass.is-active .op-vapor-hourglass-turn { animation: opVaporTurn 4s ease-in-out infinite; }
+    .op-vapor-hourglass.is-active .op-vapor-sand-top { animation: opVaporSandTop 4s linear infinite; }
+    .op-vapor-hourglass.is-active .op-vapor-sand-bottom { animation: opVaporSandBottom 4s linear infinite; }
+    .op-vapor-hourglass.is-active .op-vapor-sand-stream { animation: opVaporSandStream 4s linear infinite; }
+
+    @keyframes opVaporTurn {
+        0%, 90% { transform: rotate(0deg); }
+        100% { transform: rotate(180deg); }
+    }
+    @keyframes opVaporSandTop {
+        0%, 5% { transform: scaleY(1); }
+        80%, 100% { transform: scaleY(0); }
+    }
+    @keyframes opVaporSandBottom {
+        0%, 5% { transform: scaleY(0); }
+        80%, 100% { transform: scaleY(1); }
+    }
+    @keyframes opVaporSandStream {
+        0%, 3%, 82%, 100% { opacity: 0; }
+        8%, 76% { opacity: 0.85; }
+    }
+    .op-vapor-hourglass.is-finished .op-vapor-sand-top { transform: scaleY(0); }
+    .op-vapor-hourglass.is-finished .op-vapor-sand-bottom { transform: scaleY(1); }
+    @media (prefers-reduced-motion: reduce) {
+        .op-vapor-hourglass.is-active .op-vapor-hourglass-turn,
+        .op-vapor-hourglass.is-active .op-vapor-sand-top,
+        .op-vapor-hourglass.is-active .op-vapor-sand-bottom,
+        .op-vapor-hourglass.is-active .op-vapor-sand-stream { animation: none; }
+        .op-vapor-hourglass.is-active .op-vapor-sand-top,
+        .op-vapor-hourglass.is-active .op-vapor-sand-bottom { transform: scaleY(0.5); }
+    }
+
     .op-hourglass {
         position: relative;
         width: 82px;
@@ -2527,6 +2571,20 @@
         </div>
         {% endif %}
 
+        {% if sap_recepcion_preview_enabled %}
+        <div class="card border-info mb-3 operacion-sap-recepcion-preview-card">
+            <div class="card-body d-flex flex-wrap justify-content-between align-items-center">
+                <div class="mr-3 mb-2 mb-md-0">
+                    <h5 class="mb-1"><i class="fas fa-search mr-2 text-info"></i>Validaci&oacute;n Draft SAP de recepci&oacute;n</h5>
+                    <div class="text-muted">Consulta y calcula el payload sin crear ni modificar documentos en SAP.</div>
+                </div>
+                <button type="button" class="btn btn-outline-info btn-preview-sap-recepcion">
+                    <i class="fas fa-file-code mr-1"></i> Previsualizar Borrador SAP
+                </button>
+            </div>
+        </div>
+        {% endif %}
+
         <div class="row">
             {% if snapshot_recepcion_sbh %}
             <div class="col-12">
@@ -2871,17 +2929,7 @@
                                         </div>
                                         {% if paso.tiempo_toma_muestra.iniciada %}
                                             <div class="op-cycle-runtime op-toma-muestra-runtime">
-                                                <div class="op-hourglass {% if paso.tiempo_toma_muestra.finalizada %}descarga-finalizada{% else %}descarga-activa{% endif %}">
-                                                    <div class="op-hourglass-inner">
-                                                        <span class="op-hourglass-neck"></span>
-                                                        <span class="op-hourglass-glass-shine"></span>
-                                                        <span class="op-hourglass-sand-layer">
-                                                            <span class="op-hourglass-sand-top"></span>
-                                                            <span class="op-hourglass-flow"></span>
-                                                            <span class="op-hourglass-sand-bottom"></span>
-                                                        </span>
-                                                    </div>
-                                                </div>
+                                                {% include 'home/CITACION/_process_hourglass.html' with finalizada=paso.tiempo_toma_muestra.finalizada only %}
                                                 <div>
                                                     <div class="op-dashboard-card-title">
                                                         {% if paso.tiempo_toma_muestra.finalizada %}Toma de muestra finalizada{% else %}Toma de muestra en proceso{% endif %}
@@ -2899,17 +2947,7 @@
                                         {% endif %}
                                         {% if paso.accion_toma_muestra.tipo == 'vapor' and paso.tiempo_vapor.iniciada %}
                                             <div class="op-cycle-runtime op-vapor-runtime">
-                                                <div class="op-hourglass {% if paso.tiempo_vapor.finalizada %}descarga-finalizada{% else %}descarga-activa{% endif %}">
-                                                    <div class="op-hourglass-inner">
-                                                        <span class="op-hourglass-neck"></span>
-                                                        <span class="op-hourglass-glass-shine"></span>
-                                                        <span class="op-hourglass-sand-layer">
-                                                            <span class="op-hourglass-sand-top"></span>
-                                                            <span class="op-hourglass-flow"></span>
-                                                            <span class="op-hourglass-sand-bottom"></span>
-                                                        </span>
-                                                    </div>
-                                                </div>
+                                                {% include 'home/CITACION/_process_hourglass.html' with finalizada=paso.tiempo_vapor.finalizada only %}
                                                 <div>
                                                     <div class="op-dashboard-card-title">
                                                         {% if paso.tiempo_vapor.finalizada %}Vapor finalizado{% else %}Vapor en proceso{% endif %}
@@ -2962,7 +3000,37 @@
                                                 <strong>{{ paso.resultado_calidad.mensaje }}</strong>
                                                 Estado: {{ paso.resultado_calidad.estado }} | Origen: {{ paso.resultado_calidad.origen }}
                                             </div>
-                                            {% if paso.resultado_calidad.estado == 'RECHAZADO' %}
+                                            {% if paso.resultado_calidad.estado == 'RECHAZADO_PENDIENTE_REVISION' and paso.puede_editar %}
+                                                <div class='card border-warning mt-3 operacion-revision-calidad-manual'>
+                                                    <div class='card-body'>
+                                                        <h6 class='card-title'><i class='fas fa-clipboard-check mr-2'></i>Revisi&oacute;n manual de Calidad</h6>
+                                                        <label for='comentario-revision-calidad-{{ paso.orden }}'>Comentarios de revisi&oacute;n</label>
+                                                        <textarea id='comentario-revision-calidad-{{ paso.orden }}'
+                                                                  class='form-control revision-calidad-comentario'
+                                                                  rows='3'
+                                                                  required
+                                                                  placeholder='Ingrese el fundamento de la decisi&oacute;n'></textarea>
+                                                        <div class='d-flex flex-wrap justify-content-end mt-3'>
+                                                            <button type='button'
+                                                                    class='btn btn-success mr-2 btn-resolver-revision-calidad'
+                                                                    data-decision='APROBADO'>
+                                                                <i class='fas fa-check mr-1'></i>Aprobar manualmente
+                                                            </button>
+                                                            <button type='button'
+                                                                    class='btn btn-danger btn-resolver-revision-calidad'
+                                                                    data-decision='RECHAZADO'>
+                                                                <i class='fas fa-times mr-1'></i>Confirmar rechazo
+                                                            </button>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            {% endif %}
+                                            {% if paso.resultado_calidad.estado == 'RECHAZADO_PENDIENTE_REVISION' %}
+                                                <div class='alert alert-warning mt-3 mb-0'>
+                                                    <i class='fas fa-user-check mr-2'></i>
+                                                    Resultado rechazado por an&aacute;lisis autom&aacute;tico. Pendiente de revisi&oacute;n manual de Calidad.
+                                                </div>
+                                            {% elif paso.resultado_calidad.estado == 'RECHAZADO' %}
                                                 <div class="alert alert-danger mt-3 mb-0"><i class="fas fa-truck mr-2"></i>Cami&oacute;n autorizado para salir de planta por rechazo de calidad</div>
                                             {% elif paso.resultado_calidad.estado == 'APRUEBA_CLIENTE' %}
                                                 <div class="alert alert-warning mt-3 mb-0"><i class="fas fa-user-clock mr-2"></i>En espera de aprobaci&oacute;n del cliente</div>
@@ -3968,6 +4036,7 @@
                                          data-registrada="{% if paso.autorizar_salida.registrada %}true{% else %}false{% endif %}"
                                          data-sap-updated="{% if paso.sap_update_despacho.updated %}true{% else %}false{% endif %}"
                                          data-sap-error="{% if paso.sap_update_despacho.is_error %}true{% else %}false{% endif %}"
+                                         data-sap-documentacion-completa="{% if paso.drafts_sap_despacho_operacionales.documentacion_completa %}true{% else %}false{% endif %}"
                                          data-ultimas-cargas="{% if paso.datos_finales_despacho_sbh.ultimas_cargas_completas %}true{% else %}false{% endif %}"
                                          data-sap-recepcion-updated="{% if paso.sap_update_recepcion.updated %}true{% else %}false{% endif %}"
                                          data-sap-recepcion-error="{% if paso.sap_update_recepcion.is_error %}true{% else %}false{% endif %}">
@@ -3991,7 +4060,8 @@
                                             <div class="alert alert-info mb-0">
                                                 Paso configurado para {{ paso.responsable }}. Su acción funcional se habilitará en la Etapa 2.
                                             </div>
-                                        {% elif paso.autorizar_salida.registrada %}
+                                        {% else %}
+                                         {% if paso.autorizar_salida.registrada %}
                                             <div class="op-exit-summary">
                                                 <div class="op-field-summary-card">
                                                     <div class="op-field-summary-label">Recepcion conforme</div>
@@ -4136,6 +4206,7 @@
                                                 {% endif %}
                                             </div>
                                             {% endif %}
+                                         {% endif %}
                                             {% if paso.requiere_update_sap_despacho %}
                                             <div class="op-sap-draft-panel mb-3 operacion-sap-despacho-update-box"
                                                  data-sap-updated="{% if paso.sap_update_despacho.updated %}true{% else %}false{% endif %}"
@@ -4143,10 +4214,10 @@
                                                 <div class="op-cycle-header">
                                                     <div>
                                                         <div class="op-lab-title mb-1">
-                                                            <i class="fas fa-sync-alt"></i> Actualizaci&oacute;n documento SAP
+                                                            <i class="fas fa-sync-alt"></i> {% if paso.autorizar_salida.registrada %}Hist&oacute;rico documento SAP{% else %}Actualizaci&oacute;n documento SAP{% endif %}
                                                         </div>
                                                         <div class="op-dashboard-muted">
-                                                            Actualiza el Draft SAP con el peso real de Pesaje Salida antes de autorizar.
+                                                            {% if paso.autorizar_salida.registrada %}Trazabilidad SAP cerrada. Informaci&oacute;n hist&oacute;rica de solo lectura.{% else %}Actualiza cada Draft SAP con la cantidad fisicamente despachada (Pesaje salida - Pesaje entrada), sin tolerancia porcentual.{% endif %}
                                                         </div>
                                                     </div>
                                                     <span class="op-sap-draft-status {% if paso.sap_update_despacho.updated %}is-done{% elif paso.sap_update_despacho.estado == 'ERROR' %}is-error{% elif paso.activo %}is-active{% endif %}">
@@ -4169,23 +4240,75 @@
                                                                 <div class="d-flex justify-content-between align-items-center">
                                                                     <strong>Acuerdo {{ draft.numero_acuerdo|default:'-' }}</strong>
                                                                     <span class="badge {% if draft.estado == 'CREADO' and draft.docentry %}badge-success{% elif draft.estado == 'ERROR' or draft.estado == 'INCIERTO' %}badge-danger{% else %}badge-warning{% endif %}">
-                                                                        {{ draft.estado }}
+                                                                        DRAFT {{ draft.estado }}
                                                                     </span>
                                                                 </div>
                                                                 <div class="op-sap-agreement-meta">
                                                                     AbsID: <strong>{{ draft.sap_abs_id|default:'-' }}</strong><br>
-                                                                    DocEntry: <strong>{{ draft.docentry|default:'-' }}</strong><br>
-                                                                    DocNum: <strong>{{ draft.docnum|default:'-' }}</strong>
+                                                                    Draft DocEntry: <strong>{{ draft.docentry|default:'-' }}</strong><br>
+                                                                    Draft DocNum: <strong>{{ draft.docnum|default:'-' }}</strong>
                                                                     {% if draft.actualizado %}<br>Persistido: {{ draft.actualizado }}{% endif %}
                                                                     {% if draft.error %}<br><span class="text-danger">{{ draft.error }}</span>{% endif %}
+                                                                </div>
+                                                                <hr class="my-2">
+                                                                <div class="d-flex justify-content-between align-items-center">
+                                                                    <strong>Cierre del Draft en SAP</strong>
+                                                                    <span class="badge {% if draft.verificacion_sap.estado == 'CONFIRMADO' %}badge-success{% elif draft.verificacion_sap.estado == 'ERROR' %}badge-danger{% else %}badge-warning{% endif %}">
+                                                                        {% if draft.verificacion_sap.estado == 'CONFIRMADO' %}SAP confirmado{% else %}Draft SAP aún abierto{% endif %}
+                                                                    </span>
+                                                                </div>
+                                                                <div class="op-sap-agreement-meta">
+                                                                    Tabla SAP: <strong>ODRF</strong><br>
+                                                                    Draft DocEntry: <strong>{{ draft.docentry|default:'-' }}</strong><br>
+                                                                    Resultado COUNT: <strong>{{ draft.verificacion_sap.resultado_count|default_if_none:'-' }}</strong><br>
+                                                                    Consumo reflejado en stock: <strong>{% if draft.verificacion_sap.consumo_reflejado %}S&iacute;{% else %}Pendiente de evidencia{% endif %}</strong>
+                                                                    {% if draft.verificacion_sap.verificado_en %}<br>Verificado: {{ draft.verificacion_sap.verificado_en }}{% endif %}
+                                                                    {% if draft.verificacion_sap.error %}<br><span class="text-danger">{{ draft.verificacion_sap.error }}</span>{% endif %}
                                                                 </div>
                                                             </article>
                                                             {% empty %}
                                                             <div class="alert alert-warning mb-0">No existe un Draft SAP persistido para los acuerdos operacionales.</div>
                                                             {% endfor %}
                                                         </div>
-                                                        Peso salida: <strong>{{ paso.sap_update_despacho.peso_salida|default:'-' }} kg</strong>
-                                                        {% else %}
+                                                        <div class="d-flex justify-content-between align-items-center mt-2">
+                                                            <span class="badge {% if paso.drafts_sap_despacho_operacionales.documentacion_completa %}badge-success{% else %}badge-warning{% endif %}">
+                                                                {{ paso.drafts_sap_despacho_operacionales.estado_documentacion }}
+                                                            </span>
+                                                            {% if paso.activo and paso.puede_editar and paso.drafts_sap_despacho_operacionales.verificacion_documentos_habilitada %}
+                                                            <button type="button" class="btn btn-outline-primary btn-sm btn-verificar-documentos-sap-despacho">
+                                                                <i class="fas fa-sync-alt mr-1"></i> Verificar documento SAP
+                                                            </button>
+                                                            {% endif %}
+                                                        </div>
+                                                        <div class="mt-2">
+                                                            Pesaje entrada: <strong>{{ paso.sap_update_despacho.peso_entrada|default:'-' }} kg</strong><br>
+                                                            Pesaje salida: <strong>{{ paso.sap_update_despacho.peso_salida|default:'-' }} kg</strong><br>
+                                                            Peso real despachado: <strong>{{ paso.sap_update_despacho.peso_real_kg|default:'-' }} kg / {{ paso.sap_update_despacho.cantidad_real_mt|default:'-' }} t</strong><br>
+                                                            Cantidad originalmente planificada: <strong>{{ paso.sap_update_despacho.cantidad_planificada_mt|default:'-' }} t</strong><br>
+                                                            Cantidad final para SAP: <strong>{{ paso.sap_update_despacho.cantidad_real_mt|default:'-' }} t</strong><br>
+                                                            Diferencia: <strong>{{ paso.sap_update_despacho.diferencia_mt|default:'-' }} t</strong>
+                                                        </div>
+                                                        {% for documento in paso.sap_update_despacho.distribucion %}
+                                                        <article class="op-sap-agreement-card mt-2">
+                                                            <strong>Acuerdo {{ documento.numero_acuerdo }} - DocEntry {{ documento.docentry }}</strong>
+                                                            <div class="row mt-2">
+                                                                <div class="col-md-6">
+                                                                    <strong>Distribucion original: {{ documento.cantidad_original }} t</strong>
+                                                                    {% for linea in documento.payload_original.DocumentLines %}
+                                                                        <div>{{ linea.WarehouseCode }} / {{ linea.ItemCode }} - {{ linea.Quantity }} t</div>
+                                                                        {% for lote in linea.BatchNumbers %}<div class="ml-3">Lote {{ lote.BatchNumber }}: {{ lote.Quantity }} t</div>{% endfor %}
+                                                                    {% endfor %}
+                                                                </div>
+                                                                <div class="col-md-6">
+                                                                    <strong>Distribucion final: {{ documento.cantidad_final }} t</strong>
+                                                                    {% for linea in documento.payload.DocumentLines %}
+                                                                        <div>{{ linea.WarehouseCode }} / {{ linea.ItemCode }} - {{ linea.Quantity }} t</div>
+                                                                        {% for lote in linea.BatchNumbers %}<div class="ml-3">Lote {{ lote.BatchNumber }}: {{ lote.Quantity }} t</div>{% endfor %}
+                                                                    {% endfor %}
+                                                                </div>
+                                                            </div>
+                                                        </article>
+                                                        {% endfor %}                                                        {% else %}
                                                         Draft DocEntry: <strong>{{ paso.sap_update_despacho.docentry|default:'-' }}</strong>
                                                         | DocNum: <strong>{{ paso.sap_update_despacho.docnum|default:'-' }}</strong>
                                                         | Peso salida: <strong>{{ paso.sap_update_despacho.peso_salida|default:'-' }}</strong>
@@ -4212,6 +4335,11 @@
                                                         <i class="fas fa-lock mr-1"></i>
                                                         {{ paso.drafts_sap_despacho_operacionales.mensaje_actualizacion }}
                                                     </div>
+                                                {% endif %}
+                                                {% if paso.sap_despacho_preview_enabled and paso.activo and paso.puede_editar %}
+                                                    <button type="button" class="btn btn-outline-info btn-sm btn-preview-sap-despacho mr-2">
+                                                        <i class="fas fa-search mr-1"></i> Previsualizar actualización SAP
+                                                    </button>
                                                 {% endif %}
                                                 {% if paso.activo and paso.puede_editar and not paso.sap_update_despacho.updated %}
                                                     <button type="button" class="btn btn-primary btn-sm btn-actualizar-sap-despacho"
@@ -4240,6 +4368,7 @@
                                                 {% endif %}
                                             </div>
                                             {% endif %}
+                                            {% if not paso.autorizar_salida.registrada %}
                                             <div class="op-exit-grid">
                                                 <div>
                                                     <div class="op-lab-title"><i class="fas fa-clipboard-list"></i> Revision de descarga</div>
@@ -4296,12 +4425,14 @@
                                              </div>
                                             {% if paso.activo and paso.puede_editar %}
                                             <div class="op-authorize-final-actions" {% if not paso.autorizar_salida.revision_conformidad.recepcion_conforme %}hidden{% endif %}>
-                                                <button type="button" class="op-glass-button is-success btn-autorizar-salida-operacion">
+                                                <button type="button" class="op-glass-button is-success btn-autorizar-salida-operacion"
+                                                        {% if paso.drafts_sap_despacho_operacionales.aplicable and not paso.drafts_sap_despacho_operacionales.documentacion_completa or paso.drafts_sap_despacho_operacionales.aplicable and not paso.drafts_sap_despacho_operacionales.todos_actualizados or paso.drafts_sap_despacho_operacionales.aplicable and not paso.drafts_sap_despacho_operacionales.completos %}disabled{% endif %}>
                                                     <i class="op-glass-icon fas fa-check-circle"></i> Autorizar salida
                                                 </button>
                                             </div>
                                             {% endif %}
                                          {% endif %}
+                                        {% endif %}
                                     </div>
                                     {% endif %}
 
@@ -4778,6 +4909,7 @@
 
     const BORRADOR_SAP_PREVIEW_URL = "{% url 'ajax_operacion_planta_borrador_sap_preview' citacion.id %}";
     const BORRADOR_SAP_ENVIAR_URL = "{% url 'ajax_operacion_planta_borrador_sap_enviar' citacion.id %}";
+    const SAP_DESPACHO_PREVIEW_URL = "{% url 'ajax_operacion_planta_preview_sap_despacho' citacion.id %}";
     const SAP_DESPACHO_UPDATE_URL = "{% url 'ajax_operacion_planta_actualizar_sap_despacho' citacion.id %}";
     const REABRIR_CIERRE_CARGA_URL = "{% url 'ajax_operacion_planta_reabrir_cierre_carga_despacho_sbh' citacion.id %}";
     const SAP_RECEPCION_UPDATE_URL = "{% url 'ajax_operacion_planta_actualizar_sap_recepcion' citacion.id %}";
@@ -4803,6 +4935,96 @@
             .replace(/"/g, '&quot;')
             .replace(/'/g, '&#039;');
     }
+
+    function renderSapRecepcionPreview(response) {
+        const preview = (response || {}).preview || {};
+        const payload = preview.payload || {};
+        const source = preview.source_data || {};
+        const selectedLine = preview.selected_line || {};
+        const documentLine = (payload.DocumentLines || [])[0] || {};
+        const existing = preview.existing_draft || {};
+        const warnings = (preview.warnings || []).concat(preview.errors || []);
+        const value = function (candidate, fallback) {
+            return candidate === undefined || candidate === null || candidate === '' ? (fallback || '-') : candidate;
+        };
+        const row = function (label, candidate) {
+            return '<tr><th class="text-left pr-3">' + escapeHtml(label) + '</th><td class="text-left">' + escapeHtml(value(candidate)) + '</td></tr>';
+        };
+        const warningHtml = warnings.length
+            ? '<ul class="text-left mb-0">' + warnings.map(function (item) {
+                return '<li>' + escapeHtml(item) + '</li>';
+            }).join('') + '</ul>'
+            : '<div class="text-left text-success">Sin warnings ni errores.</div>';
+        const payloadText = Object.keys(payload).length
+            ? JSON.stringify(payload, null, 2)
+            : 'No se pudo construir un payload valido.';
+        let existingHtml = '';
+        if (existing.sent || existing.docentry) {
+            existingHtml =
+                '<div class="alert alert-warning text-left mt-3 mb-2"><strong>Draft ya creado.</strong> ' +
+                'DocEntry: ' + escapeHtml(value(existing.docentry)) + ' | DocNum: ' + escapeHtml(value(existing.docnum)) + '</div>' +
+                '<details class="text-left mb-2"><summary>Payload previo registrado</summary><pre class="bg-light border rounded p-2 mt-2" style="max-height:240px;overflow:auto;">' +
+                escapeHtml(JSON.stringify(existing.request_json || {}, null, 2)) + '</pre></details>' +
+                '<details class="text-left mb-2"><summary>Respuesta SAP registrada</summary><pre class="bg-light border rounded p-2 mt-2" style="max-height:240px;overflow:auto;">' +
+                escapeHtml(JSON.stringify(existing.response_json || {}, null, 2)) + '</pre></details>';
+        }
+        const html =
+            '<div class="alert alert-info text-left"><strong>PREVISUALIZACION - NO ENVIADO A SAP</strong><br>' +
+            'Esta accion no crea ni modifica documentos en SAP.</div>' +
+            '<div class="table-responsive"><table class="table table-sm table-bordered mb-3"><tbody>' +
+            row('CardCode', payload.CardCode || source.card_code) +
+            row('Proveedor', source.card_name) +
+            row('Documento', [source.folio_prefix, source.folio_number].filter(Boolean).join(' ')) +
+            row('ItemCode', documentLine.ItemCode || selectedLine.ItemCode || source.item_code) +
+            row('Quantity', documentLine.Quantity ?? source.quantity) +
+            row('BaseEntry', documentLine.BaseEntry ?? source.doc_entry) +
+            row('BaseLine', documentLine.BaseLine ?? selectedLine.LineNum ?? source.base_line) +
+            row('WarehouseCode', documentLine.WarehouseCode || source.warehouse_code) +
+            row('LineTotal', documentLine.LineTotal ?? selectedLine.LineTotal) +
+            row('Cantidad abierta SAP', source.remaining_open_quantity ?? selectedLine.RemainingOpenQuantity) +
+            '</tbody></table></div>' +
+            '<div class="card mb-3"><div class="card-header text-left py-2"><strong>Warnings / errores</strong></div><div class="card-body py-2">' + warningHtml + '</div></div>' +
+            existingHtml +
+            '<details class="text-left"><summary>JSON completo del payload</summary><pre class="bg-light border rounded p-2 mt-2" style="max-height:320px;overflow:auto;">' +
+            escapeHtml(payloadText) + '</pre></details>';
+
+        Swal.fire({
+            icon: (preview.errors || []).length ? 'warning' : 'info',
+            title: 'Previsualizar Borrador SAP',
+            html: html,
+            width: '900px',
+            confirmButtonText: 'Cerrar'
+        });
+    }
+
+    $(document).on('click', '.btn-preview-sap-recepcion', function () {
+        const button = $(this);
+        const originalHtml = button.html();
+        button.prop('disabled', true).html('<i class="fas fa-spinner fa-spin mr-1"></i> Consultando...');
+        $.ajax({
+            url: BORRADOR_SAP_PREVIEW_URL,
+            type: 'POST',
+            headers: { 'X-CSRFToken': getCookie('csrftoken') },
+            data: {
+                _empresa_id: OPERACION_PLANTA_EMPRESA_ID,
+                empresa_id: OPERACION_PLANTA_EMPRESA_ID
+            },
+            success: function (response) {
+                renderSapRecepcionPreview(response || {});
+            },
+            error: function (xhr) {
+                const response = xhr.responseJSON || {};
+                Swal.fire({
+                    icon: 'error',
+                    title: 'No fue posible generar el preview',
+                    text: response.message || xhr.responseText || 'Error al consultar el preview SAP.'
+                });
+            },
+            complete: function () {
+                button.prop('disabled', false).html(originalHtml);
+            }
+        });
+    });
 
     function renderBorradorSapPreview(preview) {
         const box = $('.operacion-borrador-sap-box');
@@ -5695,6 +5917,131 @@
         });
     });
 
+    function sapDespachoPreviewJson(value) {
+        return escapeHtml(JSON.stringify(value === undefined ? null : value, null, 2));
+    }
+
+    function sapDespachoPreviewSiNo(value) {
+        return value ? '<span class="text-success font-weight-bold">Sí</span>' : '<span class="text-danger font-weight-bold">No</span>';
+    }
+
+    function renderSapDespachoPreview(response) {
+        const documentos = response.documentos || [];
+        const validacion = response.validacion_estructural || {};
+        const validacionHtml = Object.keys(validacion).map(function (clave) {
+            return '<li><code>' + escapeHtml(clave) + '</code>: ' + sapDespachoPreviewSiNo(validacion[clave]) + '</li>';
+        }).join('');
+        const documentosHtml = documentos.map(function (documento, indice) {
+            const acuerdo = documento.acuerdo || {};
+            const draft = documento.draft || {};
+            const pesajes = documento.pesajes || {};
+            const cantidad = documento.cantidad_operacional || {};
+            const validacionDocumento = documento.validacion || {};
+            const lotes = [];
+            (documento.distribucion_final || []).forEach(function (linea) {
+                (linea.batch_numbers || []).forEach(function (lote) {
+                    lotes.push({
+                        linea: linea.document_line,
+                        bodega: linea.warehouse_code || '-',
+                        lote: lote.BatchNumber || '-',
+                        cantidad: lote.Quantity
+                    });
+                });
+            });
+            const lotesHtml = lotes.map(function (lote) {
+                return '<tr><td>' + escapeHtml(lote.linea) + '</td><td>' + escapeHtml(lote.bodega) +
+                    '</td><td>' + escapeHtml(lote.lote) + '</td><td class="text-right">' +
+                    escapeHtml(lote.cantidad) + ' MT</td></tr>';
+            }).join('');
+            const resultadoValidacion = validacionDocumento.resultado || 'INVÁLIDO';
+            const claseValidacion = resultadoValidacion === 'OK' ? 'badge-success' : 'badge-danger';
+            return '<section class="border rounded p-3 mb-3 text-left">' +
+                '<h5>Documento SAP ' + (indice + 1) + '</h5>' +
+                '<p class="mb-1"><strong>Acuerdo:</strong> ' + escapeHtml(acuerdo.numero_visible || '-') +
+                ' &nbsp; <strong>AbsID:</strong> ' + escapeHtml(acuerdo.sap_abs_id || '-') + '</p>' +
+                '<p class="mb-1"><strong>DocEntry:</strong> ' + escapeHtml(draft.docentry || '-') +
+                ' &nbsp; <strong>DocNum:</strong> ' + escapeHtml(draft.docnum || '-') +
+                ' &nbsp; <strong>Estado:</strong> ' + escapeHtml(draft.estado || '-') + '</p>' +
+                '<p class="mb-1"><strong>Endpoint:</strong> <code>' + escapeHtml(documento.endpoint || '-') + '</code></p>' +
+                '<div class="alert alert-info py-2 mb-2">' +
+                '<strong>PESO ENTRADA:</strong> ' + escapeHtml(pesajes.peso_entrada_kg) + ' kg<br>' +
+                '<strong>PESO SALIDA BRUTO:</strong> ' + escapeHtml(pesajes.peso_salida_bruto_kg) + ' kg<br>' +
+                '<strong>PESO NETO PRODUCTO:</strong> ' + escapeHtml(pesajes.peso_neto_producto_kg) + ' kg<br>' +
+                '<strong>FUENTE:</strong> ' + escapeHtml(pesajes.fuente_peso_neto_label || '-') + '<br>' +
+                '<strong>CONTROL:</strong> ' + escapeHtml(pesajes.peso_salida_bruto_kg) + ' - ' +
+                escapeHtml(pesajes.peso_entrada_kg) + ' = ' +
+                escapeHtml(pesajes.peso_neto_calculado_kg) + ' kg ' +
+                (pesajes.control_pesaje_ok
+                    ? '<span class="badge badge-success">OK</span>'
+                    : '<span class="badge badge-danger">INVÁLIDO</span>') + '<br>' +
+                '<strong>CANTIDAD SAP:</strong> ' + escapeHtml(pesajes.cantidad_real_mt) + ' MT' +
+                '</div>' +
+                '<p><strong>Cantidad operacional:</strong> original ' + escapeHtml(cantidad.original_mt) +
+                ' MT → final ' + escapeHtml(cantidad.final_mt) + ' MT</p>' +
+                '<div class="alert alert-light border py-2">' +
+                '<div class="d-flex flex-wrap align-items-center justify-content-between">' +
+                '<strong>CANTIDAD TOTAL DOCUMENTO: ' + escapeHtml(cantidad.final_mt) + ' MT</strong>' +
+                '<span class="badge ' + claseValidacion + '">VALIDACIÓN: ' + escapeHtml(resultadoValidacion) + '</span>' +
+                '</div>' +
+                '<div class="table-responsive mt-2"><table class="table table-sm table-bordered mb-1">' +
+                '<thead><tr><th>Línea</th><th>Bodega</th><th>Distribución por lotes</th><th class="text-right">Cantidad</th></tr></thead>' +
+                '<tbody>' + (lotesHtml || '<tr><td colspan="4" class="text-muted">Sin lotes en el payload final.</td></tr>') + '</tbody>' +
+                '<tfoot><tr><th colspan="3" class="text-right">SUMA LOTES</th><th class="text-right">' +
+                escapeHtml(validacionDocumento.suma_lotes) + ' MT</th></tr></tfoot></table></div>' +
+                '</div>' +
+                '<h6>Headers funcionales</h6><pre class="bg-light border rounded p-2">' + sapDespachoPreviewJson(documento.headers) + '</pre>' +
+                '<h6>Payload original persistido</h6><pre class="bg-light border rounded p-2">' + sapDespachoPreviewJson(documento.payload_original) + '</pre>' +
+                '<h6>Distribución original</h6><pre class="bg-light border rounded p-2">' + sapDespachoPreviewJson(documento.distribucion_original) + '</pre>' +
+                '<h6>Distribución final calculada</h6><pre class="bg-light border rounded p-2">' + sapDespachoPreviewJson(documento.distribucion_final) + '</pre>' +
+                '<h6>Payload PATCH final</h6><pre class="bg-light border rounded p-2">' + sapDespachoPreviewJson(documento.payload_patch) + '</pre>' +
+                '<h6>Validación del documento</h6><pre class="bg-light border rounded p-2">' + sapDespachoPreviewJson(documento.validacion) + '</pre>' +
+                '<h6>Última actualización registrada</h6><pre class="bg-light border rounded p-2">' + sapDespachoPreviewJson(documento.ultima_actualizacion_registrada) + '</pre>' +
+                '</section>';
+        }).join('');
+        const motivos = (response.motivos || []).map(function (motivo) {
+            return '<li>' + escapeHtml(motivo) + '</li>';
+        }).join('');
+        return '<div class="text-left"><h5>Validación estructural</h5><ul>' + validacionHtml + '</ul>' +
+            (motivos ? '<div class="alert alert-warning"><strong>Motivos:</strong><ul class="mb-0">' + motivos + '</ul></div>' : '') +
+            documentosHtml + '</div>';
+    }
+
+    $(document).on('click', '.btn-preview-sap-despacho', function () {
+        const button = $(this);
+        const textoOriginal = button.html();
+        button.prop('disabled', true).html('<i class="fas fa-spinner fa-spin mr-1"></i> Calculando preview...');
+        $.ajax({
+            url: SAP_DESPACHO_PREVIEW_URL,
+            type: 'POST',
+            data: {
+                _empresa_id: OPERACION_PLANTA_EMPRESA_ID,
+                empresa_id: OPERACION_PLANTA_EMPRESA_ID
+            },
+            headers: {'X-CSRFToken': getCookie('csrftoken')},
+            success: function (response) {
+                Swal.fire({
+                    icon: response.success ? 'success' : 'warning',
+                    title: response.resultado || 'Preview SAP de despacho',
+                    html: renderSapDespachoPreview(response),
+                    width: '92%',
+                    showCloseButton: true,
+                    confirmButtonText: 'Cerrar'
+                });
+            },
+            error: function (xhr) {
+                const response = xhr.responseJSON || {};
+                Swal.fire({
+                    icon: 'error',
+                    title: 'No fue posible generar el preview',
+                    text: response.message || ('Error HTTP ' + xhr.status + '.')
+                });
+            },
+            complete: function () {
+                button.prop('disabled', false).html(textoOriginal);
+            }
+        });
+    });
+
     $(document).on('click', '.btn-actualizar-sap-despacho', function () {
         const button = $(this);
         const box = button.closest('.operacion-sap-despacho-update-box');
@@ -5898,6 +6245,63 @@
         });
     }
 
+    $(document).on('click', '.btn-verificar-documentos-sap-despacho', function () {
+        const button = $(this);
+        const original = button.html();
+        $.ajax({
+            url: "{% url 'ajax_operacion_planta_verificar_documentos_sap_despacho' citacion.id %}",
+            type: 'POST',
+            data: {
+                _empresa_id: OPERACION_PLANTA_EMPRESA_ID,
+                empresa_id: OPERACION_PLANTA_EMPRESA_ID
+            },
+            headers: { 'X-CSRFToken': getCookie('csrftoken') },
+            beforeSend: function () {
+                button.prop('disabled', true).html('<i class="fas fa-spinner fa-spin mr-1"></i> Verificando...');
+            },
+            success: function (response) {
+                const complete = response.documentacion && response.documentacion.completo;
+                const documentos = (response.documentacion && response.documentacion.documentos) || [];
+                const detalle = documentos.map(function (documento) {
+                    const estado = documento.estado || 'PENDIENTE';
+                    const clase = estado === 'CONFIRMADO' ? 'badge-success' : 'badge-warning';
+                    const mensaje = estado === 'CONFIRMADO'
+                        ? 'SAP confirmado'
+                        : 'Draft SAP aún abierto';
+                    return '<div class="border rounded p-2 mb-2 text-left">' +
+                        '<strong>Acuerdo ' + escapeHtml(documento.numero_acuerdo || '-') + '</strong><br>' +
+                        'Draft: ' + escapeHtml(documento.draft_docentry || '-') + '<br>' +
+                        'Resultado ODRF COUNT: ' + escapeHtml(
+                            documento.resultado_count === null || documento.resultado_count === undefined
+                                ? '-'
+                                : documento.resultado_count
+                        ) + '<br>' +
+                        '<span class="badge ' + clase + '">' + escapeHtml(estado) + '</span> ' +
+                        escapeHtml(mensaje) +
+                        '</div>';
+                }).join('');
+                Swal.fire({
+                    icon: complete ? 'success' : 'warning',
+                    title: response.message || 'Verificación SAP completada',
+                    html: detalle || (
+                        complete
+                            ? 'Todos los Drafts están cerrados en SAP.'
+                            : 'Aún existen Drafts abiertos en SAP.'
+                    )
+                }).then(function () { location.reload(); });
+            },
+            error: function (xhr) {
+                const response = xhr.responseJSON || {};
+                button.prop('disabled', false).html(original);
+                Swal.fire({
+                    icon: 'error',
+                    title: 'No fue posible verificar SAP',
+                    text: response.message || ('Error HTTP ' + xhr.status + '.')
+                });
+            }
+        });
+    });
+
     $(document).on('click', '.btn-autorizar-salida-operacion', function () {
         const button = $(this);
         const box = button.closest('.operacion-autorizar-salida-box');
@@ -5940,6 +6344,73 @@
         const form = $(this);
         const box = form.closest('.operacion-confirmar-salida-box');
         form.find('input[name="observacion"]').val((box.find('.confirmar-salida-observacion').val() || '').trim());
+    });
+
+    $(document).on('click', '.btn-resolver-revision-calidad', function () {
+        const boton = $(this);
+        const panel = boton.closest('.operacion-revision-calidad-manual');
+        const comentario = (panel.find('.revision-calidad-comentario').val() || '').trim();
+        const decision = String(boton.data('decision') || '').toUpperCase();
+        if (!comentario) {
+            Swal.fire({
+                icon: 'warning',
+                title: 'Comentario obligatorio',
+                text: 'Ingrese los comentarios de revision antes de continuar.'
+            });
+            return;
+        }
+
+        const confirmar = decision === 'APROBADO'
+            ? 'Aprobar manualmente este resultado de calidad'
+            : 'Confirmar el rechazo definitivo y autorizar la salida';
+        Swal.fire({
+            icon: decision === 'APROBADO' ? 'question' : 'warning',
+            title: confirmar,
+            text: comentario,
+            showCancelButton: true,
+            confirmButtonText: decision === 'APROBADO' ? 'Aprobar' : 'Confirmar rechazo',
+            cancelButtonText: 'Cancelar',
+            reverseButtons: true
+        }).then(function (confirmacion) {
+            if (!confirmacion.isConfirmed) {
+                return;
+            }
+            const textoOriginal = boton.html();
+            $.ajax({
+                url: '{% url 'ajax_operacion_planta_resolver_revision_calidad' citacion.id %}',
+                type: 'POST',
+                data: {
+                    decision: decision,
+                    comentario: comentario,
+                    _empresa_id: OPERACION_PLANTA_EMPRESA_ID,
+                    empresa_id: OPERACION_PLANTA_EMPRESA_ID
+                },
+                headers: { 'X-CSRFToken': getCookie('csrftoken') },
+                beforeSend: function () {
+                    panel.find('.btn-resolver-revision-calidad').prop('disabled', true);
+                    boton.html('<i class=\'fas fa-spinner fa-spin mr-1\'></i>Procesando...');
+                },
+                success: function (response) {
+                    Swal.fire({
+                        icon: 'success',
+                        title: decision === 'APROBADO' ? 'Calidad aprobada' : 'Rechazo confirmado',
+                        text: response.message
+                    }).then(function () {
+                        location.reload();
+                    });
+                },
+                error: function (xhr) {
+                    const response = xhr.responseJSON || {};
+                    panel.find('.btn-resolver-revision-calidad').prop('disabled', false);
+                    boton.html(textoOriginal);
+                    Swal.fire({
+                        icon: 'error',
+                        title: 'No fue posible resolver la revision',
+                        text: response.message || ('Error HTTP ' + xhr.status + '.')
+                    });
+                }
+            });
+        });
     });
 
     function registrarResultadoCalidadOperacion(boton) {

@@ -480,6 +480,15 @@
         width: 100% !important;
     }
 
+    #ModalCrearDespacho .select2-results__option[aria-disabled="true"] {
+        cursor: not-allowed;
+    }
+
+    #ModalCrearDespacho .sap-acuerdo-resultado--bloqueado {
+        color: #6c757d;
+        opacity: 0.72;
+    }
+
     #ModalCrearCitacion .select2-selection--single {
         min-height: 44px;
         border: 1px solid #ced4da;
@@ -1122,6 +1131,9 @@
                     <small class="modal-subtitle">
                         Complete los datos base de planificación. No corresponde ingresar guía ni patente en esta etapa.
                     </small>
+                        {% if es_ingreso_mercaderia_sbh %}
+                        <span class="d-block">Para Contenedor a Piso 2 se solicitará la guía de la Citación 1.</span>
+                        {% endif %}
                 </div>
 
                 <button type="button" class="close" data-dismiss="modal" aria-label="Cerrar">
@@ -1236,7 +1248,14 @@
                         <div class="col-lg-6 col-md-8">
                             <div class="form-group">
                                 <label class="required-label">Flujo operacional</label>
+                                {% if es_ingreso_mercaderia_sbh %}
+                                <select class="form-control" id="flujo_operacional_visual" required>
+                                    <option value="">Seleccione flujo operacional</option>
+                                </select>
+                                <select class="d-none" id="secuencia_id" name="secuencia_id" aria-hidden="true" tabindex="-1">
+                                {% else %}
                                 <select class="form-control" id="secuencia_id" name="secuencia_id" required>
+                                {% endif %}
                                     <option value="">Seleccione secuencia</option>
                                     {% for secuencia in secuencias %}
                                         <option value="{{ secuencia.id }}" data-tipo="{{ secuencia.SE_CTIPO }}">
@@ -1248,6 +1267,32 @@
                             </div>
                         </div>
                     </div>
+                    {% if es_ingreso_mercaderia_sbh %}
+                    <div class="row d-none" id="prosesa_modalidad_bloque">
+                        <div class="col-lg-6 col-md-8">
+                            <div class="form-group">
+                                <label class="required-label" for="modalidad_prosesa">Modalidad Prosesa</label>
+                                <select class="form-control" id="modalidad_prosesa">
+                                    <option value="">Seleccione modalidad</option>
+                                </select>
+                                <small class="form-help-text">Seleccione el tipo de operaci&oacute;n Prosesa que desea ejecutar.</small>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="row d-none" id="prosesa_piso2_busqueda">
+                        <div class="col-lg-6 col-md-8">
+                            <div class="form-group">
+                                <label class="required-label" for="guia_origen_prosesa">Número de guía de Contenedor a Piso 1</label>
+                                <input type="text" class="form-control" id="guia_origen_prosesa" autocomplete="off">
+                                <small class="form-help-text">
+                                    Se buscará una única Citación 1 pendiente; producto, proveedor y destino se heredarán desde ella.
+                                </small>
+                            </div>
+                        </div>
+                        <div class="col-12"><div class="alert alert-info py-2">La patente, conductor y pesajes pertenecerán al nuevo camión y se registrarán durante su propio ciclo.</div></div>
+                    </div>
+                    {% endif %}
+
 
                     <div class="form-section-title">Datos desde SAP / programación sincronizada</div>
 
@@ -1446,7 +1491,11 @@
                                         required>
                                     <option value="">Seleccione</option>
                                     <option value="NACIONAL">Nacional</option>
+                                    {% if es_ingreso_mercaderia_sbh %}
+                                    <option value="IMPORTACION">Importaci&oacute;n</option>
+                                    {% else %}
                                     <option value="EXTRANJERO">Extranjero</option>
+                                    {% endif %}
                                 </select>
                             </div>
                         </div>
@@ -1677,8 +1726,19 @@
 
                         <div class="col-lg-4 col-md-6">
                             <div class="form-group">
+                                {% if empresa_id == 2 and tipo_planificacion == 'DESPACHO' %}
+                                <label class="required-label">Direcci&oacute;n de despacho SAP</label>
+                                <select class="form-control" id="despacho_direccion_sap" name="direccion_despacho_sap_codigo" required disabled>
+                                    <option value="">Seleccione primero un acuerdo SAP</option>
+                                </select>
+                                <input type="hidden" id="despacho_destino" name="destino">
+                                <small class="form-help-text" id="despacho_direccion_sap_ayuda">
+                                    La direcci&oacute;n determina las rutas y tarifas disponibles desde Coronel.
+                                </small>
+                                {% else %}
                                 <label class="required-label">Destino</label>
                                 <input type="text" class="form-control" id="despacho_destino" name="destino" placeholder="Planta destino - Ubicaci&oacute;n" required>
+                                {% endif %}
                             </div>
                         </div>
 
@@ -1871,10 +1931,13 @@
                         <label class="required-label">Condici&oacute;n de entrega</label>
                         <select class="form-control" id="borrador_sbh_condicion"><option value="Terramar">Terramar</option><option value="Cliente">Cliente</option></select>
                     </div></div>
-                    <div class="col-md-6"><div class="form-group">
-                        <label id="borrador_sbh_empresa_label">Empresa Transporte</label>
+                    <div class="col-md-12"><div class="form-group">
+                        <label id="borrador_sbh_empresa_label">Transporte / Ruta / Tarifa</label>
                         <select class="form-control" id="borrador_sbh_empresa_transporte"></select>
                         <input type="hidden" id="borrador_sbh_empresa_transporte_id">
+                        <input type="hidden" id="borrador_sbh_ruta_id">
+                        <input type="hidden" id="borrador_sbh_tarifa_id">
+                        <input type="hidden" id="borrador_sbh_tarifa_valor">
                         <input type="text" class="form-control d-none" id="borrador_sbh_empresa_transporte_manual" placeholder="Empresa Transporte (opcional)">
                     </div></div>
                     <div class="col-md-6"><div class="form-group">
@@ -1947,6 +2010,13 @@
     const ES_RECEPCION_TERRAMAR = {% if es_recepcion_terramar %}true{% else %}false{% endif %};
     const ES_RECEPCION_SBH = {% if es_recepcion_sbh %}true{% else %}false{% endif %};
     const ES_INGRESO_MERCADERIA_SBH = {% if es_ingreso_mercaderia_sbh %}true{% else %}false{% endif %};
+    const CODIGO_PROSESA_PISO_1 = 'RECEPCION_PROSESA_PISO_1';
+    const CODIGO_PROSESA_PISO_2 = 'RECEPCION_PROSESA_PISO_2';
+    const CODIGO_PROSESA_DESCARGA_CAMION = 'RECEPCION_BODEGA_EXTERNA';
+    const CODIGOS_MODALIDAD_PROSESA = [
+        CODIGO_PROSESA_DESCARGA_CAMION, CODIGO_PROSESA_PISO_1, CODIGO_PROSESA_PISO_2
+    ];
+    const CODIGOS_SECUENCIA_RECEPCION = {{ secuencias_json|default:"{}"|safe }};
     const ESTANQUES_RECEPCION_SBH = {{ estanques_por_almacen_json|default:"{}"|safe }};
     const ES_RECEPCION_TRANSFERENCIA_SBH = {% if es_recepcion_transferencia_sbh %}true{% else %}false{% endif %};
     const ESTANQUES_ORIGEN_TRANSFERENCIA = [{% for estanque in estanques_recepcion_transferencia_sbh %}'{{ estanque|escapejs }}'{% if not forloop.last %}, {% endif %}{% endfor %}];
@@ -1969,6 +2039,9 @@
     let vistasPreviasSapDespacho = {};
     let stockFisicoSapPorAsignacion = {};
     let stockFisicoSapCache = {};
+    let direccionesDespachoSbh = [];
+    let alternativasTransporteSbh = [];
+    let clienteDireccionesDespachoSbh = '';
     let contadorAsignacionesSap = 1;
     let camionesPlanificadosDespachoSbh = [];
     let firmaCalculoCamionesDespachoSbh = '';
@@ -1999,6 +2072,131 @@
         estanques.forEach(function (codigo) {
             estanque.append(new Option(codigo, codigo));
         });
+    }
+
+
+    function codigoSecuenciaRecepcionSeleccionada() {
+        return String(CODIGOS_SECUENCIA_RECEPCION[$('#secuencia_id').val()] || '').toUpperCase();
+    }
+
+    function esProsesaPiso2Seleccionado() {
+        return ES_INGRESO_MERCADERIA_SBH
+            && codigoSecuenciaRecepcionSeleccionada() === CODIGO_PROSESA_PISO_2;
+    }
+
+    function etiquetaFlujoRecepcionProsesa(opcion) {
+        let texto = String($(opcion).text() || '').trim();
+        texto = texto.replace(/^RECEPCI(?:\u00d3|O)N\s*-\s*/i, '').trim();
+        return 'Recepci\u00f3n - ' + texto;
+    }
+
+    function sincronizarSecuenciaDesdeSelectorVisual() {
+        if (!ES_INGRESO_MERCADERIA_SBH) return;
+
+        const selectorPrincipal = $('#flujo_operacional_visual');
+        const selectorModalidad = $('#modalidad_prosesa');
+        const esProsesa = selectorPrincipal.val() === 'PROSESA';
+        $('#prosesa_modalidad_bloque').toggleClass('d-none', !esProsesa);
+        selectorModalidad.prop('required', esProsesa);
+
+        if (!esProsesa) {
+            selectorModalidad.val('').trigger('change.select2');
+        }
+
+        const secuenciaId = esProsesa ? selectorModalidad.val() : selectorPrincipal.val();
+        $('#secuencia_id').val(secuenciaId || '').trigger('change');
+    }
+
+    function inicializarSelectoresVisualesProsesa() {
+        if (!ES_INGRESO_MERCADERIA_SBH) return;
+
+        const selectorPrincipal = $('#flujo_operacional_visual');
+        const selectorModalidad = $('#modalidad_prosesa');
+        const secuenciaReal = $('#secuencia_id');
+        if (!selectorPrincipal.length || !selectorModalidad.length || !secuenciaReal.length) return;
+
+        const secuenciaSeleccionada = String(secuenciaReal.val() || '');
+        const codigoSeleccionado = String(CODIGOS_SECUENCIA_RECEPCION[secuenciaSeleccionada] || '').toUpperCase();
+        const tipoSeleccionado = String($('#tipo').val() || '').toUpperCase();
+        const etiquetasModalidad = {};
+        etiquetasModalidad[CODIGO_PROSESA_DESCARGA_CAMION] = 'Descarga sobre cami\u00f3n';
+        etiquetasModalidad[CODIGO_PROSESA_PISO_1] = 'Contenedor a Piso 1';
+        etiquetasModalidad[CODIGO_PROSESA_PISO_2] = 'Contenedor a Piso 2';
+
+        selectorPrincipal.empty().append(new Option('Seleccione flujo operacional', ''));
+        selectorModalidad.empty().append(new Option('Seleccione modalidad', ''));
+
+        opcionesSecuenciaOriginales.each(function () {
+            const opcion = $(this);
+            const tipoOpcion = String(opcion.data('tipo') || '').toUpperCase();
+            const codigo = String(CODIGOS_SECUENCIA_RECEPCION[opcion.val()] || '').toUpperCase();
+            if ((tipoSeleccionado && tipoOpcion !== tipoSeleccionado) || CODIGOS_MODALIDAD_PROSESA.includes(codigo)) {
+                return;
+            }
+            selectorPrincipal.append(new Option(etiquetaFlujoRecepcionProsesa(this), opcion.val()));
+        });
+
+        CODIGOS_MODALIDAD_PROSESA.forEach(function (codigo) {
+            const opcion = opcionesSecuenciaOriginales.filter(function () {
+                return String(CODIGOS_SECUENCIA_RECEPCION[$(this).val()] || '').toUpperCase() === codigo;
+            }).first();
+            if (opcion.length) {
+                selectorModalidad.append(new Option(etiquetasModalidad[codigo], opcion.val()));
+            }
+        });
+
+        if (selectorModalidad.find('option').length > 1) {
+            selectorPrincipal.append(new Option('Recepci\u00f3n - Prosesa', 'PROSESA'));
+        }
+
+        if (CODIGOS_MODALIDAD_PROSESA.includes(codigoSeleccionado)) {
+            selectorPrincipal.val('PROSESA');
+            selectorModalidad.val(secuenciaSeleccionada);
+        } else {
+            selectorPrincipal.val(secuenciaSeleccionada);
+            selectorModalidad.val('');
+        }
+
+        [selectorPrincipal, selectorModalidad].forEach(function (selector) {
+            if (selector.hasClass('select2-hidden-accessible')) selector.select2('destroy');
+            selector.select2({
+                placeholder: 'Seleccione',
+                allowClear: true,
+                width: '100%',
+                dropdownParent: $('#ModalCrearCitacion')
+            });
+        });
+
+        selectorPrincipal.off('change.prosesaVisual').on('change.prosesaVisual', sincronizarSecuenciaDesdeSelectorVisual);
+        selectorModalidad.off('change.prosesaVisual').on('change.prosesaVisual', sincronizarSecuenciaDesdeSelectorVisual);
+        sincronizarSecuenciaDesdeSelectorVisual();
+    }
+
+    function actualizarModoProsesa() {
+        const piso2 = esProsesaPiso2Seleccionado();
+        $('#prosesa_piso2_busqueda').toggleClass('d-none', !piso2);
+        $('#guia_origen_prosesa').prop('required', piso2);
+
+        const controlesHeredados = [
+            'cliente', 'inf_24hrs', 'tipo_carga', 'codigo', 'insumo', 'pedido',
+            'proveedor', 'tipo_origen_recepcion', 'contenedor', 'bl', 'guia',
+            'fecha_produccion', 'fecha_vencimiento', 'cda', 'di', 'sui',
+            'nave_naviera', 'booking', 'recepcion_sbh_almacen_destino',
+            'recepcion_sbh_estanque_destino', 'estanque_destino', 'observacion'
+        ];
+        controlesHeredados.forEach(function (id) {
+            const control = $('#' + id);
+            if (!control.length) return;
+            if (piso2 && !control.prop('disabled')) {
+                control.attr('data-prosesa-piso2-disabled', '1').prop('disabled', true);
+            } else if (!piso2 && control.attr('data-prosesa-piso2-disabled') === '1') {
+                control.removeAttr('data-prosesa-piso2-disabled').prop('disabled', false);
+            }
+        });
+
+        const cantidad = $('#cantidad_repetir');
+        if (piso2) cantidad.val(1).prop('readonly', true);
+        else cantidad.prop('readonly', false);
     }
 
     document.addEventListener('DOMContentLoaded', function () {
@@ -2146,12 +2344,18 @@
         }
 
         if ($('#secuencia_id').length) {
-            $('#secuencia_id').select2({
-                placeholder: 'Buscar secuencia...',
-                allowClear: true,
-                width: '100%',
-                dropdownParent: $('#ModalCrearCitacion')
-            });
+            if (ES_INGRESO_MERCADERIA_SBH) {
+                inicializarSelectoresVisualesProsesa();
+            } else {
+                $('#secuencia_id').select2({
+                    placeholder: 'Buscar secuencia...',
+                    allowClear: true,
+                    width: '100%',
+                    dropdownParent: $('#ModalCrearCitacion')
+                });
+            }
+            $('#secuencia_id').on('change', actualizarModoProsesa);
+            actualizarModoProsesa();
         }
 
         const despachoSelects = [
@@ -2185,6 +2389,9 @@
             $('#despacho_transportado_por, #despacho_empresa_transporte, #despacho_conductor, #despacho_patente').prop('required', false);
             inicializarEditorTransporteBorradorSbh();
             $('#despacho_formato').on('change', recalcularResumenDespachoSbh);
+            $('#despacho_direccion_sap').on('change', function () {
+                cargarAlternativasTransporteSbh($(this).val() || '');
+            });
 
             recalcularResumenDespachoSbh();
         }
@@ -3341,6 +3548,7 @@
 
             selectSecuencia.prop('disabled', true);
             selectSecuencia.trigger('change');
+            inicializarSelectoresVisualesProsesa();
             return;
         }
 
@@ -3377,6 +3585,7 @@
 
         selectSecuencia.val('');
         selectSecuencia.trigger('change');
+        inicializarSelectoresVisualesProsesa();
     }
 
     function pedidoTexto(item) {
@@ -3773,12 +3982,29 @@
         return planificada - consumida;
     }
 
+    function renderResultadoSapDespacho(resultado) {
+        if (!resultado.id) return resultado.text;
+        const item = resultado.sap || {};
+        const opcion = $('<span class="sap-acuerdo-resultado"></span>').text(resultado.text || '');
+        if (ES_DESPACHO_SBH_ETAPA0 && item.selectable === false) {
+            opcion
+                .addClass('sap-acuerdo-resultado--bloqueado')
+                .attr(
+                    'title',
+                    item.selection_block_reason
+                        || 'Este acuerdo no posee una OC asociada y no puede utilizarse para planificar.'
+                );
+        }
+        return opcion;
+    }
+
     function configuracionSelectSapDespacho() {
         return {
             placeholder: 'Buscar acuerdo SAP QA...',
             allowClear: true,
             width: '100%',
             dropdownParent: $('#ModalCrearDespacho'),
+            templateResult: renderResultadoSapDespacho,
             minimumInputLength: 2,
             ajax: {
                 url: '/api/sap/despacho-acuerdos/',
@@ -3803,7 +4029,8 @@
                             return {
                                 id: String(item.sap_abs_id || '') + '__' + String(item.linea_acuerdo || index),
                                 text: texto,
-                                sap: item
+                                sap: item,
+                                disabled: ES_DESPACHO_SBH_ETAPA0 && item.selectable === false
                             };
                         })
                     };
@@ -3892,6 +4119,21 @@
     }
 
     function seleccionarAsignacionSap(asignacionId, item) {
+        const ocCliente = String(item.oc_cliente || '').trim();
+        if (ES_DESPACHO_SBH_ETAPA0 && (item.selectable === false || !ocCliente)) {
+            const bloqueSinOc = $('.despacho-asignacion-sap[data-asignacion-id="' + asignacionId + '"]');
+            delete vistasPreviasSapDespacho[asignacionId];
+            delete stockFisicoSapPorAsignacion[asignacionId];
+            bloqueSinOc.find('.js-despacho-sap-busqueda').val(null).trigger('change');
+            actualizarDetalleVisualAsignacionSap(asignacionId);
+            swalFront({
+                title: 'Acuerdo sin OC',
+                text: item.selection_block_reason
+                    || 'Este acuerdo no posee una OC asociada y no puede utilizarse para planificar.',
+                icon: 'info'
+            });
+            return;
+        }
         const sapAbsId = numeroSapDespacho(item.sap_abs_id);
         const lineaAcuerdo = numeroSapDespacho(item.linea_acuerdo);
         const clienteCodigo = numeroSapDespacho(item.cliente_codigo);
@@ -3933,7 +4175,7 @@
             nombre_producto_sap: item.nombre_insumo || '',
             cliente_codigo: clienteCodigo,
             cliente_nombre: item.cliente_nombre || '',
-            oc_cliente: item.oc_cliente || '',
+            oc_cliente: ocCliente,
             cantidad_planificada_sap: numeroSapDespacho(item.cantidad_planificada),
             cantidad_consumida_sap: numeroSapDespacho(item.cantidad_consumida),
             saldo_contrato_sap: saldoContrato !== null ? numeroSapDespacho(saldoContrato) : '',
@@ -3950,6 +4192,7 @@
         if (!asignacionesSapPlanificadas.length) {
             setDespachoSelectOption('#despacho_cliente', clienteCodigo, vistaPrevia.cliente_nombre || clienteCodigo);
         }
+        cargarDireccionesDespachoSbh(clienteCodigo);
         evaluarAdvertenciaSaldoDespacho();
     }
 
@@ -4221,6 +4464,19 @@
         stockFisicoSapPorAsignacion = {};
         stockFisicoSapCache = {};
         despachoSapSeleccionado = null;
+        if (ES_DESPACHO_SBH_ETAPA0 && !citacionesTemporales.some(function (item) { return item.despacho_sbh_etapa0; })) {
+            direccionesDespachoSbh = [];
+            alternativasTransporteSbh = [];
+            clienteDireccionesDespachoSbh = '';
+            $('#despacho_direccion_sap')
+                .empty()
+                .append(new Option('Seleccione primero un acuerdo SAP', ''))
+                .prop('disabled', true);
+            setValue('despacho_destino', '');
+            $('#despacho_direccion_sap_ayuda').text(
+                'La dirección determina las rutas y tarifas disponibles desde Coronel.'
+            );
+        }
         contadorAsignacionesSap = 1;
         $('#despacho_asignaciones_sap .despacho-asignacion-sap').not('[data-asignacion-id="1"]').each(function () {
             const select = $(this).find('.js-despacho-sap-busqueda');
@@ -4241,6 +4497,12 @@
         if (isNaN(cantidad) || cantidad < 1) {
             cantidad = 1;
         }
+        const codigoSecuencia = codigoSecuenciaRecepcionSeleccionada();
+        if ([CODIGO_PROSESA_PISO_1, CODIGO_PROSESA_PISO_2].includes(codigoSecuencia)) {
+            cantidad = 1;
+            $('#cantidad_repetir').val(1);
+        }
+
 
         if (cantidad > 50) {
             swalFront({
@@ -4287,6 +4549,7 @@
                 contenedor: ES_RECEPCION_SBH ? getValue('contenedor') : '',
                 bl: getValue('bl'),
                 guia: ES_RECEPCION_SBH ? getValue('guia') : '',
+                guia_origen_prosesa: esProsesaPiso2Seleccionado() ? getValue('guia_origen_prosesa').trim() : '',
                 fecha_produccion: ES_RECEPCION_SBH ? getValue('fecha_produccion') : '',
                 fecha_vencimiento: ES_RECEPCION_SBH ? getValue('fecha_vencimiento') : '',
                 cda: ES_RECEPCION_SBH ? getValue('cda') : '',
@@ -4382,6 +4645,146 @@
         sincronizarCamionesPlanificadosSbh(estado.total, capacidad, cantidadAutomatica);
     }
 
+    function formatearValorTarifaSbh(valor, moneda) {
+        const numero = Number(valor);
+        const monto = Number.isFinite(numero)
+            ? numero.toLocaleString('es-CL', { minimumFractionDigits: 0, maximumFractionDigits: 5 })
+            : String(valor || '');
+        return String(moneda || '').toUpperCase() === 'CLP'
+            ? '$' + monto + ' CLP'
+            : monto + ' ' + String(moneda || '');
+    }
+
+    function textoAlternativaTransporteSbh(alternativa) {
+        if (!alternativa) return '';
+        return String(alternativa.transportista_nombre || '') + ' | ' +
+            String(alternativa.origen || '') + ' → ' + String(alternativa.destino || '') + ' | ' +
+            formatearValorTarifaSbh(alternativa.tarifa_valor, alternativa.tarifa_moneda) +
+            ' | ' + String(alternativa.ruta_nombre || '');
+    }
+
+    function buscarAlternativaTransporteSbh(tarifaId) {
+        tarifaId = String(tarifaId || '');
+        return alternativasTransporteSbh.find(function (alternativa) {
+            return String(alternativa.tarifa_id) === tarifaId;
+        }) || null;
+    }
+
+    function limpiarAlternativaTransporteCamionSbh(camion) {
+        camion.empresa_transporte = '';
+        camion.empresa_transporte_id = '';
+        camion.ruta_id = '';
+        camion.tarifa_id = '';
+        camion.valor_tarifa = '';
+        camion.tarifa_moneda = '';
+        camion.alternativa_transporte_texto = '';
+    }
+
+    function aplicarAlternativaTransporteCamionSbh(camion, tarifaId) {
+        const alternativa = buscarAlternativaTransporteSbh(tarifaId);
+        if (!alternativa) {
+            limpiarAlternativaTransporteCamionSbh(camion);
+            return false;
+        }
+        camion.empresa_transporte = alternativa.transportista_nombre || '';
+        camion.empresa_transporte_id = String(alternativa.transportista_id || '');
+        camion.ruta_id = String(alternativa.ruta_id || '');
+        camion.tarifa_id = String(alternativa.tarifa_id || '');
+        camion.valor_tarifa = String(alternativa.tarifa_valor || '');
+        camion.tarifa_moneda = alternativa.tarifa_moneda || '';
+        camion.alternativa_transporte_texto = textoAlternativaTransporteSbh(alternativa);
+        return true;
+    }
+
+    function poblarAlternativasTransporteSbh(control, tarifaSeleccionada) {
+        control.empty().append(new Option('', '', false, false));
+        alternativasTransporteSbh.forEach(function (alternativa) {
+            const seleccionada = String(alternativa.tarifa_id) === String(tarifaSeleccionada || '');
+            control.append(new Option(
+                textoAlternativaTransporteSbh(alternativa),
+                String(alternativa.tarifa_id),
+                seleccionada,
+                seleccionada
+            ));
+        });
+    }
+
+    function cargarDireccionesDespachoSbh(clienteCodigo) {
+        if (!ES_DESPACHO_SBH_ETAPA0) return;
+        clienteCodigo = String(clienteCodigo || '').trim();
+        if (!clienteCodigo || clienteCodigo === clienteDireccionesDespachoSbh && direccionesDespachoSbh.length) return;
+        clienteDireccionesDespachoSbh = clienteCodigo;
+        direccionesDespachoSbh = [];
+        alternativasTransporteSbh = [];
+        const select = $('#despacho_direccion_sap');
+        select.prop('disabled', true).empty().append(new Option('Consultando direcciones SAP...', ''));
+        setValue('despacho_destino', '');
+        $.ajax({
+            url: '{% url "api_despacho_sbh_direcciones" %}',
+            type: 'GET',
+            data: { cliente_codigo: clienteCodigo, _empresa_id: getValue('empresa_id') },
+            success: function (response) {
+                direccionesDespachoSbh = response && response.success ? (response.direcciones || []) : [];
+                select.empty().append(new Option('Seleccione dirección de despacho', ''));
+                direccionesDespachoSbh.forEach(function (direccion) {
+                    select.append(new Option(direccion.text, direccion.direccion_codigo));
+                });
+                select.prop('disabled', false).val('');
+                $('#despacho_direccion_sap_ayuda').text(
+                    direccionesDespachoSbh.length
+                        ? 'Seleccione una dirección; no se asignará automáticamente ninguna tarifa.'
+                        : 'El cliente no tiene direcciones de despacho SAP disponibles.'
+                );
+            },
+            error: function (xhr) {
+                select.empty().append(new Option('No fue posible consultar direcciones SAP', '')).prop('disabled', true);
+                $('#despacho_direccion_sap_ayuda').text(
+                    (xhr.responseJSON && xhr.responseJSON.message) || 'No fue posible consultar direcciones SAP.'
+                );
+            }
+        });
+    }
+
+    function cargarAlternativasTransporteSbh(direccionCodigo) {
+        if (!ES_DESPACHO_SBH_ETAPA0) return;
+        direccionCodigo = String(direccionCodigo || '').trim();
+        setValue('despacho_destino', direccionCodigo);
+        alternativasTransporteSbh = [];
+        camionesPlanificadosDespachoSbh.forEach(function (camion) {
+            if (camion.condicion_entrega === 'Terramar') limpiarAlternativaTransporteCamionSbh(camion);
+        });
+        if (!direccionCodigo) {
+            if (camionesPlanificadosDespachoSbh.length) recalcularResumenDespachoSbh();
+            return;
+        }
+        $.ajax({
+            url: '{% url "api_despacho_sbh_alternativas_transporte" %}',
+            type: 'GET',
+            data: {
+                cliente_codigo: clienteDireccionesDespachoSbh,
+                direccion_codigo: direccionCodigo,
+                _empresa_id: getValue('empresa_id')
+            },
+            success: function (response) {
+                alternativasTransporteSbh = response && response.success ? (response.alternativas || []) : [];
+                if (camionesPlanificadosDespachoSbh.length) {
+                    renderizarCamionesPlanificadosSbh(estadoTotalDespachoSbh().total, capacidadDespachoSbh());
+                }
+                $('#despacho_direccion_sap_ayuda').text(
+                    alternativasTransporteSbh.length
+                        ? alternativasTransporteSbh.length + ' alternativa(s) disponible(s), ordenadas por moneda y tarifa.'
+                        : (response.message || 'No existen tarifas habilitadas para esta dirección.')
+                );
+            },
+            error: function (xhr) {
+                $('#despacho_direccion_sap_ayuda').text(
+                    (xhr.responseJSON && xhr.responseJSON.message) || 'No fue posible resolver rutas y tarifas.'
+                );
+                if (camionesPlanificadosDespachoSbh.length) recalcularResumenDespachoSbh();
+            }
+        });
+    }
+
     function configuracionInicialCamionSbh() {
         const condicion = condicionEntregaDespacho();
         const manual = condicion === 'Cliente';
@@ -4389,9 +4792,14 @@
             condicion_entrega: condicion,
             transportado_por: condicion,
             inf_24hrs: condicion,
-            empresa_transporte: empresaTransporteDespachoValor(),
+            empresa_transporte: '',
             empresa_transporte_manual: manual ? empresaTransporteDespachoValor() : '',
-            empresa_transporte_id: manual ? '' : getValue('despacho_empresa_transporte_id'),
+            empresa_transporte_id: '',
+            ruta_id: '',
+            tarifa_id: '',
+            valor_tarifa: '',
+            tarifa_moneda: '',
+            alternativa_transporte_texto: '',
             conductor: conductorDespachoValor(),
             conductor_manual: manual ? conductorDespachoValor() : '',
             conductor_id: manual ? '' : getValue('despacho_conductor_id'),
@@ -4447,9 +4855,9 @@
                     </div>
                     <div class="row">
                         <div class="col-lg-3 col-md-6"><div class="form-group"><label class="required-label">Condici&oacute;n de entrega</label><select class="form-control js-camion-condicion"><option value="">Seleccione</option><option value="Terramar">Terramar</option><option value="Cliente">Cliente</option></select></div></div>
-                        <div class="col-lg-3 col-md-6"><div class="form-group"><label class="js-camion-empresa-label">Empresa Transporte</label><select class="form-control js-camion-empresa"></select><input class="form-control d-none js-camion-empresa-manual" placeholder="Empresa Transporte (opcional)"><input type="hidden" class="js-camion-empresa-id"></div></div>
-                        <div class="col-lg-3 col-md-6"><div class="form-group"><label>Conductor</label><select class="form-control js-camion-conductor"></select><input class="form-control d-none js-camion-conductor-manual" placeholder="Conductor (opcional)"><input type="hidden" class="js-camion-conductor-id"></div></div>
-                        <div class="col-lg-3 col-md-6"><div class="form-group"><label>Patente</label><input class="form-control text-uppercase js-camion-patente" placeholder="Opcional en planificaci&oacute;n"></div></div>
+                        <div class="col-lg-9 col-md-6"><div class="form-group"><label class="js-camion-empresa-label">Transporte / Ruta / Tarifa</label><select class="form-control js-camion-empresa"></select><input class="form-control d-none js-camion-empresa-manual" placeholder="Empresa Transporte (opcional)"><input type="hidden" class="js-camion-empresa-id"><input type="hidden" class="js-camion-ruta-id"><input type="hidden" class="js-camion-tarifa-id"><input type="hidden" class="js-camion-tarifa-valor"></div></div>
+                        <div class="col-lg-6 col-md-6"><div class="form-group"><label>Conductor</label><select class="form-control js-camion-conductor"></select><input class="form-control d-none js-camion-conductor-manual" placeholder="Conductor (opcional)"><input type="hidden" class="js-camion-conductor-id"></div></div>
+                        <div class="col-lg-6 col-md-6"><div class="form-group"><label>Patente</label><input class="form-control text-uppercase js-camion-patente" placeholder="Opcional en planificaci&oacute;n"></div></div>
                     </div>
                 </div>`);
             const bloque = contenedor.children().last();
@@ -4458,7 +4866,7 @@
                 camion.transportado_por = this.value;
                 camion.inf_24hrs = this.value;
                 if (this.value === 'Cliente') {
-                    camion.empresa_transporte_id = '';
+                    limpiarAlternativaTransporteCamionSbh(camion);
                     camion.conductor_id = '';
                     camion.ingreso_manual_transporte = true;
                 } else {
@@ -4470,13 +4878,19 @@
             bloque.find('.js-camion-conductor-manual').val(camion.conductor || '').on('input', function () { camion.conductor = normalizarTextoDespachoManual(this.value); camion.conductor_manual = camion.conductor; });
             bloque.find('.js-camion-patente').val(camion.patente || '').on('input blur', function () { this.value = normalizarTextoDespachoManual(this.value).toUpperCase(); camion.patente = this.value; });
             const empresa = bloque.find('.js-camion-empresa');
-            empresa.select2({ placeholder: 'Seleccione empresa transporte', allowClear: true, width: '100%', dropdownParent: $('#ModalCrearDespacho'),
-                ajax: { url: '{% url "ajax_transportistas_ingreso_camion" %}', dataType: 'json', delay: 250,
-                    data: function (params) { return { q: params.term || '', empresa_id: getValue('empresa_id'), estricto_empresa: '1' }; },
-                    processResults: function (data) { return { results: data.results || [] }; } }
-            }).on('select2:select', function (event) { const data = event.params.data || {}; camion.empresa_transporte = data.id || ''; camion.empresa_transporte_id = data.socionegocio_id || ''; }).on('select2:clear', function () { camion.empresa_transporte = ''; camion.empresa_transporte_id = ''; });
-            if (camion.empresa_transporte) empresa.append(new Option(camion.empresa_transporte, camion.empresa_transporte, true, true)).trigger('change.select2');
+            poblarAlternativasTransporteSbh(empresa, camion.tarifa_id);
+            empresa.select2({ placeholder: 'Seleccione Transporte / Ruta / Tarifa', allowClear: true, width: '100%', dropdownParent: $('#ModalCrearDespacho')
+            }).on('select2:select', function (event) {
+                aplicarAlternativaTransporteCamionSbh(camion, (event.params.data || {}).id);
+                bloque.find('.js-camion-empresa-id').val(camion.empresa_transporte_id || '');
+                bloque.find('.js-camion-ruta-id').val(camion.ruta_id || '');
+                bloque.find('.js-camion-tarifa-id').val(camion.tarifa_id || '');
+                bloque.find('.js-camion-tarifa-valor').val(camion.valor_tarifa || '');
+            }).on('select2:clear', function () { limpiarAlternativaTransporteCamionSbh(camion); });
             bloque.find('.js-camion-empresa-id').val(camion.empresa_transporte_id || '');
+            bloque.find('.js-camion-ruta-id').val(camion.ruta_id || '');
+            bloque.find('.js-camion-tarifa-id').val(camion.tarifa_id || '');
+            bloque.find('.js-camion-tarifa-valor').val(camion.valor_tarifa || '');
             const conductor = bloque.find('.js-camion-conductor');
             conductor.select2({ placeholder: 'Seleccione conductor (opcional)', allowClear: true, width: '100%', dropdownParent: $('#ModalCrearDespacho'),
                 ajax: { url: '{% url "ajax_conductores_ingreso_camion" %}', dataType: 'json', delay: 250,
@@ -4529,8 +4943,8 @@
                 swalFront({ title: 'Atenci\u00f3n', text: 'Debe definir la Condici\u00f3n de entrega del cami\u00f3n ' + (index + 1) + '.', icon: 'warning' });
                 return false;
             }
-            if (camion.condicion_entrega === 'Terramar' && (!camion.empresa_transporte || !camion.empresa_transporte_id)) {
-                swalFront({ title: 'Atenci\u00f3n', text: 'Debe seleccionar una Empresa Transporte v\u00e1lida para el cami\u00f3n ' + (index + 1) + '.', icon: 'warning' });
+            if (camion.condicion_entrega === 'Terramar' && (!camion.empresa_transporte_id || !camion.ruta_id || !camion.tarifa_id)) {
+                swalFront({ title: 'Atenci\u00f3n', text: 'Debe seleccionar una alternativa de Transporte / Ruta / Tarifa para el cami\u00f3n ' + (index + 1) + '.', icon: 'warning' });
                 return false;
             }
         }
@@ -4672,6 +5086,9 @@
             inf_24hrs: item.inf_24hrs || '', condicion_entrega: item.condicion_entrega || '',
             transportado_por: item.transportado_por || '', empresa_transporte: item.empresa_transporte || '',
             empresa_transporte_manual: item.empresa_transporte_manual || '', empresa_transporte_id: item.empresa_transporte_id || '',
+            ruta_id: item.ruta_id || '', tarifa_id: item.tarifa_id || '', valor_tarifa: item.valor_tarifa || '',
+            tarifa_moneda: item.tarifa_moneda || '',
+            alternativa_transporte_texto: item.alternativa_transporte_texto || '',
             conductor: item.conductor || '', conductor_manual: item.conductor_manual || '', conductor_id: item.conductor_id || '',
             patente: item.patente || '', ingreso_manual_transporte: Boolean(item.ingreso_manual_transporte)
         };
@@ -4739,6 +5156,9 @@
             cliente: clienteSelect.val() || '',
             cliente_nombre: clienteSelect.find('option:selected').text().trim(),
             cliente_codigo: clienteSelect.val() || '',
+            direccion_despacho_sap_codigo: ES_DESPACHO_SBH_ETAPA0 ? ($('#despacho_direccion_sap').val() || '') : '',
+            direccion_despacho_sap_texto: ES_DESPACHO_SBH_ETAPA0 ? $('#despacho_direccion_sap option:selected').text().trim() : '',
+            destino: getValue('despacho_destino'),
 
             inf_24hrs: getValue('despacho_transportado_por'),
             fecha_llegada: getValue('despacho_fecha'),
@@ -4882,7 +5302,7 @@
             <td>${toneladasNaturalesSbh(item.cantidad_estimada)} t</td>
             <td>${escapeHtml(item.tipo_carga_texto)}</td>
             <td>${escapeHtml(item.condicion_entrega || item.transportado_por)}</td>
-            <td>${escapeHtml(item.empresa_transporte || '-')}</td>
+            <td>${escapeHtml(item.alternativa_transporte_texto || item.empresa_transporte || '-')}</td>
             <td>${escapeHtml(item.conductor || '-')}</td>
             <td>${escapeHtml(item.patente || '-')}</td>
         `;
@@ -4906,15 +5326,18 @@
         if (!ES_DESPACHO_SBH_ETAPA0 || !$.fn.select2) return;
         $('#borrador_sbh_condicion').on('change', actualizarModoEditorTransporteBorradorSbh);
         $('#borrador_sbh_patente').on('input blur', function () { this.value = normalizarTextoDespachoManual(this.value).toUpperCase(); });
+        poblarAlternativasTransporteSbh($('#borrador_sbh_empresa_transporte'), '');
         $('#borrador_sbh_empresa_transporte').select2({
-            placeholder: 'Seleccione empresa transporte', allowClear: true, width: '100%', dropdownParent: $('#ModalEditarTransporteBorradorSbh'),
-            ajax: { url: '{% url "ajax_transportistas_ingreso_camion" %}', dataType: 'json', delay: 250,
-                data: function (params) { return { q: params.term || '', empresa_id: getValue('empresa_id'), estricto_empresa: '1' }; },
-                processResults: function (data) { return { results: data.results || [] }; }
-            }
+            placeholder: 'Seleccione Transporte / Ruta / Tarifa', allowClear: true, width: '100%', dropdownParent: $('#ModalEditarTransporteBorradorSbh')
         }).on('select2:select', function (event) {
-            $('#borrador_sbh_empresa_transporte_id').val((event.params.data || {}).socionegocio_id || '');
-        }).on('select2:clear', function () { $('#borrador_sbh_empresa_transporte_id').val(''); });
+            const alternativa = buscarAlternativaTransporteSbh((event.params.data || {}).id);
+            $('#borrador_sbh_empresa_transporte_id').val(alternativa ? alternativa.transportista_id : '');
+            $('#borrador_sbh_ruta_id').val(alternativa ? alternativa.ruta_id : '');
+            $('#borrador_sbh_tarifa_id').val(alternativa ? alternativa.tarifa_id : '');
+            $('#borrador_sbh_tarifa_valor').val(alternativa ? alternativa.tarifa_valor : '');
+        }).on('select2:clear', function () {
+            $('#borrador_sbh_empresa_transporte_id, #borrador_sbh_ruta_id, #borrador_sbh_tarifa_id, #borrador_sbh_tarifa_valor').val('');
+        });
         $('#borrador_sbh_conductor').select2({
             placeholder: 'Seleccione conductor (opcional)', allowClear: true, width: '100%', dropdownParent: $('#ModalEditarTransporteBorradorSbh'),
             ajax: { url: '{% url "ajax_conductores_ingreso_camion" %}', dataType: 'json', delay: 250,
@@ -4935,11 +5358,15 @@
         $('#borrador_sbh_numero').text(index + 1);
         $('#borrador_sbh_condicion').val(item.condicion_entrega || item.transportado_por || 'Terramar');
         $('#borrador_sbh_empresa_transporte_id').val(item.empresa_transporte_id || '');
+        $('#borrador_sbh_ruta_id').val(item.ruta_id || '');
+        $('#borrador_sbh_tarifa_id').val(item.tarifa_id || '');
+        $('#borrador_sbh_tarifa_valor').val(item.valor_tarifa || '');
         $('#borrador_sbh_conductor_id').val(item.conductor_id || '');
         $('#borrador_sbh_empresa_transporte_manual').val(item.empresa_transporte || '');
         $('#borrador_sbh_conductor_manual').val(item.conductor || '');
         $('#borrador_sbh_patente').val(item.patente || '');
-        asignarOpcionEditorSbh('#borrador_sbh_empresa_transporte', item.empresa_transporte || '', item.empresa_transporte || '');
+        poblarAlternativasTransporteSbh($('#borrador_sbh_empresa_transporte'), item.tarifa_id || '');
+        $('#borrador_sbh_empresa_transporte').trigger('change.select2');
         asignarOpcionEditorSbh('#borrador_sbh_conductor', item.conductor || '', item.conductor || '');
         actualizarModoEditorTransporteBorradorSbh();
         $('#ModalEditarTransporteBorradorSbh').modal('show');
@@ -4951,16 +5378,22 @@
         if (!item) return;
         const condicion = $('#borrador_sbh_condicion').val();
         const terramar = condicion === 'Terramar';
-        const empresa = normalizarTextoDespachoManual(terramar ? ($('#borrador_sbh_empresa_transporte').val() || '') : $('#borrador_sbh_empresa_transporte_manual').val());
-        const empresaId = terramar ? $('#borrador_sbh_empresa_transporte_id').val() : '';
-        if (terramar && (!empresa || !empresaId)) {
-            swalFront({ title: 'Atenci\u00f3n', text: 'Debe seleccionar una Empresa Transporte v\u00e1lida para el borrador ' + (index + 1) + '.', icon: 'warning' });
+        const alternativa = terramar ? buscarAlternativaTransporteSbh($('#borrador_sbh_tarifa_id').val()) : null;
+        const empresa = normalizarTextoDespachoManual(terramar && alternativa ? alternativa.transportista_nombre : $('#borrador_sbh_empresa_transporte_manual').val());
+        const empresaId = terramar && alternativa ? String(alternativa.transportista_id) : '';
+        if (terramar && !alternativa) {
+            swalFront({ title: 'Atenci\u00f3n', text: 'Debe seleccionar una alternativa de Transporte / Ruta / Tarifa v\u00e1lida para el borrador ' + (index + 1) + '.', icon: 'warning' });
             return;
         }
         const conductor = normalizarTextoDespachoManual(terramar ? ($('#borrador_sbh_conductor').val() || '') : $('#borrador_sbh_conductor_manual').val());
         Object.assign(item, {
             condicion_entrega: condicion, transportado_por: condicion, inf_24hrs: condicion,
             empresa_transporte: empresa, empresa_transporte_manual: terramar ? '' : empresa, empresa_transporte_id: empresaId,
+            ruta_id: alternativa ? String(alternativa.ruta_id) : '',
+            tarifa_id: alternativa ? String(alternativa.tarifa_id) : '',
+            valor_tarifa: alternativa ? String(alternativa.tarifa_valor) : '',
+            tarifa_moneda: alternativa ? alternativa.tarifa_moneda : '',
+            alternativa_transporte_texto: alternativa ? textoAlternativaTransporteSbh(alternativa) : empresa,
             conductor: conductor, conductor_manual: terramar ? '' : conductor,
             conductor_id: terramar ? $('#borrador_sbh_conductor_id').val() : '',
             patente: normalizarTextoDespachoManual($('#borrador_sbh_patente').val()).toUpperCase(),
@@ -5106,8 +5539,8 @@
                 swalFront({ title: 'Atenci\u00f3n', text: 'Debe definir la Condici\u00f3n de entrega del borrador ' + (index + 1) + '.', icon: 'warning' });
                 return false;
             }
-            if (condicion === 'Terramar' && (!normalizarTextoDespachoManual(item.empresa_transporte) || !String(item.empresa_transporte_id || '').trim())) {
-                swalFront({ title: 'Atenci\u00f3n', text: 'Debe seleccionar una Empresa Transporte v\u00e1lida para el borrador ' + (index + 1) + '.', icon: 'warning' });
+            if (condicion === 'Terramar' && (!String(item.empresa_transporte_id || '').trim() || !String(item.ruta_id || '').trim() || !String(item.tarifa_id || '').trim())) {
+                swalFront({ title: 'Atenci\u00f3n', text: 'Debe seleccionar una alternativa de Transporte / Ruta / Tarifa para el borrador ' + (index + 1) + '.', icon: 'warning' });
                 return false;
             }
         }
@@ -5196,6 +5629,23 @@
             return false;
         }
 
+
+        if (esProsesaPiso2Seleccionado()) {
+            if (!getValue('fecha_llegada').trim()) {
+                swalFront({ title: 'Atención', text: 'Debe ingresar fecha de llegada.', icon: 'warning' });
+                return false;
+            }
+            if (!getValue('guia_origen_prosesa').trim()) {
+                swalFront({
+                    title: 'Atención',
+                    text: 'Debe ingresar la guía de la Citación Prosesa Piso 1.',
+                    icon: 'warning'
+                });
+                return false;
+            }
+            return true;
+        }
+
         if (!form.checkValidity()) {
             form.reportValidity();
             return false;
@@ -5273,6 +5723,14 @@
             return false;
         }
 
+        if (
+            codigoSecuenciaRecepcionSeleccionada() === CODIGO_PROSESA_PISO_1
+            && !getValue('guia').trim()
+        ) {
+            swalFront({ title: 'Atención', text: 'Contenedor a Piso 1 requiere número de guía.', icon: 'warning' });
+            return false;
+        }
+
         return true;
     }
 
@@ -5315,6 +5773,15 @@
             swalFront({
                 title: 'Atencion',
                 text: 'Debe seleccionar Salida de documento.',
+                icon: 'warning'
+            });
+            return false;
+        }
+
+        if (ES_DESPACHO_SBH_ETAPA0 && !String($('#despacho_direccion_sap').val() || '').trim()) {
+            swalFront({
+                title: 'Atención',
+                text: 'Debe seleccionar una dirección de despacho SAP.',
                 icon: 'warning'
             });
             return false;
@@ -5385,8 +5852,13 @@
         if ($('#secuencia_id').length) {
             $('#secuencia_id').val('').trigger('change');
         }
+        if (ES_INGRESO_MERCADERIA_SBH && $('#flujo_operacional_visual').length) {
+            $('#flujo_operacional_visual').val('').trigger('change');
+        }
 
         setValue('status', 'Insumo Programado');
+        setValue('guia_origen_prosesa', '');
+        actualizarModoProsesa();
         setValue('status_display', 'Insumo Programado');
 
         const cantidadRepetir = document.getElementById('cantidad_repetir');

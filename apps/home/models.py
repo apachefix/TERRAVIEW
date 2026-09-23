@@ -1094,6 +1094,45 @@ class CITACION_TRANSFERENCIA_DETALLE(models.Model):
         ]
 
 
+class CITACION_PROSESA_RELACION(models.Model):
+    EP_NID = models.ForeignKey(EMPRESA, verbose_name='Id empresa', on_delete=models.PROTECT)
+    CI_NID_ORIGEN = models.OneToOneField(
+        CITACION,
+        verbose_name='Citacion Prosesa Piso 1',
+        on_delete=models.PROTECT,
+        related_name='relacion_prosesa_origen',
+    )
+    CI_NID_RETIRO = models.OneToOneField(
+        CITACION,
+        verbose_name='Citacion Prosesa Piso 2',
+        on_delete=models.PROTECT,
+        related_name='relacion_prosesa_retiro',
+    )
+    US_NID = models.ForeignKey(
+        User,
+        verbose_name='Usuario creacion',
+        on_delete=models.PROTECT,
+        null=True,
+        blank=True,
+    )
+    CPR_FFECHACREACION = models.DateTimeField('Fecha creacion', auto_now_add=True)
+
+    class Meta:
+        db_table = 'CITACION_PROSESA_RELACION'
+        constraints = [
+            models.CheckConstraint(
+                check=~models.Q(CI_NID_ORIGEN=models.F('CI_NID_RETIRO')),
+                name='CIT_PROSESA_ORIGEN_RETIRO_DISTINTOS',
+            ),
+        ]
+        indexes = [
+            models.Index(
+                fields=['EP_NID', 'CPR_FFECHACREACION'],
+                name='CIT_PROSESA_EP_FECHA_IDX',
+            ),
+        ]
+
+
 class CITACION_DESPACHO_DETALLE(models.Model):
     CI_NID = models.OneToOneField(CITACION, verbose_name='Id citacion', on_delete=models.CASCADE, related_name='detalle_despacho')
     EP_NID = models.ForeignKey(EMPRESA, verbose_name='Id empresa', on_delete=models.PROTECT)
@@ -1730,12 +1769,17 @@ class RESULTADO_CALIDAD_OPERACION(models.Model):
         PENDIENTE = 'PENDIENTE', 'Pendiente'
         APROBADO = 'APROBADO', 'Aprobado'
         RECHAZADO = 'RECHAZADO', 'Rechazado'
+        RECHAZADO_PENDIENTE_REVISION = (
+            'RECHAZADO_PENDIENTE_REVISION',
+            'Rechazado - pendiente revision manual',
+        )
         APRUEBA_CLIENTE = 'APRUEBA_CLIENTE', 'Aprueba cliente'
 
     class Origen(models.TextChoices):
         OPERACION_PLANTA = 'OPERACION_PLANTA', 'Operacion Planta'
         EXCEL_CALIDAD = 'EXCEL_CALIDAD', 'Excel Calidad'
         CORREO_CLIENTE = 'CORREO_CLIENTE', 'Correo cliente'
+        REVISION_MANUAL = 'REVISION_MANUAL', 'Revision manual'
         MANUAL_PRUEBA = 'MANUAL_PRUEBA', 'Manual / prueba'
 
     EP_NID = models.ForeignKey(EMPRESA, verbose_name='Empresa', on_delete=models.PROTECT)
@@ -2140,19 +2184,27 @@ class CAMION_PATIO(models.Model):
     ESTADO_PENDIENTE_ASOCIACION = 'PENDIENTE_ASOCIACION'
     ESTADO_EN_REVISION_RECEPCION = 'EN_REVISION_RECEPCION'
     ESTADO_ASOCIADO_CITACION = 'ASOCIADO_CITACION'
+    ESTADO_SALIDA_CONFIRMADA = 'SALIDA_CONFIRMADA'
     ESTADO_RECHAZADO = 'RECHAZADO'
     ESTADO_CANCELADO = 'CANCELADO'
+
+    ESTADOS_ACTIVOS = (
+        ESTADO_PENDIENTE_ASOCIACION,
+        ESTADO_ASOCIADO_CITACION,
+    )
 
     ESTADOS = (
         (ESTADO_PENDIENTE_ASOCIACION, 'Pendiente asociacion'),
         (ESTADO_EN_REVISION_RECEPCION, 'En revision recepcion'),
         (ESTADO_ASOCIADO_CITACION, 'Asociado a citacion'),
+        (ESTADO_SALIDA_CONFIRMADA, 'Salida confirmada'),
         (ESTADO_RECHAZADO, 'Rechazado'),
         (ESTADO_CANCELADO, 'Cancelado'),
     )
 
     EP_NID = models.ForeignKey(EMPRESA, verbose_name='Empresa', on_delete=models.PROTECT)
     CI_NID = models.ForeignKey(CITACION, verbose_name='Citacion asociada', on_delete=models.PROTECT, null=True, blank=True, related_name='camiones_patio')
+    CON_NID = models.ForeignKey(CONDUCTOR, verbose_name='Conductor maestro', on_delete=models.SET_NULL, null=True, blank=True, related_name='camiones_patio')
     transporte_a_cargo = models.CharField('Transporte a cargo de', max_length=20, choices=TRANSPORTE_A_CARGO_CHOICES, default='TERRAMAR')
     CPA_CPATENTE = models.CharField('Patente camion', max_length=32)
     CPA_CPATENTE_RAMPLA = models.CharField('Patente rampla/acoplado', max_length=32, null=True, blank=True)
@@ -2350,4 +2402,3 @@ class CUPO_PROVEEDOR(models.Model):
         planificacion = self.PLA_NID
         citaciones = CITACION.objects.filter(CI_BHABILITADO = True, PL_NID = planificacion, CI_BARCHIVADO = False).count()
         return citaciones
-

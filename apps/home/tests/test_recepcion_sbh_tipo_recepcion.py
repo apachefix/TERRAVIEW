@@ -3,6 +3,7 @@ from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import Mock, patch
 
+from django.template import Context, Template
 from django.test import RequestFactory, SimpleTestCase
 
 from apps.home import views
@@ -23,6 +24,18 @@ class TipoRecepcionSbhTests(SimpleTestCase):
     def test_normaliza_solamente_valores_permitidos(self):
         self.assertEqual(views.validar_tipo_recepcion_sbh(' nacional '), ('NACIONAL', ''))
         self.assertEqual(views.validar_tipo_recepcion_sbh('EXTRANJERO'), ('EXTRANJERO', ''))
+        self.assertEqual(
+            views.validar_tipo_recepcion_sbh(' importacion ', 'INGRESO_MERCADERIA'),
+            ('IMPORTACION', ''),
+        )
+        self.assertEqual(
+            views.validar_tipo_recepcion_sbh('EXTRANJERO', 'INGRESO_MERCADERIA'),
+            ('', 'Tipo de recepción inválido.'),
+        )
+        self.assertEqual(
+            views.validar_tipo_recepcion_sbh('IMPORTACION'),
+            ('', 'Tipo de recepción inválido.'),
+        )
         self.assertEqual(
             views.validar_tipo_recepcion_sbh(''),
             ('', 'Debe seleccionar si la recepción es Nacional o Extranjera.'),
@@ -53,6 +66,7 @@ class TipoRecepcionSbhTests(SimpleTestCase):
     def test_backend_rechaza_valor_vacio_antes_de_crear(self, _verificar):
         secuencias = Mock()
         secuencias.filter.return_value.exists.return_value = True
+        secuencias.filter.return_value.values_list.return_value = [(1, 'RECEPCION_ESTANQUE_SBH')]
         with patch('apps.home.views.empresa_es_terramar_chile', return_value=False), patch(
             'apps.home.views.queryset_secuencias_recepcion_sbh_por_flujo',
             return_value=secuencias,
@@ -66,13 +80,14 @@ class TipoRecepcionSbhTests(SimpleTestCase):
         self.assertFalse(payload['success'])
         self.assertEqual(
             payload['message'],
-            'Debe seleccionar si la recepción es Nacional o Extranjera.',
+            'Debe seleccionar si la recepción es Nacional o Importación.',
         )
 
     @patch('apps.home.views.Verificar_empresa', return_value=2)
     def test_backend_rechaza_valor_manipulado(self, _verificar):
         secuencias = Mock()
         secuencias.filter.return_value.exists.return_value = True
+        secuencias.filter.return_value.values_list.return_value = [(1, 'RECEPCION_ESTANQUE_SBH')]
         with patch('apps.home.views.empresa_es_terramar_chile', return_value=False), patch(
             'apps.home.views.queryset_secuencias_recepcion_sbh_por_flujo',
             return_value=secuencias,
@@ -101,6 +116,19 @@ class TipoRecepcionSbhTests(SimpleTestCase):
             self.assertEqual(detalle.CDO_CTIPO_RECEPCION, 'NACIONAL')
             detalle.save.assert_called_once_with(update_fields=['CDO_CTIPO_RECEPCION'])
 
+    @patch('apps.home.views.CITACION_DETALLE_OPERACIONAL.objects.update_or_create')
+    def test_importacion_persiste_en_detalle_operacional(self, update_or_create):
+        detalle = SimpleNamespace(save=Mock())
+        update_or_create.return_value = (detalle, True)
+
+        views.guardar_detalle_operacional_citacion(
+            self.citacion,
+            {'tipo_origen_recepcion': 'IMPORTACION'},
+        )
+
+        self.assertEqual(detalle.CDO_CTIPO_RECEPCION, 'IMPORTACION')
+        detalle.save.assert_called_once_with(update_fields=['CDO_CTIPO_RECEPCION'])
+
     def test_snapshot_posterior_muestra_etiqueta_amigable(self):
         snapshot = views.datos_snapshot_recepcion_sbh_presentacion(
             self.citacion,
@@ -108,6 +136,13 @@ class TipoRecepcionSbhTests(SimpleTestCase):
         )
 
         self.assertEqual(snapshot['Tipo recepción'], 'Extranjero')
+
+        snapshot_nuevo = views.datos_snapshot_recepcion_sbh_presentacion(
+            self.citacion,
+            {'tipo_origen_recepcion': 'IMPORTACION'},
+        )
+
+        self.assertEqual(snapshot_nuevo['Tipo recepción'], 'Importación')
 
     def test_selector_es_exclusivo_y_cambiar_pedido_no_lo_limpia(self):
         template = Path(
@@ -121,7 +156,24 @@ class TipoRecepcionSbhTests(SimpleTestCase):
         self.assertIn('id="tipo_origen_recepcion"', template)
         self.assertIn('name="tipo_origen_recepcion"', template)
         self.assertIn('<option value="NACIONAL">Nacional</option>', template)
-        self.assertIn('<option value="EXTRANJERO">Extranjero</option>', template)
+        self.assertIn('<option value="IMPORTACION">Importaci&oacute;n</option>', template)
+        bloque_selector = template.split('id="tipo_origen_recepcion"', 1)[1].split('</select>', 1)[0]
+        self.assertIn('{% if es_ingreso_mercaderia_sbh %}', bloque_selector)
+        self.assertIn('{% else %}', bloque_selector)
+        self.assertIn('<option value="EXTRANJERO">Extranjero</option>', bloque_selector)
+
+        selector_nuevo = Template(bloque_selector).render(Context({
+            'es_ingreso_mercaderia_sbh': True,
+        }))
+        self.assertIn('<option value="NACIONAL">Nacional</option>', selector_nuevo)
+        self.assertIn('<option value="IMPORTACION">Importaci&oacute;n</option>', selector_nuevo)
+        self.assertNotIn('<option value="EXTRANJERO">Extranjero</option>', selector_nuevo)
+
+        selector_transferencia = Template(bloque_selector).render(Context({
+            'es_ingreso_mercaderia_sbh': False,
+        }))
+        self.assertIn('<option value="EXTRANJERO">Extranjero</option>', selector_transferencia)
+        self.assertNotIn('<option value="IMPORTACION">Importaci&oacute;n</option>', selector_transferencia)
         self.assertIn(
             "tipo_origen_recepcion: ES_RECEPCION_SBH ? getValue('tipo_origen_recepcion') : ''",
             template,
@@ -182,6 +234,7 @@ class ProveedorIngresoMercaderiaSbhTests(SimpleTestCase):
         request.user = SimpleNamespace()
         secuencias = Mock()
         secuencias.filter.return_value.exists.return_value = True
+        secuencias.filter.return_value.values_list.return_value = [(1, 'RECEPCION_ESTANQUE_SBH')]
         with patch('apps.home.views.empresa_es_terramar_chile', return_value=False), patch(
             'apps.home.views.queryset_secuencias_recepcion_sbh_por_flujo',
             return_value=secuencias,

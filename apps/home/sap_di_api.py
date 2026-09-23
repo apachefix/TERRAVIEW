@@ -762,10 +762,62 @@ def consultar_acuerdos_despacho_sap(termino, empresa_id=None):
         termino_like,
     ]
 
+    resultados = _rows(sql, params)
+    if str(empresa_id or '') == '2':
+        motivo_sin_oc = (
+            'Este acuerdo no posee una OC asociada y no puede utilizarse para planificar.'
+        )
+        for resultado in resultados:
+            has_oc = bool(str(resultado.get('oc_cliente') or '').strip())
+            resultado.update({
+                'has_oc': has_oc,
+                'selectable': has_oc,
+                'selection_block_reason': '' if has_oc else motivo_sin_oc,
+            })
+
     return {
         'ok': True,
-        'resultados': _rows(sql, params)
+        'resultados': resultados
     }
+
+def consultar_direcciones_despacho_sap(cliente_codigo, empresa_id=None):
+    """Obtiene exclusivamente direcciones de despacho (CRD1 tipo S) de SBH."""
+    if str(empresa_id or '') != '2':
+        raise SapDiApiError('La consulta de direcciones de despacho sólo está disponible para SBH.')
+
+    cliente_codigo = str(cliente_codigo or '').strip()
+    if not cliente_codigo:
+        raise SapDiApiError('Debe indicar el cliente SAP para consultar sus direcciones de despacho.')
+
+    try:
+        company_db = get_sap_company_db(2)
+    except SapConfigError as exc:
+        raise SapDiApiError(str(exc)) from exc
+    if not HANA_IDENTIFIER_RE.match(company_db):
+        raise SapDiApiError('SAP_SBH_COMPANY_DB tiene un formato no válido.')
+
+    sql = f'''
+        SELECT
+            D."CardCode" AS "cliente_codigo",
+            D."Address" AS "direccion_codigo",
+            D."AdresType" AS "tipo_direccion",
+            D."Street" AS "calle",
+            D."Block" AS "sector",
+            D."City" AS "ciudad",
+            D."County" AS "comuna_sap",
+            D."State" AS "region_sap",
+            D."Country" AS "pais",
+            D."ZipCode" AS "codigo_postal"
+        FROM "{company_db}"."CRD1" D
+        INNER JOIN "{company_db}"."OCRD" C
+            ON C."CardCode" = D."CardCode"
+        WHERE D."CardCode" = ?
+          AND D."AdresType" = 'S'
+          AND C."CardType" = 'C'
+        ORDER BY D."Address"
+    '''
+    return _rows(sql, [cliente_codigo])
+
 
 def consultar_stock_fisico_despacho_sap(item_code, empresa_id=None):
     """Consulta informativa de existencia física por warehouse para un ItemCode."""

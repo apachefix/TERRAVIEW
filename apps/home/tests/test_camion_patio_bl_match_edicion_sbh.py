@@ -108,6 +108,14 @@ class CamionPatioBlMatchSbhTests(SimpleTestCase):
 
 
 class CamionPatioEdicionRecepcionSbhTests(SimpleTestCase):
+    def setUp(self):
+        patcher = patch(
+            'apps.home.views._resolver_conductor_snapshot_camion_patio',
+            return_value=SimpleNamespace(id=55),
+        )
+        patcher.start()
+        self.addCleanup(patcher.stop)
+
     def camion(self, tipo='EXTRANJERO'):
         return SimpleNamespace(
             EP_NID_id=2,
@@ -158,6 +166,15 @@ class CamionPatioEdicionRecepcionSbhTests(SimpleTestCase):
         self.assertEqual(datos['CPA_CFECHAVENCIMIENTOPRODUCTO'], '01082027')
         self.assertEqual(datos['CPA_CSUI'], 'SUI-1')
 
+    def test_h_importacion_persiste_todos_los_campos_documentales(self):
+        datos = _normalizar_datos_edicion_camion_patio(self.post('IMPORTACION'), self.camion('IMPORTACION'))
+        self.assertEqual(datos['CPA_CTIPO_RECEPCION'], 'IMPORTACION')
+        self.assertEqual(datos['CPA_CBL'], 'MEDUPZ731605')
+        self.assertEqual(datos['CPA_CLOTE_CONTENEDOR'], 'CONT-1')
+        self.assertEqual(datos['CPA_CFECHAPRODUCCION'], '01082026')
+        self.assertEqual(datos['CPA_CFECHAVENCIMIENTOPRODUCTO'], '01082027')
+        self.assertEqual(datos['CPA_CSUI'], 'SUI-1')
+
     def test_h_nacional_conserva_fechas_y_limpia_campos_extranjeros(self):
         datos = _normalizar_datos_edicion_camion_patio(self.post('NACIONAL'), self.camion())
         self.assertEqual(datos['CPA_CTIPO_RECEPCION'], 'NACIONAL')
@@ -170,6 +187,19 @@ class CamionPatioEdicionRecepcionSbhTests(SimpleTestCase):
         self.assertEqual(datos['CPA_CTIPO_RECEPCION'], 'EXTRANJERO')
 
 
+    def test_h_extranjero_sin_fecha_produccion_sigue_siendo_editable(self):
+        post = self.post('EXTRANJERO')
+        post['fecha_produccion'] = ''
+        datos = _normalizar_datos_edicion_camion_patio(post, self.camion())
+        self.assertEqual(datos['CPA_CTIPO_RECEPCION'], 'EXTRANJERO')
+        self.assertEqual(datos['CPA_CFECHAPRODUCCION'], '')
+
+    def test_h_nacional_sin_fecha_produccion_sigue_siendo_editable(self):
+        post = self.post('NACIONAL')
+        post['fecha_produccion'] = ''
+        datos = _normalizar_datos_edicion_camion_patio(post, self.camion('NACIONAL'))
+        self.assertEqual(datos['CPA_CTIPO_RECEPCION'], 'NACIONAL')
+        self.assertEqual(datos['CPA_CFECHAPRODUCCION'], '')
     def test_i_despacho_no_acepta_campos_nuevos_de_recepcion(self):
         camion = self.camion(tipo='')
         datos = _normalizar_datos_edicion_camion_patio(self.post(), camion)
@@ -183,6 +213,9 @@ class CamionPatioEdicionRecepcionSbhTests(SimpleTestCase):
         contenido = template.read_text(encoding='utf-8')
         self.assertIn("if (camion.es_recepcion_sbh)", contenido)
         self.assertIn("name=\"tipo_recepcion\" required", contenido)
+        self.assertIn('<option value="IMPORTACION"', contenido)
+        self.assertIn("(camion.tipo_recepcion === 'EXTRANJERO' ? '<option value=\"EXTRANJERO\" selected>Extranjero</option>' : '')", contenido)
+        self.assertIn("['IMPORTACION', 'EXTRANJERO'].includes(select.val())", contenido)
         self.assertIn("patio-edit-extranjero", contenido)
         self.assertIn("renderPatioDetalle(response);", contenido)
         self.assertIn("BL similar &mdash; revisar dato", contenido)

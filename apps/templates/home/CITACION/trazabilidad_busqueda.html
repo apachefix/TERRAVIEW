@@ -65,6 +65,9 @@
                 <div class="trace-meta-item"><span class="trace-label">Patente</span><div class="trace-value">{{ resultado.cabecera.patente|default:'Sin informacion' }}</div></div>
                 <div class="trace-meta-item"><span class="trace-label">Empresa</span><div class="trace-value">{{ resultado.cabecera.empresa|default:'Sin informacion' }}</div></div>
                 <div class="trace-meta-item"><span class="trace-label">Tipo / Flujo</span><div class="trace-value">{{ resultado.cabecera.tipo|default:'Sin informacion' }} / {{ resultado.cabecera.flujo|default:'Sin informacion' }}</div></div>
+                {% if resultado.cabecera.tipo_recepcion %}
+                <div class="trace-meta-item"><span class="trace-label">Tipo recepci&oacute;n</span><div class="trace-value">{{ resultado.cabecera.tipo_recepcion }}</div></div>
+                {% endif %}
                 <div class="trace-meta-item"><span class="trace-label">Codigo SAP</span><div class="trace-value">{{ resultado.cabecera.codigo_sap|default:'Sin informacion' }}</div></div>
                 <div class="trace-meta-item"><span class="trace-label">Planificacion</span><div class="trace-value">#{{ resultado.cabecera.planificacion }}</div></div>
                 <div class="trace-meta-item"><span class="trace-label">Fecha planificacion</span><div class="trace-value">{{ resultado.cabecera.fecha_planificacion|default:'Sin informacion' }}</div></div>

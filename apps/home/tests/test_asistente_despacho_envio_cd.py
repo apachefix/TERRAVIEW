@@ -78,6 +78,9 @@ class EnvioAsistenteCDDespachoSBHTests(SimpleTestCase):
              patch.object(views, '_contexto_ingreso_camion_patio', return_value={
                  'requiere_ruta_transportista': requiere_ruta,
              }), \
+             patch.object(views, 'sap_despacho_detalle_resumen_dict', return_value={
+                 'condicion_entrega': 'Terramar' if requiere_ruta else 'Cliente',
+             }), \
              patch.object(views, 'ruta_transportista_asistente_guardada', return_value=ruta_guardada) as ruta_persistida, \
              patch.object(views, 'guardar_dato_operacion_codigo'), \
              patch.object(views, 'avanzar_citacion_a_siguiente_etapa', return_value=(

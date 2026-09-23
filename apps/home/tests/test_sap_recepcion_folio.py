@@ -14,8 +14,8 @@ class SapRecepcionFolioTests(SapRecepcionPlantDestinationTests):
         self.assertEqual(payload["FolioNumber"], 212)
         self.assertNotIn("NumAtCard", payload)
         self.assertEqual(self.citacion.CI_CNUMERODOCUMENTO, "000212")
-        self.assertEqual(payload["DocumentLines"][0]["U_HCO_Plantadestino"], "PROSE_T3")
-        self.assertNotIn("WarehouseCode", payload["DocumentLines"][0])
+        self.assertEqual(payload["DocumentLines"][0]["WarehouseCode"], "PROSE_T3")
+        self.assertNotIn("U_HCO_Plantadestino", payload["DocumentLines"][0])
 
     def test_fe_generates_folio_prefix_fe(self):
         self.citacion.CI_CTIPODOCUMENTO = "FE"

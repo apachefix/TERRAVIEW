@@ -1,10 +1,11 @@
 from types import SimpleNamespace
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 from pathlib import Path
 
 from django.http import QueryDict
-from django.test import SimpleTestCase
+from django.test import RequestFactory, SimpleTestCase
 
+from apps.home import views
 from apps.home.views import (
     _normalizar_datos_edicion_camion_patio,
     requiere_ruta_transportista_revision,
@@ -63,15 +64,38 @@ class RevisionCamionAsistenteTests(SimpleTestCase):
         contexto = {'requiere_ruta_transportista': True}
         self.assertTrue(requiere_ruta_transportista_revision(citacion, contexto))
 
-    def test_despacho_sbh_cliente_no_requiere_ruta(self):
-        citacion = SimpleNamespace(CI_CTIPO='DESPACHO', EP_NID_id=2)
-        contexto = {'requiere_ruta_transportista': False}
-        self.assertFalse(requiere_ruta_transportista_revision(citacion, contexto))
-
-    def test_despacho_sbh_terramar_requiere_ruta(self):
+    def test_despacho_sbh_cliente_no_requiere_ruta_aunque_camion_no_informe_modalidad(self):
         citacion = SimpleNamespace(CI_CTIPO='DESPACHO', EP_NID_id=2)
         contexto = {'requiere_ruta_transportista': True}
-        self.assertTrue(requiere_ruta_transportista_revision(citacion, contexto))
+        with patch('apps.home.views.sap_despacho_detalle_resumen_dict', return_value={'condicion_entrega': 'Cliente'}):
+            self.assertFalse(requiere_ruta_transportista_revision(citacion, contexto))
+
+    def test_despacho_sbh_terramar_requiere_ruta_aunque_contexto_camion_diga_cliente(self):
+        citacion = SimpleNamespace(CI_CTIPO='DESPACHO', EP_NID_id=2)
+        contexto = {'requiere_ruta_transportista': False}
+        with patch('apps.home.views.sap_despacho_detalle_resumen_dict', return_value={'condicion_entrega': 'Terramar'}):
+            self.assertTrue(requiere_ruta_transportista_revision(citacion, contexto))
+
+    def test_backend_no_acepta_guardar_ruta_para_condicion_cliente(self):
+        request = RequestFactory().post('/pla-citacion-guardar-ruta-asistente/38708/', {
+            'ruta_id': '', 'tarifa_id': '',
+        })
+        request.user = SimpleNamespace(is_superuser=False)
+        request.session = {'empresa_id': 2}
+        citacion = SimpleNamespace(CI_CTIPO='DESPACHO', EP_NID_id=2)
+        consulta = MagicMock()
+        consulta.get.return_value = citacion
+        with patch.object(views, 'Verificar_empresa', return_value=2), \
+             patch.object(views, 'usuario_es_asistente_recepcion', return_value=False), \
+             patch.object(views, 'usuario_es_asistente_despacho_empresa', return_value=True), \
+             patch.object(views.CITACION.objects, 'select_related', return_value=consulta), \
+             patch.object(views, '_contexto_ingreso_camion_patio', return_value={'requiere_ruta_transportista': True}), \
+             patch.object(views, 'sap_despacho_detalle_resumen_dict', return_value={'condicion_entrega': 'Cliente'}), \
+             patch.object(views, 'validar_tarifa_transportista_revision') as validar_tarifa:
+            response = views.GUARDAR_RUTA_CAMION_ASISTENTE(request, 38708)
+        self.assertEqual(response.status_code, 400, response.content)
+        self.assertIn('no corresponde', response.content.decode('utf-8'))
+        validar_tarifa.assert_not_called()
 
     def test_modal_sbh_reconstruye_controles_en_ambos_sentidos(self):
         template = Path('apps/templates/home/PLANIFICACION/pla_listone.html').read_text(encoding='utf-8')
@@ -80,6 +104,8 @@ class RevisionCamionAsistenteTests(SimpleTestCase):
         self.assertIn("reconstruirCamposTransporteRevision($(this).val() === 'CLIENTE' ? 'CLIENTE' : 'TERRAMAR')", template)
         self.assertIn("$('#bloqueRutaTransportista').remove()", template)
         self.assertIn('renderRevisionRutaTransportistaCampo([],', template)
+        self.assertIn('const requiereRuta = esTerramar && revisionCondicionEntregaPermiteRuta;', template)
+        self.assertIn("String(response.condicion_entrega || '').toUpperCase() !== 'CLIENTE'", template)
 
     def test_selector_formal_usa_transportista_sbh_estricto_y_conductor_independiente(self):
         template = Path('apps/templates/home/PLANIFICACION/pla_listone.html').read_text(encoding='utf-8')

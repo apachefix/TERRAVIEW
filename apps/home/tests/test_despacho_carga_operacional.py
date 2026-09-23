@@ -1,4 +1,5 @@
 import copy
+import inspect
 import json
 from datetime import date, time
 from decimal import Decimal
@@ -17,6 +18,8 @@ from apps.home.models import (
     EMPRESA, CALENDARIO, SECUENCIA, PLANIFICACION, CITACION, ETAPA, ETAPA_LOG, DETALLE_SECUENCIA,
     CITACION_DESPACHO_DETALLE, CITACION_DESPACHO_ASIGNACION_SAP,
     CITACION_DESPACHO_CARGA, CITACION_DESPACHO_DRAFT_SAP,
+    CITACION_DESPACHO_ACUERDO_OPERACIONAL, CITACION_DESPACHO_ACUERDO_ESTANQUE,
+    CITACION_DESPACHO_ACUERDO_LOTE,
 )
 
 
@@ -377,6 +380,144 @@ class CargaOperacionalTests(TestCase):
                 self.citacion, self.user, client_factory=factory
             )
         return resultado, factory
+
+    def _reserva_externa(self, *, item='980057', batch='B', confirmada=False):
+        externa = CITACION.objects.create(
+            EP_NID=self.empresa, US_NID=self.user, PL_NID=self.citacion.PL_NID,
+            SC_NID=self.citacion.SC_NID, CI_FFECHACITACION=timezone.now(),
+            CI_NCUPO=99, CI_CTIPO='DESPACHO', CI_CESTADO='PENDIENTE',
+        )
+        carga = CITACION_DESPACHO_CARGA.objects.create(
+            CI_NID=externa, US_NID=self.user, cantidad_total=Decimal('5'),
+            zona_carga='L1', version=1,
+        )
+        acuerdo = CITACION_DESPACHO_ACUERDO_OPERACIONAL.objects.create(
+            carga=carga, sap_abs_id=9999, numero_acuerdo='EXT',
+            cliente_codigo='C001', cliente_nombre='Cliente',
+            cantidad=Decimal('5'), orden=1,
+        )
+        estanque = CITACION_DESPACHO_ACUERDO_ESTANQUE.objects.create(
+            acuerdo=acuerdo, warehouse_code='TK01', item_code=item,
+            item_name='Producto', linea_acuerdo='1', unidad_medida='MT',
+            cantidad=Decimal('5'), orden=1,
+        )
+        CITACION_DESPACHO_ACUERDO_LOTE.objects.create(
+            estanque=estanque, batch_number=batch,
+            stock_snapshot=Decimal('55'), cantidad=Decimal('5'),
+        )
+        respuesta = {}
+        docentry = ''
+        if confirmada:
+            docentry = '3530'
+            respuesta['verificacion_sap'] = {
+                'draft_docentry': 3530,
+                'cerrado': True,
+                'resultado_count': 1,
+                'consumo_reflejado': True,
+                'fecha_iso': timezone.now().isoformat(),
+            }
+        draft = CITACION_DESPACHO_DRAFT_SAP.objects.create(
+            acuerdo=acuerdo, clave_idempotencia=f'externa-{externa.pk}',
+            estado='CREADO' if confirmada else 'PREPARADO',
+            docentry=docentry, payload={}, respuesta=respuesta,
+        )
+        return externa, carga, draft
+
+    def _confirmar_reserva_externa(self, draft):
+        draft.estado = 'CREADO'
+        draft.docentry = '3530'
+        draft.respuesta = {
+            'verificacion_sap': {
+                'draft_docentry': 3530,
+                'cerrado': True,
+                'resultado_count': 1,
+                'consumo_reflejado': True,
+                'fecha_iso': timezone.now().isoformat(),
+            },
+        }
+        draft.save(update_fields=['estado', 'docentry', 'respuesta'])
+
+    def test_pre_draft_bloquea_cierre_externo_relevante_sin_llamar_sap(self):
+        _, _, draft = self._reserva_externa(confirmada=False)
+        self._guardar_para_envio()
+        self._confirmar_reserva_externa(draft)
+        factory = MagicMock()
+        with self.assertRaises(envio.ContextoCargaObsoleto):
+            envio.crear_borradores_sap_despacho(
+                self.citacion, self.user, client_factory=factory,
+            )
+        factory.assert_not_called()
+        self.assertFalse(CITACION_DESPACHO_DRAFT_SAP.objects.filter(
+            acuerdo__carga__CI_NID=self.citacion,
+        ).exclude(estado='PREPARADO').exists())
+
+    def test_pre_draft_bloquea_reserva_externa_nueva_que_reduce_disponibilidad(self):
+        self._guardar_para_envio()
+        self._reserva_externa(confirmada=False)
+        with self.assertRaises(envio.ContextoCargaObsoleto):
+            envio.validar_contexto_pre_draft(
+                self.citacion,
+                CITACION_DESPACHO_CARGA.objects.get(CI_NID=self.citacion),
+            )
+
+    def test_pre_draft_ignora_cambio_externo_no_relacionado(self):
+        self._guardar_para_envio()
+        self._reserva_externa(item='OTRO', batch='Z', confirmada=True)
+        config = envio.validar_contexto_pre_draft(
+            self.citacion,
+            CITACION_DESPACHO_CARGA.objects.get(CI_NID=self.citacion),
+        )
+        self.assertEqual(len(config['acuerdos']), 2)
+
+    def test_pre_draft_permite_despues_de_volver_a_guardar(self):
+        _, _, draft = self._reserva_externa(confirmada=False)
+        self._guardar_para_envio()
+        self._confirmar_reserva_externa(draft)
+        with self.assertRaises(envio.ContextoCargaObsoleto):
+            envio.validar_contexto_pre_draft(
+                self.citacion,
+                CITACION_DESPACHO_CARGA.objects.get(CI_NID=self.citacion),
+            )
+        data = self.data()
+        data['version'] = 1
+        service.guardar_carga(self.citacion, data, self.user)
+        config = envio.validar_contexto_pre_draft(
+            self.citacion,
+            CITACION_DESPACHO_CARGA.objects.get(CI_NID=self.citacion),
+        )
+        self.assertEqual(len(config['acuerdos']), 2)
+
+    def test_pre_draft_no_consulta_odrf_y_valida_antes_de_construir_payload(self):
+        source = inspect.getsource(envio.validar_contexto_pre_draft)
+        self.assertNotIn('ODRF', source)
+        self.assertNotIn('draft_sap_esta_cerrado', source)
+        wrapper = inspect.getsource(envio._crear_borradores_bajo_bloqueo)
+        self.assertLess(
+            wrapper.index('validar_contexto_pre_draft'),
+            wrapper.index('_crear_borradores_sap_despacho'),
+        )
+
+    def test_endpoint_contexto_obsoleto_responde_409_y_no_avanza(self):
+        from apps.home import views
+        self._guardar_para_envio()
+        self.preparar_etapa()
+        request = RequestFactory().post('/pla-citacion-estanque-avanzar/1/')
+        request.user = self.user
+        request.session = {'empresa_id': 2}
+        with patch.object(views, 'Verificar_empresa', return_value=2), patch.object(
+            views, 'usuario_es_asistente_cd', return_value=True,
+        ), patch.object(
+            views, 'crear_borradores_sap_despacho',
+            side_effect=envio.ContextoCargaObsoleto(),
+        ), patch.object(views, 'avanzar_citacion_a_siguiente_etapa') as avanzar:
+            response = views.AVANZAR_ESTANQUE_SIGUIENTE_ETAPA(
+                request, self.citacion.pk,
+            )
+        payload = json.loads(response.content)
+        self.assertEqual(response.status_code, 409)
+        self.assertEqual(payload['codigo'], 'VALIDACION_PRE_DRAFT_FALLIDA')
+        self.assertTrue(payload['requiere_reseleccion'])
+        avanzar.assert_not_called()
 
     def test_envio_dos_acuerdos_crea_y_persiste_dos_drafts(self):
         self._guardar_para_envio()

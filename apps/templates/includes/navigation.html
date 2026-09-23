@@ -350,11 +350,30 @@
                 headers: {'X-CSRFToken': csrfEstadoCamion()},
                 data: {patente: datos.patente, citacion_id: citacionId},
                 success: function(response) {
-                    Swal.fire({icon: 'success', title: 'Ingreso registrado', text: response.message});
+                    Swal.fire({icon: 'success', title: 'Ingreso registrado', text: response.message}).then(function() {
+                        buscarPatente();
+                    });
                 },
                 error: function(xhr) {
                     var response = xhr.responseJSON || {};
                     Swal.fire({icon: 'error', title: 'No fue posible registrar', text: response.message || 'Intente nuevamente.'});
+                }
+            });
+        }
+
+        function derivarIngresoEstadoCamion(datos) {
+            $.ajax({
+                url: datos.derivar_url,
+                type: 'POST',
+                headers: {'X-CSRFToken': csrfEstadoCamion()},
+                success: function(response) {
+                    Swal.fire({icon: 'success', title: 'Ingreso derivado', text: response.message}).then(function() {
+                        buscarPatente();
+                    });
+                },
+                error: function(xhr) {
+                    var response = xhr.responseJSON || {};
+                    Swal.fire({icon: 'error', title: 'No fue posible derivar', text: response.message || 'Intente nuevamente.'});
                 }
             });
         }
@@ -383,9 +402,35 @@
             if (datos.tipo_resultado === 'INGRESO_PATIO_PENDIENTE') {
                 var contenidoPatio = '<div class=text-left><div class=alert>' + escapeHtmlEstadoCamion(datos.mensaje) + '</div>';
                 contenidoPatio += '<p><strong>Patente:</strong> ' + escapeHtmlEstadoCamion(datos.patente) + '</p>';
+                contenidoPatio += '<p><strong>Conductor:</strong> ' + escapeHtmlEstadoCamion(datos.conductor) + '</p>';
+                contenidoPatio += '<p><strong>RUT:</strong> ' + escapeHtmlEstadoCamion(datos.rut_conductor) + '</p>';
+                contenidoPatio += '<p><strong>Teléfono:</strong> ' + escapeHtmlEstadoCamion(datos.telefono) + '</p>';
+                contenidoPatio += '<p><strong>Transportista:</strong> ' + escapeHtmlEstadoCamion(datos.transportista) + '</p>';
+                contenidoPatio += '<p><strong>Llegada:</strong> ' + escapeHtmlEstadoCamion(datos.llegada) + '</p>';
                 contenidoPatio += '<p><strong>Estado:</strong> ' + escapeHtmlEstadoCamion(datos.estado) + '</p>';
-                contenidoPatio += '<p><strong>Responsable:</strong> ' + escapeHtmlEstadoCamion(datos.responsable) + '</p></div>';
-                Swal.fire({title: 'Ingreso ya registrado', html: contenidoPatio, width: '70%', confirmButtonText: 'Cerrar'});
+                contenidoPatio += '<p><strong>Responsable:</strong> ' + escapeHtmlEstadoCamion(datos.responsable) + '</p>';
+                contenidoPatio += '<p><strong>Acción requerida:</strong> ' + escapeHtmlEstadoCamion(datos.accion_requerida) + '</p>';
+                if (datos.citacion_candidata_id) {
+                    contenidoPatio += '<p><strong>Citación candidata:</strong> #' + escapeHtmlEstadoCamion(datos.citacion_candidata_id) + '</p>';
+                }
+                if (datos.fecha_derivacion) {
+                    contenidoPatio += '<p><strong>Fecha derivación:</strong> ' + escapeHtmlEstadoCamion(datos.fecha_derivacion) + '</p>';
+                }
+                contenidoPatio += '</div>';
+                var opcionesPatio = {
+                    title: 'Ingreso activo en planta',
+                    html: contenidoPatio,
+                    width: '70%',
+                    confirmButtonText: datos.puede_derivar ? 'Derivar ingreso' : 'Cerrar',
+                    showCancelButton: !!datos.puede_derivar,
+                    cancelButtonText: 'Cerrar',
+                    confirmButtonColor: '#28a745'
+                };
+                Swal.fire(opcionesPatio).then(function(result) {
+                    if (result.isConfirmed && datos.puede_derivar) {
+                        derivarIngresoEstadoCamion(datos);
+                    }
+                });
                 return;
             }
             if (datos.tipo_resultado === 'PLANIFICACION_ENCONTRADA' || datos.tipo_resultado === 'MULTIPLE_MATCHES') {
@@ -393,6 +438,7 @@
                 var contenidoPlan = '<div class=text-left><div class=alert>' + escapeHtmlEstadoCamion(datos.mensaje) + '</div>';
                 candidatos.forEach(function(candidato) {
                     contenidoPlan += '<div class=border><strong>Citacion #' + escapeHtmlEstadoCamion(candidato.citacion_id) + ' / Planificacion #' + escapeHtmlEstadoCamion(candidato.planificacion_id) + '</strong>';
+                    contenidoPlan += '<div>Proceso activo en planta: NO | Estado tarea: Pendiente de nuevo ingreso a planta</div>';
                     contenidoPlan += '<div>Patente: ' + escapeHtmlEstadoCamion(candidato.patente || datos.patente) + ' | Tipo: ' + escapeHtmlEstadoCamion(candidato.tipo) + '</div>';
                     contenidoPlan += '<div>Empresa: ' + escapeHtmlEstadoCamion(candidato.empresa) + ' | Estado: ' + escapeHtmlEstadoCamion(candidato.estado) + '</div>';
                     contenidoPlan += '<div>Fecha citacion: ' + escapeHtmlEstadoCamion(candidato.fecha_citacion) + ' | Fecha despacho: ' + escapeHtmlEstadoCamion(candidato.fecha_despacho) + '</div>';
@@ -410,9 +456,10 @@
             }
             if (datos.tipo_resultado === 'CITACION_VIGENTE') {
                 var camposVigentes = [
-                    ['Patente', datos.patente], ['Citación', datos.citacion_id], ['Empresa', datos.empresa],
+                    ['Proceso activo en planta', datos.proceso_activo_planta ? 'SÍ' : 'NO'],
+                    ['Patente', datos.patente], ['Nueva tarea programada', datos.citacion_id], ['Empresa', datos.empresa],
                     ['Tipo', datos.tipo], ['Flujo / secuencia', datos.secuencia], ['Fecha citación', datos.fecha_citacion],
-                    ['Estado', datos.estado], ['Responsable', datos.responsable]
+                    ['Estado de la tarea', datos.estado_tarea || 'Pendiente de nuevo ingreso a planta']
                 ];
                 var contenidoVigente = '<div class="text-left"><div class="alert alert-info mb-3">' + escapeHtmlEstadoCamion(datos.mensaje) + '</div><div class="table-responsive"><table class="table table-bordered table-striped mb-0">';
                 camposVigentes.forEach(function(campo) { contenidoVigente += '<tr><th style="width: 34%;">' + escapeHtmlEstadoCamion(campo[0]) + '</th><td>' + escapeHtmlEstadoCamion(campo[1]) + '</td></tr>'; });
