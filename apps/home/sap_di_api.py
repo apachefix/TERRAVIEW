@@ -371,6 +371,8 @@ def consultar_productos_recepcion_transferencia_sap(estanque):
     }
 
 
+
+
 def consultar_pedido_sap(pedido, codigo, proveedor_codigo=''):
     pedido = (pedido or '').strip()
     codigo = (codigo or '').strip()
@@ -446,6 +448,8 @@ def consultar_pedido_sap(pedido, codigo, proveedor_codigo=''):
             'docentry': row['DocEntry'],
             'docnum': row['DocNum'],
             'pedido': row['DocNum'],
+            'line_num': row['LineNum'],
+            'linenum': row['LineNum'],
             'cardcode': row['CardCode'],
             'cardname': row['CardName'],
             'proveedor_codigo': row['CardCode'],
@@ -865,3 +869,30 @@ def consultar_stock_fisico_despacho_sap(item_code, empresa_id=None):
         'stock_total': stock_total,
         'warehouses': warehouses,
     }
+
+
+def consultar_saldo_linea_pedido_sap(docentry, itemcode, line_num=None):
+    """Lee POR1.OpenQty de la línea seleccionada, incluso con saldo cero."""
+    try:
+        docentry = int(docentry)
+        line_num = int(line_num) if line_num not in (None, '') else None
+    except (TypeError, ValueError) as exc:
+        raise ValueError('La identidad de la línea SAP no es válida.') from exc
+    itemcode = str(itemcode or '').strip()
+    if not itemcode:
+        raise ValueError('Falta el ItemCode de la línea SAP.')
+    sql = '''
+        SELECT T0."DocEntry", T0."DocNum", T0."DocStatus", T1."LineNum", T1."ItemCode",
+               T1."OpenQty"
+        FROM OPOR T0
+        JOIN POR1 T1 ON T1."DocEntry" = T0."DocEntry"
+        WHERE T0."DocEntry" = ? AND T1."ItemCode" = ?
+    '''
+    params = [docentry, itemcode]
+    if line_num is not None:
+        sql += ' AND T1."LineNum" = ?'
+        params.append(line_num)
+    rows = _rows(sql, params)
+    if len(rows) != 1:
+        raise ValueError('No se pudo identificar una línea SAP única para planificar.')
+    return rows[0]

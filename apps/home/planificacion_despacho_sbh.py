@@ -220,7 +220,8 @@ def validar_lote_borradores_sbh(citaciones, resolver_acuerdo=None):
 
     campos_comunes = (
         'cliente', 'cliente_codigo', 'cliente_nombre', 'fecha_llegada',
-        'fecha_despacho', 'hora_llegada_planta', 'hora_llegada_destino', 'orden_carga',
+        'fecha_despacho', 'fecha_llegada_destino', 'hora_llegada_planta',
+        'hora_llegada_destino', 'orden_carga',
         'tipo_operacion', 'secuencia_id', 'tipo_carga', 'destino', 'salida_documento',
         'estanque_destino', 'estanque_destino_texto', 'ibc_por_camion',
         'distribucion_borradores',

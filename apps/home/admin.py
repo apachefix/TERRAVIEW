@@ -51,3 +51,20 @@ class CustomizedUserAdmin(UserAdmin,ExportActionMixin,admin.ModelAdmin):
 
 admin.site.unregister(User)
 admin.site.register(User, CustomizedUserAdmin)
+
+
+@admin.register(OPERACION_NEW_JERSEY)
+class OperacionNewJerseyAdmin(admin.ModelAdmin):
+    list_display = (
+        'id', 'EP_NID', 'ONJ_CMODALIDAD', 'ONJ_CESTADO',
+        'ONJ_CITEM_CODE', 'ONJ_CPURCHASE_ORDER', 'ONJ_BHABILITADO',
+    )
+    list_filter = ('EP_NID', 'ONJ_CMODALIDAD', 'ONJ_CESTADO', 'ONJ_BHABILITADO')
+    search_fields = ('ONJ_CITEM_CODE', 'ONJ_CPRODUCTO', 'ONJ_CPURCHASE_ORDER')
+
+
+@admin.register(OPERACION_NEW_JERSEY_PROCESO)
+class OperacionNewJerseyProcesoAdmin(admin.ModelAdmin):
+    list_display = ('id', 'ONJ_NID', 'ONJP_CTIPO', 'CI_NID', 'ONJP_CESTADO')
+    list_filter = ('EP_NID', 'ONJP_CTIPO', 'ONJP_CESTADO')
+    search_fields = ('ONJ_NID__id', 'CI_NID__id')

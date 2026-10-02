@@ -203,6 +203,27 @@ class SapServiceLayerClient:
     def post_draft(self, payload: Dict[str, Any]) -> Dict[str, Any]:
         return self.post_json("Drafts", payload, diagnostic_context="POST Drafts")
 
+    def post_purchase_delivery_note(self, payload: Dict[str, Any]) -> Dict[str, Any]:
+        return self.post_json(
+            "PurchaseDeliveryNotes",
+            payload,
+            diagnostic_context="POST PurchaseDeliveryNotes",
+        )
+
+    def post_stock_transfer(self, payload: Dict[str, Any]) -> Dict[str, Any]:
+        return self.post_json(
+            "StockTransfers",
+            payload,
+            diagnostic_context="POST StockTransfers",
+        )
+
+    def post_inventory_transfer_request(self, payload: Dict[str, Any]) -> Dict[str, Any]:
+        return self.post_json(
+            "InventoryTransferRequests",
+            payload,
+            diagnostic_context="POST InventoryTransferRequests",
+        )
+
     def patch_json(self, path: str, payload: Dict[str, Any], diagnostic_context: str = "PATCH autenticado", headers=None) -> Dict[str, Any]:
         response = self._request("PATCH", path, json=payload, headers=headers, diagnostic_context=diagnostic_context)
         if response.status_code >= 400:

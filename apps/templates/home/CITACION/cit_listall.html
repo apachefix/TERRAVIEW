@@ -359,7 +359,9 @@
                                                 <td>{{ object.pk }}</td>
                                                 <td>{{ object.PL_NID.id }}</td>
                                                 <td>{{ object.CI_CTIPODOCUMENTO|default:"" }}</td>
-                                                {% if object.valor_campo_38 is not None %}
+                                                {% if object.numero_documento_listado is not None %}
+                                                    <td>{{ object.numero_documento_listado|default:'Sin numero de documento' }}</td>
+                                                {% elif object.valor_campo_38 is not None %}
                                                     <td>{{ object.valor_campo_38|default:'Sin numero de documento' }}</td>
                                                 {% else %}
                                                     <td>{{ object.CI_CNUMERODOCUMENTO|default:'Sin numero de documento' }}</td>

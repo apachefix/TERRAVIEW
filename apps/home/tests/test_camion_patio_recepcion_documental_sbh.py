@@ -140,6 +140,88 @@ class RegistroDocumentalRecepcionSbhTests(SimpleTestCase):
         self.assertEqual(guardado['CPA_CFECHAPRODUCCION'], '01082026')
         self.assertEqual(guardado['CPA_CFECHAVENCIMIENTOPRODUCTO'], '')
 
+    def test_cliente_sin_empresa_transporte_se_rechaza(self):
+        datos = self._datos(tipo='NACIONAL')
+        datos.update({
+            'transporte_a_cargo': 'CLIENTE',
+            'conductor_nombre_manual': 'JUAN PEREZ',
+            'empresa_transporte': '',
+        })
+
+        response, create_mock, error_mock = self._ejecutar(datos)
+
+        self.assertEqual(response.status_code, 400)
+        create_mock.assert_not_called()
+        self.assertEqual(
+            error_mock.call_args.args[1],
+            'Debe ingresar la empresa de transporte.',
+        )
+
+    def test_cliente_persiste_empresa_transporte_manual_real(self):
+        datos = self._datos(tipo='NACIONAL')
+        datos.update({
+            'transporte_a_cargo': 'CLIENTE',
+            'conductor_nombre_manual': 'JUAN PEREZ',
+            'empresa_transporte': '  TRANSPORTES   PRUEBA LTDA  ',
+        })
+
+        response, create_mock, _ = self._ejecutar(datos)
+
+        self.assertEqual(response.status_code, 302)
+        guardado = create_mock.call_args.kwargs
+        self.assertEqual(guardado['transporte_a_cargo'], 'CLIENTE')
+        self.assertEqual(
+            guardado['CPA_CTRANSPORTISTA_DECLARADO'],
+            'TRANSPORTES PRUEBA LTDA',
+        )
+        self.assertNotEqual(guardado['CPA_CTRANSPORTISTA_DECLARADO'], 'CLIENTE')
+        self.assertEqual(guardado['CPA_CNOMBRE_CONDUCTOR'], 'JUAN PEREZ')
+        self.assertIsNone(guardado['CON_NID'])
+
+    def test_cliente_no_acepta_cliente_como_nombre_de_transportista(self):
+        datos = self._datos(tipo='NACIONAL')
+        datos.update({
+            'transporte_a_cargo': 'CLIENTE',
+            'conductor_nombre_manual': 'JUAN PEREZ',
+            'empresa_transporte': 'Cliente',
+        })
+
+        response, create_mock, error_mock = self._ejecutar(datos)
+
+        self.assertEqual(response.status_code, 400)
+        create_mock.assert_not_called()
+        self.assertEqual(
+            error_mock.call_args.args[1],
+            'Debe ingresar la empresa de transporte.',
+        )
+
+    def test_terramar_conserva_transportista_del_maestro(self):
+        response, create_mock, _ = self._ejecutar(self._datos(tipo='NACIONAL'))
+
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(
+            create_mock.call_args.kwargs['CPA_CTRANSPORTISTA_DECLARADO'],
+            'Transporte prueba',
+        )
+
+    def test_frontend_expone_input_manual_solo_para_cliente_recepcion(self):
+        template = (
+            Path(__file__).resolve().parents[3]
+            / 'apps/templates/home/CAMION_PATIO/registrar.html'
+        ).read_text(encoding='utf-8')
+
+        self.assertIn('name="empresa_transporte"', template)
+        self.assertIn('id="bloque_transporte_cliente"', template)
+        self.assertIn('Empresa de transporte *', template)
+        self.assertIn(
+            "const requerida = !esDespachoPatio() && !esTransporteTerramarPatio();",
+            template,
+        )
+        self.assertIn(
+            "this.setCustomValidity('Debe ingresar la empresa de transporte.');",
+            template,
+        )
+
     def test_importacion_persiste_datos_parciales_y_fechas_normalizadas(self):
         datos = self._datos(tipo='importacion')
         datos['cda'] = ''

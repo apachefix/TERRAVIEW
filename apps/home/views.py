@@ -27,12 +27,17 @@ from django.db.models.functions import Replace, Upper, Cast
 
 
 from .models import *
+from . import new_jersey_p2 as nj_p2
+from . import new_jersey_p3 as nj_p3
+from . import recepcion_servicio as rs
 from . import despacho_carga
 from .sap_despacho_envio import (
     ContextoCargaObsoleto,
     EnvioDraftSapError,
     borradores_creados as borradores_despacho_creados,
     crear_borradores_sap_despacho,
+    previsualizar_borradores_sap_despacho,
+    validar_disponibilidad_final_despacho,
 )
 from .sap_despacho_documentos import (
     VerificacionDocumentoSapError,
@@ -123,11 +128,19 @@ from .sap_despacho import (
 )
 from .sap_recepcion import (
     CAMPO_PESO_INFORMADO_GUIA,
+    GoodsReceiptDraftError,
     LOG_BORRADOR_SAP_ENVIADO,
     PASO_BORRADOR_SAP,
     SapDiApiError,
     build_goods_receipt_draft_preview,
+    build_goods_receipt_draft_preview_prosesa_contenedor_piso_1,
+    build_purchase_delivery_note_prosesa_contenedor_piso_1,
     build_goods_receipt_draft_preview_from_peso_guia,
+    build_goods_receipt_draft_update_preview,
+    es_recepcion_prosesa_contenedor_piso_1,
+    es_recepcion_prosesa_descarga_camion,
+    generar_lote_sap_recepcion_prosesa_piso_1,
+    guardar_lote_sap_prosesa_piso_1,
     consultar_clientes_sap,
     consultar_detalle_pedido_sap,
     consultar_pedido_sap,
@@ -138,13 +151,46 @@ from .sap_recepcion import (
     consultar_proveedores_sap,
     get_goods_receipt_draft_guide_status,
     get_goods_receipt_draft_status,
+    get_purchase_delivery_note_prosesa_piso_1_status,
+    obtener_lote_sap_prosesa_piso_1,
+    resolver_item_code_lote_prosesa_piso_1,
     get_goods_receipt_draft_update_status,
     send_goods_receipt_draft_from_peso_guia_to_sap,
     send_goods_receipt_draft_update_to_sap,
     send_goods_receipt_draft_to_sap,
+    send_purchase_delivery_note_prosesa_contenedor_piso_1_to_sap,
+)
+from .sap_recepcion_new_jersey import (
+    build_purchase_delivery_note_new_jersey_p1,
+    get_purchase_delivery_note_new_jersey_p1_status,
+    get_new_jersey_virtual_warehouse,
+    generar_y_guardar_lote_sap_new_jersey_p1,
+    obtener_lote_sap_new_jersey_p1,
+    send_purchase_delivery_note_new_jersey_p1_to_sap,
+)
+from .sap_transferencia_prosesa import (
+    build_stock_transfer_prosesa_piso_2,
+    send_stock_transfer_prosesa_piso_2_to_sap,
+)
+from .sap_solicitud_new_jersey_p2 import (
+    MENSAJE_SOLICITUD_REQUERIDA,
+    build_inventory_transfer_request_new_jersey_p2,
+    estado_solicitud_traslado_new_jersey_p2,
+    send_inventory_transfer_request_new_jersey_p2_to_sap,
+)
+from .sap_transferencia_new_jersey_p3 import (
+    CONFIGURACION_PESAJES as CONFIGURACION_PESAJES_NEW_JERSEY_P3,
+    aplicar_overrides_qa_pesaje_new_jersey_p3,
+    build_stock_transfer_new_jersey_p3,
+    calcular_y_persistir_peso_real_new_jersey_p3,
+    contexto_transferencia_new_jersey_p3,
+    estado_transferencia_new_jersey_p3,
+    guardar_destino_final_p3,
+    obtener_peso_real_new_jersey_p3_para_sap,
+    send_stock_transfer_new_jersey_p3_to_sap,
 )
 from .sap_despacho import consultar_acuerdos_despacho
-from .sap_di_api import consultar_direcciones_despacho_sap, consultar_stock_fisico_despacho_sap
+from .sap_di_api import consultar_direcciones_despacho_sap, consultar_stock_fisico_despacho_sap, consultar_saldo_linea_pedido_sap
 from .planificacion_despacho_sbh import validar_lote_borradores_sbh
 from .despacho_sbh_transporte import (
     obtener_alternativas_transporte_sbh,
@@ -294,6 +340,33 @@ FLUJOS_NAVEGACION_RECEPCION_SBH = {'INGRESO_MERCADERIA', 'TRANSFERENCIA'}
 SECUENCIA_RECEPCION_PROSESA_PISO_1 = 'RECEPCION_PROSESA_PISO_1'
 SECUENCIA_RECEPCION_PROSESA_PISO_2 = 'RECEPCION_PROSESA_PISO_2'
 ESTADO_PROSESA_ESPERANDO_RETIRO = 'PROSESA_ESPERANDO_RETIRO_CONTENEDOR'
+CAMPO_PROSESA_BASE_LINE_SAP = 'PROSESA_BASE_LINE_SAP'
+CAMPO_PROSESA_PISO2_PATENTE_RETIRO = 'PLAN_PROSESA_PISO2_PATENTE_RETIRO'
+CAMPO_PROSESA_PISO2_EMPRESA_TRANSPORTE = 'PLAN_PROSESA_PISO2_EMPRESA_TRANSPORTE'
+CAMPO_PROSESA_PISO2_TRANSPORTISTA_ID = 'PLAN_PROSESA_PISO2_TRANSPORTISTA_ID'
+SECUENCIA_RECEPCION_NEW_JERSEY_P1_CON_CALIDAD = 'RECEPCION_NEW_JERSEY_P1_CON_CALIDAD'
+SECUENCIA_RECEPCION_NEW_JERSEY_P1_SIN_CALIDAD = 'RECEPCION_NEW_JERSEY_P1_SIN_CALIDAD'
+SECUENCIA_RECEPCION_NEW_JERSEY_P2 = 'RECEPCION_NEW_JERSEY_P2_OPERACION_INTERNA'
+SECUENCIA_RECEPCION_NEW_JERSEY_P3 = 'RECEPCION_NEW_JERSEY_P3_RETIRO_VACIO'
+SECUENCIAS_RECEPCION_NEW_JERSEY_P1 = {
+    SECUENCIA_RECEPCION_NEW_JERSEY_P1_CON_CALIDAD,
+    SECUENCIA_RECEPCION_NEW_JERSEY_P1_SIN_CALIDAD,
+}
+SECUENCIAS_RECEPCION_NEW_JERSEY = SECUENCIAS_RECEPCION_NEW_JERSEY_P1 | {
+    SECUENCIA_RECEPCION_NEW_JERSEY_P2,
+    SECUENCIA_RECEPCION_NEW_JERSEY_P3,
+}
+SECUENCIAS_RECEPCION_LEGACY_NO_ETAPA_0 = {
+    'RECEPCION_PATIO_LF_CON_CALIDAD',
+    'RECEPCION_PATIO_LF_SIN_CALIDAD',
+}
+
+# Códigos semánticos reservados para la evolución del cálculo New Jersey.
+# En Fase 1 no se calcula ni persiste el peso final.
+NJ_P1_PESO_INICIAL_KG = 'NJ_P1_PESO_INICIAL_KG'
+NJ_P3_PESO_TARA_CAMION_KG = 'NJ_P3_PESO_TARA_CAMION_KG'
+NJ_P3_PESO_CAMION_CONTENEDOR_VACIO_KG = 'NJ_P3_PESO_CAMION_CONTENEDOR_VACIO_KG'
+NJ_PESO_FINAL_PRODUCTO_KG = 'NJ_PESO_FINAL_PRODUCTO_KG'
 
 
 def normalizar_flujo_recepcion_sbh(valor, predeterminado='INGRESO_MERCADERIA'):
@@ -315,7 +388,14 @@ def queryset_secuencias_recepcion_sbh_por_flujo(empresa_id, flujo):
     )
     if normalizar_flujo_recepcion_sbh(flujo) == 'TRANSFERENCIA':
         return secuencias.filter(SE_CCODIGO=SECUENCIA_RECEPCION_TRANSFERENCIA_SBH)
-    return secuencias.exclude(SE_CCODIGO=SECUENCIA_RECEPCION_TRANSFERENCIA_SBH)
+    return secuencias.exclude(
+        SE_CCODIGO__in={
+            SECUENCIA_RECEPCION_TRANSFERENCIA_SBH,
+            SECUENCIA_RECEPCION_NEW_JERSEY_P2,
+            SECUENCIA_RECEPCION_NEW_JERSEY_P3,
+            *SECUENCIAS_RECEPCION_LEGACY_NO_ETAPA_0,
+        }
+    )
 
 
 def es_flujo_recepcion_transferencia_sbh(citacion):
@@ -360,13 +440,101 @@ def codigo_secuencia_citacion(citacion):
     ).strip().upper()
 
 
-def es_recepcion_prosesa_piso_1(citacion):
+def es_recepcion_new_jersey(citacion):
     return bool(
         citacion
         and getattr(citacion, 'EP_NID_id', None) == ID_ACEITES_SBH
         and str(getattr(citacion, 'CI_CTIPO', '') or '').strip().upper() == CIT_RECEPCION
-        and codigo_secuencia_citacion(citacion) == SECUENCIA_RECEPCION_PROSESA_PISO_1
+        and codigo_secuencia_citacion(citacion) in SECUENCIAS_RECEPCION_NEW_JERSEY
     )
+
+
+def es_recepcion_new_jersey_p1(citacion):
+    return es_recepcion_new_jersey(citacion) and (
+        codigo_secuencia_citacion(citacion) in SECUENCIAS_RECEPCION_NEW_JERSEY_P1
+    )
+
+
+def es_recepcion_new_jersey_p1_con_calidad(citacion):
+    return es_recepcion_new_jersey(citacion) and (
+        codigo_secuencia_citacion(citacion) == SECUENCIA_RECEPCION_NEW_JERSEY_P1_CON_CALIDAD
+    )
+
+
+def es_recepcion_new_jersey_p1_sin_calidad(citacion):
+    return es_recepcion_new_jersey(citacion) and (
+        codigo_secuencia_citacion(citacion) == SECUENCIA_RECEPCION_NEW_JERSEY_P1_SIN_CALIDAD
+    )
+
+
+def es_recepcion_new_jersey_p2(citacion):
+    return es_recepcion_new_jersey(citacion) and (
+        codigo_secuencia_citacion(citacion) == SECUENCIA_RECEPCION_NEW_JERSEY_P2
+    )
+
+
+def es_recepcion_new_jersey_p3(citacion):
+    return es_recepcion_new_jersey(citacion) and (
+        codigo_secuencia_citacion(citacion) == SECUENCIA_RECEPCION_NEW_JERSEY_P3
+    )
+
+
+def crear_operacion_new_jersey_proceso_1(citacion, item, usuario):
+    if not es_recepcion_new_jersey_p1(citacion):
+        return None
+
+    # La operación física puede planificarse aunque el destino SAP aún no esté configurado.
+    bodega_virtual = get_new_jersey_virtual_warehouse()
+
+    modalidad = (
+        OPERACION_NEW_JERSEY.Modalidad.CON_CALIDAD
+        if es_recepcion_new_jersey_p1_con_calidad(citacion)
+        else OPERACION_NEW_JERSEY.Modalidad.SIN_CALIDAD
+    )
+    operacion = OPERACION_NEW_JERSEY.objects.create(
+        EP_NID=citacion.EP_NID,
+        PRO_NID=citacion.PRO_NID,
+        US_NID=usuario,
+        ONJ_CMODALIDAD=modalidad,
+        ONJ_CESTADO=OPERACION_NEW_JERSEY.Estado.PENDIENTE_PROCESO_1,
+        ONJ_CITEM_CODE=str(item.get('codigo') or item.get('codigo_sap') or '').strip(),
+        ONJ_CPRODUCTO=str(item.get('insumo') or '').strip(),
+        ONJ_CPURCHASE_ORDER=str(item.get('pedido') or '').strip(),
+        ONJ_CBASE_ENTRY=str(item.get('docentry') or item.get('sap_opor_id') or '').strip(),
+        ONJ_CBASE_LINE=str(next((
+            valor for valor in (
+                item.get('base_line'),
+                item.get('baseline'),
+                item.get('linea_pedido'),
+            ) if valor is not None and str(valor).strip() != ''
+        ), '')).strip(),
+        ONJ_CBODEGA_VIRTUAL=bodega_virtual,
+        ONJ_CTK_DESTINO=str(item.get('estanque_destino') or '').strip(),
+        ONJ_FFECHA_OPERACION=citacion.CI_FFECHACITACION,
+        ONJ_BHABILITADO=True,
+    )
+    OPERACION_NEW_JERSEY_PROCESO.objects.create(
+        ONJ_NID=operacion,
+        CI_NID=citacion,
+        EP_NID=citacion.EP_NID,
+        US_NID=usuario,
+        ONJP_CTIPO=OPERACION_NEW_JERSEY_PROCESO.TipoProceso.PROCESO_1,
+        ONJP_CESTADO=OPERACION_NEW_JERSEY_PROCESO.Estado.PENDIENTE,
+    )
+    return operacion
+
+
+def es_recepcion_prosesa_piso_1(citacion):
+    """Alias historico; la identificacion canonica vive en SAP Recepcion."""
+    return es_recepcion_prosesa_contenedor_piso_1(citacion)
+
+
+def estado_sap_recepcion_para_citacion(citacion):
+    if es_recepcion_new_jersey_p1(citacion):
+        return get_purchase_delivery_note_new_jersey_p1_status(citacion)
+    if es_recepcion_prosesa_contenedor_piso_1(citacion):
+        return get_purchase_delivery_note_prosesa_piso_1_status(citacion)
+    return get_goods_receipt_draft_guide_status(citacion)
 
 
 def es_recepcion_prosesa_piso_2(citacion):
@@ -378,11 +546,178 @@ def es_recepcion_prosesa_piso_2(citacion):
     )
 
 
+def unidad_peso_guia_revision_recepcion(citacion):
+    """Unidad del peso de guía capturado por Asistente Recepción."""
+    if (
+        getattr(citacion, 'EP_NID_id', None) != ID_ACEITES_SBH
+        or str(getattr(citacion, 'CI_CTIPO', '') or '').strip().upper() != CIT_RECEPCION
+    ):
+        return ''
+    codigo = codigo_secuencia_citacion(citacion)
+    if codigo not in {
+        'RECEPCION_BODEGA_EXTERNA',
+        SECUENCIA_RECEPCION_PROSESA_PISO_1,
+        SECUENCIA_RECEPCION_PROSESA_PISO_2,
+        SECUENCIA_RECEPCION_ESTANQUE_SBH,
+        'RECEPCION_TRASVASIJE',
+        *SECUENCIAS_RECEPCION_NEW_JERSEY_P1,
+        *SECUENCIAS_RECEPCION_LEGACY_NO_ETAPA_0,
+    }:
+        return ''
+    return 'MT' if es_recepcion_prosesa_descarga_camion(citacion) else 'kg'
+
+def _ultimo_camion_patio_prosesa(citacion):
+    return CAMION_PATIO.objects.filter(CI_NID=citacion).order_by(
+        '-CPA_FFECHAACTUALIZACION', '-id'
+    ).first()
+
+
+def resolver_guia_prosesa_piso_1(citacion, guia_buscada=None):
+    detalle = getattr(citacion, 'detalle_operacional', None)
+    candidatos = [
+        (
+            getattr(citacion, 'CI_CNUMERODOCUMENTO', ''),
+            'CITACION.CI_CNUMERODOCUMENTO',
+        ),
+        (
+            getattr(detalle, 'CDO_CGUIA', ''),
+            'CITACION_DETALLE_OPERACIONAL.CDO_CGUIA',
+        ),
+    ]
+    candidatos.extend(
+        (camion.CPA_CNUMERO_GUIA, 'CAMION_PATIO.CPA_CNUMERO_GUIA')
+        for camion in CAMION_PATIO.objects.filter(CI_NID=citacion).order_by(
+            '-CPA_FFECHAACTUALIZACION', '-id'
+        )
+    )
+    guia_buscada = str(guia_buscada or '').strip().casefold()
+    for valor, fuente in candidatos:
+        valor = str(valor or '').strip()
+        if valor and (not guia_buscada or valor.casefold() == guia_buscada):
+            return valor, fuente
+    return '', ''
+
+
+def resolver_guia_prosesa_piso_2(citacion):
+    guia, fuente = resolver_guia_prosesa_piso_1(citacion)
+    if guia:
+        return guia, fuente
+
+    try:
+        relacion = citacion.relacion_prosesa_retiro
+    except CITACION_PROSESA_RELACION.DoesNotExist:
+        relacion = None
+    if not relacion:
+        return '', ''
+
+    guia, fuente = resolver_guia_prosesa_piso_1(relacion.CI_NID_ORIGEN)
+    if guia:
+        return guia, f'CITACION_PROSESA_RELACION.CI_NID_ORIGEN -> {fuente}'
+    return '', ''
+
+
+def resolver_numero_guia_operacion(citacion, datos_operacion=None):
+    if es_recepcion_prosesa_piso_2(citacion):
+        return resolver_guia_prosesa_piso_2(citacion)[0]
+    return obtener_numero_guia(citacion, datos_operacion)
+
+def _dato_operacion_prosesa(citacion, codigo):
+    return DATO_OPERACION.objects.filter(
+        CI_NID=citacion,
+        CAMP_NID__CA_CCODIGO=codigo,
+    ).select_related('CAMP_NID').order_by('-id').first()
+
+
+def _contenedor_desde_ticket_entrada_prosesa(citacion):
+    dato = _dato_operacion_prosesa(citacion, 'OP_TICKET_PESAJE_ENT')
+    if not dato:
+        return '', ''
+    try:
+        metadata = json.loads(dato.DO_CVALOR or '{}')
+    except (TypeError, ValueError):
+        return '', ''
+    if not isinstance(metadata, dict):
+        return '', ''
+
+    for clave in ('contenedor', 'container', 'lote_contenedor'):
+        valor = str(metadata.get(clave) or '').strip()
+        if valor:
+            return valor, f'DATO_OPERACION.OP_TICKET_PESAJE_ENT.{clave}'
+
+    observacion = str(metadata.get('observacion') or '').strip()
+    normalizado = re.sub(r'[^A-Z0-9]', '', observacion.upper())
+    if re.fullmatch(r'[A-Z]{4}[0-9]{7}', normalizado):
+        return normalizado, 'DATO_OPERACION.OP_TICKET_PESAJE_ENT.observacion'
+    return '', ''
+
+
+def resolver_contenedor_prosesa_piso_1(citacion):
+    detalle = getattr(citacion, 'detalle_operacional', None)
+    camion_patio = _ultimo_camion_patio_prosesa(citacion)
+    dato_lote = _dato_operacion_prosesa(citacion, 'AR_LOTE_CONTENEDOR')
+    candidatos = (
+        (
+            getattr(detalle, 'CDO_CBL_CONTENEDOR', ''),
+            'CITACION_DETALLE_OPERACIONAL.CDO_CBL_CONTENEDOR',
+        ),
+        (
+            getattr(dato_lote, 'DO_CVALOR', ''),
+            'DATO_OPERACION.AR_LOTE_CONTENEDOR',
+        ),
+        (
+            getattr(camion_patio, 'CPA_CLOTE_CONTENEDOR', ''),
+            'CAMION_PATIO.CPA_CLOTE_CONTENEDOR',
+        ),
+    )
+    for valor, fuente in candidatos:
+        valor = str(valor or '').strip()
+        if valor:
+            return valor, fuente
+    return _contenedor_desde_ticket_entrada_prosesa(citacion)
+
+
+def resolver_base_line_prosesa_piso_1(citacion):
+    dato = _dato_operacion_prosesa(citacion, CAMPO_PROSESA_BASE_LINE_SAP)
+    valor = str(getattr(dato, 'DO_CVALOR', '') or '').strip()
+    if valor:
+        return valor, f'DATO_OPERACION.{CAMPO_PROSESA_BASE_LINE_SAP}'
+
+    dato_lote = _dato_operacion_prosesa(
+        citacion,
+        'SAP_LOTE_INGRESO_PROSESA_PISO1',
+    )
+    if dato_lote:
+        try:
+            metadata = json.loads(dato_lote.DO_CVALOR or '{}')
+        except (TypeError, ValueError):
+            metadata = {}
+        if isinstance(metadata, dict):
+            valor = metadata.get('base_line')
+            if valor not in (None, ''):
+                return str(valor), 'DATO_OPERACION.SAP_LOTE_INGRESO_PROSESA_PISO1.base_line'
+    return '', ''
+
+
 
 def preparar_item_prosesa_piso_2_desde_origen(item, citacion_origen):
     detalle = getattr(citacion_origen, 'detalle_operacional', None)
     if not detalle:
         raise ValueError('La citación Prosesa Piso 1 no tiene detalle operacional para heredar.')
+
+    guia, fuente_guia = resolver_guia_prosesa_piso_1(
+        citacion_origen, item.get('guia_origen_prosesa')
+    )
+    contenedor, fuente_contenedor = resolver_contenedor_prosesa_piso_1(
+        citacion_origen
+    )
+    if not contenedor:
+        raise ValueError(
+            'La Citación Prosesa Piso 1 no tiene un identificador de contenedor '
+            'en sus fuentes operacionales.'
+        )
+    base_line, fuente_base_line = resolver_base_line_prosesa_piso_1(
+        citacion_origen
+    )
 
     item.update({
         'origen': 'prosesa_piso_2',
@@ -405,9 +740,9 @@ def preparar_item_prosesa_piso_2_desde_origen(item, citacion_origen):
         'proveedor_codigo': detalle.CDO_CPROVEEDOR_CODIGO or '',
         'proveedor_nombre': detalle.CDO_CPRODUCTOR or '',
         'proveedor_sap': detalle.CDO_CPRODUCTOR or '',
-        'contenedor': detalle.CDO_CBL_CONTENEDOR or '',
+        'contenedor': contenedor,
         'bl': detalle.CDO_CBL or '',
-        'guia': detalle.CDO_CGUIA or '',
+        'guia': guia,
         'fecha_produccion': detalle.CDO_CFECHA_PRODUCCION or '',
         'fecha_vencimiento': detalle.CDO_CFECHA_VENCIMIENTO or '',
         'cda': detalle.CDO_CCDA or '',
@@ -418,8 +753,12 @@ def preparar_item_prosesa_piso_2_desde_origen(item, citacion_origen):
         'cantidad_disponible': detalle.CDO_NCANTIDAD_DISPONIBLE,
         'docentry': detalle.CDO_CDOCENTRY or '',
         'tipo_origen_recepcion': detalle.CDO_CTIPO_RECEPCION or '',
-        'almacen_destino': detalle.CDO_CALMACEN_DESTINO or '',
+        'almacen_destino': normalizar_almacen_planificacion(detalle.CDO_CALMACEN_DESTINO),
         'estanque_destino': detalle.CDO_CESTANQUE_DESTINO or '',
+        'base_line': base_line,
+        '_prosesa_fuente_guia': fuente_guia,
+        '_prosesa_fuente_contenedor': fuente_contenedor,
+        '_prosesa_fuente_base_line': fuente_base_line,
         'observacion': (
             f'Retiro Prosesa vinculado a citación Piso 1 #{citacion_origen.id}. '
             'Integración SAP y cálculo de peso pendientes de definición.'
@@ -427,6 +766,181 @@ def preparar_item_prosesa_piso_2_desde_origen(item, citacion_origen):
         '_prosesa_origen_id': citacion_origen.id,
     })
     return item
+
+
+class ProsesaPiso2SnapshotError(ValueError):
+    def __init__(self, message, status_code=409):
+        super().__init__(message)
+        self.status_code = status_code
+
+
+def cargar_snapshot_prosesa_piso_2(guia, bloquear=False):
+    guia = str(guia or '').strip()
+    if not guia:
+        raise ProsesaPiso2SnapshotError(
+            'Contenedor a Piso 2 requiere el n\u00famero de gu\u00eda de la Citaci\u00f3n 1.',
+            status_code=400,
+        )
+
+    ids_coincidentes = list(
+        CITACION.objects.filter(
+            EP_NID_id=ID_ACEITES_SBH,
+            CI_CTIPO=CIT_RECEPCION,
+            CI_CESTADO=ESTADO_PROSESA_ESPERANDO_RETIRO,
+            CI_BHABILITADO=True,
+            SC_NID__SE_CCODIGO=SECUENCIA_RECEPCION_PROSESA_PISO_1,
+        ).filter(
+            Q(CI_CNUMERODOCUMENTO__iexact=guia)
+            | Q(detalle_operacional__CDO_CGUIA__iexact=guia)
+            | Q(camiones_patio__CPA_CNUMERO_GUIA__iexact=guia)
+        ).order_by('pk').values_list('pk', flat=True).distinct()[:2]
+    )
+    coincidencias = CITACION.objects.select_related(
+        'SC_NID', 'SN_NID', 'PRO_NID', 'detalle_operacional'
+    ).filter(pk__in=ids_coincidentes).order_by('pk')
+    if bloquear:
+        coincidencias = coincidencias.select_for_update(of=('self',))
+    coincidencias = list(coincidencias)
+    if not coincidencias:
+        raise ProsesaPiso2SnapshotError(
+            'No existe una Citaci\u00f3n Prosesa Piso 1 pendiente con esa gu\u00eda.',
+            status_code=404,
+        )
+    if len(coincidencias) > 1:
+        raise ProsesaPiso2SnapshotError(
+            'La gu\u00eda coincide con m\u00e1s de una Citaci\u00f3n Prosesa Piso 1; debe corregirse la inconsistencia.'
+        )
+
+    origen = coincidencias[0]
+    if CITACION_PROSESA_RELACION.objects.filter(CI_NID_ORIGEN=origen).exists():
+        raise ProsesaPiso2SnapshotError(
+            'La Citaci\u00f3n Prosesa Piso 1 ya tiene una Citaci\u00f3n 2 vinculada.'
+        )
+
+    try:
+        datos = preparar_item_prosesa_piso_2_desde_origen(
+            {'guia_origen_prosesa': guia}, origen
+        )
+    except ValueError as exc:
+        raise ProsesaPiso2SnapshotError(str(exc)) from exc
+
+    if not CITACION_ITEM.objects.filter(CI_NID=origen).exists():
+        raise ProsesaPiso2SnapshotError(
+            'La Citaci\u00f3n Prosesa Piso 1 no tiene un insumo asociado.'
+        )
+    faltantes = [
+        nombre for clave, nombre in (
+            ('codigo_sap', 'codigo SAP'),
+            ('insumo', 'insumo'),
+            ('pedido', 'pedido SAP'),
+        )
+        if not str(datos.get(clave) or '').strip()
+    ]
+    if faltantes:
+        raise ProsesaPiso2SnapshotError(
+            'Faltan datos en la Citaci\u00f3n Piso 1: ' + ', '.join(faltantes) + '.'
+        )
+    _, mensaje_tipo = validar_tipo_recepcion_sbh(
+        datos.get('tipo_origen_recepcion'), 'INGRESO_MERCADERIA'
+    )
+    if mensaje_tipo:
+        raise ProsesaPiso2SnapshotError(mensaje_tipo)
+    destino_valido, mensaje_destino = validar_destino_recepcion_sbh(
+        datos.get('almacen_destino'), datos.get('estanque_destino')
+    )
+    if not destino_valido:
+        raise ProsesaPiso2SnapshotError(mensaje_destino)
+    _, mensaje_proveedor = normalizar_proveedor_ingreso_mercaderia_sbh(datos)
+    if mensaje_proveedor:
+        raise ProsesaPiso2SnapshotError(mensaje_proveedor)
+    return origen, datos
+
+
+@require_GET
+def PROSESA_PISO_2_CARGAR_ORIGEN(request):
+    if Verificar_empresa(request) != ID_ACEITES_SBH:
+        return JsonResponse({
+            'success': False,
+            'message': 'Esta consulta requiere Empresa 2.',
+        }, status=403)
+    try:
+        origen, datos = cargar_snapshot_prosesa_piso_2(request.GET.get('guia'))
+    except ProsesaPiso2SnapshotError as exc:
+        return JsonResponse({
+            'success': False,
+            'message': str(exc),
+        }, status=exc.status_code)
+    return JsonResponse({
+        'success': True,
+        'message': f'Datos cargados desde Citaci\u00f3n Piso 1 #{origen.pk}',
+        'citacion_piso_1': origen.pk,
+        'datos': {
+            clave: valor for clave, valor in datos.items()
+            if not clave.startswith('_')
+        },
+        'base_line_disponible': bool(datos.get('base_line')),
+    })
+
+
+def validar_camion_retiro_planificado_prosesa_piso_2(item, requeridos=False):
+    patente = _normalizar_patente(item.get('patente_retiro_prosesa'))
+    if requeridos and not patente:
+        raise ValueError('Debe ingresar la patente del camion de retiro de Piso 2.')
+    if len(patente) > 32:
+        raise ValueError('La patente del camion de retiro es demasiado larga.')
+
+    transportista_id = str(
+        item.get('empresa_transporte_retiro_prosesa_id') or ''
+    ).strip()
+    empresa_transporte = re.sub(
+        r'\s+', ' ',
+        str(item.get('empresa_transporte_retiro_prosesa') or ''),
+    ).strip()
+    transportistas = queryset_transportistas_validos_ingreso_camion(
+        ID_ACEITES_SBH, estrictamente_empresa=True
+    )
+    if transportista_id:
+        if not transportista_id.isdigit():
+            raise ValueError('La empresa de transporte seleccionada no es valida.')
+        transportista = transportistas.filter(pk=int(transportista_id)).first()
+        if not transportista:
+            raise ValueError('La empresa de transporte seleccionada no pertenece a Empresa 2 o no esta habilitada.')
+        empresa_transporte = transportista.SN_CRAZONSOCIAL
+    elif empresa_transporte:
+        transportista = transportistas.filter(
+            SN_CRAZONSOCIAL__iexact=empresa_transporte
+        ).first()
+        if transportista:
+            empresa_transporte = transportista.SN_CRAZONSOCIAL
+            transportista_id = str(transportista.pk)
+
+    if requeridos and not empresa_transporte:
+        raise ValueError('Debe ingresar la empresa de transporte del camion de retiro de Piso 2.')
+    if len(empresa_transporte) > 256:
+        raise ValueError('La empresa de transporte no puede superar 256 caracteres.')
+    return {
+        'patente_retiro_prosesa': patente,
+        'empresa_transporte_retiro_prosesa': empresa_transporte,
+        'empresa_transporte_retiro_prosesa_id': transportista_id,
+    }
+
+
+def citaciones_prosesa_piso_2_pendientes_por_patente(patente):
+    patente = _normalizar_patente(patente)
+    queryset = CITACION.objects.filter(
+        EP_NID_id=ID_ACEITES_SBH,
+        CI_CTIPO=CIT_RECEPCION,
+        CI_CESTADO='Insumo Programado',
+        CI_BHABILITADO=True,
+        SC_NID__SE_CCODIGO=SECUENCIA_RECEPCION_PROSESA_PISO_2,
+    )
+    if not patente:
+        return queryset.none()
+    return queryset.filter(
+        dato_operacion__CAMP_NID__CA_CCODIGO=CAMPO_PROSESA_PISO2_PATENTE_RETIRO,
+        dato_operacion__DO_CVALOR=patente,
+    ).distinct()
+
 
 def es_citacion_despacho_terramar(citacion):
     return bool(
@@ -436,6 +950,14 @@ def es_citacion_despacho_terramar(citacion):
         and citacion.SC_NID
         and citacion.SC_NID.SE_CCODIGO in {'DESPACHO_TERRAMAR', 'DESPACHO_TERRAMAR_BODEGA_EXTERNA'}
     )
+
+def es_citacion_despacho_terramar_principal(citacion):
+    return bool(
+        es_citacion_despacho_terramar(citacion)
+        and citacion.SC_NID
+        and str(citacion.SC_NID.SE_CCODIGO or '').strip().upper() == 'DESPACHO_TERRAMAR'
+    )
+
 
 def es_flujo_preoperacional_terramar(citacion):
     """Flujo común de ingreso físico Terramar, aislado de los datos de Recepción."""
@@ -459,6 +981,7 @@ def aplica_timbraje_recepcion(citacion):
         citacion
         and str(getattr(citacion, 'CI_CTIPO', '') or '').strip().upper() == CIT_RECEPCION
         and _empresa_timbre_recepcion(citacion) in {'TERRAMAR', 'SBH'}
+        and not rs.es_recepcion_servicio(citacion)
     )
 
 
@@ -484,6 +1007,8 @@ def _pk_corresponde_recepcion_terramar(pk):
 def operacion_envio_guardia_para_citacion(citacion):
     if es_flujo_preoperacional_terramar(citacion):
         return SYSLOGGER_OP_ENVIA_BODEGA_GUARDIA
+    if es_recepcion_new_jersey_p3(citacion):
+        return 'APRUEBA_AR'
     return 'ENVIA_CD_NEXT'
 
 
@@ -644,7 +1169,9 @@ def normalizar_proveedor_ingreso_mercaderia_sbh(item):
     return proveedor, ''
 
 
-def validar_programacion_despacho_sbh_item(item):
+def validar_programacion_despacho_sbh_item(
+    item, requerir_fecha_llegada_destino=True
+):
     campos = {
         'fecha despacho': item.get('fecha_despacho'),
         'hora llegada a planta': item.get('hora_llegada_planta'),
@@ -653,6 +1180,8 @@ def validar_programacion_despacho_sbh_item(item):
         'formato': item.get('tipo_carga'),
         'destino': item.get('destino') or item.get('estanque_destino_texto'),
     }
+    if requerir_fecha_llegada_destino:
+        campos['fecha llegada a destino'] = item.get('fecha_llegada_destino')
     faltantes = [
         nombre for nombre, valor in campos.items()
         if not str(valor or '').strip()
@@ -666,6 +1195,23 @@ def validar_programacion_despacho_sbh_item(item):
         ).date()
     except ValueError as exc:
         raise ValueError('La fecha de despacho debe tener formato YYYY-MM-DD.') from exc
+
+    fecha_llegada_destino = None
+    if requerir_fecha_llegada_destino or str(
+        item.get('fecha_llegada_destino') or ''
+    ).strip():
+        try:
+            fecha_llegada_destino = datetime.strptime(
+                str(item.get('fecha_llegada_destino')).strip(), '%Y-%m-%d'
+            ).date()
+        except ValueError as exc:
+            raise ValueError(
+                'La fecha de llegada a destino debe tener formato YYYY-MM-DD.'
+            ) from exc
+        if fecha_llegada_destino < fecha_despacho:
+            raise ValueError(
+                'La fecha de llegada a destino no puede ser anterior a la fecha de despacho.'
+            )
 
     horas = {}
     for clave, etiqueta in (
@@ -688,6 +1234,8 @@ def validar_programacion_despacho_sbh_item(item):
         'destino': str(campos['destino']).strip(),
         'orden_carga': str(item.get('orden_carga')).strip(),
     })
+    if fecha_llegada_destino:
+        item['fecha_llegada_destino'] = fecha_llegada_destino.isoformat()
     return item
 
 
@@ -848,6 +1396,72 @@ def validar_transportes_borradores_despacho_sbh(citaciones, empresa_id, resolver
     return citaciones
 
 
+def normalizar_carga_despacho_terramar_etapa0(item):
+    """Valida y normaliza la carga exclusiva de Despacho Terramar Etapa 0."""
+    if str(item.get('tipo_camion') or '').strip() not in {'Plano', 'Cortina'}:
+        raise ValueError('Tipo de camión inválido para Despacho Terramar.')
+    for campo in ('pallet', 'relleno'):
+        if str(item.get(campo) or '').strip().upper() not in {'SI', 'NO'}:
+            raise ValueError(f'El valor de {campo} debe ser Sí o No.')
+
+    requeridos = {
+        'contenedor 1 / CRT': item.get('contenedor_crt'),
+        'peso 1': item.get('peso_1'),
+        'N° Maxis 1': item.get('maxis_1'),
+    }
+    faltantes = [
+        nombre for nombre, valor in requeridos.items()
+        if str(valor or '').strip() == ''
+    ]
+    if faltantes:
+        raise ValueError('Debe completar: ' + ', '.join(faltantes) + '.')
+
+    relleno_activo = str(item.get('relleno') or '').strip().upper() == 'SI'
+    if relleno_activo:
+        requeridos_relleno = {
+            'contenedor 2 / CRT': item.get('contenedor_2_crt'),
+            'peso 2': item.get('peso_2'),
+            'N° Maxis 2': item.get('maxis_2'),
+        }
+        faltantes_relleno = [
+            nombre for nombre, valor in requeridos_relleno.items()
+            if str(valor or '').strip() == ''
+        ]
+        if faltantes_relleno:
+            raise ValueError(
+                'Para carga con relleno debe completar: '
+                + ', '.join(faltantes_relleno) + '.'
+            )
+    else:
+        item.update({'contenedor_2_crt': '', 'peso_2': '', 'maxis_2': ''})
+
+    for clave, etiqueta in (('peso_1', 'Peso 1'), ('peso_2', 'Peso 2')):
+        if clave == 'peso_2' and not relleno_activo:
+            continue
+        try:
+            peso = Decimal(str(item.get(clave) or '').strip().replace(',', '.'))
+        except (InvalidOperation, ValueError):
+            raise ValueError(f'{etiqueta} debe ser un número válido.')
+        if not peso.is_finite() or peso <= 0:
+            raise ValueError(f'{etiqueta} debe ser mayor que cero.')
+        item[clave] = str(peso)
+
+    for clave, etiqueta in (('maxis_1', 'N° Maxis 1'), ('maxis_2', 'N° Maxis 2')):
+        if clave == 'maxis_2' and not relleno_activo:
+            continue
+        valor = str(item.get(clave) or '').strip()
+        if not valor.isdigit() or int(valor) <= 0:
+            raise ValueError(f'{etiqueta} debe ser un entero mayor que cero.')
+        item[clave] = str(int(valor))
+
+    item['patente_rampla'] = re.sub(
+        r'\s+', ' ', str(item.get('patente_rampla') or '')
+    ).strip().upper()
+    item['contenedor_crt'] = str(item.get('contenedor_crt') or '').strip()
+    item['contenedor_2_crt'] = str(item.get('contenedor_2_crt') or '').strip()
+    return item
+
+
 @transaction.atomic
 def CREAR_PLANIFICACION_CITACION(request):
     try:
@@ -996,17 +1610,16 @@ def CREAR_PLANIFICACION_CITACION(request):
                 codigos_secuencia = dict(
                     secuencias_permitidas.filter(pk__in=ids_secuencia).values_list('id', 'SE_CCODIGO')
                 )
-                items_prosesa = [
+                items_prosesa_piso_2 = [
                     item for item in citaciones_data
-                    if codigos_secuencia.get(int(str(item.get('secuencia_id')).strip())) in {
-                        SECUENCIA_RECEPCION_PROSESA_PISO_1,
-                        SECUENCIA_RECEPCION_PROSESA_PISO_2,
-                    }
+                    if codigos_secuencia.get(
+                        int(str(item.get('secuencia_id')).strip())
+                    ) == SECUENCIA_RECEPCION_PROSESA_PISO_2
                 ]
-                if items_prosesa and len(citaciones_data) != 1:
+                if items_prosesa_piso_2 and len(citaciones_data) != 1:
                     return JsonResponse({
                         'success': False,
-                        'message': 'Cada operación Prosesa debe crear exactamente una citación.',
+                        'message': 'Contenedor a Piso 2 debe crear exactamente una citación.',
                     }, status=400)
 
                 for item in citaciones_data:
@@ -1014,25 +1627,6 @@ def CREAR_PLANIFICACION_CITACION(request):
                         int(str(item.get('secuencia_id')).strip())
                     )
                     item['_secuencia_codigo'] = secuencia_codigo or ''
-                    if secuencia_codigo == SECUENCIA_RECEPCION_PROSESA_PISO_1:
-                        guia = str(item.get('guia') or '').strip()
-                        if not guia:
-                            return JsonResponse({
-                                'success': False,
-                                'message': 'Contenedor a Piso 1 requiere número de guía.',
-                            }, status=400)
-                        if CITACION.objects.filter(
-                            EP_NID_id=ID_ACEITES_SBH,
-                            CI_CTIPO=CIT_RECEPCION,
-                            CI_CESTADO=ESTADO_PROSESA_ESPERANDO_RETIRO,
-                            SC_NID__SE_CCODIGO=SECUENCIA_RECEPCION_PROSESA_PISO_1,
-                            detalle_operacional__CDO_CGUIA__iexact=guia,
-                        ).exists():
-                            return JsonResponse({
-                                'success': False,
-                                'message': 'Ya existe una operación Prosesa Piso 1 pendiente para esa guía.',
-                            }, status=409)
-
                     if secuencia_codigo == SECUENCIA_RECEPCION_PROSESA_PISO_2:
                         guia = str(item.get('guia_origen_prosesa') or '').strip()
                         if not guia:
@@ -1040,35 +1634,25 @@ def CREAR_PLANIFICACION_CITACION(request):
                                 'success': False,
                                 'message': 'Contenedor a Piso 2 requiere el número de guía de la Citación 1.',
                             }, status=400)
-                        coincidencias = list(
-                            CITACION.objects.select_for_update(of=('self',)).select_related(
-                                'SC_NID', 'SN_NID', 'PRO_NID', 'detalle_operacional'
-                            ).filter(
-                                EP_NID_id=ID_ACEITES_SBH,
-                                CI_CTIPO=CIT_RECEPCION,
-                                CI_CESTADO=ESTADO_PROSESA_ESPERANDO_RETIRO,
-                                CI_BHABILITADO=True,
-                                SC_NID__SE_CCODIGO=SECUENCIA_RECEPCION_PROSESA_PISO_1,
-                                detalle_operacional__CDO_CGUIA__iexact=guia,
-                            )[:2]
-                        )
-                        if not coincidencias:
+                        try:
+                            citacion_origen, datos_origen = cargar_snapshot_prosesa_piso_2(
+                                guia, bloquear=True
+                            )
+                        except ProsesaPiso2SnapshotError as exc:
                             return JsonResponse({
                                 'success': False,
-                                'message': 'No existe una Citación Prosesa Piso 1 pendiente con esa guía.',
-                            }, status=404)
-                        if len(coincidencias) > 1:
+                                'message': str(exc),
+                            }, status=exc.status_code)
+                        item.update(datos_origen)
+                        try:
+                            item.update(
+                                validar_camion_retiro_planificado_prosesa_piso_2(item)
+                            )
+                        except ValueError as exc:
                             return JsonResponse({
                                 'success': False,
-                                'message': 'La guía coincide con más de una Citación Prosesa Piso 1; debe corregirse la inconsistencia.',
-                            }, status=409)
-                        citacion_origen = coincidencias[0]
-                        if CITACION_PROSESA_RELACION.objects.filter(CI_NID_ORIGEN=citacion_origen).exists():
-                            return JsonResponse({
-                                'success': False,
-                                'message': 'La Citación Prosesa Piso 1 ya tiene una Citación 2 vinculada.',
-                            }, status=409)
-                        preparar_item_prosesa_piso_2_desde_origen(item, citacion_origen)
+                                'message': str(exc),
+                            }, status=400)
         es_recepcion_transferencia_sbh = (
             es_recepcion_sbh and flujo_recepcion_sbh == 'TRANSFERENCIA'
         )
@@ -1318,6 +1902,57 @@ def CREAR_PLANIFICACION_CITACION(request):
                 'success': False,
                 'message': 'La secuencia seleccionada no es válida para Despacho Terramar.'
             }, status=400)
+        # Etapa 0 RECEPCION con Purchase Order: el saldo proviene de POR1.OpenQty,
+        # no del valor editable en el JSON enviado por el navegador.
+        for item in citaciones_data:
+            if str(item.get('tipo_operacion', tipo_operacion) or '').strip().upper() != CIT_RECEPCION:
+                continue
+            if es_recepcion_terramar or es_recepcion_transferencia_sbh:
+                continue
+            if item.get('_secuencia_codigo') == SECUENCIA_RECEPCION_PROSESA_PISO_2:
+                continue
+            docentry_sap = str(item.get('sap_opor_id') or item.get('docentry') or '').strip()
+            if not docentry_sap:
+                if str(item.get('pedido') or '').strip():
+                    return JsonResponse({
+                        'success': False,
+                        'message': 'No se pudo identificar la línea SAP seleccionada para planificar.',
+                    }, status=400)
+                continue  # Flujos de recepción sin Purchase Order.
+            try:
+                linea_sap = consultar_saldo_linea_pedido_sap(
+                    docentry_sap, item.get('codigo') or item.get('codigo_sap'), item.get('line_num'),
+                )
+                saldo_sap = Decimal(str(linea_sap['OpenQty']))
+            except ValueError as exc:
+                return JsonResponse({'success': False, 'message': str(exc)}, status=400)
+            except (SapDiApiError, KeyError, TypeError, InvalidOperation) as exc:
+                return JsonResponse({
+                    'success': False,
+                    'message': f'No fue posible validar el saldo disponible SAP: {exc}',
+                }, status=503)
+            if (str(linea_sap.get('DocStatus') or '').upper() != 'O'
+                    or not saldo_sap.is_finite() or saldo_sap <= Decimal('0')):
+                return JsonResponse({
+                    'success': False,
+                    'message': 'No se puede planificar: la línea SAP seleccionada no tiene cantidad disponible.',
+                }, status=400)
+            item['cantidad_disponible'] = str(saldo_sap)
+            item['sap_opor_id'] = str(linea_sap.get('DocEntry') or docentry_sap)
+            item['docentry'] = item['sap_opor_id']
+            item['pedido'] = str(linea_sap.get('DocNum') or item.get('pedido') or '')
+            item['line_num'] = linea_sap['LineNum']
+        if empresa_es_terramar_chile(Empresa):
+            for item in citaciones_data:
+                if (
+                    str(item.get('tipo_operacion', tipo_operacion) or '').strip().upper() == CIT_DESPACHO
+                    and bool(item.get('despacho_terramar'))
+                ):
+                    try:
+                        normalizar_carga_despacho_terramar_etapa0(item)
+                    except ValueError as exc:
+                        return JsonResponse({'success': False, 'message': str(exc)}, status=400)
+
         calendario = CALENDARIO.objects.filter(
             EP_NID_id=Empresa,
             CA_NDIA=fecha_llegada_obj.day,
@@ -1356,6 +1991,7 @@ def CREAR_PLANIFICACION_CITACION(request):
         planificacion.save()
 
         citaciones_creadas = []
+        operaciones_new_jersey_creadas = []
 
         for i, item in enumerate(citaciones_data):
             tipo_item_citacion = str(item.get('tipo_operacion', tipo_operacion)).strip().upper()
@@ -1373,7 +2009,9 @@ def CREAR_PLANIFICACION_CITACION(request):
                     'código cliente SAP': item.get('cliente_codigo'),
                     'nombre cliente SAP': item.get('cliente_nombre'),
                     'destino': item.get('destino'),
-                    'contenedor / CRT': item.get('contenedor_crt'),
+                    'contenedor 1 / CRT': item.get('contenedor_crt'),
+                    'peso 1': item.get('peso_1'),
+                    'N° Maxis 1': item.get('maxis_1'),
                     'insumo': item.get('insumo'),
                     'bodega': item.get('bodega'),
                     'tipo camion': item.get('tipo_camion'),
@@ -1717,6 +2355,13 @@ def CREAR_PLANIFICACION_CITACION(request):
                 usuario=usuario,
                 origen_default='planificacion'
             )
+            operacion_new_jersey = crear_operacion_new_jersey_proceso_1(
+                citacion,
+                item,
+                usuario,
+            )
+            if operacion_new_jersey:
+                operaciones_new_jersey_creadas.append(operacion_new_jersey.id)
             if es_recepcion_transferencia_sbh:
                 guardar_detalles_transferencia_citacion(
                     citacion,
@@ -1735,6 +2380,36 @@ def CREAR_PLANIFICACION_CITACION(request):
                     CI_NID_RETIRO=citacion,
                     US_NID=usuario,
                 )
+                guardar_dato_operacion_codigo(
+                    citacion,
+                    CAMPO_PROSESA_PISO2_PATENTE_RETIRO,
+                    item['patente_retiro_prosesa'],
+                    usuario,
+                    etiqueta='Patente camion retiro Prosesa Piso 2',
+                )
+                guardar_dato_operacion_codigo(
+                    citacion,
+                    CAMPO_PROSESA_PISO2_EMPRESA_TRANSPORTE,
+                    item['empresa_transporte_retiro_prosesa'],
+                    usuario,
+                    etiqueta='Empresa transporte retiro Prosesa Piso 2',
+                )
+                if item['empresa_transporte_retiro_prosesa_id']:
+                    guardar_dato_operacion_codigo(
+                        citacion,
+                        CAMPO_PROSESA_PISO2_TRANSPORTISTA_ID,
+                        item['empresa_transporte_retiro_prosesa_id'],
+                        usuario,
+                        etiqueta='Transportista retiro Prosesa Piso 2',
+                    )
+                if item.get('base_line') not in (None, ''):
+                    guardar_dato_operacion_codigo(
+                        citacion,
+                        CAMPO_PROSESA_BASE_LINE_SAP,
+                        item.get('base_line'),
+                        usuario,
+                        etiqueta='BaseLine SAP Prosesa',
+                    )
 
             if es_item_despacho_terramar:
                 guardar_detalle_despacho_terramar_citacion(citacion, item, usuario)
@@ -1777,7 +2452,8 @@ def CREAR_PLANIFICACION_CITACION(request):
             'success': True,
             'message': f'Planificación y {len(citaciones_creadas)} citación(es) creadas correctamente.',
             'planificacion_id': planificacion.id,
-            'citaciones': citaciones_creadas
+            'citaciones': citaciones_creadas,
+            'operaciones_new_jersey': operaciones_new_jersey_creadas,
         })
 
     except Exception as e:
@@ -3328,8 +4004,274 @@ def _estado_patente_despacho_patio(camion, citacion, valores_ingreso=None):
     return patente_citacion, patente_citacion_normalizada, False, 'distinta'
 
 
+def _detalle_recepcion_terramar_citacion_patio(citacion):
+    if not es_citacion_recepcion_terramar(citacion):
+        return None
+    try:
+        return citacion.detalle_recepcion_terramar
+    except (CITACION_RECEPCION_TERRAMAR_DETALLE.DoesNotExist, AttributeError):
+        return None
+
+
+def _normalizar_identificador_match(valor):
+    return re.sub(r'[^A-Z0-9]', '', str(valor or '').strip().upper())
+
+
+def _nombre_conductor_patio(conductor):
+    if not conductor:
+        return ''
+    return ' '.join(filter(None, [
+        str(getattr(conductor, 'CON_CNOMBRE', '') or '').strip(),
+        str(getattr(conductor, 'CON_CAPELLIDO', '') or '').strip(),
+    ]))
+
+
+def _datos_planificados_recepcion_terramar_patio(citacion, detalle_operacional=None):
+    detalle_operacional = detalle_operacional or _detalle_operacional_citacion(citacion)
+    detalle_terramar = _detalle_recepcion_terramar_citacion_patio(citacion)
+    conductor = (
+        getattr(detalle_terramar, 'CON_NID', None)
+        or getattr(citacion, 'CON_NID', None)
+    )
+    transportista = getattr(detalle_terramar, 'SN_NID_TRANSPORTISTA', None)
+    proveedor = getattr(citacion, 'PRO_NID', None)
+    nombre_proveedor = str(
+        (getattr(detalle_operacional, 'CDO_CPRODUCTOR', '') if detalle_operacional else '')
+        or (getattr(proveedor, 'SN_CRAZONSOCIAL', '') if proveedor else '')
+        or ''
+    ).strip()
+    nombre_conductor = str(
+        getattr(detalle_terramar, 'RTD_CCONDUCTOR', '') or ''
+    ).strip() or _nombre_conductor_patio(conductor)
+    nombre_transportista = str(
+        getattr(detalle_terramar, 'RTD_CEMPRESA_TRANSPORTE', '') or ''
+    ).strip() or str(
+        getattr(transportista, 'SN_CRAZONSOCIAL', '') or ''
+    ).strip()
+    return {
+        'patente': str(getattr(detalle_terramar, 'RTD_CPATENTE', '') or '').strip(),
+        'producto': str(getattr(detalle_operacional, 'CDO_CINSUMO', '') or '').strip(),
+        'transportista': nombre_transportista,
+        'transportista_id': getattr(detalle_terramar, 'SN_NID_TRANSPORTISTA_id', None),
+        'conductor': nombre_conductor,
+        'conductor_id': getattr(detalle_terramar, 'CON_NID_id', None) or getattr(citacion, 'CON_NID_id', None),
+        'rut_conductor': str(getattr(conductor, 'CON_CRUT', '') or '').strip(),
+        'guia': str(
+            getattr(citacion, 'CI_CNUMERODOCUMENTO', '')
+            or (getattr(detalle_operacional, 'CDO_CGUIA', '') if detalle_operacional else '')
+            or ''
+        ).strip(),
+        'contenedor': str(
+            getattr(detalle_terramar, 'RTD_CCONTENEDOR_CRT', '')
+            or (getattr(detalle_operacional, 'CDO_CBL_CONTENEDOR', '') if detalle_operacional else '')
+            or ''
+        ).strip(),
+        'proveedor': nombre_proveedor,
+        'proveedor_id': getattr(citacion, 'PRO_NID_id', None),
+        'proveedor_codigo': str(getattr(proveedor, 'SN_CCODIGO_SAP', '') or '').strip() if proveedor else '',
+    }
+
+
+def _diferencia_horaria_patio(camion, citacion):
+    fecha_planificada = (
+        getattr(getattr(citacion, 'PL_NID', None), 'PL_FFECHAINICIO', None)
+        or getattr(citacion, 'CI_FFECHACITACION', None)
+    )
+    llegada = getattr(camion, 'CPA_FFECHALLEGADA', None)
+    if not fecha_planificada or not llegada:
+        return None
+    return abs((llegada - fecha_planificada).total_seconds()) / 3600
+
+
+def _detalle_diferencia_horaria_patio(horas):
+    minutos = int(round(float(horas or 0) * 60))
+    if minutos < 60:
+        return f'{minutos} min'
+    horas_enteras, minutos_restantes = divmod(minutos, 60)
+    return f'{horas_enteras} h {minutos_restantes:02d} min'
+
+
+def _score_recepcion_terramar_patio(camion, citacion, detalle_operacional=None):
+    """Score 0..100 para sugerencias de Recepcion Terramar."""
+    datos = _datos_planificados_recepcion_terramar_patio(
+        citacion,
+        detalle_operacional=detalle_operacional,
+    )
+    desglose = []
+
+    def sumar(criterio, puntos, detalle):
+        desglose.append({
+            'criterio': criterio,
+            'puntos': puntos,
+            'detalle': detalle,
+        })
+
+    patente_camion = _normalizar_patente_camion_patio(camion.CPA_CPATENTE)
+    patente_citacion = _normalizar_patente_camion_patio(datos['patente'])
+    if patente_camion and patente_camion == patente_citacion:
+        sumar('Patente', 30, f'Patente coincide: {datos["patente"]}')
+
+    guia_camion = _normalizar_identificador_match(camion.CPA_CNUMERO_GUIA)
+    guia_citacion = _normalizar_identificador_match(datos['guia'])
+    if guia_camion and guia_camion == guia_citacion:
+        sumar('Guia', 20, f'Guia coincide: {datos["guia"]}')
+
+    transportista_camion = _resolver_transportista_snapshot_camion_patio(camion)
+    mismo_transportista_id = bool(
+        transportista_camion
+        and datos['transportista_id']
+        and transportista_camion.id == datos['transportista_id']
+    )
+    mismo_transportista_texto = bool(
+        _normalizar_match_texto(camion.CPA_CTRANSPORTISTA_DECLARADO)
+        and _normalizar_match_texto(camion.CPA_CTRANSPORTISTA_DECLARADO)
+        == _normalizar_match_texto(datos['transportista'])
+    )
+    if mismo_transportista_id or mismo_transportista_texto:
+        sumar('Transportista', 15, f'Transportista coincide: {datos["transportista"]}')
+
+    producto_camion = _normalizar_match_texto(camion.CPA_CINSUMO_DECLARADO_GUIA)
+    producto_citacion = _normalizar_match_texto(datos['producto'])
+    if (
+        producto_camion
+        and producto_citacion
+        and (producto_camion in producto_citacion or producto_citacion in producto_camion)
+    ):
+        sumar('Producto', 10, 'Producto coincide')
+
+    conductor_camion = getattr(camion, 'CON_NID', None)
+    mismo_conductor_id = bool(
+        conductor_camion
+        and datos['conductor_id']
+        and conductor_camion.id == datos['conductor_id']
+    )
+    mismo_conductor_nombre = bool(
+        _normalizar_match_texto(camion.CPA_CNOMBRE_CONDUCTOR)
+        and _normalizar_match_texto(camion.CPA_CNOMBRE_CONDUCTOR)
+        == _normalizar_match_texto(datos['conductor'])
+    )
+    if mismo_conductor_id or mismo_conductor_nombre:
+        sumar('Conductor', 7, f'Conductor coincide: {datos["conductor"]}')
+
+    rut_camion = _normalizar_identificador_match(camion.CPA_CRUT_CONDUCTOR)
+    rut_citacion = _normalizar_identificador_match(datos['rut_conductor'])
+    if rut_camion and rut_camion == rut_citacion:
+        sumar('RUT conductor', 5, f'RUT coincide: {datos["rut_conductor"]}')
+
+    contenedor_camion = _normalizar_identificador_match(camion.CPA_CLOTE_CONTENEDOR)
+    contenedor_citacion = _normalizar_identificador_match(datos['contenedor'])
+    if contenedor_camion and contenedor_camion == contenedor_citacion:
+        sumar('Contenedor', 5, f'Contenedor coincide: {datos["contenedor"]}')
+
+    proveedor_camion = _normalizar_match_texto(camion.CPA_CPROVEEDOR_DECLARADO)
+    proveedor_citacion = _normalizar_match_texto(datos['proveedor'])
+    if proveedor_camion and proveedor_camion == proveedor_citacion:
+        sumar('Proveedor', 5, f'Proveedor coincide: {datos["proveedor"]}')
+
+    diferencia_horas = _diferencia_horaria_patio(camion, citacion)
+    if diferencia_horas is not None and diferencia_horas <= 24:
+        sumar('Horario', 3, f'Horario cercano: {_detalle_diferencia_horaria_patio(diferencia_horas)}')
+    elif diferencia_horas is not None and diferencia_horas <= 72:
+        sumar('Horario', 1, f'Horario relacionado: {_detalle_diferencia_horaria_patio(diferencia_horas)}')
+
+    score = sum(item['puntos'] for item in desglose)
+    return score, [item['detalle'] for item in desglose], {
+        **datos,
+        'patente_normalizada': patente_citacion,
+        'patente_coincide': bool(patente_camion and patente_camion == patente_citacion),
+        'patente_estado': (
+            'pendiente' if not patente_citacion
+            else ('coincide' if patente_camion == patente_citacion else 'distinta')
+        ),
+        'desglose': desglose,
+        'diferencia_horas': diferencia_horas,
+    }
+
+def _score_despacho_terramar_patio(camion, citacion):
+    # Score y desglose para sugerencias de Despacho Terramar.
+    datos = _payload_citacion_terramar_patio(citacion)
+    desglose = []
+
+    def sumar(criterio, puntos, detalle):
+        desglose.append({
+            'criterio': criterio,
+            'puntos': puntos,
+            'detalle': detalle,
+        })
+
+    patente_camion = _normalizar_patente_camion_patio(camion.CPA_CPATENTE)
+    patente_citacion = _normalizar_patente_camion_patio(datos.get('patente'))
+    patente_coincide = bool(patente_camion and patente_camion == patente_citacion)
+    if patente_coincide:
+        sumar('Patente', 100, f'Patente coincide: {datos.get("patente") or ""}')
+
+    transportista_camion = _normalizar_match_texto(camion.CPA_CTRANSPORTISTA_DECLARADO)
+    transportista_citacion = _normalizar_match_texto(datos.get('empresa_transporte_nombre'))
+    if transportista_camion and transportista_citacion and transportista_camion == transportista_citacion:
+        sumar('Transportista', 15, f'Transportista coincide: {datos.get("empresa_transporte_nombre") or ""}')
+
+    producto_camion = _normalizar_match_texto(camion.CPA_CINSUMO_DECLARADO_GUIA)
+    producto_citacion = _normalizar_match_texto(datos.get('insumo'))
+    if producto_camion and producto_citacion and (
+        producto_camion in producto_citacion or producto_citacion in producto_camion
+    ):
+        sumar('Producto', 45, 'Producto coincide')
+
+    conductor_camion = getattr(camion, 'CON_NID', None)
+    conductor_citacion_id = datos.get('conductor_id')
+    mismo_conductor_id = bool(
+        conductor_camion and conductor_citacion_id and conductor_camion.id == conductor_citacion_id
+    )
+    mismo_conductor_nombre = bool(
+        _normalizar_match_texto(camion.CPA_CNOMBRE_CONDUCTOR)
+        and _normalizar_match_texto(camion.CPA_CNOMBRE_CONDUCTOR)
+        == _normalizar_match_texto(datos.get('conductor_nombre'))
+    )
+    if mismo_conductor_id or mismo_conductor_nombre:
+        sumar('Conductor', 7, f'Conductor coincide: {datos.get("conductor_nombre") or ""}')
+
+    rut_camion = _normalizar_identificador_match(camion.CPA_CRUT_CONDUCTOR)
+    rut_citacion = _normalizar_identificador_match(datos.get('conductor_rut'))
+    if rut_camion and rut_citacion and rut_camion == rut_citacion:
+        sumar('RUT conductor', 5, f'RUT coincide: {datos.get("conductor_rut") or ""}')
+
+    cliente_camion = _normalizar_match_texto(camion.CPA_CCLIENTE_DECLARADO)
+    cliente_citacion = _normalizar_match_texto(datos.get('cliente'))
+    if cliente_camion and cliente_citacion and (
+        cliente_camion in cliente_citacion or cliente_citacion in cliente_camion
+    ):
+        sumar('Cliente', 15, 'Cliente coincide')
+
+    diferencia_horas = _diferencia_horaria_patio(camion, citacion)
+    if diferencia_horas is not None and diferencia_horas <= 24:
+        sumar('Horario', 10, f'Horario cercano: {_detalle_diferencia_horaria_patio(diferencia_horas)}')
+    elif diferencia_horas is not None and diferencia_horas <= 72:
+        sumar('Horario', 4, f'Horario relacionado: {_detalle_diferencia_horaria_patio(diferencia_horas)}')
+
+    score = sum(item['puntos'] for item in desglose)
+    return score, [item['detalle'] for item in desglose], {
+        **datos,
+        'patente_normalizada': patente_citacion,
+        'patente_coincide': patente_coincide,
+        'patente_estado': (
+            'pendiente' if not patente_citacion
+            else ('coincide' if patente_coincide else 'distinta')
+        ),
+        'desglose': desglose,
+        'diferencia_horas': diferencia_horas,
+    }
+
+
 def _score_citacion_camion_patio(camion, citacion):
+    if es_citacion_despacho_terramar_principal(citacion):
+        return _score_despacho_terramar_patio(camion, citacion)
     detalle = _detalle_operacional_citacion(citacion)
+    if es_citacion_recepcion_terramar(citacion):
+        return _score_recepcion_terramar_patio(
+            camion,
+            citacion,
+            detalle_operacional=detalle,
+        )
     valores_ingreso = obtener_valores_ingreso_camion(citacion)
     tipo = _tipo_citacion_patio(citacion)
     score = 0
@@ -3389,6 +4331,7 @@ def _score_citacion_camion_patio(camion, citacion):
         elif horas <= 72:
             score += 4
             razones.append('Horario relacionado')
+    diferencia_horas = _diferencia_horaria_patio(camion, citacion)
     return score, list(dict.fromkeys(razones)), {
         'patente': patente if tipo == CIT_DESPACHO else '',
         'patente_normalizada': patente_normalizada if tipo == CIT_DESPACHO else '',
@@ -3397,6 +4340,8 @@ def _score_citacion_camion_patio(camion, citacion):
         'bl': bl_citacion if comparar_bl else '',
         'bl_normalizado': bl_citacion_normalizado if comparar_bl else '',
         'bl_estado': bl_estado if comparar_bl else '',
+        'desglose': [],
+        'diferencia_horas': diferencia_horas,
     }
 
 def _fecha_planificacion_sugerida_patio(citacion):
@@ -3425,11 +4370,17 @@ def _serializar_citacion_patio(camion, citacion, citacion_aprobada_id=None):
     es_despacho_sbh = tipo == CIT_DESPACHO and getattr(citacion, 'EP_NID_id', None) == 2
     detalle_despacho = sap_despacho_detalle_resumen_dict(citacion) if es_despacho_sbh else {}
     salida_documento = detalle_despacho.get('salida_documento') or ''
+    fecha_planificacion_orden = (
+        getattr(getattr(citacion, 'PL_NID', None), 'PL_FFECHAINICIO', None)
+        or getattr(citacion, 'CI_FFECHACITACION', None)
+    )
     return {
         'id': citacion.id,
         'es_citacion_aprobada': citacion.id == citacion_aprobada_id,
         'score': score,
         'razones': razones,
+        'desglose': patente_info.get('desglose', []),
+        'diferencia_horas': patente_info.get('diferencia_horas'),
         'tipo': tipo,
         'tipo_label': 'DESPACHO' if tipo == CIT_DESPACHO else 'RECEPCION',
         'abrir_url': abrir_url,
@@ -3440,11 +4391,17 @@ def _serializar_citacion_patio(camion, citacion, citacion_aprobada_id=None):
             'nombre': secuencia.SE_CNOMBRE or '',
         } if secuencia else None,
         'fecha_planificacion': _fecha_planificacion_sugerida_patio(citacion),
+        'fecha_planificacion_orden': fecha_planificacion_orden.isoformat() if fecha_planificacion_orden else '',
         'cliente': cliente_planificacion['nombre'],
         'cliente_nombre': cliente_planificacion['nombre'],
         'cliente_codigo': cliente_planificacion['codigo'],
-        'proveedor': (detalle.CDO_CPRODUCTOR if detalle else '') or (citacion.PRO_NID.SN_CRAZONSOCIAL if citacion.PRO_NID else ''),
-        'producto': detalle.CDO_CINSUMO if detalle else '',
+        'proveedor': patente_info.get('proveedor') or (detalle.CDO_CPRODUCTOR if detalle else '') or (citacion.PRO_NID.SN_CRAZONSOCIAL if citacion.PRO_NID else ''),
+        'producto': patente_info.get('producto') or (detalle.CDO_CINSUMO if detalle else ''),
+        'transportista': patente_info.get('transportista', ''),
+        'conductor': patente_info.get('conductor', ''),
+        'rut_conductor': patente_info.get('rut_conductor', ''),
+        'guia': patente_info.get('guia', ''),
+        'contenedor': patente_info.get('contenedor', ''),
         'pedido_sap': detalle.CDO_CPEDIDO_SAP if detalle else '',
         'contrato_sap': (obtener_contrato_planificacion_citacion(citacion) if tipo == CIT_DESPACHO else (detalle.CDO_CCONTRATO_SAP if detalle and hasattr(detalle, 'CDO_CCONTRATO_SAP') else '')),
         'docentry': detalle.CDO_CDOCENTRY if detalle else '',
@@ -3456,6 +4413,10 @@ def _serializar_citacion_patio(camion, citacion, citacion_aprobada_id=None):
         'bl': patente_info.get('bl', ''),
         'bl_normalizado': patente_info.get('bl_normalizado', ''),
         'bl_estado': patente_info.get('bl_estado', ''),
+        **({
+            'almacen_destino': str(getattr(detalle, 'CDO_CALMACEN_DESTINO', '') or '').strip(),
+            'estanque_destino': str(getattr(detalle, 'CDO_CESTANQUE_DESTINO', '') or '').strip(),
+        } if tipo == CIT_RECEPCION else {}),
         **({
             'es_despacho_sbh': True,
             'salida_documento': salida_documento,
@@ -3473,7 +4434,22 @@ def _estado_visible_camion_patio(camion):
 
 
 def citacion_disponible_para_asociar_camion_patio(citacion):
-    if not citacion or not citacion.CI_BHABILITADO or citacion.CI_CESTADO == CIT_TERMINADO:
+    if citacion and es_recepcion_new_jersey_p2(citacion):
+        return False
+    if not citacion or not citacion.CI_BHABILITADO or citacion.CI_BARCHIVADO:
+        return False
+    estado_citacion = normalizar_nombre_perfil(citacion.CI_CESTADO)
+    if estado_citacion in {
+        normalizar_nombre_perfil(CIT_TERMINADO),
+        normalizar_nombre_perfil(CIT_RECHAZADO),
+        'SALIDA CONFIRMADA',
+        'ANULADO',
+        'ANULADA',
+        'CANCELADO',
+        'CANCELADA',
+        'COMPLETADO',
+        'COMPLETADA',
+    } or citacion.CI_FFECHATERMINO:
         return False
     if not citacion.PL_NID_id or citacion.PL_NID.PL_BARCHIVADO:
         return False
@@ -3534,6 +4510,15 @@ def citacion_disponible_para_asociar_camion_patio(citacion):
     return not estado or estado in estados_disponibles or etapa_actual in etapas_iniciales
 
 
+def _clave_orden_sugerencia_patio(item):
+    return (
+        0 if item['es_citacion_aprobada'] else 1,
+        -item['score'],
+        item['diferencia_horas'] if item['diferencia_horas'] is not None else float('inf'),
+        item['fecha_planificacion_orden'],
+        item['id'],
+    )
+
 def _citaciones_disponibles_para_patio(camion):
     solicitud = _solicitud_no_planificado_visible(camion)
     citacion_aprobada_id = (
@@ -3547,7 +4532,8 @@ def _citaciones_disponibles_para_patio(camion):
         CPA_CESTADO=CAMION_PATIO.ESTADO_ASOCIADO_CITACION
     ).values_list('CI_NID_id', flat=True)
     citaciones = CITACION.objects.select_related(
-        'PL_NID', 'SN_NID', 'PRO_NID', 'SC_NID', 'detalle_despacho', 'detalle_operacional'
+        'PL_NID', 'SN_NID', 'PRO_NID', 'SC_NID', 'CON_NID', 'detalle_despacho', 'detalle_operacional',
+        'detalle_recepcion_terramar__SN_NID_TRANSPORTISTA', 'detalle_recepcion_terramar__CON_NID'
     ).prefetch_related(
         Prefetch(
             'dato_operacion_set',
@@ -3559,6 +4545,7 @@ def _citaciones_disponibles_para_patio(camion):
     ).filter(
         EP_NID=camion.EP_NID,
         CI_BHABILITADO=True,
+        CI_BARCHIVADO=False,
         PL_NID__PL_BARCHIVADO=False,
     ).exclude(
         CI_CESTADO=CIT_TERMINADO
@@ -3567,6 +4554,14 @@ def _citaciones_disponibles_para_patio(camion):
     ).order_by('-CI_FFECHACITACION')
     if _es_camion_despacho_sbh_patio(camion):
         citaciones = citaciones.filter(CI_CTIPO=CIT_DESPACHO, EP_NID_id=ID_ACEITES_SBH)
+    elif (
+        getattr(camion, 'EP_NID_id', None) == ID_TERRAMAR
+        and _es_camion_despacho_terramar_principal(camion)
+    ):
+        citaciones = citaciones.filter(
+            CI_CTIPO=CIT_DESPACHO,
+            SC_NID__SE_CCODIGO='DESPACHO_TERRAMAR',
+        )
     citaciones = citaciones[:80]
     citaciones = [
         citacion for citacion in citaciones
@@ -3575,7 +4570,8 @@ def _citaciones_disponibles_para_patio(camion):
 
     if citacion_aprobada_id and not any(citacion.id == citacion_aprobada_id for citacion in citaciones):
         citacion_aprobada = CITACION.objects.select_related(
-            'PL_NID', 'SN_NID', 'PRO_NID', 'SC_NID', 'detalle_despacho', 'detalle_operacional'
+            'PL_NID', 'SN_NID', 'PRO_NID', 'SC_NID', 'CON_NID', 'detalle_despacho', 'detalle_operacional',
+            'detalle_recepcion_terramar__SN_NID_TRANSPORTISTA', 'detalle_recepcion_terramar__CON_NID',
         ).prefetch_related(
             Prefetch(
                 'dato_operacion_set',
@@ -3588,6 +4584,7 @@ def _citaciones_disponibles_para_patio(camion):
             pk=citacion_aprobada_id,
             EP_NID=camion.EP_NID,
             CI_BHABILITADO=True,
+            CI_BARCHIVADO=False,
             PL_NID__PL_BARCHIVADO=False,
         ).first()
         if citacion_aprobada and citacion_disponible_para_asociar_camion_patio(citacion_aprobada):
@@ -3597,12 +4594,7 @@ def _citaciones_disponibles_para_patio(camion):
         _serializar_citacion_patio(camion, citacion, citacion_aprobada_id=citacion_aprobada_id)
         for citacion in citaciones
     ]
-    data.sort(key=lambda item: (
-        item['es_citacion_aprobada'],
-        item['tipo'] == CIT_DESPACHO and item.get('patente_coincide'),
-        item['score'],
-        item['id']
-    ), reverse=True)
+    data.sort(key=_clave_orden_sugerencia_patio)
     return data
 
 
@@ -3691,8 +4683,14 @@ def _serializar_camion_patio(camion):
         'planificacion_candidata_id': candidata.PL_NID_id if candidata else None,
         'fecha_citacion_candidata': timezone.localtime(candidata.CI_FFECHACITACION).strftime('%d/%m/%Y %H:%M') if candidata and candidata.CI_FFECHACITACION else '',
         'fecha_despacho_candidata': detalle_candidata.CDD_FFECHA_DESPACHO.strftime('%d/%m/%Y') if detalle_candidata and detalle_candidata.CDD_FFECHA_DESPACHO else '',
+        'fecha_llegada_destino_candidata': detalle_candidata.CDD_FFECHA_LLEGADA_DESTINO.strftime('%d/%m/%Y') if detalle_candidata and detalle_candidata.CDD_FFECHA_LLEGADA_DESTINO else '',
+        'hora_llegada_destino_candidata': detalle_candidata.CDD_FHORA_LLEGADA_DESTINO.strftime('%H:%M') if detalle_candidata and detalle_candidata.CDD_FHORA_LLEGADA_DESTINO else '',
         'estado_citacion_candidata': candidata.CI_CESTADO if candidata else '',
         'tipo_citacion_candidata': _tipo_citacion_patio(candidata) if candidata else '',
+        'tipo_operacion_sugerida': (
+            _tipo_citacion_patio(candidata)
+            if candidata else (CIT_DESPACHO if _es_camion_despacho_patio(camion) else CIT_RECEPCION)
+        ),
         'resultado_busqueda_planificacion': resultado_origen,
         'responsable_pendiente': 'Asistente Despacho' if _es_camion_despacho_sbh_patio(camion) and not camion.CI_NID_id else '',
     }
@@ -3732,6 +4730,17 @@ def _es_camion_despacho_patio(camion):
         getattr(camion, 'EP_NID_id', None) == ID_ACEITES_SBH
         and str(traza.CPTR_CRESULTADO_BUSQUEDA or '').startswith('GUARDIA_')
     )
+
+
+def _es_camion_despacho_terramar_principal(camion):
+    citacion = getattr(camion, 'CI_NID', None)
+    if citacion is None:
+        try:
+            traza = camion.trazabilidad_planificacion
+        except (CAMION_PATIO_TRAZABILIDAD_PLANIFICACION.DoesNotExist, AttributeError):
+            traza = None
+        citacion = getattr(traza, 'CI_NID', None) if traza else None
+    return es_citacion_despacho_terramar_principal(citacion)
 
 
 def _es_camion_despacho_sbh_patio(camion):
@@ -4143,6 +5152,12 @@ def condicion_entrega_despacho_revision(citacion):
 
 def requiere_ruta_transportista_revision(citacion, contexto_ingreso=None):
     """En Despacho usa la condicion persistida; Recepcion conserva el contexto del camion."""
+    if es_recepcion_new_jersey_p3(citacion):
+        return False
+    # El retiro de contenedor PROSESA Piso 2 siempre necesita una ruta tarifada.
+    # No depende de la modalidad que haya quedado registrada en CAMION_PATIO.
+    if es_recepcion_prosesa_piso_2(citacion):
+        return True
     condicion_entrega = condicion_entrega_despacho_revision(citacion)
     if condicion_entrega:
         return condicion_entrega == 'TERRAMAR'
@@ -4552,13 +5567,18 @@ def CAMIONES_PATIO_REGISTRAR(request):
                 '1', 'true', 'on', 'yes'
             }
         )
-        if conductor_no_registrado:
+        conductor_manual_terramar = bool(
+            conductor_no_registrado
+            and Empresa == ID_TERRAMAR
+            and not es_despacho
+        )
+        if conductor_no_registrado and not conductor_manual_terramar:
             messages.error(
                 request,
                 'Debe registrar al conductor en el maestro antes de continuar con Transporte Terramar.',
             )
             return _render_camiones_patio_registrar(request, Empresa, request.POST, status=400)
-        conductor_manual = transporte_cliente
+        conductor_manual = transporte_cliente or conductor_manual_terramar
         patente = str(request.POST.get('patente') or '').strip().upper()
         rut_conductor = str(request.POST.get('rut_conductor') or '').strip()
         telefono_conductor = str(request.POST.get('telefono_conductor') or '').strip()
@@ -4571,11 +5591,34 @@ def CAMIONES_PATIO_REGISTRAR(request):
             if conductor_manual
             else (request.POST.get('conductor') or '')
         ).strip()
-        transportista = 'CLIENTE' if transporte_cliente else str(
-            (datos_planificados or {}).get('empresa_transporte_nombre')
-            or request.POST.get('transportista')
-            or ''
+        empresa_transporte_cliente = re.sub(
+            r'\s+', ' ', str(request.POST.get('empresa_transporte') or '')
         ).strip()
+        transportista = (
+            empresa_transporte_cliente
+            if transporte_cliente and not es_despacho
+            else (
+                'CLIENTE'
+                if transporte_cliente
+                else str(
+                    (datos_planificados or {}).get('empresa_transporte_nombre')
+                    or request.POST.get('transportista')
+                    or ''
+                ).strip()
+            )
+        )
+        if (
+            transporte_cliente
+            and not es_despacho
+            and (
+                not transportista
+                or transportista.upper() == 'CLIENTE'
+            )
+        ):
+            messages.error(request, 'Debe ingresar la empresa de transporte.')
+            return _render_camiones_patio_registrar(
+                request, Empresa, request.POST, status=400,
+            )
         if Empresa == ID_ACEITES_SBH and transporte_a_cargo == 'TERRAMAR':
             transportista_id = str(request.POST.get('transportista_id') or '').strip()
             if not transportista_id.isdigit():
@@ -4589,7 +5632,7 @@ def CAMIONES_PATIO_REGISTRAR(request):
                 return _render_camiones_patio_registrar(request, Empresa, request.POST, status=400)
             transportista = transportista_sbh.SN_CRAZONSOCIAL
         conductor_maestro = None
-        if not transporte_cliente:
+        if not conductor_manual:
             conductor_id = str(request.POST.get('conductor_id') or '').strip()
             if not conductor_id.isdigit():
                 messages.error(request, 'Debe seleccionar un conductor registrado del maestro.')
@@ -4608,7 +5651,8 @@ def CAMIONES_PATIO_REGISTRAR(request):
                     str(conductor_maestro.CON_CAPELLIDO or '').strip(),
                 ) if parte
             )
-            rut_conductor = str(conductor_maestro.CON_CRUT or '').strip()
+            if not (Empresa == ID_TERRAMAR and not es_despacho):
+                rut_conductor = str(conductor_maestro.CON_CRUT or '').strip()
         proveedor = str(request.POST.get('proveedor') or '').strip()
         cliente = str(request.POST.get('cliente') or '').strip()
         tipo_documento = str(request.POST.get('tipo_documento') or '').strip().upper()
@@ -4679,6 +5723,14 @@ def CAMIONES_PATIO_REGISTRAR(request):
         if errores_validacion:
             messages.error(request, 'Debe completar los campos obligatorios: ' + ', '.join(errores_validacion) + '.')
             return _render_camiones_patio_registrar(request, Empresa, request.POST, status=400)
+        if Empresa == ID_TERRAMAR and not es_despacho:
+            try:
+                rut_conductor = normalizar_rut_chileno(rut_conductor)
+            except RutChilenoInvalido:
+                messages.error(request, 'El RUT del conductor no es válido.')
+                return _render_camiones_patio_registrar(
+                    request, Empresa, request.POST, status=400,
+                )
         if telefono_conductor:
             try:
                 telefono = normalize_international_phone(telefono_codigo_pais, telefono_conductor)
@@ -4826,7 +5878,22 @@ def CAMIONES_PATIO_LIST(request):
     if not usuario_puede_revisar_camion_patio_empresa(request.user, Empresa):
         messages.error(request, 'No tiene permisos para revisar camiones en patio.')
         return redirect('/')
-    return render(request, 'home/CAMION_PATIO/list.html', {'camiones': _camiones_patio_queryset(Empresa, request), 'estados': CAMION_PATIO.ESTADOS, 'estado_actual': request.GET.get('estado', ''), 'q': request.GET.get('q', ''), 'empresa_activa_id': Empresa, 'es_asistente_despacho_patio': False, 'puede_retirar_camion_patio': _usuario_puede_retirar_camion_patio(request.user)})
+    es_asistente_despacho_patio = bool(
+        Empresa == ID_TERRAMAR
+        and usuario_es_asistente_despacho_empresa(request.user, Empresa)
+    )
+    return render(request, 'home/CAMION_PATIO/list.html', {
+        'camiones': _camiones_patio_queryset(
+            Empresa, request,
+            solo_pendientes_asistente_despacho=es_asistente_despacho_patio,
+        ),
+        'estados': CAMION_PATIO.ESTADOS,
+        'estado_actual': request.GET.get('estado', ''),
+        'q': request.GET.get('q', ''),
+        'empresa_activa_id': Empresa,
+        'es_asistente_despacho_patio': es_asistente_despacho_patio,
+        'puede_retirar_camion_patio': _usuario_puede_retirar_camion_patio(request.user),
+    })
 
 
 def CAMIONES_PATIO_MAPA(request):
@@ -4886,7 +5953,7 @@ def CAMION_PATIO_DETALLE(request, pk):
         return JsonResponse({'success': False, 'message': 'Debe seleccionar una empresa.'}, status=400)
     try:
         camion = CAMION_PATIO.objects.select_related(
-            'US_GUARDIA_ID', 'CI_NID', 'trazabilidad_planificacion__CI_NID',
+            'US_GUARDIA_ID', 'CON_NID', 'CI_NID', 'trazabilidad_planificacion__CI_NID',
             'trazabilidad_planificacion__CI_NID__PL_NID', 'trazabilidad_planificacion__PL_NID',
         ).prefetch_related('adjuntos').get(pk=pk, EP_NID_id=Empresa)
     except CAMION_PATIO.DoesNotExist:
@@ -4895,6 +5962,15 @@ def CAMION_PATIO_DETALLE(request, pk):
     if not puede_ver:
         return JsonResponse({'success': False, 'message': 'No tiene permisos.'}, status=403)
     return _detalle_camion_patio_response(camion, request)
+
+
+@transaction.atomic
+def _camion_patio_es_candidato_prosesa_piso_2(camion):
+    citacion = camion.CI_NID
+    if citacion is None:
+        trazabilidad = getattr(camion, 'trazabilidad_planificacion', None)
+        citacion = trazabilidad.CI_NID if trazabilidad else None
+    return bool(citacion and es_recepcion_prosesa_piso_2(citacion))
 
 
 @transaction.atomic
@@ -4916,6 +5992,8 @@ def CAMION_PATIO_DERIVAR(request, pk):
         ).get(pk=pk, EP_NID_id=empresa_id)
     except CAMION_PATIO.DoesNotExist:
         return JsonResponse({'success': False, 'message': 'Ingreso de patio no encontrado.'}, status=404)
+    if usuario_es_guardia_porteria(request.user) and _camion_patio_es_candidato_prosesa_piso_2(camion):
+        return JsonResponse({'success': False, 'message': 'Solo Guardia Patio deriva la recepcion Piso 2.'}, status=403)
     if camion.CPA_CESTADO != CAMION_PATIO.ESTADO_PENDIENTE_ASOCIACION:
         return JsonResponse({
             'success': False,
@@ -5596,7 +6674,8 @@ def CAMIONES_PATIO_PENDIENTES_CITACION(request, pk):
     if not usuario_puede_revisar_camion_patio(request.user) and not es_asistente_despacho:
         return JsonResponse({'success': False, 'message': 'No tiene permisos.'}, status=403)
     try:
-        citacion = CITACION.objects.select_related('EP_NID', 'PL_NID', 'SN_NID', 'PRO_NID', 'SC_NID', 'detalle_despacho', 'detalle_operacional').get(pk=pk, EP_NID_id=Empresa, CI_BHABILITADO=True)
+        citacion = CITACION.objects.select_related('EP_NID', 'PL_NID', 'SN_NID', 'PRO_NID', 'SC_NID', 'CON_NID', 'detalle_despacho', 'detalle_operacional',
+        'detalle_recepcion_terramar__SN_NID_TRANSPORTISTA', 'detalle_recepcion_terramar__CON_NID').get(pk=pk, EP_NID_id=Empresa, CI_BHABILITADO=True)
     except CITACION.DoesNotExist:
         return JsonResponse({'success': False, 'message': 'Citacion no encontrada.'}, status=404)
     if not citacion_disponible_para_asociar_camion_patio(citacion):
@@ -5607,7 +6686,7 @@ def CAMIONES_PATIO_PENDIENTES_CITACION(request, pk):
         CPA_CESTADO=CAMION_PATIO.ESTADO_PENDIENTE_ASOCIACION,
         CI_NID__isnull=True
     ).prefetch_related('adjuntos').order_by('-CPA_FFECHALLEGADA')
-    if es_asistente_despacho:
+    if es_asistente_despacho and _tipo_citacion_patio(citacion) == CIT_DESPACHO:
         camiones = camiones.filter(
             Q(trazabilidad_planificacion__CI_NID_id=citacion.id)
             | Q(trazabilidad_planificacion__PL_NID_id=citacion.PL_NID_id)
@@ -5635,6 +6714,10 @@ def CAMIONES_PATIO_PENDIENTES_CITACION(request, pk):
             'cliente_codigo': citacion_payload['cliente_codigo'],
             'pedido_sap': citacion_payload['pedido_sap'],
             'contrato_sap': citacion_payload['contrato_sap'],
+            **({
+                'almacen_destino': citacion_payload.get('almacen_destino') or '',
+                'estanque_destino': citacion_payload.get('estanque_destino') or '',
+            } if _tipo_citacion_patio(citacion) == CIT_RECEPCION else {}),
             **({
                 'es_recepcion_sbh': True,
                 'bl': _bl_planificacion_asociacion_recepcion_sbh(citacion),
@@ -6094,6 +7177,16 @@ def CAMION_PATIO_ASOCIAR(request, pk):
             )
             if not citacion_disponible_para_asociar_camion_patio(citacion):
                 return JsonResponse({'success': False, 'message': 'La citacion seleccionada ya no esta disponible para asociar camion en patio.'}, status=409)
+            if (
+                flujo_asistente_despacho
+                and Empresa == ID_TERRAMAR
+                and _es_camion_despacho_terramar_principal(camion)
+                and not es_citacion_despacho_terramar_principal(citacion)
+            ):
+                return JsonResponse({
+                    'success': False,
+                    'message': 'Asistente Despacho Terramar solo puede asociar citaciones de Despacho Terramar.',
+                }, status=409)
             if CAMION_PATIO.objects.filter(CI_NID=citacion, CPA_CESTADO=CAMION_PATIO.ESTADO_ASOCIADO_CITACION).exclude(pk=camion.pk).exists():
                 return JsonResponse({'success': False, 'message': 'La citacion ya tiene un camion de patio asociado.'}, status=409)
             if Empresa == ID_ACEITES_SBH and _tipo_citacion_patio(citacion) == CIT_DESPACHO:
@@ -8288,14 +9381,27 @@ def guardar_detalle_despacho_terramar_citacion(citacion, data, usuario=None):
         return None
     detalle = CITACION_DESPACHO_DETALLE.objects.get(CI_NID=citacion)
     detalle.CDD_CCONTENEDOR_CRT = str(data.get('contenedor_crt') or '').strip()
+    detalle.CDD_NPESO_1 = Decimal(str(data.get('peso_1') or '').strip())
+    detalle.CDD_NMAXIS_1 = int(data.get('maxis_1'))
+    detalle.CDD_CPATENTE_RAMPLA = str(data.get('patente_rampla') or '').strip().upper() or None
     detalle.CDD_CTIPO_CAMION = str(data.get('tipo_camion') or '').strip()
     detalle.CDD_BPALLET = str(data.get('pallet') or '').strip().upper() == 'SI'
     detalle.CDD_BRELLENO = str(data.get('relleno') or '').strip().upper() == 'SI'
+    if detalle.CDD_BRELLENO:
+        detalle.CDD_CCONTENEDOR_2_CRT = str(data.get('contenedor_2_crt') or '').strip()
+        detalle.CDD_NPESO_2 = Decimal(str(data.get('peso_2') or '').strip())
+        detalle.CDD_NMAXIS_2 = int(data.get('maxis_2'))
+    else:
+        detalle.CDD_CCONTENEDOR_2_CRT = None
+        detalle.CDD_NPESO_2 = None
+        detalle.CDD_NMAXIS_2 = None
     detalle.CDD_CCODIGO_PAIS_TELEFONO = str(data.get('telefono_codigo_pais') or '').strip()
     detalle.CDD_CHORA_CITACION = str(data.get('hora_citacion') or '').strip()
     detalle.CDD_CTRANSPORTE_A_CARGO = str(data.get('transporte_a_cargo') or '').strip()
     detalle.save(update_fields=[
-        'CDD_CCONTENEDOR_CRT', 'CDD_CTIPO_CAMION', 'CDD_BPALLET',
+        'CDD_CCONTENEDOR_CRT', 'CDD_NPESO_1', 'CDD_NMAXIS_1',
+        'CDD_CPATENTE_RAMPLA', 'CDD_CCONTENEDOR_2_CRT', 'CDD_NPESO_2',
+        'CDD_NMAXIS_2', 'CDD_CTIPO_CAMION', 'CDD_BPALLET',
         'CDD_BRELLENO', 'CDD_CCODIGO_PAIS_TELEFONO', 'CDD_CHORA_CITACION',
         'CDD_CTRANSPORTE_A_CARGO', 'CDD_FFECHAACTUALIZACION',
     ])
@@ -8427,6 +9533,7 @@ def PLANIFICACION_CITACION_RESUMEN(request, pk):
                     {'label': 'Secuencia operacional', 'value': detalle_despacho.get('secuencia_operacional_nombre')},
                     {'label': 'Fecha despacho', 'value': detalle_despacho.get('fecha_despacho') or fmt_fecha(citacion.CI_FFECHACITACION, '%d/%m/%Y')},
                     {'label': 'Hora llegada a planta', 'value': detalle_despacho.get('hora_llegada_planta')},
+                    {'label': 'Fecha llegada a destino', 'value': detalle_despacho.get('fecha_llegada_destino_display')},
                     {'label': 'Hora llegada a destino', 'value': detalle_despacho.get('hora_llegada_destino')},
                     {'label': 'Cliente', 'value': cliente_despacho},
                     {'label': 'OC cliente', 'value': detalle_despacho.get('oc_cliente') or detalle_despacho.get('sap_oc_cliente')},
@@ -8813,7 +9920,6 @@ def guardar_datos_planificacion_operacional(citacion, data, usuario, proveedor_s
         ),
         'PLAN_CONTRATO_SAP': ('Contrato SAP', data.get('contrato_sap')),
     }
-
     for codigo, (etiqueta, valor) in valores.items():
         if valor not in [None, '']:
             guardar_dato_operacion_codigo(citacion, codigo, valor, usuario, etiqueta=etiqueta)
@@ -8980,6 +10086,21 @@ def obtener_valores_ingreso_camion(citacion):
     }
 
 
+def obtener_patente_operacional_vigente(citacion, valores_ingreso=None):
+    camion_patio = _camion_patio_asociado_citacion(citacion)
+    if camion_patio and str(camion_patio.CPA_CPATENTE or '').strip():
+        return str(camion_patio.CPA_CPATENTE).strip()
+    valores_ingreso = (
+        valores_ingreso
+        if valores_ingreso is not None
+        else obtener_valores_ingreso_camion(citacion)
+    )
+    patente = str(valores_ingreso.get('patente') or '').strip()
+    if not patente and citacion.CA_NID:
+        patente = str(citacion.CA_NID.CAM_CPATENTE or '').strip()
+    return patente
+
+
 def texto_sin_informacion(valor):
     return valor if valor not in [None, ''] else 'Sin información'
 
@@ -8998,7 +10119,12 @@ def extraer_rut_transportista_ingreso(valor):
 def transportista_vigente_camion_patio(citacion):
     # Resuelve el socio vigente del viaje desde CAMION_PATIO.
     camion = _camion_patio_asociado_citacion(citacion)
-    if not camion or str(camion.transporte_a_cargo or 'TERRAMAR').upper() != 'TERRAMAR':
+    if not camion:
+        return None
+    if (
+        not es_recepcion_prosesa_piso_2(citacion)
+        and str(camion.transporte_a_cargo or 'TERRAMAR').upper() != 'TERRAMAR'
+    ):
         return None
     nombre = limpiar_nombre_transportista_ingreso(camion.CPA_CTRANSPORTISTA_DECLARADO)
     if not nombre:
@@ -9080,6 +10206,34 @@ def obtener_rutas_tarifas_transportista(empresa_id, transportista_id):
     return seleccionar_tarifas_por_ruta_revision(tarifas)
 
 
+def obtener_ids_transportistas_tarifarios_revision(citacion, transportista):
+    """IDs tarifarios equivalentes para una recepción con transporte Terramar.
+
+    TARIFA_GLOBAL puede conservar un socio maestro de otra empresa, aunque la
+    tarifa y su ruta pertenezcan a la empresa de la citación. Se acepta solo el
+    mismo transportista habilitado de tipo S, identificado preferentemente por
+    RUT. Despacho conserva su filtro estricto por socio.
+    """
+    if not transportista:
+        return []
+    if str(getattr(citacion, 'CI_CTIPO', '') or '').strip().upper() != CIT_RECEPCION:
+        return [transportista.id]
+
+    ids_equivalentes = obtener_ids_transportistas_equivalentes(transportista)
+    if not ids_equivalentes:
+        return []
+
+    filtros = Q(id__in=ids_equivalentes, SN_CTIPO='S', SN_BHABILITADO=True)
+    rut = str(transportista.SN_CRUT or '').strip()
+    razon_social = str(transportista.SN_CRAZONSOCIAL or '').strip()
+    if rut and not rut_transportista_es_ficticio(rut):
+        filtros &= Q(SN_CRUT__iexact=rut)
+    elif razon_social:
+        filtros &= Q(SN_CRAZONSOCIAL__iexact=razon_social)
+
+    return list(SOCIONEGOCIO.objects.filter(filtros).values_list('id', flat=True))
+
+
 def validar_tarifa_transportista(empresa_id, transportista_id, tarifa_id, ruta_id=''):
     tarifa_id = str(tarifa_id or '').strip()
     ruta_id = str(ruta_id or '').strip()
@@ -9135,13 +10289,17 @@ def AJAX_RUTAS_TRANSPORTISTA_DESPACHO_TERRAMAR(request):
     rutas = [serializar_tarifa_revision(tarifa) for tarifa in obtener_rutas_tarifas_transportista(empresa_id, transportista.id)]
     return JsonResponse({'success': True, 'rutas': rutas, 'message': '' if rutas else 'No existen rutas vigentes para este transportista.'})
 
-def serializar_tarifa_revision(tarifa, selected=False):
+def serializar_tarifa_revision(tarifa, selected=False, incluir_tarifa_en_texto=False):
     ruta_nombre = tarifa.RUT_NID.RUT_CNOMBRE if tarifa.RUT_NID else tarifa.TAR_CNOMBRETARIFA
+    texto = ruta_nombre
+    if incluir_tarifa_en_texto:
+        valor = ' '.join(filter(None, [str(tarifa.TAR_NVALOR), tarifa.TAR_CDIVISA or '']))
+        texto = ' — '.join(filter(None, [ruta_nombre, tarifa.TAR_CNOMBRETARIFA, valor]))
     return {
         'id': str(tarifa.id),
         'ruta_id': str(tarifa.RUT_NID_id or ''),
         'tarifa_id': str(tarifa.id),
-        'text': ruta_nombre,
+        'text': texto,
         'tarifa': tarifa.TAR_CNOMBRETARIFA,
         'costo': str(tarifa.TAR_NVALOR),
         'moneda': tarifa.TAR_CDIVISA or '',
@@ -9164,12 +10322,18 @@ def seleccionar_tarifas_por_ruta_revision(tarifas, tarifa_seleccionada_id=None):
 
 
 def obtener_rutas_tarifa_transportista(citacion, valores_ingreso=None):
-    # Revision/Estanque use CAMION_PATIO as source of truth, not planificacion.
+    if (str(citacion.CI_CTIPO or '').strip().upper() == CIT_RECEPCION
+            and not requiere_ruta_transportista_revision(citacion)):
+        return {'rutas_texto': '', 'tarifa_texto': '', 'opciones': [], 'message': ''}
+    # Toda Recepcion usa CAMION_PATIO como fuente del transportista vigente.
     transportista_vigente = transportista_vigente_camion_patio(citacion)
     if transportista_vigente:
+        transportistas_ids = obtener_ids_transportistas_tarifarios_revision(
+            citacion, transportista_vigente
+        )
         tarifas = TARIFA_GLOBAL.objects.filter(
             EP_NID_id=citacion.EP_NID_id,
-            SN_NID_id=transportista_vigente.id,
+            SN_NID_id__in=transportistas_ids,
             TAR_BHABILITADO=True,
             RUT_NID__EP_NID_id=citacion.EP_NID_id,
             RUT_NID__RUT_BHABILITADO=True,
@@ -9178,10 +10342,16 @@ def obtener_rutas_tarifa_transportista(citacion, valores_ingreso=None):
         valores_ingreso = valores_ingreso or obtener_valores_ingreso_camion(citacion)
         transportista = str(valores_ingreso.get('transportista') or '').strip()
         if not transportista:
-            return {'rutas_texto': '', 'tarifa_texto': '', 'opciones': []}
+            return {
+                'rutas_texto': '', 'tarifa_texto': '', 'opciones': [],
+                'message': 'No fue posible resolver el transportista del camión asociado.',
+            }
         socios_ids = obtener_transportistas_ids_revision(citacion, valores_ingreso)
         if not socios_ids:
-            return {'rutas_texto': '', 'tarifa_texto': '', 'opciones': []}
+            return {
+                'rutas_texto': '', 'tarifa_texto': '', 'opciones': [],
+                'message': 'No fue posible resolver el transportista del camión asociado.',
+            }
         tarifas = TARIFA_GLOBAL.objects.filter(
             EP_NID=citacion.EP_NID,
             SN_NID_id__in=socios_ids,
@@ -9198,15 +10368,29 @@ def obtener_rutas_tarifa_transportista(citacion, valores_ingreso=None):
             tarifas_nombres.append(tarifa.TAR_CNOMBRETARIFA)
     tarifas = seleccionar_tarifas_por_ruta_revision(tarifas, citacion.TAR_NID_id)
     opciones = [
-        serializar_tarifa_revision(tarifa, selected=str(tarifa.id) == str(citacion.TAR_NID_id or ''))
+        serializar_tarifa_revision(
+            tarifa,
+            selected=str(tarifa.id) == str(citacion.TAR_NID_id or ''),
+        )
         for tarifa in tarifas
     ]
 
     def resumir(valores, limite=10):
         return ' | '.join(valores if len(valores) <= limite else valores[:limite]) + (f' (+{len(valores) - limite} mas)' if len(valores) > limite else '')
 
-    return {'rutas_texto': resumir(rutas), 'tarifa_texto': resumir(tarifas_nombres, 3), 'opciones': opciones}
-
+    message = ''
+    if not opciones and transportista_vigente:
+        message = (
+            f'No existen rutas tarifadas vigentes para '
+            f'{transportista_vigente.SN_CRAZONSOCIAL} (ID {transportista_vigente.id}) '
+            f'en la Empresa {citacion.EP_NID_id}.'
+        )
+    return {
+        'rutas_texto': resumir(rutas),
+        'tarifa_texto': resumir(tarifas_nombres, 3),
+        'opciones': opciones,
+        'message': message,
+    }
 
 def texto_camion_operacional(valores_ingreso):
     patente = texto_sin_informacion(valores_ingreso.get('patente'))
@@ -9718,9 +10902,10 @@ def PLANIFICACION_CITACION_REVISION_ASISTENTE(request, pk):
                     'TAR_NID': dato('AR_TARIFA_ID') or (str(citacion.TAR_NID_id) if citacion.TAR_NID_id else ''),
                     'Tarifa transportista': tarifa_seleccionada_texto,
                 })
+        peso_guia_unidad_revision = unidad_peso_guia_revision_recepcion(citacion)
         peso_informado_guia_revision = dato(CAMPO_PESO_INFORMADO_GUIA)
-        if es_recepcion_estanque_sbh and peso_informado_guia_revision:
-            validacion_asistente['Peso informado en guia'] = f'{peso_informado_guia_revision} kg'
+        if peso_guia_unidad_revision and peso_informado_guia_revision:
+            validacion_asistente['Peso informado en guia'] = f'{peso_informado_guia_revision} {peso_guia_unidad_revision}'
 
         transportista_actual = None
         conductor_actual = None
@@ -9754,9 +10939,12 @@ def PLANIFICACION_CITACION_REVISION_ASISTENTE(request, pk):
             'citacion_id': citacion.id,
             'tipo_citacion': CIT_DESPACHO if es_despacho else (citacion.CI_CTIPO or (citacion.PL_NID.PL_CTIPOCUPO if citacion.PL_NID else '')),
             'es_flujo_terramar': es_flujo_terramar,
+            'es_new_jersey_p3': es_recepcion_new_jersey_p3(citacion),
+            'es_prosesa_piso_2': es_recepcion_prosesa_piso_2(citacion),
             'es_sbh_recepcion': _empresa_timbre_recepcion(citacion) == 'SBH' and es_recepcion,
             'es_flujo_recepcion_estanque_sbh': es_recepcion_estanque_sbh,
-            'requiere_peso_informado_guia': es_recepcion_estanque_sbh,
+            'requiere_peso_informado_guia': bool(peso_guia_unidad_revision),
+            'peso_informado_guia_unidad': peso_guia_unidad_revision,
             'peso_informado_guia': peso_informado_guia_revision,
             'requiere_confirmacion_datos': es_flujo_terramar,
             'requiere_tipos_documento_despacho': Empresa == ID_ACEITES_SBH and es_despacho,
@@ -9782,7 +10970,7 @@ def PLANIFICACION_CITACION_REVISION_ASISTENTE(request, pk):
                 or ruta_transportista_asistente_guardada(citacion, datos_operacion)
             ),
             'puede_editar_revision_asistente': (
-                (usuario_es_asistente_recepcion(request.user) or es_asistente_despacho or getattr(request.user, 'is_staff', False) or getattr(request.user, 'is_superuser', False))
+                (usuario_es_asistente_recepcion(request.user) if es_recepcion_prosesa_piso_2(citacion) else (usuario_es_asistente_recepcion(request.user) or es_asistente_despacho or getattr(request.user, 'is_staff', False) or getattr(request.user, 'is_superuser', False)))
                 and not aprobado_asistente
                 and bool(contexto_ingreso['camion'])
             ),
@@ -9812,7 +11000,7 @@ def PLANIFICACION_CITACION_REVISION_ASISTENTE(request, pk):
                     'sui': contexto_ingreso['camion'].CPA_CSUI or '',
                 } if contexto_ingreso['camion'] and es_citacion_recepcion_sbh(citacion) else {}),
             },
-            'guardia_puede_enviar_porteria': usuario_es_guardia(request.user) and not usuario_es_guardia_porteria(request.user) and bool(log_envio_estanque) and not bool(log_guardia_porteria),
+            'guardia_puede_enviar_porteria': not es_recepcion_prosesa_piso_2(citacion) and usuario_es_guardia(request.user) and not usuario_es_guardia_porteria(request.user) and bool(log_envio_estanque) and not bool(log_guardia_porteria),
             'guardia_porteria_puede_autorizar': usuario_es_guardia_porteria(request.user) and bool(log_guardia_porteria) and not bool(log_autoriza_planta),
             'guardia_porteria_enviado': bool(log_guardia_porteria),
             'guardia_porteria_autorizado': bool(log_autoriza_planta),
@@ -9868,7 +11056,10 @@ def PLANIFICACION_CITACION_REVISION_ASISTENTE(request, pk):
                 'options': ruta_tarifa_transportista.get('opciones', []),
                 'message': (
                     '' if not requiere_ruta_transportista or ruta_tarifa_transportista.get('opciones')
-                    else 'El transportista no tiene rutas configuradas.'
+                    else (
+                        ruta_tarifa_transportista.get('message')
+                        or 'El transportista no tiene rutas configuradas.'
+                    )
                 ),
             },
             'asistente_cd': {
@@ -9919,6 +11110,7 @@ def PLANIFICACION_CITACION_REVISION_ASISTENTE(request, pk):
             payload['datos_despacho'] = {
                 'Fecha despacho': valor_revision(detalle_despacho.get('fecha_despacho')),
                 'Hora llegada a planta': valor_revision(detalle_despacho.get('hora_llegada_planta')),
+                'Fecha llegada a destino': valor_revision(detalle_despacho.get('fecha_llegada_destino_display')),
                 'Hora llegada a destino': valor_revision(detalle_despacho.get('hora_llegada_destino')),
                 'Destino': valor_revision(detalle_despacho.get('destino')),
                 'OC cliente': valor_revision(detalle_despacho.get('oc_cliente') or detalle_despacho.get('sap_oc_cliente')),
@@ -10111,7 +11303,11 @@ def AJAX_RUTAS_TRANSPORTISTA_REVISION(request):
             'RUT_NID'
         ).get(pk=citacion_id, EP_NID_id=Empresa, CI_BHABILITADO=True)
         transportista_id = str(request.GET.get('transportista_id') or '').strip()
-        if Empresa == ID_ACEITES_SBH and transportista_id:
+        if (
+            Empresa == ID_ACEITES_SBH
+            and transportista_id
+            and str(citacion.CI_CTIPO or '').strip().upper() != CIT_RECEPCION
+        ):
             transportista = queryset_transportistas_validos_ingreso_camion(
                 Empresa, estrictamente_empresa=True
             ).filter(pk=transportista_id).first()
@@ -10134,7 +11330,11 @@ def AJAX_RUTAS_TRANSPORTISTA_REVISION(request):
             return JsonResponse({'success': True, 'results': []})
         valores_ingreso = obtener_valores_ingreso_camion(citacion)
         rutas = obtener_rutas_tarifa_transportista(citacion, valores_ingreso)
-        return JsonResponse({'success': True, 'results': rutas.get('opciones', [])})
+        return JsonResponse({
+            'success': True,
+            'results': rutas.get('opciones', []),
+            'message': rutas.get('message', ''),
+        })
     except CITACION.DoesNotExist:
         return JsonResponse({'success': False, 'message': 'Citacion no encontrada.', 'results': []}, status=404)
     except Exception as e:
@@ -10162,13 +11362,37 @@ def ruta_transportista_asistente_guardada(citacion, datos_operacion=None):
 def validar_tarifa_transportista_revision(citacion, tarifa_id, ruta_id=''):
     transportista_vigente = transportista_vigente_camion_patio(citacion)
     if not transportista_vigente:
-        return None, 'No fue posible validar el transportista vigente del camion.'
-    return validar_tarifa_transportista(
-        citacion.EP_NID_id,
-        transportista_vigente.id,
-        tarifa_id,
-        ruta_id,
+        return None, 'No fue posible validar el transportista vigente del camión.'
+
+    if str(citacion.CI_CTIPO or '').strip().upper() != CIT_RECEPCION:
+        return validar_tarifa_transportista(
+            citacion.EP_NID_id,
+            transportista_vigente.id,
+            tarifa_id,
+            ruta_id,
+        )
+
+    tarifa_id = str(tarifa_id or '').strip()
+    ruta_id = str(ruta_id or '').strip()
+    if not tarifa_id:
+        return None, 'Debe seleccionar una ruta válida del transportista.'
+
+    transportistas_ids = obtener_ids_transportistas_tarifarios_revision(
+        citacion, transportista_vigente
     )
+    tarifa = TARIFA_GLOBAL.objects.select_related('RUT_NID', 'SN_NID').filter(
+        pk=tarifa_id,
+        EP_NID_id=citacion.EP_NID_id,
+        SN_NID_id__in=transportistas_ids,
+        TAR_BHABILITADO=True,
+        RUT_NID__EP_NID_id=citacion.EP_NID_id,
+        RUT_NID__RUT_BHABILITADO=True,
+    ).first()
+    if not tarifa:
+        return None, 'La ruta seleccionada no pertenece al transportista o no está habilitada.'
+    if ruta_id and str(tarifa.RUT_NID_id) != ruta_id:
+        return None, 'La ruta seleccionada no corresponde a la tarifa indicada.'
+    return tarifa, ''
 
 
 def guardar_ruta_transportista_revision(citacion, tarifa, usuario):
@@ -10329,6 +11553,13 @@ def APROBAR_CAMION_ASISTENTE(request, pk):
                 'EP_NID', 'PL_NID', 'SC_NID', 'PRO_NID', 'TAR_NID__RUT_NID', 'RUT_NID'
             ).get(pk=pk, EP_NID_id=Empresa, CI_BHABILITADO=True)
             es_despacho = str(citacion.CI_CTIPO or citacion.PL_NID.PL_CTIPOCUPO or '').upper() == CIT_DESPACHO
+            es_prosesa_piso_2_aprobacion = es_recepcion_prosesa_piso_2(citacion)
+            es_new_jersey_p3_aprobacion = es_recepcion_new_jersey_p3(citacion)
+            peso_guia_unidad_revision = unidad_peso_guia_revision_recepcion(citacion)
+            if peso_guia_unidad_revision and not (usuario_es_asistente_recepcion(request.user) or getattr(request.user, 'is_superuser', False)):
+                return JsonResponse({'success': False, 'message': 'Solo Asistente Recepcion puede validar el peso informado de guia.'}, status=403)
+            if es_prosesa_piso_2_aprobacion and not usuario_es_asistente_recepcion(request.user):
+                return JsonResponse({'success': False, 'message': 'Solo Asistente Recepcion genera la orden de ingreso Piso 2.'}, status=403)
             es_envio_cd_despacho_sbh = bool(
                 es_asistente_despacho
                 and Empresa == ID_ACEITES_SBH
@@ -10372,12 +11603,13 @@ def APROBAR_CAMION_ASISTENTE(request, pk):
             contexto_ingreso = _contexto_ingreso_camion_patio(citacion)
             requiere_ruta_transportista = requiere_ruta_transportista_revision(citacion, contexto_ingreso)
             peso_informado_guia = None
-            if es_recepcion_estanque_sbh:
+            if peso_guia_unidad_revision:
                 peso_informado_guia, error_peso = _validar_peso_informado_guia(
                     request.POST.get('peso_informado_guia')
                 )
                 if error_peso:
-                    return JsonResponse({'success': False, 'message': error_peso}, status=400)
+                    mensaje = ('Debe ingresar el peso informado en la guía.' if not str(request.POST.get('peso_informado_guia') or '').strip() else error_peso)
+                    return JsonResponse({'success': False, 'message': mensaje}, status=400)
             es_despacho_aprobacion = es_citacion_despacho(citacion)
             bl_validado = '' if es_despacho_aprobacion else str(request.POST.get('bl') or '').strip()
             lote_contenedor_validado = str(request.POST.get('lote_contenedor') or '').strip()
@@ -10406,7 +11638,11 @@ def APROBAR_CAMION_ASISTENTE(request, pk):
             ruta_texto = (
                 tarifa.RUT_NID.RUT_CNOMBRE if tarifa and tarifa.RUT_NID
                 else (tarifa.TAR_CNOMBRETARIFA if tarifa else 'No aplica')
-            ) if requiere_ruta_transportista else 'No aplica (transporte a cargo del Cliente)'
+            ) if requiere_ruta_transportista else (
+                'No aplica (transportista heredado P3)'
+                if es_new_jersey_p3_aprobacion
+                else 'No aplica (transporte a cargo del Cliente)'
+            )
 
             if not es_despacho_aprobacion and bl_validado:
                 guardar_dato_operacion_codigo(
@@ -10433,7 +11669,7 @@ def APROBAR_CAMION_ASISTENTE(request, pk):
                 citacion, 'AR_LOTE_CONTENEDOR', lote_contenedor_validado, request.user,
                 etiqueta='Lote / Contenedor validado Asistente Recepcion', etapa=citacion.ETAPA_ACTUAL
             )
-            if es_recepcion_estanque_sbh:
+            if peso_guia_unidad_revision:
                 guardar_dato_operacion_codigo(
                     citacion, CAMPO_PESO_INFORMADO_GUIA, format(peso_informado_guia, 'f'), request.user,
                     etiqueta='Peso informado en guia', etapa=citacion.ETAPA_ACTUAL
@@ -10455,10 +11691,10 @@ def APROBAR_CAMION_ASISTENTE(request, pk):
                 )
 
             accion_avance = (
-                'ENVIA_ASISTENTE_BODEGA'
-                if es_flujo_terramar
+                'ENVIA_GUARDIA_PORTERIA' if es_prosesa_piso_2_aprobacion
                 else (
-                    'ENVIA_CD_DESP_SBH' if es_envio_cd_despacho_sbh else 'APRUEBA_ASISTENTE'
+                    'ENVIA_ASISTENTE_BODEGA' if es_flujo_terramar
+                    else ('ENVIA_CD_DESP_SBH' if es_envio_cd_despacho_sbh else 'APRUEBA_ASISTENTE')
                 )
             )
             etapa_origen, etapa_destino = avanzar_citacion_a_siguiente_etapa(
@@ -10468,7 +11704,10 @@ def APROBAR_CAMION_ASISTENTE(request, pk):
             almacen = obtener_almacen_planificacion(citacion)
             fecha_aprobacion = timezone.localtime(timezone.now()).strftime('%d/%m/%Y %H:%M:%S')
             linea_bl_notificacion = '' if es_despacho_aprobacion else f'BL: {datos_operacion.get("ING_BL").DO_CVALOR if datos_operacion.get("ING_BL") else ""}\n'
-            mensaje_destino = 'Asistente_bodega' if es_flujo_terramar else 'Asistente_C_D'
+            mensaje_destino = (
+                'Guardia_Porteria' if es_prosesa_piso_2_aprobacion
+                else ('Guardia' if es_new_jersey_p3_aprobacion else ('Asistente_bodega' if es_flujo_terramar else 'Asistente_C_D'))
+            )
             encabezado_notificacion = (
                 f'Citacion enviada por Asistente Despacho y pendiente de {mensaje_destino}.\n'
                 if es_envio_cd_despacho_sbh
@@ -10489,22 +11728,42 @@ def APROBAR_CAMION_ASISTENTE(request, pk):
                 f'Asistente recepcion: {request.user.username}'
             )
             destinatarios = (
-                obtener_usuarios_asistente_bodega(citacion.EP_NID_id)
-                if es_flujo_terramar else obtener_usuarios_asistente_cd(citacion.EP_NID_id)
+                obtener_usuarios_guardia_porteria(citacion.EP_NID_id)
+                if es_prosesa_piso_2_aprobacion else (
+                    obtener_guardias_relacionados_citacion(citacion)
+                    if es_new_jersey_p3_aprobacion else (
+                        obtener_usuarios_asistente_bodega(citacion.EP_NID_id)
+                        if es_flujo_terramar else obtener_usuarios_asistente_cd(citacion.EP_NID_id)
+                    )
+                )
             )
             for destinatario in destinatarios:
                 crear_notificacion_interna(
                     USER_SENDER_ID=request.user,
                     USER_RECEIVER_ID=destinatario,
                     EP_NID=citacion.EP_NID,
-                    NOT_CCONTENIDO=mensaje_destinatario,
-                    NOT_CURL=f'/pla_listone/{citacion.PL_NID_id}'
+                    NOT_CCONTENIDO=(
+                        contenido_notificacion_ingreso_planta(
+                            citacion, obtener_patente_operacional_vigente(citacion),
+                            autorizar_ingreso=True,
+                        ) if es_prosesa_piso_2_aprobacion else (
+                            f'Patente: {obtener_patente_operacional_vigente(citacion)} debe ingresar a Planta'
+                            if es_new_jersey_p3_aprobacion else mensaje_destinatario
+                        )
+                    ),
+                    NOT_CURL=(
+                        f'/pla_listone/{citacion.PL_NID_id}?citacion={citacion.id}'
+                        if es_prosesa_piso_2_aprobacion or es_new_jersey_p3_aprobacion
+                        else f'/pla_listone/{citacion.PL_NID_id}'
+                    ),
                 )
 
             operacion_log = (
-                SYSLOGGER_OP_ENVIA_ASIST_BODEGA
-                if es_flujo_terramar
-                else ('ENVIA_CD_DESP_SBH' if es_envio_cd_despacho_sbh else 'APRUEBA_AR')
+                'ENVIA_GUARDIA_PORTERIA' if es_prosesa_piso_2_aprobacion
+                else (
+                    SYSLOGGER_OP_ENVIA_ASIST_BODEGA if es_flujo_terramar
+                    else ('ENVIA_CD_DESP_SBH' if es_envio_cd_despacho_sbh else 'APRUEBA_AR')
+                )
             )
             descripcion_log = (
                 f'Asistente Despacho envia citacion #{citacion.id} desde {etapa_origen.ET_CCODIGO} '
@@ -10530,10 +11789,19 @@ def APROBAR_CAMION_ASISTENTE(request, pk):
             )
 
         mensaje_exito = (
-            'Citacion enviada a Asistente_bodega correctamente.' if es_flujo_terramar
-            else ('Citacion enviada a Asistente_C_D correctamente.' if es_despacho else 'Camion aprobado correctamente.')
+            'Orden de ingreso enviada a Guardia_Porteria.'
+            if es_prosesa_piso_2_aprobacion else (
+                'Citacion enviada a Guardia correctamente.' if es_new_jersey_p3_aprobacion
+                else ('Citacion enviada a Asistente_bodega correctamente.' if es_flujo_terramar
+                      else ('Citacion enviada a Asistente_C_D correctamente.' if es_despacho else 'Camion aprobado correctamente.'))
+            )
         )
-        return JsonResponse({'success': True, 'message': mensaje_exito, 'notificados_cd': len(destinatarios)})
+        return JsonResponse({
+            'success': True, 'message': mensaje_exito,
+            'notificados_guardia_porteria': len(destinatarios) if es_prosesa_piso_2_aprobacion else 0,
+            'notificados_guardia': len(destinatarios) if es_new_jersey_p3_aprobacion else 0,
+            'notificados_cd': 0 if es_prosesa_piso_2_aprobacion or es_new_jersey_p3_aprobacion else len(destinatarios),
+        })
 
     except CITACION.DoesNotExist:
         return JsonResponse({'success': False, 'message': 'Citacion no encontrada.'}, status=404)
@@ -10620,6 +11888,8 @@ def ENVIAR_GUARDIA_PORTERIA(request, pk):
             raise CITACION.DoesNotExist
         if _estado_citacion_no_vigente(citacion):
             return JsonResponse({'success': False, 'message': 'La citacion no se encuentra activa.'}, status=400)
+        if es_recepcion_prosesa_piso_2(citacion) and not usuario_es_guardia_porteria(request.user):
+            return JsonResponse({'success': False, 'message': 'Solo Guardia Porteria confirma el ingreso Piso 2.'}, status=403)
 
         valores_ingreso = obtener_valores_ingreso_camion(citacion)
         patente = texto_sin_informacion(valores_ingreso.get('patente'))
@@ -10699,7 +11969,10 @@ def ENVIAR_GUARDIA_PORTERIA(request, pk):
 
         operacion_previa = operacion_envio_guardia_para_citacion(citacion)
         if not citacion_fue_enviada_a_guardia(citacion):
-            origen = 'Asistente_bodega' if operacion_previa == SYSLOGGER_OP_ENVIA_BODEGA_GUARDIA else 'Asistente_C_D'
+            origen = (
+                'Asistente Recepcion' if es_recepcion_new_jersey_p3(citacion)
+                else ('Asistente_bodega' if operacion_previa == SYSLOGGER_OP_ENVIA_BODEGA_GUARDIA else 'Asistente_C_D')
+            )
             return JsonResponse({'success': False, 'message': f'La citacion aun no fue enviada por {origen}.'}, status=400)
 
         fecha_envio = timezone.localtime(timezone.now()).strftime('%d/%m/%Y %H:%M:%S')
@@ -10765,6 +12038,121 @@ def ENVIAR_GUARDIA_PORTERIA(request, pk):
         return JsonResponse({'success': False, 'message': str(e)}, status=500)
 
 
+def PLANIFICACION_PROSESA_PISO1_GENERAR_LOTE_SAP(request, pk):
+    if request.method != 'POST':
+        return JsonResponse({'success': False, 'message': 'Metodo no permitido.'}, status=405)
+    if not (
+        usuario_es_asistente_recepcion(request.user)
+        or usuario_es_asistente_cd(request.user)
+        or getattr(request.user, 'is_superuser', False)
+    ):
+        return JsonResponse({'success': False, 'message': 'No tiene permisos para generar el lote SAP.'}, status=403)
+
+    empresa = Verificar_empresa(request)
+    if empresa is None:
+        return JsonResponse({'success': False, 'message': 'Debe seleccionar una empresa.'}, status=400)
+
+    try:
+        citacion = CITACION.objects.select_related(
+            'EP_NID', 'PL_NID', 'SC_NID'
+        ).get(pk=pk, EP_NID_id=empresa, CI_BHABILITADO=True)
+    except CITACION.DoesNotExist:
+        return JsonResponse({'success': False, 'message': 'Citacion no encontrada.'}, status=404)
+
+    if not es_recepcion_prosesa_contenedor_piso_1(citacion):
+        return JsonResponse({
+            'success': False,
+            'message': 'La generacion de lote SAP solo aplica a Contenedor a Piso 1.',
+        }, status=400)
+
+    estado = get_purchase_delivery_note_prosesa_piso_1_status(citacion)
+    if estado.get('sent'):
+        return JsonResponse({
+            'success': False,
+            'message': 'El Ingreso SAP ya fue creado; no se generara otro lote.',
+            'status': estado,
+        }, status=409)
+
+    try:
+        item_code = resolver_item_code_lote_prosesa_piso_1(citacion)
+        lote = generar_lote_sap_recepcion_prosesa_piso_1(item_code)
+        lote_auditado = guardar_lote_sap_prosesa_piso_1(
+            citacion,
+            request.user,
+            lote,
+            motivo='GENERACION_MANUAL',
+        )
+    except (GoodsReceiptDraftError, SapDiApiError) as exc:
+        return JsonResponse({
+            'success': False,
+            'message': str(exc),
+        }, status=502)
+    except Exception as exc:
+        logger.exception('No fue posible generar lote SAP para citacion %s', pk)
+        return JsonResponse({
+            'success': False,
+            'message': f'No fue posible generar el lote SAP: {exc}',
+        }, status=500)
+
+    return JsonResponse({
+        'success': True,
+        'message': 'Lote SAP generado correctamente.',
+        'item_code': lote_auditado['item_code'],
+        'batch_number': lote_auditado['batch_number'],
+        'correlativo': lote_auditado['correlativo'],
+        'tipo_lote': lote_auditado['tipo_lote'],
+        'sufijo': lote_auditado['sufijo'],
+        'lote_sap': lote_auditado,
+    })
+
+
+def PLANIFICACION_NEW_JERSEY_P1_GENERAR_LOTE_SAP(request, pk):
+    if request.method != 'POST':
+        return JsonResponse({'success': False, 'message': 'Metodo no permitido.'}, status=405)
+    if not (
+        usuario_es_asistente_recepcion(request.user)
+        or usuario_es_asistente_cd(request.user)
+        or getattr(request.user, 'is_superuser', False)
+    ):
+        return JsonResponse({'success': False, 'message': 'No tiene permisos para generar lote SAP.'}, status=403)
+    empresa = Verificar_empresa(request)
+    if empresa is None:
+        return JsonResponse({'success': False, 'message': 'Debe seleccionar una empresa.'}, status=400)
+    try:
+        citacion = CITACION.objects.select_related(
+            'EP_NID', 'PL_NID', 'SC_NID'
+        ).get(pk=pk, EP_NID_id=empresa, CI_BHABILITADO=True)
+    except CITACION.DoesNotExist:
+        return JsonResponse({'success': False, 'message': 'Citacion no encontrada.'}, status=404)
+    if not es_recepcion_new_jersey_p1(citacion):
+        return JsonResponse({
+            'success': False, 'message': 'La generacion de lote solo aplica a New Jersey P1.'
+        }, status=400)
+    mensaje_etapa = _validar_borrador_sap_peso_guia_disponible(citacion, request.user)
+    if mensaje_etapa:
+        return JsonResponse({'success': False, 'message': mensaje_etapa}, status=409)
+    dato_estanque = obtener_dato_estanque_operacional(citacion)
+    if not dato_estanque or not str(dato_estanque.DO_CVALOR or '').strip():
+        return JsonResponse({
+            'success': False, 'message': 'Debe guardar el estanque antes de generar el lote SAP.'
+        }, status=400)
+    try:
+        lote = generar_y_guardar_lote_sap_new_jersey_p1(citacion, request.user)
+    except (GoodsReceiptDraftError, SapDiApiError) as exc:
+        return JsonResponse({'success': False, 'message': str(exc)}, status=400)
+    except Exception:
+        logger.exception('No fue posible generar lote SAP New Jersey para citacion %s', pk)
+        return JsonResponse({
+            'success': False, 'message': 'No fue posible consultar o guardar el lote SAP.'
+        }, status=502)
+    return JsonResponse({
+        'success': True, 'message': 'Lote SAP New Jersey generado.',
+        'lote_sap': lote, 'batch_number': lote['batch_number'],
+        'item_code': lote['item_code'], 'correlativo': lote['correlativo'],
+        'sufijo': lote['sufijo'],
+    })
+
+
 def PLANIFICACION_CITACION_ESTANQUE(request, pk):
     if request.method not in ['GET', 'POST']:
         return JsonResponse({'success': False, 'message': 'Metodo no permitido.'}, status=405)
@@ -10780,6 +12168,12 @@ def PLANIFICACION_CITACION_ESTANQUE(request, pk):
         citacion = CITACION.objects.select_related(
             'EP_NID', 'PL_NID', 'SC_NID', 'PRO_NID', 'SN_NID', 'CON_NID', 'CA_NID'
         ).get(pk=pk, EP_NID_id=Empresa, CI_BHABILITADO=True)
+
+        if es_recepcion_new_jersey_p3(citacion):
+            return JsonResponse({
+                'success': False,
+                'message': 'New Jersey P3 pasa directamente de Asistente Recepcion a Guardia.',
+            }, status=403)
 
         detalle_actual = DETALLE_SECUENCIA.objects.filter(
             SC_NID=citacion.SC_NID,
@@ -10809,7 +12203,16 @@ def PLANIFICACION_CITACION_ESTANQUE(request, pk):
         ).upper()
         es_recepcion_sbh = citacion.EP_NID_id == 2 and tipo_citacion_actual == CIT_RECEPCION
         es_flujo_recepcion_sbh = es_flujo_recepcion_estanque_sbh(citacion)
+        peso_guia_unidad_revision = unidad_peso_guia_revision_recepcion(citacion)
         detalle_planificacion = obtener_detalle_operacional_citacion(citacion)
+        es_recepcion_prosesa_camion = es_recepcion_prosesa_descarga_camion(
+            citacion,
+            detalle_planificacion,
+        )
+        es_recepcion_prosesa_piso_1_sap = (
+            es_recepcion_prosesa_contenedor_piso_1(citacion)
+        )
+        es_recepcion_new_jersey_p1_sap = es_recepcion_new_jersey_p1(citacion)
         estanque_planificacion = str(
             detalle_planificacion.CDO_CESTANQUE_DESTINO
             if detalle_planificacion else ''
@@ -10858,6 +12261,83 @@ def PLANIFICACION_CITACION_ESTANQUE(request, pk):
                 'es_trasvasije': almacen_solicitado == 'TRASVASIJE',
             })
 
+        if request.method == 'POST' and str(request.POST.get('preview_sap') or '').lower() in {'1', 'true', 'yes'}:
+            if (
+                (
+                    not es_recepcion_prosesa_camion
+                    and not es_recepcion_prosesa_piso_1_sap
+                    and not es_recepcion_new_jersey_p1_sap
+                )
+                or not getattr(settings, 'SAP_RECEPCION_PREVIEW_ENABLED', False)
+            ):
+                return JsonResponse({
+                    'success': False,
+                    'message': 'Preview SAP de recepcion no disponible.',
+                }, status=404)
+            if es_recepcion_new_jersey_p1_sap:
+                preview = build_purchase_delivery_note_new_jersey_p1(citacion)
+                return JsonResponse({
+                    'success': preview['ready_for_post'],
+                    'message': (
+                        'Preview SAP New Jersey P1 generado en modo lectura.'
+                        if preview['ready_for_post']
+                        else (preview.get('errors') or ['Preview SAP no disponible.'])[0]
+                    ),
+                    'read_only': True,
+                    'document_type': 'PurchaseDeliveryNotes',
+                    'preview': preview,
+                }, status=200 if preview['ready_for_post'] else 400)
+            if es_recepcion_prosesa_piso_1_sap:
+                preview = build_purchase_delivery_note_prosesa_contenedor_piso_1(
+                    citacion
+                )
+                return JsonResponse({
+                    'success': not bool(preview.get('errors')),
+                    'message': (
+                        'Preview SAP de Contenedor a Piso 1 generado.'
+                        if not preview.get('errors')
+                        else 'Preview SAP de Contenedor a Piso 1 generado con errores.'
+                    ),
+                    'read_only': True,
+                    'document_type': 'PurchaseDeliveryNotes',
+                    'preview': preview,
+                })
+
+            if not str(obtener_peso_informado_guia(citacion) or '').strip():
+                return JsonResponse({
+                    'success': False,
+                    'message': (
+                        'Debe guardar la cantidad informada en guia (MT) '
+                        'antes de previsualizar el Borrador SAP.'
+                    ),
+                }, status=400)
+
+            preview = build_goods_receipt_draft_preview_from_peso_guia(citacion)
+            estado_draft = get_goods_receipt_draft_guide_status(citacion)
+            preview['status'] = {
+                'sent': bool(estado_draft.get('sent')),
+                'label': estado_draft.get('local_status') or 'Pendiente de generar',
+                'sap_status': estado_draft.get('sap_status') or 'No enviado',
+                'docentry': estado_draft.get('docentry'),
+                'docnum': estado_draft.get('docnum'),
+            }
+            preview['existing_draft'] = {
+                'sent': bool(estado_draft.get('sent')),
+                'docentry': estado_draft.get('docentry'),
+                'docnum': estado_draft.get('docnum'),
+                'local_status': estado_draft.get('local_status') or '',
+                'sap_status': estado_draft.get('sap_status') or '',
+                'usuario': estado_draft.get('usuario') or '',
+                'fecha_hora': estado_draft.get('fecha_hora') or '',
+                'request_json': estado_draft.get('request_json') or {},
+                'response_json': estado_draft.get('response_json') or {},
+            }
+            return JsonResponse({
+                'success': not bool(preview.get('errors')),
+                'message': 'Preview generado.' if not preview.get('errors') else 'Preview generado con errores.',
+                'read_only': True,
+                'preview': preview,
+            })
         if request.method == 'POST':
             if enviado_siguiente:
                 return JsonResponse({'success': False, 'message': 'Esta citacion ya fue enviada a la siguiente etapa.'}, status=409)
@@ -10867,6 +12347,19 @@ def PLANIFICACION_CITACION_ESTANQUE(request, pk):
                     'success': False,
                     'message': 'El flujo Terramar se confirma mediante la solicitud de ingreso a planta.'
                 }, status=400)
+
+            if request.POST.get('preview_despacho_sap') == '1':
+                if not getattr(settings, 'SAP_DESPACHO_PREVIEW_ENABLED', False):
+                    return JsonResponse({'success': False, 'message': 'Preview SAP de despacho no disponible.'}, status=404)
+                if not (es_despacho and despacho_carga.usa_carga_operacional(citacion)):
+                    return JsonResponse({'success': False, 'message': 'El preview solo aplica a Despacho SBH con carga operacional.'}, status=404)
+                try:
+                    return JsonResponse(previsualizar_borradores_sap_despacho(citacion))
+                except (despacho_carga.CargaInvalida, CITACION_DESPACHO_CARGA.DoesNotExist) as exc:
+                    return JsonResponse({'success': False, 'read_only': True, 'message': str(exc)}, status=409)
+                except Exception:
+                    logger.exception('No fue posible previsualizar Drafts SAP para citacion %s', citacion.pk)
+                    return JsonResponse({'success': False, 'read_only': True, 'message': 'No fue posible construir el preview SAP.'}, status=502)
 
             if es_despacho and despacho_carga.usa_carga_operacional(citacion):
                 raw = request.POST.get('carga_operacional')
@@ -10952,8 +12445,11 @@ def PLANIFICACION_CITACION_ESTANQUE(request, pk):
             estanque = str(request.POST.get('estanque') or '').strip()
             peso_raw = (
                 obtener_peso_informado_guia(citacion)
-                if es_flujo_recepcion_sbh
+                if peso_guia_unidad_revision
                 else str(request.POST.get('peso_informado') or '').strip()
+            )
+            cantidad_informada_mt = bool(
+                es_recepcion_prosesa_camion and not es_flujo_recepcion_sbh
             )
             documentos_revisados = str(request.POST.get('documentos_revisados') or '').lower() in ['1', 'true', 'on', 'si', 'sí', 'sí']
             if almacen == 'TRASVASIJE':
@@ -10969,15 +12465,35 @@ def PLANIFICACION_CITACION_ESTANQUE(request, pk):
             if not estanque:
                 return JsonResponse({'success': False, 'message': 'Debe seleccionar estanque.'}, status=400)
             if not peso_raw:
-                return JsonResponse({'success': False, 'message': 'No se puede crear Borrador SAP: falta peso informado.'}, status=400)
+                mensaje = (
+                    'No se puede crear Borrador SAP: falta cantidad informada en guia (MT).'
+                    if cantidad_informada_mt else
+                    'No se puede crear Borrador SAP: falta peso informado.'
+                )
+                return JsonResponse({'success': False, 'message': mensaje}, status=400)
             try:
                 peso_informado = Decimal(peso_raw.replace(',', '.'))
             except (InvalidOperation, ValueError):
-                return JsonResponse({'success': False, 'message': 'Peso informado debe ser numerico.'}, status=400)
+                mensaje = (
+                    'La cantidad informada en guia (MT) debe ser numerica.'
+                    if cantidad_informada_mt else
+                    'Peso informado debe ser numerico.'
+                )
+                return JsonResponse({'success': False, 'message': mensaje}, status=400)
             if peso_informado <= 0:
-                return JsonResponse({'success': False, 'message': 'Peso informado debe ser mayor a 0.'}, status=400)
+                mensaje = (
+                    'La cantidad informada en guia (MT) debe ser mayor a 0.'
+                    if cantidad_informada_mt else
+                    'Peso informado debe ser mayor a 0.'
+                )
+                return JsonResponse({'success': False, 'message': mensaje}, status=400)
             if peso_informado > Decimal('1000000'):
-                return JsonResponse({'success': False, 'message': 'Peso informado supera el limite razonable permitido.'}, status=400)
+                mensaje = (
+                    'La cantidad informada en guia (MT) supera el limite razonable permitido.'
+                    if cantidad_informada_mt else
+                    'Peso informado supera el limite razonable permitido.'
+                )
+                return JsonResponse({'success': False, 'message': mensaje}, status=400)
 
             if es_flujo_recepcion_sbh and requiere_ruta_transportista_revision(citacion) and not ruta_transportista_asistente_guardada(citacion):
                 return JsonResponse({
@@ -11078,13 +12594,17 @@ def PLANIFICACION_CITACION_ESTANQUE(request, pk):
                         'DO_FFECHAREGISTRO': timezone.now(),
                     }
                 )
-                if not es_flujo_recepcion_sbh:
+                if not peso_guia_unidad_revision:
                     guardar_dato_operacion_codigo(
                         citacion,
                         CAMPO_PESO_INFORMADO_GUIA,
                         format(peso_informado, 'f'),
                         request.user,
-                        etiqueta='Peso informado',
+                        etiqueta=(
+                            'Cantidad informada en guia (MT)'
+                            if cantidad_informada_mt else
+                            'Peso informado'
+                        ),
                         etapa=citacion.ETAPA_ACTUAL,
                     )
 
@@ -11140,6 +12660,8 @@ def PLANIFICACION_CITACION_ESTANQUE(request, pk):
                 'message': (
                     'Estanque confirmado correctamente.'
                     if es_flujo_recepcion_sbh else
+                    'Datos guardados. Ingreso SAP pendiente.'
+                    if es_recepcion_prosesa_piso_1_sap else
                     'Datos guardados. Borrador SAP pendiente.'
                     if es_recepcion else
                     'Destino confirmado correctamente.'
@@ -11156,7 +12678,7 @@ def PLANIFICACION_CITACION_ESTANQUE(request, pk):
                 'ocupado_por_citacion': reserva_ocupada.CI_NID_id if reserva_ocupada else None,
                 'ocupacion_info': ocupacion_info,
                 'peso_informado_guia': format(peso_informado, 'f'),
-                'sap_recepcion_draft': get_goods_receipt_draft_guide_status(citacion) if es_recepcion else {},
+                'sap_recepcion_draft': estado_sap_recepcion_para_citacion(citacion) if es_recepcion else {},
                 'borrador_sap_interno': False,
                 'estanque_confirmado': es_flujo_recepcion_sbh,
             })
@@ -11170,7 +12692,7 @@ def PLANIFICACION_CITACION_ESTANQUE(request, pk):
             if es_despacho_sbh
             else (get_sap_despacho_draft_status(citacion) if es_despacho else {})
         )
-        sap_recepcion_draft = get_goods_receipt_draft_guide_status(citacion) if es_recepcion else {}
+        sap_recepcion_draft = estado_sap_recepcion_para_citacion(citacion) if es_recepcion else {}
         insumo_planificado = (
             {
                 'codigo': detalle_operacional.get('codigo') or '',
@@ -11265,8 +12787,33 @@ def PLANIFICACION_CITACION_ESTANQUE(request, pk):
             'es_recepcion_sbh': es_recepcion_sbh,
             'es_despacho_sbh': es_despacho_sbh,
             'es_flujo_recepcion_estanque_sbh': es_flujo_recepcion_sbh,
+            'es_recepcion_prosesa_descarga_camion': es_recepcion_prosesa_camion,
+            'es_recepcion_prosesa_contenedor_piso_1': es_recepcion_prosesa_piso_1_sap,
+            'es_recepcion_new_jersey_p1': es_recepcion_new_jersey_p1_sap,
+            'lote_sap_new_jersey': (
+                obtener_lote_sap_new_jersey_p1(citacion)
+                if es_recepcion_new_jersey_p1_sap else {}
+            ),
+            'estanque_guardado_operacional': bool(
+                dato_estanque and str(dato_estanque.DO_CVALOR or '').strip()
+            ) if es_recepcion_new_jersey_p1_sap else False,
+            'lote_sap': (
+                obtener_lote_sap_prosesa_piso_1(citacion)
+                if es_recepcion_prosesa_piso_1_sap else {}
+            ),
+            'destino_sap_inicial': (
+                str(getattr(settings, 'BODEGA_VIRTUAL', '') or '').strip()
+                if es_recepcion_prosesa_piso_1_sap
+                else get_new_jersey_virtual_warehouse()
+                if es_recepcion_new_jersey_p1_sap else ''
+            ),
+            'sap_recepcion_preview_enabled': bool(
+                (es_recepcion_prosesa_camion or es_recepcion_prosesa_piso_1_sap or es_recepcion_new_jersey_p1_sap)
+                and getattr(settings, 'SAP_RECEPCION_PREVIEW_ENABLED', False)
+            ),
             'opciones_almacen': opciones_almacen_recepcion_operacional(citacion),
-            'peso_unidad': 'kg',
+            'peso_unidad': peso_guia_unidad_revision or ('MT' if es_recepcion_prosesa_camion else 'kg'),
+            'peso_capturado_en_revision': bool(peso_guia_unidad_revision),
             'opciones_estanque': opciones_estanque_reserva,
             'opciones_estanque_origen': [{'valor': valor, 'texto': valor} for valor in opciones_estanque],
             'estanque_actual': estanque_actual,
@@ -11352,6 +12899,8 @@ def PLANIFICACION_CITACION_ESTANQUE(request, pk):
                 'Cantidad intentada a despachar': texto_sin_informacion(detalle_despacho.get('cantidad_intentada_despachar')),
                 'Peso informado': texto_sin_informacion(datos_acd.get('peso_informado') or detalle_despacho.get('peso_informado')),
                 'Destino': texto_sin_informacion(detalle_despacho.get('destino')),
+                'Fecha llegada a destino': texto_sin_informacion(detalle_despacho.get('fecha_llegada_destino_display')),
+                'Hora llegada a destino': texto_sin_informacion(detalle_despacho.get('hora_llegada_destino')),
                 'Bodega': texto_sin_informacion(detalle_despacho.get('bodega')),
                 'Condicion de entrega': texto_sin_informacion(detalle_despacho.get('condicion_entrega')),
                 'Salida de documento': texto_sin_informacion(detalle_despacho.get('salida_documento')),
@@ -11372,6 +12921,7 @@ def PLANIFICACION_CITACION_ESTANQUE(request, pk):
                 if acuerdo.get('draft')
             }
             payload['carga_operacional'] = estado_operacional
+            payload['sap_despacho_preview_enabled'] = bool(getattr(settings, 'SAP_DESPACHO_PREVIEW_ENABLED', False))
             payload['datos_acd_guardados'] = estado_operacional['guardado']
             payload['sap_despacho_draft'] = {}
             payload['puede_editar'] = bool(
@@ -11499,7 +13049,7 @@ def _validar_peso_informado_guia(valor):
         peso = Decimal(texto)
     except (InvalidOperation, ValueError):
         return None, 'El peso informado en guia debe ser numerico.'
-    if peso <= 0:
+    if not peso.is_finite() or peso <= 0:
         return None, 'El peso informado en guia debe ser mayor a 0.'
     if peso > Decimal('1000000'):
         return None, 'El peso informado en guia supera el limite razonable permitido.'
@@ -11667,13 +13217,17 @@ def _documentos_borrador_sap(citacion):
 
 
 def _estado_borrador_sap_peso_guia_fila(citacion):
-    status = get_goods_receipt_draft_guide_status(citacion)
+    status = estado_sap_recepcion_para_citacion(citacion)
     peso_guardado = DATO_OPERACION.objects.filter(
         CI_NID=citacion,
         CAMP_NID__CA_CCODIGO=CAMPO_PESO_INFORMADO_GUIA
     ).order_by('-id').first()
     if status.get('sent'):
-        etiqueta = 'Borrador SAP creado'
+        etiqueta = (
+            'Ingreso SAP creado'
+            if es_recepcion_prosesa_contenedor_piso_1(citacion)
+            else 'Borrador SAP creado'
+        )
     elif peso_guardado:
         etiqueta = 'Borrador generado, pendiente de enviar'
     else:
@@ -11808,11 +13362,37 @@ def PLANIFICACION_BORRADOR_SAP_PESO_GUIA_ENVIAR(request, pk):
     if tipo_citacion != CIT_RECEPCION:
         return JsonResponse({'success': False, 'message': 'Este borrador SAP solo aplica para citaciones de RECEPCION.'}, status=400)
 
+    if es_recepcion_new_jersey_p1(citacion):
+        mensaje_etapa = _validar_borrador_sap_peso_guia_disponible(citacion, request.user)
+        if mensaje_etapa:
+            return JsonResponse({'success': False, 'message': mensaje_etapa}, status=409)
+        dato_estanque = obtener_dato_estanque_operacional(citacion)
+        if not dato_estanque or not str(dato_estanque.DO_CVALOR or '').strip():
+            return JsonResponse({'success': False, 'message': 'Debe guardar el estanque antes de crear el Ingreso SAP.'}, status=400)
+        result = send_purchase_delivery_note_new_jersey_p1_to_sap(citacion, request.user)
+        return JsonResponse(result, status=200 if result.get('success') else 400)
+
+    if es_recepcion_prosesa_contenedor_piso_1(citacion):
+        mensaje_etapa = _validar_borrador_sap_peso_guia_disponible(citacion, request.user)
+        if mensaje_etapa:
+            return JsonResponse({'success': False, 'message': mensaje_etapa}, status=409)
+        result = send_purchase_delivery_note_prosesa_contenedor_piso_1_to_sap(
+            citacion,
+            request.user,
+        )
+        if result.get('success'):
+            result['status'] = get_purchase_delivery_note_prosesa_piso_1_status(
+                citacion
+            )
+        return JsonResponse(result, status=200 if result.get('success') else 400)
+
     if es_flujo_recepcion_estanque_sbh(citacion):
         return JsonResponse({
             'success': False,
             'message': 'El borrador SAP se crea automáticamente después de aprobar Calidad.',
         }, status=409)
+
+    cantidad_informada_mt = es_recepcion_prosesa_descarga_camion(citacion)
 
     dato_estanque = obtener_dato_estanque_operacional(citacion)
     if not dato_estanque or not str(dato_estanque.DO_CVALOR or '').strip():
@@ -11823,13 +13403,28 @@ def PLANIFICACION_BORRADOR_SAP_PESO_GUIA_ENVIAR(request, pk):
     ).order_by('-id').first()
     peso_raw = str(peso_guardado.DO_CVALOR if peso_guardado else '').strip()
     if not peso_raw:
-        return JsonResponse({'success': False, 'message': 'No se puede crear Borrador SAP: falta peso informado.'}, status=400)
+        mensaje = (
+            'No se puede crear Borrador SAP: falta cantidad informada en guia (MT).'
+            if cantidad_informada_mt else
+            'No se puede crear Borrador SAP: falta peso informado.'
+        )
+        return JsonResponse({'success': False, 'message': mensaje}, status=400)
     try:
         peso_informado = Decimal(peso_raw.replace(',', '.'))
     except (InvalidOperation, ValueError):
-        return JsonResponse({'success': False, 'message': 'Peso informado debe ser numerico.'}, status=400)
+        mensaje = (
+            'La cantidad informada en guia (MT) debe ser numerica.'
+            if cantidad_informada_mt else
+            'Peso informado debe ser numerico.'
+        )
+        return JsonResponse({'success': False, 'message': mensaje}, status=400)
     if peso_informado <= 0:
-        return JsonResponse({'success': False, 'message': 'Peso informado debe ser mayor a 0.'}, status=400)
+        mensaje = (
+            'La cantidad informada en guia (MT) debe ser mayor a 0.'
+            if cantidad_informada_mt else
+            'Peso informado debe ser mayor a 0.'
+        )
+        return JsonResponse({'success': False, 'message': mensaje}, status=400)
 
     mensaje_etapa = _validar_borrador_sap_peso_guia_disponible(citacion, request.user)
     if mensaje_etapa:
@@ -11991,6 +13586,11 @@ def AVANZAR_ESTANQUE_SIGUIENTE_ETAPA(request, pk):
 
     try:
         citacion = CITACION.objects.select_related('EP_NID', 'SC_NID', 'PL_NID').get(pk=pk, EP_NID_id=Empresa, CI_BHABILITADO=True)
+        if es_recepcion_new_jersey_p3(citacion):
+            return JsonResponse({
+                'success': False,
+                'message': 'New Jersey P3 pasa directamente de Asistente Recepcion a Guardia.',
+            }, status=403)
         if es_flujo_preoperacional_terramar(citacion):
             with transaction.atomic():
                 CITACION.objects.select_for_update().get(
@@ -12090,11 +13690,15 @@ def AVANZAR_ESTANQUE_SIGUIENTE_ETAPA(request, pk):
                 if error_peso:
                     return JsonResponse({'success': False, 'message': error_peso}, status=400)
             if requiere_borrador_sap_recepcion_para_avanzar(citacion):
-                estado_borrador_recepcion = get_goods_receipt_draft_guide_status(citacion)
+                estado_borrador_recepcion = estado_sap_recepcion_para_citacion(citacion)
                 if not estado_borrador_recepcion.get('sent') or not estado_borrador_recepcion.get('docentry'):
                     return JsonResponse({
                         'success': False,
-                        'message': 'Debe crear el Borrador SAP antes de enviar a la siguiente etapa.',
+                        'message': (
+                            'Debe crear el Ingreso SAP antes de enviar a la siguiente etapa.'
+                            if (es_recepcion_prosesa_contenedor_piso_1(citacion) or es_recepcion_new_jersey_p1(citacion))
+                            else 'Debe crear el Borrador SAP antes de enviar a la siguiente etapa.'
+                        ),
                         'sap_status': estado_borrador_recepcion,
                     }, status=400)
 
@@ -12360,8 +13964,52 @@ FLUJOS_RECEPCION_ETAPA_0 = (
     ('RECEPCION_TRASVASIJE', 'Trasvasije', 'TRASVASIJES A PROSESA'),
     (SECUENCIA_RECEPCION_PROSESA_PISO_1, 'Prosesa - Contenedor a Piso 1', 'RECEPCION DE ACEITES V-3'),
     (SECUENCIA_RECEPCION_PROSESA_PISO_2, 'Prosesa - Contenedor a Piso 2', 'RECEPCION DE ACEITES V-3'),
-    ('RECEPCION_PATIO_LF_CON_CALIDAD', 'Patio LF con Calidad', 'RECEPCION DE ACEITES V-3'),
-    ('RECEPCION_PATIO_LF_SIN_CALIDAD', 'Patio LF sin Calidad', 'ACEITES A PISO V_2'),
+)
+
+FLUJOS_NEW_JERSEY = (
+    (
+        SECUENCIA_RECEPCION_NEW_JERSEY_P1_CON_CALIDAD,
+        'Sector New Jersey - Contenedor a Piso con Calidad',
+        (
+            ('NJ_P1_CC_PROGRAMADO', 'Insumo Programado', 'OPERACION'),
+            ('NJ_P1_CC_PESAJE_ENTRADA', 'Pesaje Entrada', 'OPERACION'),
+            ('NJ_P1_CC_TOMA_MUESTRA', 'Toma de muestra', 'OPERACION'),
+            ('NJ_P1_CC_ANALISIS_CALIDAD', 'Analisis y calidad', 'OPERACION'),
+            ('NJ_P1_CC_RESULTADO_CALIDAD', 'Resultado Calidad', 'OPERACION'),
+            ('NJ_P1_CC_CICLO_DESCARGA', 'Ciclo Descarga', 'OPERACION'),
+            ('NJ_P1_CC_PESAJE_SALIDA', 'Pesaje Salida', 'OPERACION'),
+            ('NJ_P1_CC_BORRADOR_SAP', PASO_BORRADOR_SAP, 'OPERACION'),
+            ('NJ_P1_CC_AUTORIZAR_SALIDA', 'Autorizar Salida', 'SALIDA'),
+            ('NJ_P1_CC_CONFIRMAR_SALIDA', 'Confirmar Salida', 'SALIDA'),
+        ),
+    ),
+    (
+        SECUENCIA_RECEPCION_NEW_JERSEY_P1_SIN_CALIDAD,
+        'Sector New Jersey - Contenedor a Piso sin Calidad',
+        (
+            ('NJ_P1_SC_PROGRAMADO', 'Insumo Programado', 'OPERACION'),
+            ('NJ_P1_SC_PESAJE_ENTRADA', 'Pesaje Entrada', 'OPERACION'),
+            ('NJ_P1_SC_CICLO_DESCARGA', 'Ciclo Descarga', 'OPERACION'),
+            ('NJ_P1_SC_PESAJE_SALIDA', 'Pesaje Salida', 'OPERACION'),
+            ('NJ_P1_SC_BORRADOR_SAP', PASO_BORRADOR_SAP, 'OPERACION'),
+            ('NJ_P1_SC_AUTORIZAR_SALIDA', 'Autorizar Salida', 'SALIDA'),
+            ('NJ_P1_SC_CONFIRMAR_SALIDA', 'Confirmar Salida', 'SALIDA'),
+        ),
+    ),
+    (
+        SECUENCIA_RECEPCION_NEW_JERSEY_P2,
+        'Sector New Jersey - Proceso 2 Operación interna',
+        (
+            ('NJ_P2_PENDIENTE', 'Pendiente Proceso 2', 'OPERACION'),
+        ),
+    ),
+    (
+        SECUENCIA_RECEPCION_NEW_JERSEY_P3,
+        'Sector New Jersey - Proceso 3 Retiro vacío',
+        (
+            ('NJ_P3_PENDIENTE', 'Pendiente Proceso 3', 'OPERACION'),
+        ),
+    ),
 )
 
 FLUJOS_DESPACHO_TERRAMAR_ETAPA_0 = (
@@ -12470,20 +14118,73 @@ PASO_PROSESA_DEPOSITAR_PISO_1 = 'Depositar contenedor en Piso 1'
 PASO_PROSESA_INGRESO_MANUAL = 'Confirmar ingreso manual a PROSE_PI'
 PASO_PROSESA_RETIRAR_CONTENEDOR = 'Retirar contenedor vacío desde Piso 1'
 PASO_PROSESA_TRASLADO_MANUAL = 'Confirmar traslado manual PROSE_PI a estanque'
+PASO_PROSESA_INICIO_RETIRO = 'Inicio Retiro de Contenedor'
+CAMPO_PROSESA_PESO_REAL_INSUMO = 'PROSESA_PESO_REAL_INSUMO'
+CAMPO_QA_PROSESA_P1_PESO_ENTRADA = 'QA_PROSESA_P1_PESO_ENTRADA'
+CAMPO_QA_PROSESA_P1_PESO_SALIDA = 'QA_PROSESA_P1_PESO_SALIDA'
+CAMPO_QA_PROSESA_P2_PESO_TARA = 'QA_PROSESA_P2_PESO_TARA'
+CAMPO_QA_PROSESA_P2_PESO_SALIDA = 'QA_PROSESA_P2_PESO_SALIDA'
+FORMULA_PESO_REAL_PROSESA = '(P1_ENT - P1_SAL) - (P2_SAL - P2_TARA)'
+
+CONFIGURACION_PESAJES_PROSESA = {
+    'p1_ent': {
+        'codigo_qa': CAMPO_QA_PROSESA_P1_PESO_ENTRADA,
+        'etiqueta': 'Piso 1 - Pesaje Entrada',
+        'grupo': 'PISO 1',
+        'nombre': 'Entrada',
+    },
+    'p1_sal': {
+        'codigo_qa': CAMPO_QA_PROSESA_P1_PESO_SALIDA,
+        'etiqueta': 'Piso 1 - Pesaje Salida',
+        'grupo': 'PISO 1',
+        'nombre': 'Salida',
+    },
+    'p2_ent': {
+        'codigo_qa': CAMPO_QA_PROSESA_P2_PESO_TARA,
+        'etiqueta': 'Piso 2 - Pesaje Tara / Entrada',
+        'grupo': 'PISO 2',
+        'nombre': 'Tara / Entrada',
+    },
+    'p2_sal': {
+        'codigo_qa': CAMPO_QA_PROSESA_P2_PESO_SALIDA,
+        'etiqueta': 'Piso 2 - Pesaje Salida',
+        'grupo': 'PISO 2',
+        'nombre': 'Salida',
+    },
+}
 
 PASOS_RECEPCION_PROSESA_PISO_1 = [
     ('Pesaje Entrada', ['OPERADOR ROMANA']),
     (PASO_PROSESA_DEPOSITAR_PISO_1, ['ASISTENTE C D']),
-    (PASO_PROSESA_INGRESO_MANUAL, ['ASISTENTE DE RECEPCION']),
     ('Pesaje Salida', ['OPERADOR ROMANA']),
     ('Confirmar Salida', ['GUARDIA PORTERIA']),
 ]
 
 PASOS_RECEPCION_PROSESA_PISO_2 = [
     ('Pesaje Entrada', ['OPERADOR ROMANA']),
-    (PASO_PROSESA_RETIRAR_CONTENEDOR, ['ASISTENTE C D']),
+    (PASO_PROSESA_INICIO_RETIRO, ['ASISTENTE RECEPCION']),
     ('Pesaje Salida', ['OPERADOR ROMANA']),
-    (PASO_PROSESA_TRASLADO_MANUAL, ['ASISTENTE DE RECEPCION']),
+    ('Autorizar Salida', ['ASISTENTE RECEPCION']),
+    ('Confirmar Salida', ['GUARDIA PORTERIA']),
+]
+
+PASO_NJ_DESCARGA_CONTENEDOR = 'Descarga Contenedor'
+CAMPO_NJ_DESCARGA_CONTENEDOR = 'OP_NJ_P1_DESCARGA_CONTENEDOR'
+PASOS_RECEPCION_NEW_JERSEY_P1 = [
+    ('Pesaje Entrada', ['OPERADOR ROMANA']),
+    (PASO_NJ_DESCARGA_CONTENEDOR, ['ASISTENTE C D']),
+    ('Pesaje Salida', ['OPERADOR ROMANA']),
+    ('Autorizar Salida', ['ASISTENTE DE RECEPCION']),
+    ('Confirmar Salida', ['GUARDIA PORTERIA']),
+]
+
+PASO_NJ_P3_CARGA_DESCARGA = 'Carga / Descarga'
+TIPO_CICLO_NJ_P3 = 'NEW_JERSEY_P3_RETIRO_CONTENEDOR_VACIO'
+PASOS_RECEPCION_NEW_JERSEY_P3 = [
+    ('Pesaje Entrada', ['OPERADOR ROMANA']),
+    (PASO_NJ_P3_CARGA_DESCARGA, ['OPERADOR ROMANA']),
+    ('Pesaje Salida', ['OPERADOR ROMANA']),
+    ('Autorizar Salida', ['ASISTENTE DE RECEPCION']),
     ('Confirmar Salida', ['GUARDIA PORTERIA']),
 ]
 
@@ -12498,11 +14199,19 @@ PASOS_RECEPCION_SIN_CALIDAD = [
 ]
 
 PASO_DOCUMENTACION_TERRAMAR = 'Documentación'
+PASOS_RECEPCION_SERVICIO = list(rs.PASOS_OPERACION)
 PERFIL_TERRAMAR_ASISTENTE_BODEGA = 'ASISTENTE CD'
 PERFIL_TERRAMAR_ASISTENTE_RECEPCION = 'ASISTENTE RECEPCION'
 PERFIL_TERRAMAR_ASISTENTE_DESPACHO = 'ASISTENTE DESPACHO'
 
 PASOS_RECEPCION_TERRAMAR = [
+    ('Pesaje Entrada', ['OPERADOR ROMANA']),
+    ('Ciclo Descarga', [PERFIL_TERRAMAR_ASISTENTE_BODEGA]),
+    ('Pesaje Salida', ['OPERADOR ROMANA']),
+    (PASO_DOCUMENTACION_TERRAMAR, [PERFIL_TERRAMAR_ASISTENTE_RECEPCION]),
+    ('Confirmar Salida', ['GUARDIA PORTERIA']),
+]
+PASOS_RECEPCION_TERRAMAR_BODEGA_EXTERNA = [
     ('Pesaje Entrada', ['OPERADOR ROMANA']),
     ('Ciclo Descarga', [PERFIL_TERRAMAR_ASISTENTE_BODEGA]),
     ('Pesaje Salida', ['OPERADOR ROMANA']),
@@ -12665,7 +14374,7 @@ def pasos_despacho_operacion_activos(pasos):
 
 FLUJOS_OPERACION_PLANTA = {
     'RECEPCION_TERRAMAR': PASOS_RECEPCION_TERRAMAR,
-    'RECEPCION_TERRAMAR_BODEGA_EXTERNA': PASOS_RECEPCION_TERRAMAR,
+    'RECEPCION_TERRAMAR_BODEGA_EXTERNA': PASOS_RECEPCION_TERRAMAR_BODEGA_EXTERNA,
     'RECEPCION ESTANQUE SBH': PASOS_RECEPCION_CON_CALIDAD,
     'RECEPCION BODEGA EXTERNA': PASOS_RECEPCION_BODEGA_EXTERNA,
     'RECEPCION TRASVASIJE': PASOS_RECEPCION_CON_CALIDAD,
@@ -12748,6 +14457,7 @@ NOMBRE_ETAPA_INSUMO_PROGRAMADO = 'Insumo Programado'
 NOMBRE_ETAPA_AUTORIZACION_INGRESO = 'Autorización de ingreso'
 NOMBRE_ETAPA_DOCUMENTACION_APROBADA = 'Documentación aprobada'
 NOMBRE_ETAPA_AUTORIZACION_INGRESO_PLANTA = 'Autorización ingreso a planta'
+NOMBRE_ETAPA_PENDIENTE_GUARDIA = 'Pendiente autorización de Guardia'
 
 
 def normalizar_nombre_perfil(valor):
@@ -13013,6 +14723,15 @@ def usuario_es_asistente_despacho_terramar(user):
 
 
 def citacion_habilitada_operacion(citacion):
+    if es_recepcion_new_jersey_p2(citacion):
+        return OPERACION_NEW_JERSEY_PROCESO.objects.filter(
+            CI_NID=citacion, EP_NID_id=ID_ACEITES_SBH,
+            ONJP_CTIPO=OPERACION_NEW_JERSEY_PROCESO.TipoProceso.PROCESO_2,
+            ONJP_CESTADO__in=[
+                OPERACION_NEW_JERSEY_PROCESO.Estado.EN_PROCESO,
+                OPERACION_NEW_JERSEY_PROCESO.Estado.COMPLETADO,
+            ],
+        ).exists()
     return SYSLOGGER.objects.filter(
         LOG_COPERACION='AUTORIZA_INGRESO_PLANTA',
         LOG_CADD1=str(citacion.id)
@@ -13020,11 +14739,17 @@ def citacion_habilitada_operacion(citacion):
 
 
 def obtener_etapa_preoperacional_citacion(citacion):
+    if es_recepcion_new_jersey_p2(citacion):
+        return '' if citacion_habilitada_operacion(citacion) else 'Pendiente de activar P2'
     citacion_id = str(citacion.id)
     if SYSLOGGER.objects.filter(LOG_COPERACION='AUTORIZA_INGRESO_PLANTA', LOG_CADD1=citacion_id).exists():
         return ''
     if SYSLOGGER.objects.filter(LOG_COPERACION='ENVIA_GUARDIA_PORTERIA', LOG_CADD1=citacion_id).exists():
         return NOMBRE_ETAPA_AUTORIZACION_INGRESO_PLANTA
+    if es_recepcion_new_jersey_p3(citacion) and SYSLOGGER.objects.filter(
+        LOG_COPERACION='APRUEBA_AR', LOG_CADD1=citacion_id
+    ).exists():
+        return NOMBRE_ETAPA_PENDIENTE_GUARDIA
     if SYSLOGGER.objects.filter(LOG_COPERACION='ENVIA_CD_NEXT', LOG_CADD1=citacion_id).exists():
         return NOMBRE_ETAPA_AUTORIZACION_INGRESO
     return ''
@@ -13041,6 +14766,10 @@ def obtener_etapa_visible_resumen_citacion(citacion):
 def obtener_etapa_actual_operacional_citacion(citacion):
     if not citacion:
         return ''
+    if es_recepcion_new_jersey_p2(citacion):
+        if not citacion_habilitada_operacion(citacion):
+            return 'Pendiente de activar P2'
+        return nj_p2.paso_actual_p2(citacion) or 'P2 completado'
 
     etapa_legacy = citacion.ETAPA_ACTUAL.ET_CNOMBRE if citacion.ETAPA_ACTUAL else ''
     if citacion.CI_CTIPO != CIT_RECEPCION:
@@ -13054,6 +14783,11 @@ def obtener_etapa_actual_operacional_citacion(citacion):
 
     if SYSLOGGER.objects.filter(LOG_COPERACION='ENVIA_GUARDIA_PORTERIA', LOG_CADD1=citacion_id).exists():
         return NOMBRE_ETAPA_AUTORIZACION_INGRESO_PLANTA
+
+    if es_recepcion_new_jersey_p3(citacion) and SYSLOGGER.objects.filter(
+        LOG_COPERACION='APRUEBA_AR', LOG_CADD1=citacion_id
+    ).exists():
+        return NOMBRE_ETAPA_PENDIENTE_GUARDIA
 
     if SYSLOGGER.objects.filter(LOG_COPERACION='ENVIA_CD_NEXT', LOG_CADD1=citacion_id).exists():
         return NOMBRE_ETAPA_AUTORIZACION_INGRESO
@@ -13126,6 +14860,15 @@ def obtener_pasos_operacion_citacion(citacion):
         return pasos
 
     secuencia_codigo_real = str(citacion.SC_NID.SE_CCODIGO if citacion.SC_NID else '').strip().upper()
+    if tipo_citacion == CIT_RECEPCION and secuencia_codigo_real == rs.SECUENCIA_CODIGO:
+        return 'RECEPCIÓN SERVICIO', PASOS_RECEPCION_SERVICIO
+    if es_recepcion_new_jersey_p1(citacion):
+        return 'RECEPCION SECTOR NEW JERSEY', PASOS_RECEPCION_NEW_JERSEY_P1
+    if es_recepcion_new_jersey_p2(citacion):
+        return 'NEW JERSEY PROCESO 2', [(paso, [nj_p2.RESPONSABLE_P2]) for paso in nj_p2.PASOS_P2]
+    if es_recepcion_new_jersey_p3(citacion):
+        return 'NEW JERSEY PROCESO 3', PASOS_RECEPCION_NEW_JERSEY_P3
+
     if tipo_citacion == CIT_RECEPCION and secuencia_codigo_real in {
         'RECEPCION_TERRAMAR',
         'RECEPCION_TERRAMAR_BODEGA_EXTERNA',
@@ -13164,7 +14907,7 @@ def resolver_estado_operacional_visible(citacion, pasos_config, pasos_completado
     nombres_pasos = [paso for paso, _ in pasos_config]
     es_flujo_terramar = es_flujo_preoperacional_terramar(citacion)
     boton_desde_etapa_tecnica = (
-        '' if es_flujo_terramar
+        '' if es_flujo_terramar or es_recepcion_new_jersey_p1(citacion) or es_recepcion_new_jersey_p2(citacion) or es_recepcion_new_jersey_p3(citacion)
         else obtener_boton_operacional_desde_etapa_tecnica(citacion)
     )
     tipo_citacion = str(
@@ -13196,6 +14939,12 @@ def resolver_estado_operacional_visible(citacion, pasos_config, pasos_completado
 
 
 def obtener_paso_activo_operacion(citacion, pasos_config=None):
+    if es_recepcion_new_jersey_p2(citacion):
+        actual = nj_p2.paso_actual_p2(citacion)
+        completados = set(OPERACION_PLANTA_LOG.objects.filter(
+            CI_NID=citacion, OPL_CESTADO=OPERACION_PLANTA_LOG.ESTADO_COMPLETADO,
+        ).values_list('OPL_CPASO', flat=True))
+        return actual, [nj_p2.RESPONSABLE_P2] if actual else [], completados
     if pasos_config is None:
         _, pasos_config = obtener_pasos_operacion_citacion(citacion)
     logs_completados = set(OPERACION_PLANTA_LOG.objects.filter(
@@ -13262,6 +15011,11 @@ EVENTO_RECEPCION_BODEGA_EXTERNA_SALIDA = 'RECEPCION_BODEGA_EXTERNA_SALIDA_AUTORI
 EVENTO_RECEPCION_BODEGA_EXTERNA_REGRESO = 'RECEPCION_BODEGA_EXTERNA_REGRESO_REGISTRADO'
 SYSLOG_RECEPCION_BODEGA_EXTERNA_SALIDA = 'REC_BEXT_SALIDA'
 SYSLOG_RECEPCION_BODEGA_EXTERNA_REGRESO = 'REC_BEXT_REGRESO'
+TIPO_CICLO_PROSESA_PISO_1_SALIDA_TEMPORAL = 'RECEPCION_PROSESA_PISO_1_SALIDA_TEMPORAL'
+EVENTO_PROSESA_PISO_1_SALIDA_TEMPORAL = 'PROSESA_PISO_1_SALIDA_TEMPORAL_AUTORIZADA'
+EVENTO_PROSESA_PISO_1_RETORNO_PLANTA = 'PROSESA_PISO_1_RETORNO_PLANTA_REGISTRADO'
+SYSLOG_PROSESA_PISO_1_SALIDA_TEMPORAL = 'PRO_P1_SAL_TEMP'
+SYSLOG_PROSESA_PISO_1_RETORNO_PLANTA = 'PRO_P1_RETORNO'
 EVENTO_TERRAMAR_BODEGA_EXTERNA_SALIDA = 'TERRAMAR_BODEGA_EXTERNA_SALIDA'
 EVENTO_TERRAMAR_BODEGA_EXTERNA_REGRESO = 'TERRAMAR_BODEGA_EXTERNA_REGRESO'
 SYSLOG_TERRAMAR_BODEGA_EXTERNA_SALIDA = 'INICIA_BOD_EXT_TER'
@@ -13377,7 +15131,10 @@ PASOS_OPERACION_PLANTA_TICKET = {
 }
 
 
-def opciones_tipos_ciclo_descarga(nombre_flujo):
+def opciones_tipos_ciclo_descarga(nombre_flujo, citacion=None):
+    if citacion is not None and es_recepcion_new_jersey_p2(citacion):
+        return [{'codigo': 'Descarga Estanque', 'etiqueta': 'Descarga Estanque',
+                 'etiqueta_tarjeta': 'Descarga Estanque'}]
     flujo_normalizado = normalizar_nombre_flujo_operacion(nombre_flujo)
     if flujo_normalizado in {
         normalizar_nombre_flujo_operacion('RECEPCION_TERRAMAR'),
@@ -13804,7 +15561,12 @@ def _extraer_pesos_semanticos_ticket(lineas, tipo_ticket):
     return resultado
 
 
-def _extraer_datos_ticket_pesaje(ruta_pdf, tipo_ticket, semantica_despacho_sbh=False):
+def _extraer_datos_ticket_pesaje(
+    ruta_pdf,
+    tipo_ticket,
+    semantica_despacho_sbh=False,
+    conservar_pesos_brutos=False,
+):
     texto_paginas = []
     with open(ruta_pdf, 'rb') as archivo:
         reader = PdfReader(archivo)
@@ -13817,7 +15579,7 @@ def _extraer_datos_ticket_pesaje(ruta_pdf, tipo_ticket, semantica_despacho_sbh=F
 
     pesos_semanticos = (
         _extraer_pesos_semanticos_ticket(lineas, tipo_ticket)
-        if semantica_despacho_sbh
+        if semantica_despacho_sbh or conservar_pesos_brutos
         else {}
     )
     peso = 0
@@ -13871,10 +15633,15 @@ def _extraer_datos_ticket_pesaje(ruta_pdf, tipo_ticket, semantica_despacho_sbh=F
         'peso_neto': peso,
         'observacion': observacion,
     }
-    if semantica_despacho_sbh:
+    if semantica_despacho_sbh or conservar_pesos_brutos:
         resultado.update(pesos_semanticos)
         if tipo_ticket == 'ENT' and not resultado.get('peso_entrada_kg'):
             resultado['peso_entrada_kg'] = peso
+        resultado['peso_bruto_kg'] = (
+            resultado.get('peso_entrada_kg')
+            if tipo_ticket == 'ENT'
+            else resultado.get('peso_salida_bruto_kg')
+        )
     return resultado
 
 
@@ -13942,6 +15709,7 @@ def _metadata_ticket_pesaje(citacion, paso, tipo_ticket, patente, ruta_local, da
     for clave in (
         'peso_entrada_kg',
         'peso_salida_bruto_kg',
+        'peso_bruto_kg',
         'peso_neto_producto_kg',
         'fuente_peso_neto',
         'peso_neto_calculado_kg',
@@ -14452,12 +16220,21 @@ def _payload_documentacion_terramar(citacion, request=None):
         'timbrados': [item for item in documentos if item.get('timbrado_disponible')],
         'obligatorios_pendientes': [item.get('nombre') for item in estado_timbrado['obligatorios_pendientes']],
         'timbrado_completo': estado_timbrado['completo'],
+        'puede_validar_timbraje': not estado_timbrado['obligatorios_pendientes'],
         'total_documentos': len(documentos),
         'whatsapp_media_disponible': False,
     }
 
 
-def _config_accion_toma_muestra(nombre_flujo):
+def _config_accion_toma_muestra(nombre_flujo, citacion=None):
+    if citacion is not None and es_recepcion_new_jersey_p2(citacion):
+        return {
+            'tipo': 'analisis', 'accion_label': 'Toma de muestra',
+            'estado_label': 'Muestra tomada', 'pendiente_label': 'Pendiente de toma de muestra',
+            'mensaje_guardado': 'Muestra tomada.', 'log_operacion': 'MUESTRA_TOMADA',
+            'log_mensaje': 'Muestra tomada en Toma de muestra',
+            'mide_tiempo_toma_muestra': True,
+        }
     flujo_normalizado = normalizar_nombre_flujo_operacion(nombre_flujo)
     es_recepcion_trasvasije = flujo_normalizado == normalizar_nombre_flujo_operacion('RECEPCION TRASVASIJE')
     es_recepcion_bodega_externa = flujo_normalizado == normalizar_nombre_flujo_operacion('RECEPCION BODEGA EXTERNA')
@@ -14699,8 +16476,15 @@ def _toma_muestra_accion_guardada(citacion):
     return bool(_leer_metadata_toma_muestra_accion(citacion))
 
 
+def _calidad_inicia_al_finalizar_toma_muestra(citacion):
+    return (
+        getattr(citacion, 'EP_NID_id', None) == ID_ACEITES_SBH
+        and es_recepcion_bodega_externa_operacion(citacion)
+    )
+
+
 def _payload_toma_muestra_accion(citacion, nombre_flujo):
-    config = _config_accion_toma_muestra(nombre_flujo)
+    config = _config_accion_toma_muestra(nombre_flujo, citacion)
     metadata = _leer_metadata_toma_muestra_accion(citacion)
     if not metadata:
         return {
@@ -14724,11 +16508,14 @@ def _payload_toma_muestra_accion(citacion, nombre_flujo):
 def _registrar_toma_muestra_accion(citacion, usuario, nombre_flujo, observacion=''):
     metadata_existente = _leer_metadata_toma_muestra_accion(citacion)
     if metadata_existente:
-        if es_recepcion_bodega_externa_operacion(citacion):
+        if (
+            es_recepcion_bodega_externa_operacion(citacion)
+            and not _calidad_inicia_al_finalizar_toma_muestra(citacion)
+        ):
             asegurar_calidad_iniciada(citacion, usuario)
         return metadata_existente
 
-    config = _config_accion_toma_muestra(nombre_flujo)
+    config = _config_accion_toma_muestra(nombre_flujo, citacion)
     campo = _obtener_campo_toma_muestra_accion(citacion, usuario)
     fecha = timezone.localtime(timezone.now())
     metadata = {
@@ -14770,13 +16557,16 @@ def _registrar_toma_muestra_accion(citacion, usuario, nombre_flujo, observacion=
         citacion.id,
         ''
     )
-    if es_recepcion_bodega_externa_operacion(citacion):
+    if (
+        es_recepcion_bodega_externa_operacion(citacion)
+        and not _calidad_inicia_al_finalizar_toma_muestra(citacion)
+    ):
         asegurar_calidad_iniciada(citacion, usuario)
     return metadata
 
 
 def _payload_tiempo_toma_muestra(citacion, nombre_flujo):
-    config = _config_accion_toma_muestra(nombre_flujo)
+    config = _config_accion_toma_muestra(nombre_flujo, citacion)
     metadata = _leer_metadata_toma_muestra_accion(citacion) or {}
     inicio = _parse_iso_operacion(metadata.get('fecha_iso'))
     if not inicio and metadata:
@@ -14814,7 +16604,7 @@ def _payload_tiempo_toma_muestra(citacion, nombre_flujo):
 
 
 def _finalizar_tiempo_toma_muestra(citacion, usuario, nombre_flujo):
-    config = _config_accion_toma_muestra(nombre_flujo)
+    config = _config_accion_toma_muestra(nombre_flujo, citacion)
     if not config.get('mide_tiempo_toma_muestra'):
         return None
 
@@ -15383,6 +17173,24 @@ def _obtener_estanque_destino_operacion(citacion):
     return ''
 
 
+def _payload_descarga_contenedor_new_jersey(citacion):
+    """Estado de la descarga P1; lectura sin mutar la citacion."""
+    metadata = _leer_metadata_terramar(citacion, CAMPO_NJ_DESCARGA_CONTENEDOR)
+    detalle = obtener_detalle_operacional_citacion(citacion)
+    return {
+        'iniciada': bool(metadata.get('inicio_iso')),
+        'finalizada': bool(metadata.get('fin_iso')),
+        'contenedor': metadata.get('contenedor') or str(
+            getattr(detalle, 'CDO_CBL_CONTENEDOR', '') or ''
+        ).strip(),
+        'destino_fisico': metadata.get('destino_fisico') or _obtener_estanque_destino_operacion(citacion),
+        'inicio_iso': metadata.get('inicio_iso') or '',
+        'fin_iso': metadata.get('fin_iso') or '',
+        'usuario_inicio': metadata.get('usuario_inicio') or '',
+        'usuario_fin': metadata.get('usuario_fin') or '',
+    }
+
+
 def _obtener_campo_preparacion_descarga(citacion, usuario):
     campo, _ = CAMPO.objects.get_or_create(
         EP_NID=citacion.EP_NID,
@@ -15940,6 +17748,105 @@ def _guardar_metadata_ciclo_descarga(citacion, usuario, metadata):
     return metadata
 
 
+def _iniciar_carga_descarga_new_jersey_p3(citacion, usuario, fecha_inicio=None):
+    if not es_recepcion_new_jersey_p3(citacion):
+        return None
+    metadata = _leer_metadata_ciclo_descarga(citacion) or {}
+    if metadata.get('tipo_ciclo') == TIPO_CICLO_NJ_P3 and metadata.get('inicio_descarga'):
+        return metadata
+    inicio = fecha_inicio or timezone.now()
+    metadata.update({
+        'tipo_ciclo': TIPO_CICLO_NJ_P3,
+        'tipo_descarga': TIPO_CICLO_NJ_P3,
+        'tipo_descarga_codigo': TIPO_CICLO_NJ_P3,
+        'tipo_descarga_label': 'Retiro de contenedor vacío',
+        'estado': 'EN_PROCESO',
+        'inicio_descarga': inicio.isoformat(),
+        'fin_descarga': '',
+        'duracion_segundos': None,
+        'duracion_legible': '',
+        'usuario_inicio': usuario.username,
+        'usuario_inicio_id': usuario.id,
+        'usuario_fin': '',
+        'usuario_fin_id': None,
+        'inicio_automatico': True,
+        'citacion_id': citacion.id,
+        'paso_operacion': PASO_NJ_P3_CARGA_DESCARGA,
+    })
+    metadata = _guardar_metadata_ciclo_descarga(citacion, usuario, metadata)
+    OPERACION_PLANTA_LOG.objects.get_or_create(
+        CI_NID=citacion,
+        OPL_CPASO=PASO_NJ_P3_CARGA_DESCARGA,
+        OPL_CESTADO=OPERACION_PLANTA_LOG.ESTADO_PENDIENTE,
+        defaults={
+            'US_NID': usuario,
+            'EP_NID': citacion.EP_NID,
+            'PL_NID': citacion.PL_NID,
+            'OPL_CPERFIL_RESPONSABLE': 'AUTOMATICO / OPERADOR ROMANA',
+            'OPL_COBSERVACION': 'Carga / Descarga iniciada automáticamente al finalizar Pesaje Entrada.',
+            'OPL_FFECHAREGISTRO': inicio,
+        },
+    )
+    return metadata
+
+
+@transaction.atomic
+def _finalizar_carga_descarga_new_jersey_p3(citacion, usuario, fecha_fin=None):
+    if not es_recepcion_new_jersey_p3(citacion):
+        return None
+    metadata = _leer_metadata_ciclo_descarga(citacion) or {}
+    if metadata.get('tipo_ciclo') != TIPO_CICLO_NJ_P3 or not metadata.get('inicio_descarga'):
+        raise ValueError('Carga / Descarga P3 no fue iniciada desde Pesaje Entrada.')
+    if metadata.get('fin_descarga'):
+        return metadata
+    inicio = _parse_iso_operacion(metadata.get('inicio_descarga'))
+    fin = fecha_fin or timezone.now()
+    duracion = fin - inicio
+    metadata.update({
+        'estado': 'COMPLETADO',
+        'fin_descarga': fin.isoformat(),
+        'duracion_segundos': max(int(duracion.total_seconds()), 0),
+        'duracion_legible': _formatear_hh_mm_ss_operacion(duracion),
+        'usuario_fin': usuario.username,
+        'usuario_fin_id': usuario.id,
+        'fin_automatico_ticket_salida': True,
+    })
+    metadata = _guardar_metadata_ciclo_descarga(citacion, usuario, metadata)
+    log = OPERACION_PLANTA_LOG.objects.filter(
+        CI_NID=citacion,
+        OPL_CPASO=PASO_NJ_P3_CARGA_DESCARGA,
+        OPL_CESTADO=OPERACION_PLANTA_LOG.ESTADO_PENDIENTE,
+    ).order_by('id').first()
+    if log:
+        log.US_NID = usuario
+        log.OPL_CESTADO = OPERACION_PLANTA_LOG.ESTADO_COMPLETADO
+        log.OPL_COBSERVACION = (
+            'Carga / Descarga completada automáticamente al obtener ticket COM_SAL. '
+            f'Duración: {metadata["duracion_legible"]}.'
+        )
+        log.save(update_fields=['US_NID', 'OPL_CESTADO', 'OPL_COBSERVACION'])
+    elif not OPERACION_PLANTA_LOG.objects.filter(
+        CI_NID=citacion,
+        OPL_CPASO=PASO_NJ_P3_CARGA_DESCARGA,
+        OPL_CESTADO=OPERACION_PLANTA_LOG.ESTADO_COMPLETADO,
+    ).exists():
+        OPERACION_PLANTA_LOG.objects.create(
+            US_NID=usuario,
+            EP_NID=citacion.EP_NID,
+            PL_NID=citacion.PL_NID,
+            CI_NID=citacion,
+            OPL_CPASO=PASO_NJ_P3_CARGA_DESCARGA,
+            OPL_CPERFIL_RESPONSABLE='AUTOMATICO / OPERADOR ROMANA',
+            OPL_CESTADO=OPERACION_PLANTA_LOG.ESTADO_COMPLETADO,
+            OPL_COBSERVACION=(
+                'Carga / Descarga completada automáticamente al obtener ticket COM_SAL. '
+                f'Duración: {metadata["duracion_legible"]}.'
+            ),
+            OPL_FFECHAREGISTRO=fin,
+        )
+    return metadata
+
+
 def _metadata_evento_recepcion_bodega_externa(citacion, evento, usuario, fecha, ciclo_activo, extra=None):
     valores_ingreso = obtener_valores_ingreso_camion(citacion)
     extra = extra or {}
@@ -16152,6 +18059,456 @@ def _finalizar_ciclo_recepcion_bodega_externa(citacion, usuario, observacion_reg
         )
         return _payload_ciclo_recepcion_bodega_externa(citacion), True
 
+def _camion_patio_salida_temporal_prosesa_piso_1(citacion, bloquear=False, camion_id=None):
+    queryset = CAMION_PATIO.objects.filter(CI_NID=citacion, EP_NID=citacion.EP_NID)
+    if bloquear:
+        queryset = queryset.select_for_update()
+    if camion_id:
+        queryset = queryset.filter(pk=camion_id)
+    return queryset.order_by('-CPA_FFECHAACTUALIZACION', '-id').first()
+
+
+def _payload_salida_temporal_prosesa_piso_1(citacion):
+    metadata = _leer_metadata_ciclo_descarga(citacion) or {}
+    if metadata.get('tipo_ciclo') != TIPO_CICLO_PROSESA_PISO_1_SALIDA_TEMPORAL:
+        metadata = {}
+    inicio = _parse_iso_operacion(metadata.get('fecha_salida_iso'))
+    fin = _parse_iso_operacion(metadata.get('fecha_regreso_iso'))
+    duracion = ((fin or timezone.now()) - inicio) if inicio else None
+    duracion_segundos = metadata.get('duracion_segundos')
+    if inicio and fin and duracion_segundos is None:
+        duracion_segundos = max(int(duracion.total_seconds()), 0)
+    camion = _camion_patio_salida_temporal_prosesa_piso_1(
+        citacion, camion_id=metadata.get('camion_patio_id')
+    )
+    return {
+        'tipo_ciclo': TIPO_CICLO_PROSESA_PISO_1_SALIDA_TEMPORAL,
+        'es_salida_temporal_prosesa_piso_1': True,
+        'iniciada': bool(inicio),
+        'en_proceso': bool(inicio and not fin),
+        'finalizada': bool(inicio and fin),
+        'estado': (
+            'RETORNO A PLANTA REGISTRADO' if inicio and fin
+            else ('CAMION FUERA DE PLANTA' if inicio else 'PENDIENTE DE SALIDA')
+        ),
+        'estado_badge': 'is-done' if inicio and fin else ('is-active' if inicio else ''),
+        'patente': (
+            metadata.get('patente')
+            or (camion.CPA_CPATENTE if camion else '')
+            or obtener_patente_operacional_vigente(citacion)
+        ),
+        'citacion': citacion.id,
+        'camion_patio_id': metadata.get('camion_patio_id') or (camion.id if camion else None),
+        'estado_camion_patio': camion.CPA_CESTADO if camion else '',
+        'guia': citacion.CI_CNUMERODOCUMENTO or '',
+        'insumo': _insumo_operacion_planta(citacion),
+        'destino': 'PROSESA Piso 1',
+        'inicio_iso': inicio.isoformat() if inicio else '',
+        'inicio_ms': _timestamp_ms_operacion(inicio),
+        'inicio_legible': timezone.localtime(inicio).strftime('%d/%m/%Y %H:%M') if inicio else '',
+        'fin_iso': fin.isoformat() if fin else '',
+        'fin_legible': timezone.localtime(fin).strftime('%d/%m/%Y %H:%M') if fin else '',
+        'duracion_segundos': duracion_segundos,
+        'duracion_legible': (
+            metadata.get('duracion_legible')
+            or (formatear_duracion_hms(duracion) if duracion else '00:00:00')
+        ),
+        'usuario_inicio': metadata.get('usuario_autoriza') or '',
+        'usuario_fin': metadata.get('usuario_regreso') or '',
+        'observacion_regreso': metadata.get('observacion_regreso') or '',
+        'evento_inicio': EVENTO_PROSESA_PISO_1_SALIDA_TEMPORAL if inicio else '',
+        'evento_fin': EVENTO_PROSESA_PISO_1_RETORNO_PLANTA if fin else '',
+    }
+
+
+def _validar_salida_temporal_prosesa_piso_1(citacion):
+    if not es_recepcion_prosesa_contenedor_piso_1(citacion):
+        raise ValueError('Esta accion solo aplica a Recepcion PROSESA Contenedor a Piso 1.')
+    _, pasos_config = obtener_pasos_operacion_citacion(citacion)
+    paso_actual, _, pasos_completados = obtener_paso_activo_operacion(citacion, pasos_config)
+    if 'Pesaje Entrada' not in pasos_completados:
+        raise ValueError('Debe completar Pesaje Entrada antes de autorizar la salida temporal.')
+    if paso_actual != PASO_PROSESA_DEPOSITAR_PISO_1:
+        raise ValueError(f'Solo puede operar durante la etapa activa: {PASO_PROSESA_DEPOSITAR_PISO_1}.')
+
+
+def _iniciar_salida_temporal_prosesa_piso_1(citacion, usuario):
+    with transaction.atomic():
+        citacion = CITACION.objects.select_for_update().select_related(
+            'EP_NID', 'PL_NID', 'SC_NID'
+        ).get(pk=citacion.pk)
+        _validar_salida_temporal_prosesa_piso_1(citacion)
+        metadata = _leer_metadata_ciclo_descarga(citacion) or {}
+        if (
+            metadata.get('tipo_ciclo') == TIPO_CICLO_PROSESA_PISO_1_SALIDA_TEMPORAL
+            and metadata.get('fecha_salida_iso')
+        ):
+            return _payload_salida_temporal_prosesa_piso_1(citacion), False
+        camion = _camion_patio_salida_temporal_prosesa_piso_1(citacion, bloquear=True)
+        if not camion:
+            raise ValueError('La citacion no tiene un CAMION_PATIO asociado.')
+        if camion.CPA_CESTADO != CAMION_PATIO.ESTADO_ASOCIADO_CITACION:
+            raise ValueError('El CAMION_PATIO no esta disponible para iniciar la salida temporal.')
+        ahora = timezone.now()
+        metadata = {
+            'tipo_ciclo': TIPO_CICLO_PROSESA_PISO_1_SALIDA_TEMPORAL,
+            'evento_inicio': EVENTO_PROSESA_PISO_1_SALIDA_TEMPORAL,
+            'citacion_id': citacion.id,
+            'camion_patio_id': camion.id,
+            'paso_operacion': PASO_PROSESA_DEPOSITAR_PISO_1,
+            'flujo': 'RECEPCION_PROSESA_PISO_1',
+            'destino': 'PROSESA PISO 1',
+            'estado_camion': 'FUERA_TEMPORALMENTE',
+            'patente': camion.CPA_CPATENTE or '',
+            'fecha_salida_iso': ahora.isoformat(),
+            'fecha_salida': timezone.localtime(ahora).strftime('%d/%m/%Y %H:%M'),
+            'usuario_autoriza': usuario.username,
+            'usuario_autoriza_id': usuario.id,
+            'fecha_regreso_iso': '',
+            'fecha_regreso': '',
+            'usuario_regreso': '',
+            'usuario_regreso_id': None,
+            'duracion_segundos': None,
+            'duracion_legible': '',
+            'ciclo_externo_activo': True,
+        }
+        _guardar_metadata_ciclo_descarga(citacion, usuario, metadata)
+        camion.CPA_CESTADO = CAMION_PATIO.ESTADO_FUERA_TEMPORAL
+        camion.save(update_fields=['CPA_CESTADO', 'CPA_FFECHAACTUALIZACION'])
+        OPERACION_PLANTA_LOG.objects.update_or_create(
+            CI_NID=citacion,
+            OPL_CPASO=EVENTO_PROSESA_PISO_1_SALIDA_TEMPORAL,
+            defaults={
+                'US_NID': usuario,
+                'EP_NID': citacion.EP_NID,
+                'PL_NID': citacion.PL_NID,
+                'OPL_CPERFIL_RESPONSABLE': 'ASISTENTE C D',
+                'OPL_CESTADO': OPERACION_PLANTA_LOG.ESTADO_PENDIENTE,
+                'OPL_COBSERVACION': json.dumps(metadata, ensure_ascii=False),
+                'OPL_FFECHAREGISTRO': ahora,
+            },
+        )
+        _registrar_syslog_operacion_planta(
+            citacion, usuario, SYSLOG_PROSESA_PISO_1_SALIDA_TEMPORAL,
+            (
+                f'Salida temporal autorizada para depositar contenedor en Piso 1. '
+                f'CAMION_PATIO #{camion.id}. Patente: {camion.CPA_CPATENTE}.'
+            ),
+            'PROSESA_PISO_1',
+        )
+        return _payload_salida_temporal_prosesa_piso_1(citacion), True
+
+
+def _finalizar_salida_temporal_prosesa_piso_1(citacion, usuario, observacion_regreso=''):
+    observacion_regreso = str(observacion_regreso or '').strip()
+    with transaction.atomic():
+        citacion = CITACION.objects.select_for_update().select_related(
+            'EP_NID', 'PL_NID', 'SC_NID'
+        ).get(pk=citacion.pk)
+        if not es_recepcion_prosesa_contenedor_piso_1(citacion):
+            raise ValueError('Esta accion solo aplica a Recepcion PROSESA Contenedor a Piso 1.')
+        metadata = _leer_metadata_ciclo_descarga(citacion) or {}
+        if (
+            metadata.get('tipo_ciclo') != TIPO_CICLO_PROSESA_PISO_1_SALIDA_TEMPORAL
+            or not metadata.get('fecha_salida_iso')
+        ):
+            raise ValueError('Debe autorizar la salida temporal antes de registrar el retorno.')
+        if metadata.get('fecha_regreso_iso'):
+            return _payload_salida_temporal_prosesa_piso_1(citacion), False
+        _validar_salida_temporal_prosesa_piso_1(citacion)
+        inicio = _parse_iso_operacion(metadata.get('fecha_salida_iso'))
+        if not inicio:
+            raise ValueError('La fecha de salida temporal no es valida.')
+        ahora = timezone.now()
+        if ahora < inicio:
+            raise ValueError('La fecha de retorno no puede ser anterior a la salida temporal.')
+        camion = _camion_patio_salida_temporal_prosesa_piso_1(
+            citacion, bloquear=True, camion_id=metadata.get('camion_patio_id')
+        )
+        if not camion:
+            raise ValueError('No se encontro el CAMION_PATIO asociado al ciclo temporal.')
+        if camion.CPA_CESTADO != CAMION_PATIO.ESTADO_FUERA_TEMPORAL:
+            raise ValueError('El CAMION_PATIO no figura fuera temporalmente de planta.')
+        duracion_segundos = max(int((ahora - inicio).total_seconds()), 0)
+        duracion_legible = formatear_duracion_hms(ahora - inicio)
+        metadata.update({
+            'evento_fin': EVENTO_PROSESA_PISO_1_RETORNO_PLANTA,
+            'fecha_regreso_iso': ahora.isoformat(),
+            'fecha_regreso': timezone.localtime(ahora).strftime('%d/%m/%Y %H:%M'),
+            'usuario_regreso': usuario.username,
+            'usuario_regreso_id': usuario.id,
+            'duracion_segundos': duracion_segundos,
+            'duracion_legible': duracion_legible,
+            'observacion_regreso': observacion_regreso,
+            'ciclo_externo_activo': False,
+            'estado_camion': 'RETORNO_REGISTRADO',
+            'siguiente_etapa': 'Pesaje Salida',
+        })
+        _guardar_metadata_ciclo_descarga(citacion, usuario, metadata)
+        camion.CPA_CESTADO = CAMION_PATIO.ESTADO_ASOCIADO_CITACION
+        camion.save(update_fields=['CPA_CESTADO', 'CPA_FFECHAACTUALIZACION'])
+        OPERACION_PLANTA_LOG.objects.filter(
+            CI_NID=citacion,
+            OPL_CPASO=EVENTO_PROSESA_PISO_1_SALIDA_TEMPORAL,
+            OPL_CESTADO=OPERACION_PLANTA_LOG.ESTADO_PENDIENTE,
+        ).update(
+            OPL_CESTADO=OPERACION_PLANTA_LOG.ESTADO_COMPLETADO,
+            OPL_COBSERVACION=json.dumps(metadata, ensure_ascii=False),
+        )
+        for paso_log, perfil in (
+            (EVENTO_PROSESA_PISO_1_RETORNO_PLANTA, 'GUARDIA PORTERIA'),
+            (PASO_PROSESA_DEPOSITAR_PISO_1, 'GUARDIA PORTERIA'),
+        ):
+            OPERACION_PLANTA_LOG.objects.get_or_create(
+                CI_NID=citacion,
+                OPL_CPASO=paso_log,
+                defaults={
+                    'US_NID': usuario,
+                    'EP_NID': citacion.EP_NID,
+                    'PL_NID': citacion.PL_NID,
+                    'OPL_CPERFIL_RESPONSABLE': perfil,
+                    'OPL_CESTADO': OPERACION_PLANTA_LOG.ESTADO_COMPLETADO,
+                    'OPL_COBSERVACION': json.dumps(metadata, ensure_ascii=False),
+                    'OPL_FFECHAREGISTRO': ahora,
+                },
+            )
+        _registrar_syslog_operacion_planta(
+            citacion, usuario, SYSLOG_PROSESA_PISO_1_RETORNO_PLANTA,
+            (
+                f'Retorno a planta registrado para CAMION_PATIO #{camion.id}. '
+                f'Duracion salida temporal: {duracion_legible}.'
+            ),
+            'PROSESA_PISO_1',
+        )
+        return _payload_salida_temporal_prosesa_piso_1(citacion), True
+
+
+TIPO_CICLO_PROSESA_PISO_2_RETIRO = 'RECEPCION_PROSESA_PISO_2_RETIRO_CONTENEDOR'
+EVENTO_PROSESA_PISO_2_RETIRO = 'PROSESA_PISO_2_RETIRO_CONTENEDOR_INICIADO'
+EVENTO_PROSESA_PISO_2_SALIDA = 'PROSESA_PISO_2_SALIDA_TEMPORAL_VALIDADA'
+EVENTO_PROSESA_PISO_2_RETORNO = 'PROSESA_PISO_2_RETORNO_PLANTA_REGISTRADO'
+
+
+def _payload_salida_temporal_prosesa_piso_2(citacion):
+    """Mismo almacenamiento y reloj del ciclo temporal de Piso 1."""
+    metadata = _leer_metadata_ciclo_descarga(citacion) or {}
+    if metadata.get('tipo_ciclo') != TIPO_CICLO_PROSESA_PISO_2_RETIRO:
+        metadata = {}
+    inicio = _parse_iso_operacion(metadata.get('fecha_salida_iso'))
+    salida_validada = _parse_iso_operacion(metadata.get('fecha_salida_validada_iso'))
+    fin = _parse_iso_operacion(metadata.get('fecha_regreso_iso'))
+    duracion = ((fin or timezone.now()) - inicio) if inicio else None
+    camion = _camion_patio_salida_temporal_prosesa_piso_1(
+        citacion, camion_id=metadata.get('camion_patio_id')
+    )
+    detalle = getattr(citacion, 'detalle_operacional', None)
+    guia = resolver_guia_prosesa_piso_1(citacion)[0]
+    contenedor = resolver_contenedor_prosesa_piso_1(citacion)[0]
+    return {
+        'tipo_ciclo': TIPO_CICLO_PROSESA_PISO_2_RETIRO,
+        'es_salida_temporal_prosesa_piso_2': True,
+        'iniciada': bool(inicio),
+        'salida_validada': bool(salida_validada),
+        'en_proceso': bool(inicio and not fin),
+        'finalizada': bool(inicio and fin),
+        'estado': (
+            'RETORNO A PLANTA REGISTRADO' if fin else (
+                'CAMION FUERA DE PLANTA' if salida_validada else (
+                    'AUTORIZADO PARA SALIDA TEMPORAL' if inicio else 'PENDIENTE DE RETIRO'
+                )
+            )
+        ),
+        'estado_badge': 'is-done' if fin else ('is-active' if inicio else ''),
+        'patente': metadata.get('patente') or (camion.CPA_CPATENTE if camion else ''),
+        'citacion': citacion.id,
+        'camion_patio_id': metadata.get('camion_patio_id') or (camion.id if camion else None),
+        'estado_camion_patio': camion.CPA_CESTADO if camion else '',
+        'guia': guia,
+        'contenedor': contenedor,
+        'insumo': _insumo_operacion_planta(citacion),
+        'destino': 'Retiro de contenedor vacio PROSESA',
+        'inicio_iso': inicio.isoformat() if inicio else '',
+        'inicio_ms': _timestamp_ms_operacion(inicio),
+        'inicio_legible': timezone.localtime(inicio).strftime('%d/%m/%Y %H:%M') if inicio else '',
+        'salida_validada_iso': salida_validada.isoformat() if salida_validada else '',
+        'fin_iso': fin.isoformat() if fin else '',
+        'fin_legible': timezone.localtime(fin).strftime('%d/%m/%Y %H:%M') if fin else '',
+        'duracion_segundos': metadata.get('duracion_segundos'),
+        'duracion_legible': metadata.get('duracion_legible') or (
+            formatear_duracion_hms(duracion) if duracion else '00:00:00'
+        ),
+        'usuario_inicio': metadata.get('usuario_autoriza') or '',
+        'usuario_salida': metadata.get('usuario_salida') or '',
+        'usuario_fin': metadata.get('usuario_regreso') or '',
+        'observacion_regreso': metadata.get('observacion_regreso') or '',
+    }
+
+
+def _validar_retiro_temporal_prosesa_piso_2(citacion):
+    if not es_recepcion_prosesa_piso_2(citacion):
+        raise ValueError('Esta accion solo corresponde a PROSESA Contenedor a Piso 2.')
+    _, pasos_config = obtener_pasos_operacion_citacion(citacion)
+    paso_actual, _, completados = obtener_paso_activo_operacion(citacion, pasos_config)
+    if 'Pesaje Entrada' not in completados:
+        raise ValueError('Debe completar Pesaje Entrada antes de iniciar el retiro.')
+    if paso_actual != PASO_PROSESA_INICIO_RETIRO:
+        raise ValueError(f'Solo puede operar durante la etapa activa: {PASO_PROSESA_INICIO_RETIRO}.')
+    if not CITACION_PROSESA_RELACION.objects.filter(CI_NID_RETIRO=citacion).exists():
+        raise ValueError('Falta la relacion con la citacion de Piso 1.')
+
+
+def _iniciar_retiro_temporal_prosesa_piso_2(citacion, usuario):
+    with transaction.atomic():
+        citacion = CITACION.objects.select_for_update().select_related(
+            'EP_NID', 'PL_NID', 'SC_NID'
+        ).get(pk=citacion.pk)
+        _validar_retiro_temporal_prosesa_piso_2(citacion)
+        metadata = _leer_metadata_ciclo_descarga(citacion) or {}
+        if metadata.get('tipo_ciclo') == TIPO_CICLO_PROSESA_PISO_2_RETIRO and metadata.get('fecha_salida_iso'):
+            return _payload_salida_temporal_prosesa_piso_2(citacion), False
+        camion = _camion_patio_salida_temporal_prosesa_piso_1(citacion, bloquear=True)
+        if not camion or camion.CPA_CESTADO != CAMION_PATIO.ESTADO_ASOCIADO_CITACION:
+            raise ValueError('La citacion requiere un CAMION_PATIO asociado y disponible.')
+        ahora = timezone.now()
+        metadata = {
+            'tipo_ciclo': TIPO_CICLO_PROSESA_PISO_2_RETIRO,
+            'evento_inicio': EVENTO_PROSESA_PISO_2_RETIRO,
+            'citacion_id': citacion.id, 'camion_patio_id': camion.id,
+            'paso_operacion': PASO_PROSESA_INICIO_RETIRO,
+            'flujo': SECUENCIA_RECEPCION_PROSESA_PISO_2,
+            'destino': 'RETIRO CONTENEDOR VACIO PROSESA',
+            'estado_camion': 'AUTORIZADO_SALIDA_TEMPORAL',
+            'patente': camion.CPA_CPATENTE or '',
+            'fecha_salida_iso': ahora.isoformat(),
+            'fecha_salida': timezone.localtime(ahora).strftime('%d/%m/%Y %H:%M'),
+            'usuario_autoriza': usuario.username, 'usuario_autoriza_id': usuario.id,
+            'fecha_salida_validada_iso': '', 'usuario_salida': '',
+            'fecha_regreso_iso': '', 'usuario_regreso': '',
+            'duracion_segundos': None, 'duracion_legible': '',
+            'ciclo_externo_activo': True,
+        }
+        _guardar_metadata_ciclo_descarga(citacion, usuario, metadata)
+        OPERACION_PLANTA_LOG.objects.update_or_create(
+            CI_NID=citacion, OPL_CPASO=EVENTO_PROSESA_PISO_2_RETIRO,
+            defaults={
+                'US_NID': usuario, 'EP_NID': citacion.EP_NID, 'PL_NID': citacion.PL_NID,
+                'OPL_CPERFIL_RESPONSABLE': 'ASISTENTE RECEPCION',
+                'OPL_CESTADO': OPERACION_PLANTA_LOG.ESTADO_PENDIENTE,
+                'OPL_COBSERVACION': json.dumps(metadata, ensure_ascii=False),
+                'OPL_FFECHAREGISTRO': ahora,
+            },
+        )
+        _registrar_syslog_operacion_planta(
+            citacion, usuario, 'PROSESA_P2_RET_INI',
+            f'Retiro temporal iniciado para CAMION_PATIO #{camion.id}.',
+            'PROSESA_PISO_2',
+        )
+        return _payload_salida_temporal_prosesa_piso_2(citacion), True
+
+
+def _validar_salida_temporal_prosesa_piso_2(citacion, usuario):
+    with transaction.atomic():
+        citacion = CITACION.objects.select_for_update().select_related(
+            'EP_NID', 'PL_NID', 'SC_NID'
+        ).get(pk=citacion.pk)
+        _validar_retiro_temporal_prosesa_piso_2(citacion)
+        metadata = _leer_metadata_ciclo_descarga(citacion) or {}
+        if metadata.get('tipo_ciclo') != TIPO_CICLO_PROSESA_PISO_2_RETIRO or not metadata.get('fecha_salida_iso'):
+            raise ValueError('Asistente Recepcion debe iniciar el retiro antes de validar la salida.')
+        if metadata.get('fecha_salida_validada_iso'):
+            return _payload_salida_temporal_prosesa_piso_2(citacion), False
+        camion = _camion_patio_salida_temporal_prosesa_piso_1(
+            citacion, bloquear=True, camion_id=metadata.get('camion_patio_id')
+        )
+        if not camion or camion.CPA_CESTADO != CAMION_PATIO.ESTADO_ASOCIADO_CITACION:
+            raise ValueError('El CAMION_PATIO no esta disponible para salida temporal.')
+        ahora = timezone.now()
+        metadata.update({
+            'evento_salida': EVENTO_PROSESA_PISO_2_SALIDA,
+            'fecha_salida_validada_iso': ahora.isoformat(),
+            'usuario_salida': usuario.username, 'usuario_salida_id': usuario.id,
+            'estado_camion': 'FUERA_TEMPORALMENTE',
+        })
+        _guardar_metadata_ciclo_descarga(citacion, usuario, metadata)
+        camion.CPA_CESTADO = CAMION_PATIO.ESTADO_FUERA_TEMPORAL
+        camion.save(update_fields=['CPA_CESTADO', 'CPA_FFECHAACTUALIZACION'])
+        OPERACION_PLANTA_LOG.objects.get_or_create(
+            CI_NID=citacion, OPL_CPASO=EVENTO_PROSESA_PISO_2_SALIDA,
+            defaults={
+                'US_NID': usuario, 'EP_NID': citacion.EP_NID, 'PL_NID': citacion.PL_NID,
+                'OPL_CPERFIL_RESPONSABLE': 'GUARDIA PORTERIA',
+                'OPL_CESTADO': OPERACION_PLANTA_LOG.ESTADO_COMPLETADO,
+                'OPL_COBSERVACION': json.dumps(metadata, ensure_ascii=False),
+                'OPL_FFECHAREGISTRO': ahora,
+            },
+        )
+        _registrar_syslog_operacion_planta(
+            citacion, usuario, 'PROSESA_P2_SAL_TMP',
+            f'Guardia Porteria valida salida temporal de CAMION_PATIO #{camion.id}.',
+            'PROSESA_PISO_2',
+        )
+        return _payload_salida_temporal_prosesa_piso_2(citacion), True
+
+
+def _finalizar_retiro_temporal_prosesa_piso_2(citacion, usuario, observacion_regreso=''):
+    with transaction.atomic():
+        citacion = CITACION.objects.select_for_update().select_related(
+            'EP_NID', 'PL_NID', 'SC_NID'
+        ).get(pk=citacion.pk)
+        _validar_retiro_temporal_prosesa_piso_2(citacion)
+        metadata = _leer_metadata_ciclo_descarga(citacion) or {}
+        if metadata.get('tipo_ciclo') != TIPO_CICLO_PROSESA_PISO_2_RETIRO or not metadata.get('fecha_salida_validada_iso'):
+            raise ValueError('Guardia Porteria debe validar la salida temporal antes del retorno.')
+        if metadata.get('fecha_regreso_iso'):
+            return _payload_salida_temporal_prosesa_piso_2(citacion), False
+        camion = _camion_patio_salida_temporal_prosesa_piso_1(
+            citacion, bloquear=True, camion_id=metadata.get('camion_patio_id')
+        )
+        if not camion or camion.CPA_CESTADO != CAMION_PATIO.ESTADO_FUERA_TEMPORAL:
+            raise ValueError('El CAMION_PATIO no figura fuera temporalmente de planta.')
+        inicio = _parse_iso_operacion(metadata.get('fecha_salida_iso'))
+        ahora = timezone.now()
+        if not inicio or ahora < inicio:
+            raise ValueError('La fecha de inicio del retiro temporal no es valida.')
+        metadata.update({
+            'evento_fin': EVENTO_PROSESA_PISO_2_RETORNO,
+            'fecha_regreso_iso': ahora.isoformat(),
+            'usuario_regreso': usuario.username, 'usuario_regreso_id': usuario.id,
+            'duracion_segundos': max(int((ahora - inicio).total_seconds()), 0),
+            'duracion_legible': formatear_duracion_hms(ahora - inicio),
+            'observacion_regreso': str(observacion_regreso or '').strip(),
+            'ciclo_externo_activo': False, 'estado_camion': 'RETORNO_REGISTRADO',
+            'siguiente_etapa': 'Pesaje Salida',
+        })
+        _guardar_metadata_ciclo_descarga(citacion, usuario, metadata)
+        camion.CPA_CESTADO = CAMION_PATIO.ESTADO_ASOCIADO_CITACION
+        camion.save(update_fields=['CPA_CESTADO', 'CPA_FFECHAACTUALIZACION'])
+        OPERACION_PLANTA_LOG.objects.filter(
+            CI_NID=citacion, OPL_CPASO=EVENTO_PROSESA_PISO_2_RETIRO,
+            OPL_CESTADO=OPERACION_PLANTA_LOG.ESTADO_PENDIENTE,
+        ).update(
+            OPL_CESTADO=OPERACION_PLANTA_LOG.ESTADO_COMPLETADO,
+            OPL_COBSERVACION=json.dumps(metadata, ensure_ascii=False),
+        )
+        for paso in (EVENTO_PROSESA_PISO_2_RETORNO, PASO_PROSESA_INICIO_RETIRO):
+            OPERACION_PLANTA_LOG.objects.get_or_create(
+                CI_NID=citacion, OPL_CPASO=paso,
+                defaults={
+                    'US_NID': usuario, 'EP_NID': citacion.EP_NID, 'PL_NID': citacion.PL_NID,
+                    'OPL_CPERFIL_RESPONSABLE': 'GUARDIA PORTERIA',
+                    'OPL_CESTADO': OPERACION_PLANTA_LOG.ESTADO_COMPLETADO,
+                    'OPL_COBSERVACION': json.dumps(metadata, ensure_ascii=False),
+                    'OPL_FFECHAREGISTRO': ahora,
+                },
+            )
+        _registrar_syslog_operacion_planta(
+            citacion, usuario, 'PROSESA_P2_RET_FIN',
+            f'Retorno de CAMION_PATIO #{camion.id}. Duracion: {metadata["duracion_legible"]}.',
+            'PROSESA_PISO_2',
+        )
+        return _payload_salida_temporal_prosesa_piso_2(citacion), True
+
+
 def _payload_ciclo_terramar_bodega_externa(citacion):
     metadata = _leer_metadata_ciclo_descarga(citacion) or {}
     if metadata.get('tipo_ciclo') != TIPO_CICLO_TERRAMAR_BODEGA_EXTERNA:
@@ -16338,7 +18695,7 @@ def _iniciar_ciclo_descarga(citacion, usuario, tipo_descarga):
 def _iniciar_ciclo_descarga_persistida(citacion, usuario, tipo_descarga):
     tipo_descarga = str(tipo_descarga or '').strip()
     nombre_flujo, _ = obtener_pasos_operacion_citacion(citacion)
-    opciones = opciones_tipos_ciclo_descarga(nombre_flujo)
+    opciones = opciones_tipos_ciclo_descarga(nombre_flujo, citacion)
     opcion_seleccionada = next(
         (opcion for opcion in opciones if opcion['codigo'] == tipo_descarga),
         None,
@@ -16646,6 +19003,14 @@ def _finalizar_ciclo_descarga_persistida(citacion, usuario, observacion=''):
     )
     if observacion_usuario:
         observacion = f'{observacion} | Observacion: {observacion_usuario}'
+    if es_recepcion_new_jersey_p2(citacion):
+        log = OPERACION_PLANTA_LOG.objects.get(
+            CI_NID=citacion, OPL_CPASO=PASO_CICLO_DESCARGA,
+            OPL_CESTADO=OPERACION_PLANTA_LOG.ESTADO_COMPLETADO,
+        )
+        log.OPL_COBSERVACION = observacion
+        log.save(update_fields=['OPL_COBSERVACION'])
+        return metadata, log
     log = OPERACION_PLANTA_LOG.objects.create(
         US_NID=usuario,
         EP_NID=citacion.EP_NID,
@@ -16711,6 +19076,14 @@ def _leer_metadata_autorizar_salida(citacion):
 
 
 def _referencia_observacion_descarga_salida(citacion):
+    if es_recepcion_new_jersey_p1(citacion):
+        descarga = _payload_descarga_contenedor_new_jersey(citacion)
+        if descarga['finalizada']:
+            return (
+                f'Contenedor {descarga["contenedor"]} descargado en '
+                f'{descarga["destino_fisico"]}.'
+            )
+        return ''
     preparacion = _payload_preparacion_descarga(citacion)
     observacion = str(preparacion.get('observaciones_descarga') or '').strip()
     if observacion:
@@ -17293,9 +19666,78 @@ def guardar_operacion_etapa(citacion, request):
     return tuvo_datos_previos
 
 
+def asegurar_flujos_new_jersey(empresa_id, usuario):
+    if empresa_id != ID_ACEITES_SBH:
+        return {}
+
+    usuario_registro = usuario if getattr(usuario, 'is_authenticated', False) else None
+    if not usuario_registro:
+        return {}
+
+    secuencias = {}
+    for codigo, nombre, etapas in FLUJOS_NEW_JERSEY:
+        secuencia, _ = SECUENCIA.objects.get_or_create(
+            EP_NID_id=empresa_id,
+            SE_CCODIGO=codigo,
+            defaults={
+                'US_NID': usuario_registro,
+                'SE_CTIPO': CIT_RECEPCION,
+                'SE_CNOMBRE': nombre,
+                'SE_BHABILITADO': True,
+                'SE_FFECHAREGISTRO': timezone.now(),
+            },
+        )
+        campos_secuencia = []
+        for campo, valor in (
+            ('SE_CTIPO', CIT_RECEPCION),
+            ('SE_CNOMBRE', nombre),
+            ('SE_BHABILITADO', True),
+        ):
+            if getattr(secuencia, campo) != valor:
+                setattr(secuencia, campo, valor)
+                campos_secuencia.append(campo)
+        if not secuencia.US_NID_id:
+            secuencia.US_NID = usuario_registro
+            campos_secuencia.append('US_NID')
+        if campos_secuencia:
+            secuencia.save(update_fields=campos_secuencia)
+
+        for paso, (codigo_etapa, nombre_etapa, tipo_etapa) in enumerate(etapas, start=1):
+            etapa, _ = ETAPA.objects.get_or_create(
+                EP_NID_id=empresa_id,
+                ET_CCODIGO=codigo_etapa,
+                defaults={
+                    'US_NID': usuario_registro,
+                    'ET_CTIPO': tipo_etapa,
+                    'ET_CNOMBRE': nombre_etapa,
+                    'ET_CDESCRIPCION': f'Etapa técnica New Jersey: {nombre_etapa}',
+                    'ET_FFECHAREGISTRO': timezone.now(),
+                    'ET_NCANTIDADMAXIMA': 1,
+                    'ET_TTIEMPOMAXIMO': time(0, 0),
+                    'ET_TTIEMPOMINIMO': time(0, 0),
+                    'ET_BHABILITADO': True,
+                },
+            )
+            DETALLE_SECUENCIA.objects.get_or_create(
+                EP_NID_id=empresa_id,
+                SC_NID=secuencia,
+                SE_NPASO=paso,
+                defaults={
+                    'US_NID': usuario_registro,
+                    'USERS_RESPONSABLE_ID': None,
+                    'ET_NID': etapa,
+                    'SE_BHABILITADO': True,
+                    'SE_BOBLIGATORIO': True,
+                },
+            )
+        secuencias[codigo] = secuencia
+    return secuencias
+
+
 def asegurar_flujos_recepcion_etapa_0(empresa_id, usuario):
     flujos = []
     usuario_registro = usuario if getattr(usuario, 'is_authenticated', False) else None
+    flujos_new_jersey = asegurar_flujos_new_jersey(empresa_id, usuario)
 
     for codigo, nombre, nombre_base in FLUJOS_RECEPCION_ETAPA_0:
         if empresa_id != ID_ACEITES_SBH and codigo in {
@@ -17381,6 +19823,13 @@ def asegurar_flujos_recepcion_etapa_0(empresa_id, usuario):
                     DETALLE_SECUENCIA.objects.bulk_create(detalles_nuevos)
 
         flujos.append(secuencia)
+
+    for codigo in (
+        SECUENCIA_RECEPCION_NEW_JERSEY_P1_CON_CALIDAD,
+        SECUENCIA_RECEPCION_NEW_JERSEY_P1_SIN_CALIDAD,
+    ):
+        if codigo in flujos_new_jersey:
+            flujos.append(flujos_new_jersey[codigo])
 
     return flujos
 
@@ -18099,6 +20548,7 @@ def BUSCAR_OPOR_POR_PEDIDO(request):
             'pedido': resultado.get('docnum', ''),
             'cantidad_disponible': resultado.get('cantidad_disponible', ''),
             'docentry': resultado.get('docentry', ''),
+            'line_num': resultado.get('line_num'),
             'proveedor_codigo': resultado.get('cardcode', ''),
             'codigo_proveedor_sap': resultado.get('codigo_proveedor_sap') or resultado.get('cardcode', ''),
             'proveedor_nombre': resultado.get('cardname', ''),
@@ -22220,6 +24670,8 @@ def _datos_fila_planificacion_citacion(row, citacion_item, valores_ingreso, cami
         'transportista': transportista,
         'salida_documento': detalle_despacho.get('salida_documento') or '',
         'destino': detalle_despacho.get('destino') or '',
+        'fecha_llegada_destino': detalle_despacho.get('fecha_llegada_destino_display') or '',
+        'hora_llegada_destino': detalle_despacho.get('hora_llegada_destino') or '',
         'ventana_horaria': detalle_despacho.get('ventana_horaria_despacho') or '',
         'fuentes': fuentes,
         'datos_camion_patio': any(fuente == 'camion_patio' for fuente in fuentes.values()),
@@ -22507,8 +24959,15 @@ def PLANIFICACION_LISTONE(request, pk):
                 'pedido': datos_fila_planificacion.get('pedido', ''),
                 'camion_patio_id': camion_patio_asociacion.id if es_citacion_sugerida and camion_patio_asociacion else '',
                 'es_flujo_preoperacional_terramar': es_fila_preoperacional_terramar,
+                'es_new_jersey_p3': es_recepcion_new_jersey_p3(row),
                 'responsable_preoperacional_display': (
-                    'Asistente_Bodega'
+                    (
+                        'Guardia_Porteria' if SYSLOGGER.objects.filter(
+                            LOG_COPERACION='ENVIA_GUARDIA_PORTERIA',
+                            LOG_CADD1=str(row.id),
+                        ).exists() else 'Guardia'
+                    ) if es_recepcion_new_jersey_p3(row) else 'Guardia_Porteria'
+                    if es_recepcion_prosesa_piso_2(row) else 'Asistente_Bodega'
                     if es_fila_preoperacional_terramar
                     else 'Asistente_C_D'
                 ),
@@ -24101,7 +26560,8 @@ def CITACION_LISTALL_RECEPCIONES(request):
             fecha_hasta = parse_date(fecha_hasta)
 
         queryset = CITACION.objects.select_related(
-            'EP_NID', 'PL_NID', 'SC_NID', 'SN_NID'
+            'EP_NID', 'PL_NID', 'SC_NID', 'SN_NID', 'detalle_operacional',
+            'relacion_prosesa_retiro__CI_NID_ORIGEN__detalle_operacional',
         ).filter(
             Q(CI_CTIPO__iexact=tipo_citacion) |
             (
@@ -24120,8 +26580,13 @@ def CITACION_LISTALL_RECEPCIONES(request):
             OPL_CPASO=PASO_CONFIRMAR_SALIDA,
             OPL_CESTADO=OPERACION_PLANTA_LOG.ESTADO_COMPLETADO,
         ).order_by('-OPL_FFECHAREGISTRO', '-id')
+        proceso_p2_completado = OPERACION_NEW_JERSEY_PROCESO.objects.filter(
+            CI_NID_id=OuterRef('pk'), EP_NID_id=Empresa,
+            ONJP_CTIPO=OPERACION_NEW_JERSEY_PROCESO.TipoProceso.PROCESO_2,
+            ONJP_CESTADO=OPERACION_NEW_JERSEY_PROCESO.Estado.COMPLETADO,
+        )
         queryset = queryset.annotate(
-            operacion_terminada=Exists(confirmacion_salida),
+            operacion_terminada=Exists(confirmacion_salida) | Exists(proceso_p2_completado),
             operacion_fecha_termino=Subquery(confirmacion_salida.values('OPL_FFECHAREGISTRO')[:1]),
             operacion_usuario_termino=Subquery(
                 confirmacion_salida.values('US_NID__username')[:1],
@@ -24135,7 +26600,15 @@ def CITACION_LISTALL_RECEPCIONES(request):
                 OPL_CPASO='Habilitar Operacion Planta',
                 OPL_CESTADO=OPERACION_PLANTA_LOG.ESTADO_COMPLETADO
             ).values_list('CI_NID_id', flat=True)
-            queryset = queryset.filter(id__in=citaciones_operacion)
+            procesos_p2 = OPERACION_NEW_JERSEY_PROCESO.objects.filter(
+                EP_NID_id=Empresa,
+                ONJP_CTIPO=OPERACION_NEW_JERSEY_PROCESO.TipoProceso.PROCESO_2,
+                ONJP_CESTADO__in=(
+                    OPERACION_NEW_JERSEY_PROCESO.Estado.EN_PROCESO,
+                    OPERACION_NEW_JERSEY_PROCESO.Estado.COMPLETADO,
+                ),
+            ).values_list('CI_NID_id', flat=True)
+            queryset = queryset.filter(Q(id__in=citaciones_operacion) | Q(id__in=procesos_p2))
             queryset = queryset.filter(operacion_terminada=contexto_operacion_terminadas)
             if not request.user.is_superuser and not _usuario_tiene_acceso_empresa(request.user, Empresa):
                 queryset = queryset.none()
@@ -24198,6 +26671,8 @@ def CITACION_LISTALL_RECEPCIONES(request):
 
         enriquecer_citaciones_con_ingreso_camion(object_list)
         for citacion in object_list:
+            if es_recepcion_prosesa_piso_2(citacion):
+                citacion.numero_documento_listado = resolver_numero_guia_operacion(citacion)
             citacion.operacion_planta_habilitada = citacion_habilitada_operacion(citacion)
             if contexto_operacion_terminadas:
                 citacion.operacion_estado_visible = 'OPERACION TERMINADA'
@@ -24283,6 +26758,11 @@ def CITACION_LISTALL_RECEPCIONES(request):
 
 
 def operacion_planta_esta_terminada(citacion):
+    if es_recepcion_new_jersey_p2(citacion):
+        return OPERACION_NEW_JERSEY_PROCESO.objects.filter(
+            CI_NID=citacion, ONJP_CTIPO=OPERACION_NEW_JERSEY_PROCESO.TipoProceso.PROCESO_2,
+            ONJP_CESTADO=OPERACION_NEW_JERSEY_PROCESO.Estado.COMPLETADO,
+        ).exists()
     return OPERACION_PLANTA_LOG.objects.filter(
         CI_NID=citacion,
         EP_NID_id=citacion.EP_NID_id,
@@ -24772,6 +27252,9 @@ def OPERACION_PLANTA_CITACION(request, pk):
         messages.error(request, 'La citacion aun no fue autorizada por Guardia_Porteria para operar en planta.')
         return redirect('/cit_listall_despachos/' if citacion.CI_CTIPO == CIT_DESPACHO else '/cit_listall_recepciones/')
 
+    if es_recepcion_new_jersey_p2(citacion):
+        return _render_operacion_new_jersey_p2(request, citacion, Empresa)
+
     es_despacho = es_citacion_despacho(citacion)
     es_recepcion = str(getattr(citacion, 'CI_CTIPO', '') or '').upper() == CIT_RECEPCION
     nombre_flujo, pasos_config = obtener_pasos_operacion_citacion(citacion)
@@ -24791,15 +27274,46 @@ def OPERACION_PLANTA_CITACION(request, pk):
     paso_pesaje_activo_alt = None
     datos_operacion, documentos_operacion = obtener_datos_operacion_citacion(citacion)
     detalle_operacional_snapshot = detalle_operacional_dict(citacion)
-    snapshot_recepcion_sbh = datos_snapshot_recepcion_sbh_presentacion(
-        citacion,
-        detalle_operacional_snapshot,
-        datos_operacion,
+    snapshot_recepcion_sbh = (
+        {}
+        if rs.es_recepcion_servicio(citacion)
+        else datos_snapshot_recepcion_sbh_presentacion(
+            citacion,
+            detalle_operacional_snapshot,
+            datos_operacion,
+        )
     )
     es_despacho_bodega_externa = es_despacho_bodega_externa_operacion(citacion)
     es_despacho_sbh_op = es_despacho_sbh_operacion(citacion)
     es_recepcion_bodega_externa = es_recepcion_bodega_externa_operacion(citacion)
     es_terramar_bodega_externa = es_recepcion_terramar_bodega_externa_operacion(citacion)
+    es_prosesa_piso_1_salida_temporal = es_recepcion_prosesa_contenedor_piso_1(citacion)
+    es_prosesa_piso_2_retiro_temporal = es_recepcion_prosesa_piso_2(citacion)
+    es_new_jersey_p1 = es_recepcion_new_jersey_p1(citacion)
+    es_new_jersey_p3 = es_recepcion_new_jersey_p3(citacion)
+    es_recepcion_servicio = rs.es_recepcion_servicio(citacion)
+    detalle_recepcion_servicio = (
+        RECEPCION_SERVICIO_DETALLE.objects.select_related('PRO_NID').filter(
+            CI_NID=citacion, EP_NID_id=Empresa,
+        ).first()
+        if es_recepcion_servicio else None
+    )
+    documentos_recepcion_servicio = []
+    if es_recepcion_servicio:
+        for documento in CITACION_DOCUMENTO.objects.filter(
+            CI_NID=citacion,
+            EP_NID_id=Empresa,
+            CD_CTIPO=CITACION_DOCUMENTO.TIPO_RECEPCION_SERVICIO,
+            CD_BACTIVO=True,
+        ).select_related('US_SUBE_NID').order_by('CD_FFECHASUBIDA', 'id'):
+            documentos_recepcion_servicio.append({
+                'id': documento.id,
+                'nombre': documento.CD_CNOMBRE_ARCHIVO,
+                'fecha': documento.CD_FFECHASUBIDA,
+                'usuario': getattr(documento.US_SUBE_NID, 'username', ''),
+                'download_url': reverse('expediente_citacion_documento_descargar', args=[documento.id]),
+            })
+    ciclo_descarga_p3 = _payload_ciclo_descarga(citacion) if es_new_jersey_p3 else None
     es_flujo_terramar = es_flujo_preoperacional_terramar(citacion)
     es_flujo_timbraje_recepcion = aplica_timbraje_recepcion(citacion)
     es_doc_despacho_terramar = es_documentacion_despacho_terramar(citacion)
@@ -24817,19 +27331,38 @@ def OPERACION_PLANTA_CITACION(request, pk):
         if es_flujo_timbraje_recepcion
         else None
     )
+    metadata_toma_muestra = _leer_metadata_toma_muestra_accion(citacion) or {}
+    tiempo_toma_muestra_finalizada = bool(metadata_toma_muestra.get('fecha_fin_iso'))
+    calidad_diferida_hasta_fin_toma = _calidad_inicia_al_finalizar_toma_muestra(citacion)
     if (
         es_recepcion_bodega_externa
-        and _toma_muestra_accion_guardada(citacion)
+        and (
+            tiempo_toma_muestra_finalizada
+            if calidad_diferida_hasta_fin_toma
+            else bool(metadata_toma_muestra)
+        )
         and not RESULTADO_CALIDAD_OPERACION.objects.filter(CI_NID=citacion).exists()
     ):
-        asegurar_calidad_iniciada(citacion, request.user)
+        asegurar_calidad_iniciada(
+            citacion,
+            request.user,
+            fecha_inicio=(
+                _parse_iso_operacion(metadata_toma_muestra.get('fecha_fin_iso'))
+                if calidad_diferida_hasta_fin_toma
+                else None
+            ),
+        )
     inspeccion_inicio_carga = leer_inspeccion_inicio_carga(citacion)
     pasos_no_ejecutados = pasos_no_ejecutados_inspeccion(citacion, inspeccion_inicio_carga)
     for indice, (nombre_paso, responsables) in enumerate(pasos_config, start=1):
         es_panel_toma_bodega_externa = es_recepcion_bodega_externa and nombre_paso == PASO_TOMA_MUESTRA
         calidad_paralela = es_panel_toma_bodega_externa and (
-            PASO_TOMA_MUESTRA in pasos_completados
-            or bool(_leer_metadata_toma_muestra_accion(citacion))
+            tiempo_toma_muestra_finalizada
+            if calidad_diferida_hasta_fin_toma
+            else (
+                PASO_TOMA_MUESTRA in pasos_completados
+                or bool(metadata_toma_muestra)
+            )
         )
         mostrar_viaje_bodega_externa = (
             (
@@ -24840,6 +27373,14 @@ def OPERACION_PLANTA_CITACION(request, pk):
                 es_terramar_bodega_externa
                 and nombre_paso == PASO_CICLO_DESCARGA
             )
+            or (
+                es_prosesa_piso_1_salida_temporal
+                and nombre_paso == PASO_PROSESA_DEPOSITAR_PISO_1
+            )
+            or (
+                es_prosesa_piso_2_retiro_temporal
+                and nombre_paso == PASO_PROSESA_INICIO_RETIRO
+            )
         )
         log_paso = ultimo_log_por_paso.get(nombre_paso)
         puede_editar = (
@@ -24847,6 +27388,21 @@ def OPERACION_PLANTA_CITACION(request, pk):
             and usuario_puede_paso_operacion(request.user, responsables)
         )
         ticket_pesaje = _payload_ticket_pesaje_guardado(citacion, nombre_paso, request)
+        puede_obtener_ticket_salida_p3 = bool(
+            es_new_jersey_p3
+            and nombre_paso == 'Pesaje Salida'
+            and paso_actual_visible == PASO_NJ_P3_CARGA_DESCARGA
+            and 'Pesaje Entrada' in pasos_completados
+            and (ciclo_descarga_p3 or {}).get('en_proceso')
+            and 'Pesaje Salida' not in pasos_completados
+        )
+        puede_obtener_ticket_pesaje = bool(
+            puede_editar
+            and (
+                nombre_paso == paso_actual_visible
+                or puede_obtener_ticket_salida_p3
+            )
+        )
         ticket_mop = (
             _payload_ticket_mop_guardado(citacion, request)
             if nombre_paso == 'Pesaje Salida'
@@ -24864,16 +27420,32 @@ def OPERACION_PLANTA_CITACION(request, pk):
         revision_resultado_calidad = _payload_resultado_calidad(citacion) if nombre_paso in {PASO_RESULTADO_CALIDAD, PASO_CICLO_DESCARGA} else None
         preparacion_descarga = _payload_preparacion_descarga(citacion) if nombre_paso == PASO_RESULTADO_CALIDAD else None
         preparacion_descarga_ciclo = _payload_preparacion_descarga(citacion) if nombre_paso == PASO_CICLO_DESCARGA else None
-        ciclo_descarga = _payload_ciclo_descarga(citacion) if nombre_paso == PASO_CICLO_DESCARGA and not es_despacho and not es_recepcion_bodega_externa and not es_terramar_bodega_externa else None
+        ciclo_descarga = _payload_ciclo_descarga(citacion) if (
+            (nombre_paso == PASO_CICLO_DESCARGA and not es_despacho and not es_recepcion_bodega_externa and not es_terramar_bodega_externa)
+            or (es_new_jersey_p3 and nombre_paso == PASO_NJ_P3_CARGA_DESCARGA)
+        ) else None
         ciclo_bodega_externa = (
             _payload_ciclo_terramar_bodega_externa(citacion)
             if es_terramar_bodega_externa and nombre_paso == PASO_CICLO_DESCARGA
-            else (_payload_ciclo_recepcion_bodega_externa(citacion) if mostrar_viaje_bodega_externa else None)
+            else (
+                _payload_salida_temporal_prosesa_piso_1(citacion)
+                if es_prosesa_piso_1_salida_temporal and nombre_paso == PASO_PROSESA_DEPOSITAR_PISO_1
+                else (
+                    _payload_salida_temporal_prosesa_piso_2(citacion)
+                    if es_prosesa_piso_2_retiro_temporal and nombre_paso == PASO_PROSESA_INICIO_RETIRO
+                    else (_payload_ciclo_recepcion_bodega_externa(citacion) if mostrar_viaje_bodega_externa else None)
+                )
+            )
         )
         ciclo_carga_despacho = _payload_ciclo_carga_despacho(citacion) if nombre_paso == PASO_CICLO_DESCARGA and es_despacho else None
         cierre_carga_despacho = _payload_cierre_carga_despacho(citacion, datos_operacion) if nombre_paso == PASO_CIERRE_CARGA and es_despacho else None
         borrador_sap = get_goods_receipt_draft_status(citacion) if nombre_paso == PASO_BORRADOR_SAP else None
-        autorizar_salida = _payload_autorizar_salida(citacion) if nombre_paso == PASO_AUTORIZAR_SALIDA else None
+        descarga_contenedor_new_jersey = (
+            _payload_descarga_contenedor_new_jersey(citacion)
+            if es_new_jersey_p1 and nombre_paso == PASO_NJ_DESCARGA_CONTENEDOR
+            else None
+        )
+        autorizar_salida = _payload_autorizar_salida(citacion) if nombre_paso == PASO_AUTORIZAR_SALIDA and not es_prosesa_piso_2_retiro_temporal else None
         datos_finales_despacho_sbh = (
             _payload_datos_finales_despacho_sbh(citacion, datos_operacion)
             if nombre_paso == PASO_AUTORIZAR_SALIDA and es_despacho_sbh_op
@@ -24894,7 +27466,7 @@ def OPERACION_PLANTA_CITACION(request, pk):
         )
         sap_update_recepcion = (
             get_goods_receipt_draft_update_status(citacion)
-            if es_recepcion and not es_flujo_terramar and nombre_paso == PASO_AUTORIZAR_SALIDA
+            if es_recepcion and not es_flujo_terramar and not es_prosesa_piso_2_retiro_temporal and not es_new_jersey_p1 and not es_new_jersey_p3 and nombre_paso == PASO_AUTORIZAR_SALIDA
             else None
         )
         autorizacion_salida_bodega = (
@@ -24951,9 +27523,18 @@ def OPERACION_PLANTA_CITACION(request, pk):
                 'GUARDIA PORTERIA': 'Guardia Portería',
             }.get(responsables[0], ' / '.join(responsables)) if es_flujo_terramar else ' / '.join(responsables)),
             'es_flujo_terramar': es_flujo_terramar,
+            'es_new_jersey_p3': es_new_jersey_p3,
             'es_recepcion_terramar_principal': es_recepcion_terramar_principal(citacion),
             'es_sbh_recepcion': _empresa_timbre_recepcion(citacion) == 'SBH' and es_recepcion,
             'es_terramar_bodega_externa': es_terramar_bodega_externa,
+            'es_salida_temporal_prosesa_piso_1': (
+                es_prosesa_piso_1_salida_temporal
+                and nombre_paso == PASO_PROSESA_DEPOSITAR_PISO_1
+            ),
+            'es_salida_temporal_prosesa_piso_2': (
+                es_prosesa_piso_2_retiro_temporal
+                and nombre_paso == PASO_PROSESA_INICIO_RETIRO
+            ),
             'implementacion_pendiente': nombre_paso == PASO_APROBAR_INICIO_CARGA,
             'requiere_inspeccion_inicio_carga': nombre_paso == PASO_APROBAR_INICIO_CARGA,
             'es_inspeccion_estanque_sbh': aplica_inspeccion_inicio_carga(citacion),
@@ -24963,9 +27544,18 @@ def OPERACION_PLANTA_CITACION(request, pk):
                 {'codigo': codigo, 'titulo': titulo, 'valor': inspeccion_inicio_carga.get('checks', {}).get(codigo, '')}
                 for codigo, titulo, _ in CRITERIOS_INICIO_CARGA
             ] if nombre_paso == PASO_APROBAR_INICIO_CARGA else [],
+            'requiere_recepcion_conforme_servicio': es_recepcion_servicio and nombre_paso == rs.PASO_RECEPCION_CONFORME,
+            'recepcion_servicio': {
+                'detalle': detalle_recepcion_servicio,
+                'documentos': documentos_recepcion_servicio,
+            } if es_recepcion_servicio else None,
             'requiere_documentacion_terramar': es_flujo_timbraje_recepcion and nombre_paso == PASO_DOCUMENTACION_TERRAMAR,
             'requiere_documentacion_despacho_terramar': es_doc_despacho_terramar and nombre_paso == PASO_DOCUMENTACION_TERRAMAR,
-            'requiere_autorizar_salida_terramar': es_flujo_timbraje_recepcion and nombre_paso == PASO_AUTORIZAR_SALIDA,
+            'requiere_autorizar_salida_terramar': (
+                es_flujo_timbraje_recepcion
+                and nombre_paso == PASO_AUTORIZAR_SALIDA
+                and not es_recepcion_terramar_principal(citacion)
+            ),
             'requiere_autorizar_salida_despacho_terramar': es_doc_despacho_terramar and nombre_paso == PASO_AUTORIZAR_SALIDA,
             'autorizacion_salida_despacho_terramar': autorizacion_salida_despacho_terramar_ctx,
             'documentacion_terramar': documentacion_terramar_ctx,
@@ -24976,7 +27566,11 @@ def OPERACION_PLANTA_CITACION(request, pk):
             ),
             'oculto_visual': es_recepcion_bodega_externa and nombre_paso == PASO_CICLO_DESCARGA,
             'puede_editar': puede_editar,
+            'puede_obtener_ticket_pesaje': puede_obtener_ticket_pesaje,
+            'puede_obtener_ticket_salida_p3': puede_obtener_ticket_salida_p3,
             'requiere_ticket_pesaje': nombre_paso in PASOS_OPERACION_PLANTA_TICKET,
+            'requiere_descarga_contenedor_new_jersey': bool(descarga_contenedor_new_jersey),
+            'descarga_contenedor_new_jersey': descarga_contenedor_new_jersey,
             'tipo_ticket_pesaje': _tipo_ticket_pesaje(nombre_paso) or '',
             'ticket_pesaje': ticket_pesaje,
             'ticket_mop': ticket_mop,
@@ -24993,17 +27587,29 @@ def OPERACION_PLANTA_CITACION(request, pk):
             'revision_resultado_calidad': revision_resultado_calidad,
             'preparacion_descarga': preparacion_descarga,
             'espera_descarga': espera_descarga,
-            'requiere_ciclo_descarga': nombre_paso == PASO_CICLO_DESCARGA and not es_recepcion_bodega_externa and not es_terramar_bodega_externa,
+            'requiere_ciclo_descarga': (
+                nombre_paso == PASO_CICLO_DESCARGA and not es_recepcion_bodega_externa and not es_terramar_bodega_externa
+            ) or (es_new_jersey_p3 and nombre_paso == PASO_NJ_P3_CARGA_DESCARGA),
             'requiere_ciclo_bodega_externa': mostrar_viaje_bodega_externa,
-            'puede_operar_ciclo_bodega_externa': not operacion_solo_lectura and mostrar_viaje_bodega_externa and paso_actual_visible == PASO_CICLO_DESCARGA,
+            'puede_operar_ciclo_bodega_externa': (
+                not operacion_solo_lectura
+                and mostrar_viaje_bodega_externa
+                and paso_actual_visible == (
+                    PASO_PROSESA_DEPOSITAR_PISO_1
+                    if es_prosesa_piso_1_salida_temporal
+                    else (PASO_PROSESA_INICIO_RETIRO if es_prosesa_piso_2_retiro_temporal else PASO_CICLO_DESCARGA)
+                )
+            ),
             'preparacion_descarga_ciclo': preparacion_descarga_ciclo,
             'ciclo_descarga': ciclo_descarga,
             'ciclo_bodega_externa': ciclo_bodega_externa,
-            'puede_iniciar_ciclo_bodega_externa': not operacion_solo_lectura and usuario_puede_paso_operacion(
+            'puede_iniciar_ciclo_bodega_externa': not operacion_solo_lectura and (usuario_es_asistente_recepcion(request.user) if es_prosesa_piso_2_retiro_temporal else usuario_puede_paso_operacion(
                 request.user,
-                [PERFIL_TERRAMAR_ASISTENTE_BODEGA] if es_terramar_bodega_externa else ['ASISTENTE C D'],
-            ),
-            'puede_finalizar_ciclo_bodega_externa': not operacion_solo_lectura and usuario_puede_paso_operacion(request.user, ['GUARDIA PORTERIA']),
+                (
+                    [PERFIL_TERRAMAR_ASISTENTE_BODEGA] if es_terramar_bodega_externa else ['ASISTENTE C D']
+                ),
+            )),
+            'puede_finalizar_ciclo_bodega_externa': not operacion_solo_lectura and (usuario_es_guardia_porteria(request.user) if es_prosesa_piso_2_retiro_temporal else usuario_puede_paso_operacion(request.user, ['GUARDIA PORTERIA'])),
             'ciclo_carga_despacho': ciclo_carga_despacho,
             'resumen_carga_operacional': (
                 (ciclo_carga_despacho or {}).get('resumen_operacional')
@@ -25024,6 +27630,7 @@ def OPERACION_PLANTA_CITACION(request, pk):
             'requiere_borrador_sap': nombre_paso == PASO_BORRADOR_SAP,
             'borrador_sap': borrador_sap,
             'requiere_autorizar_salida': nombre_paso == PASO_AUTORIZAR_SALIDA and (not es_flujo_timbraje_recepcion or _empresa_timbre_recepcion(citacion) == 'SBH'),
+            'requiere_autorizar_salida_prosesa_piso_2': es_prosesa_piso_2_retiro_temporal and nombre_paso == PASO_AUTORIZAR_SALIDA,
             'requiere_confirmar_salida': nombre_paso == PASO_CONFIRMAR_SALIDA,
             'autorizar_salida': autorizar_salida,
             'datos_finales_despacho_sbh': datos_finales_despacho_sbh,
@@ -25061,15 +27668,23 @@ def OPERACION_PLANTA_CITACION(request, pk):
             paso_pesaje_activo_alt = paso_ctx
 
     valores_ingreso = obtener_valores_ingreso_camion(citacion)
+    patente_operacional = obtener_patente_operacional_vigente(
+        citacion,
+        valores_ingreso,
+    )
     insumo_operacion = _insumo_operacion_planta(citacion)
     codigo_sap_operacion = _codigo_sap_operacion_planta(citacion)
     fecha_ingreso_operacion = _fecha_ingreso_operacion_planta(citacion)
     guia_operacion_url = _guia_operacion_planta_url(citacion, documentos_operacion)
     ctx = {
         'citacion': citacion,
+        'es_new_jersey_p1': es_new_jersey_p1,
+        'es_new_jersey_p3': es_new_jersey_p3,
+        'es_recepcion_servicio': es_recepcion_servicio,
+        'detalle_recepcion_servicio': detalle_recepcion_servicio,
         'nombre_flujo': nombre_flujo,
         'pasos': pasos,
-        'patente': texto_sin_informacion(valores_ingreso.get('patente')),
+        'patente': texto_sin_informacion(patente_operacional),
         'conductor': texto_sin_informacion(valores_ingreso.get('conductor')),
         'telefono_conductor': texto_sin_informacion(valores_ingreso.get('celular_conductor')),
         'transportista': texto_sin_informacion(valores_ingreso.get('transportista')),
@@ -25080,14 +27695,45 @@ def OPERACION_PLANTA_CITACION(request, pk):
         'codigo_sap_operacion': codigo_sap_operacion,
         'fecha_ingreso_operacion': fecha_ingreso_operacion,
         'guia_operacion_url': guia_operacion_url,
-        'numero_guia_operacion': obtener_numero_guia(citacion, datos_operacion.values()),
+        'numero_guia_operacion': resolver_numero_guia_operacion(citacion, datos_operacion.values()),
+        'peso_real_prosesa': contexto_peso_real_prosesa(citacion),
+        'transferencia_sap_new_jersey_p3': contexto_transferencia_new_jersey_p3(citacion),
         'operacion_solo_lectura': operacion_solo_lectura,
         'snapshot_recepcion_sbh': snapshot_recepcion_sbh or {},
         'sap_recepcion_preview_enabled': bool(
             getattr(settings, 'SAP_RECEPCION_PREVIEW_ENABLED', False)
+            and not es_recepcion_servicio
             and es_flujo_recepcion_estanque_sbh(citacion)
         ),
+        'sap_recepcion_update_preview_enabled': bool(
+            getattr(settings, 'SAP_RECEPCION_PREVIEW_ENABLED', False)
+            and es_recepcion_prosesa_descarga_camion(citacion)
+        ),
     }
+    ctx['prosesa_transferencia_preview_enabled'] = bool(
+        getattr(settings, 'SAP_RECEPCION_PREVIEW_ENABLED', False)
+        and es_recepcion_prosesa_piso_2(citacion)
+    )
+    ctx['transferencia_sap_creada'] = bool(
+        ctx['peso_real_prosesa'].get('transferencia_sap_creada')
+    )
+    if es_new_jersey_p1:
+        relacion_p1 = OPERACION_NEW_JERSEY_PROCESO.objects.select_related('ONJ_NID').filter(
+            CI_NID=citacion,
+            EP_NID_id=ID_ACEITES_SBH,
+            ONJP_CTIPO=OPERACION_NEW_JERSEY_PROCESO.TipoProceso.PROCESO_1,
+        ).first()
+        if relacion_p1:
+            relacion_p2 = OPERACION_NEW_JERSEY_PROCESO.objects.select_related('CI_NID').filter(
+                ONJ_NID=relacion_p1.ONJ_NID,
+                ONJP_CTIPO=OPERACION_NEW_JERSEY_PROCESO.TipoProceso.PROCESO_2,
+            ).first()
+            ctx['new_jersey_relacion'] = {
+                'operacion_id': relacion_p1.ONJ_NID_id,
+                'estado_p1': relacion_p1.ONJP_CESTADO,
+                'p2': relacion_p2,
+                'estado_p3': 'PENDIENTE',
+            }
     return render(request, 'home/CITACION/operacion_planta.html', ctx)
 
 
@@ -25130,6 +27776,551 @@ def _cerrar_ciclo_camion_patio(citacion, fecha_cierre):
 
 
 
+def _normalizar_contenedor_prosesa(valor):
+    return re.sub(r'[^A-Z0-9]', '', str(valor or '').strip().upper())
+
+
+def _contenedor_citacion_prosesa(citacion, etiqueta):
+    contenedor, _ = resolver_contenedor_prosesa_piso_1(citacion)
+    if not contenedor:
+        raise ValueError(
+            f'La citacion {etiqueta} no tiene identificador de contenedor.'
+        )
+    return contenedor
+
+
+def _resolver_ticket_bruto_prosesa(citacion, paso, etiqueta):
+    tipo_ticket = _tipo_ticket_pesaje(paso)
+    codigo_campo = _codigo_campo_ticket_pesaje(tipo_ticket)
+    dato = _dato_ticket_pesaje(citacion, paso)
+    if not dato:
+        raise ValueError(f'Falta {etiqueta}.')
+    if dato.CI_NID_id != citacion.id:
+        raise ValueError(f'{etiqueta} pertenece a otra citacion.')
+    if dato.CAMP_NID.CA_CCODIGO != codigo_campo:
+        raise ValueError(f'{etiqueta} tiene un tipo de ticket incorrecto.')
+
+    metadata = _leer_metadata_ticket_dato(dato)
+    if not metadata:
+        raise ValueError(f'{etiqueta} no tiene metadata valida.')
+    try:
+        metadata_citacion_id = int(metadata.get('citacion_id'))
+    except (TypeError, ValueError):
+        raise ValueError(
+            f'{etiqueta} no identifica la citacion de origen.'
+        )
+    if metadata_citacion_id != citacion.id:
+        raise ValueError(f'{etiqueta} pertenece a otra citacion.')
+    if metadata.get('tipo_ticket') != tipo_ticket:
+        raise ValueError(f'{etiqueta} tiene un tipo de ticket incorrecto.')
+
+    peso_bruto = metadata.get('peso_bruto_kg')
+    if peso_bruto in (None, ''):
+        peso_bruto = (
+            metadata.get('peso_entrada_kg')
+            if tipo_ticket == 'ENT'
+            else metadata.get('peso_salida_bruto_kg')
+        )
+    try:
+        peso_bruto = int(peso_bruto)
+    except (TypeError, ValueError):
+        raise ValueError(
+            f'{etiqueta} no conserva el peso bruto requerido.'
+        )
+    if peso_bruto <= 0:
+        raise ValueError(f'{etiqueta} debe ser mayor que cero.')
+
+    return {
+        'dato_id': dato.id,
+        'citacion_id': citacion.id,
+        'codigo_campo': codigo_campo,
+        'folio': str(metadata.get('folio') or ''),
+        'patente': str(metadata.get('patente') or ''),
+        'peso_bruto': peso_bruto,
+        'peso_neto': metadata.get('peso_neto'),
+        'metadata': metadata,
+    }
+
+
+def _override_qa_pesaje_prosesa(citacion, configuracion, ticket):
+    if not getattr(settings, 'QA_PESAJE', False):
+        return None
+    dato = DATO_OPERACION.objects.filter(
+        CI_NID=citacion,
+        CAMP_NID__CA_CCODIGO=configuracion['codigo_qa'],
+    ).select_related('CAMP_NID', 'US_NID').order_by(
+        '-DO_FFECHAREGISTRO', '-id'
+    ).first()
+    if not dato or not dato.DO_NPESO or dato.DO_NPESO <= 0:
+        return None
+    metadata = _leer_metadata_ticket_dato(dato) or {}
+    if metadata.get('ticket_dato_id') != ticket['dato_id']:
+        return None
+    return {
+        'dato_id': dato.id,
+        'peso': dato.DO_NPESO,
+        'metadata': metadata,
+        'usuario': dato.US_NID.username if dato.US_NID_id else '',
+        'fecha': dato.DO_FFECHAREGISTRO,
+    }
+
+
+def _aplicar_overrides_qa_pesajes_prosesa(pesajes):
+    for clave, configuracion in CONFIGURACION_PESAJES_PROSESA.items():
+        ticket = pesajes[clave]
+        ticket['peso_original'] = ticket['peso_bruto']
+        ticket['peso_efectivo'] = ticket['peso_bruto']
+        ticket['origen_peso'] = 'TICKET'
+        ticket['override_dato_id'] = None
+        ticket['override_metadata'] = {}
+        citacion = pesajes['origen'] if clave.startswith('p1_') else pesajes['retiro']
+        override = _override_qa_pesaje_prosesa(citacion, configuracion, ticket)
+        if override:
+            ticket['peso_efectivo'] = override['peso']
+            ticket['origen_peso'] = 'QA_OVERRIDE'
+            ticket['override_dato_id'] = override['dato_id']
+            ticket['override_metadata'] = override['metadata']
+    return pesajes
+
+
+def resolver_pesajes_prosesa(relacion):
+    origen = relacion.CI_NID_ORIGEN
+    retiro = relacion.CI_NID_RETIRO
+    if relacion.EP_NID_id != ID_ACEITES_SBH:
+        raise ValueError('La relacion Prosesa no pertenece a Empresa 2.')
+    if not es_recepcion_prosesa_piso_1(origen):
+        raise ValueError('La citacion de origen no corresponde a Piso 1.')
+    if not es_recepcion_prosesa_piso_2(retiro):
+        raise ValueError('La citacion de retiro no corresponde a Piso 2.')
+
+    contenedor_piso_1 = _contenedor_citacion_prosesa(origen, 'Piso 1')
+    contenedor_piso_2 = _contenedor_citacion_prosesa(retiro, 'Piso 2')
+    if (
+        _normalizar_contenedor_prosesa(contenedor_piso_1)
+        != _normalizar_contenedor_prosesa(contenedor_piso_2)
+    ):
+        raise ValueError(
+            'El contenedor de Piso 2 no coincide con el contenedor de Piso 1.'
+        )
+
+    pesajes = {
+        'relacion': relacion,
+        'origen': origen,
+        'retiro': retiro,
+        'contenedor': contenedor_piso_1,
+        'p1_ent': _resolver_ticket_bruto_prosesa(
+            origen, 'Pesaje Entrada', 'P1_ENT'
+        ),
+        'p1_sal': _resolver_ticket_bruto_prosesa(
+            origen, 'Pesaje Salida', 'P1_SAL'
+        ),
+        'p2_ent': _resolver_ticket_bruto_prosesa(
+            retiro, 'Pesaje Entrada', 'P2_ENT'
+        ),
+        'p2_sal': _resolver_ticket_bruto_prosesa(
+            retiro, 'Pesaje Salida', 'P2_SAL'
+        ),
+    }
+    return _aplicar_overrides_qa_pesajes_prosesa(pesajes)
+
+
+def _firma_fuentes_peso_real_prosesa(pesajes):
+    firma = {}
+    for clave in CONFIGURACION_PESAJES_PROSESA:
+        pesaje = pesajes[clave]
+        firma.update({
+            f'{clave}_dato_id': pesaje['dato_id'],
+            f'{clave}_override_dato_id': pesaje['override_dato_id'],
+            f'{clave}_peso_efectivo': pesaje['peso_efectivo'],
+            f'{clave}_origen': pesaje['origen_peso'],
+        })
+    return firma
+
+
+def _calcular_peso_real_desde_pesajes_prosesa(pesajes):
+    valores = {
+        clave: int(pesajes[clave]['peso_efectivo'])
+        for clave in CONFIGURACION_PESAJES_PROSESA
+    }
+    for clave, peso in valores.items():
+        if peso <= 0:
+            raise ValueError(
+                f"{CONFIGURACION_PESAJES_PROSESA[clave]['etiqueta']} debe ser mayor que cero."
+            )
+    peso_contenedor_cargado = valores['p1_ent'] - valores['p1_sal']
+    peso_contenedor_vacio = valores['p2_sal'] - valores['p2_ent']
+    peso_real_insumo = peso_contenedor_cargado - peso_contenedor_vacio
+    if peso_contenedor_cargado <= 0:
+        raise ValueError('El peso del contenedor cargado debe ser mayor que cero.')
+    if peso_contenedor_vacio <= 0:
+        raise ValueError('El peso del contenedor vacio debe ser mayor que cero.')
+    if peso_real_insumo <= 0:
+        raise ValueError('El peso real del insumo debe ser mayor que cero.')
+    return {
+        **valores,
+        'peso_contenedor_cargado': peso_contenedor_cargado,
+        'peso_contenedor_vacio': peso_contenedor_vacio,
+        'peso_real_insumo': peso_real_insumo,
+    }
+
+
+def _obtener_campo_override_qa_prosesa(relacion, usuario, codigo, etiqueta):
+    campo, _ = CAMPO.objects.get_or_create(
+        EP_NID_id=relacion.EP_NID_id,
+        CA_CCODIGO=codigo,
+        defaults={
+            'US_NID': usuario,
+            'CA_CTIPO': 'NUMERO',
+            'CA_CETIQUETA': etiqueta,
+            'CA_CPLACEMARK': 'Override QA de pesaje en kg',
+            'CA_BOBLIGATORIO': False,
+            'CA_BHABILITADO': True,
+            'CA_BASIGNARVALOR': False,
+        },
+    )
+    return campo
+
+
+@transaction.atomic
+def guardar_overrides_qa_pesaje_prosesa(relacion, overrides, usuario):
+    if not getattr(settings, 'QA_PESAJE', False):
+        raise PermissionError('QA_PESAJE esta deshabilitado; no se permiten overrides manuales.')
+    valores_recibidos = {
+        clave: valor for clave, valor in (overrides or {}).items()
+        if clave in CONFIGURACION_PESAJES_PROSESA and valor not in (None, '')
+    }
+    if not valores_recibidos:
+        return []
+    pesajes = resolver_pesajes_prosesa(relacion)
+    guardados = []
+    for clave, valor in valores_recibidos.items():
+        try:
+            peso = int(valor)
+        except (TypeError, ValueError):
+            raise ValueError(
+                f"{CONFIGURACION_PESAJES_PROSESA[clave]['etiqueta']} debe ser un numero entero en kg."
+            )
+        if peso <= 0:
+            raise ValueError(
+                f"{CONFIGURACION_PESAJES_PROSESA[clave]['etiqueta']} debe ser mayor que cero."
+            )
+        configuracion = CONFIGURACION_PESAJES_PROSESA[clave]
+        ticket = pesajes[clave]
+        citacion = pesajes['origen'] if clave.startswith('p1_') else pesajes['retiro']
+        campo = _obtener_campo_override_qa_prosesa(
+            relacion, usuario, configuracion['codigo_qa'], configuracion['etiqueta']
+        )
+        existente = DATO_OPERACION.objects.filter(
+            CI_NID=citacion,
+            CAMP_NID=campo,
+        ).order_by('-DO_FFECHAREGISTRO', '-id').first()
+        metadata_existente = _leer_metadata_ticket_dato(existente) or {}
+        if (
+            existente
+            and existente.DO_NPESO == peso
+            and metadata_existente.get('ticket_dato_id') == ticket['dato_id']
+        ):
+            guardados.append(existente)
+            continue
+        if not existente and peso == ticket['peso_original']:
+            continue
+        ahora = timezone.now()
+        metadata = {
+            'tipo': 'QA_OVERRIDE_PESAJE_PROSESA',
+            'clave_pesaje': clave,
+            'codigo_qa': configuracion['codigo_qa'],
+            'citacion_id': citacion.id,
+            'relacion_prosesa_id': relacion.id,
+            'ticket_dato_id': ticket['dato_id'],
+            'ticket_folio': ticket['folio'],
+            'ticket_peso_original_kg': ticket['peso_original'],
+            'peso_override_kg': peso,
+            'usuario': usuario.username,
+            'usuario_id': usuario.id,
+            'fecha_override': ahora.isoformat(),
+        }
+        guardados.append(DATO_OPERACION.objects.create(
+            US_NID=usuario,
+            EP_NID=relacion.EP_NID,
+            SC_NID=citacion.SC_NID,
+            ET_NID=citacion.ETAPA_ACTUAL,
+            CAMP_NID=campo,
+            CI_NID=citacion,
+            DO_CVALOR=json.dumps(metadata, ensure_ascii=False),
+            DO_NPESO=peso,
+            DO_FFECHAREGISTRO=ahora,
+        ))
+    return guardados
+
+def _obtener_campo_peso_real_prosesa(relacion, usuario):
+    campo, _ = CAMPO.objects.get_or_create(
+        EP_NID_id=relacion.EP_NID_id,
+        CA_CCODIGO=CAMPO_PROSESA_PESO_REAL_INSUMO,
+        defaults={
+            'US_NID': usuario,
+            'CA_CTIPO': 'NUMERO',
+            'CA_CETIQUETA': 'Peso real insumo Prosesa',
+            'CA_CPLACEMARK': 'Peso real calculado en kg',
+            'CA_BOBLIGATORIO': True,
+            'CA_BHABILITADO': True,
+            'CA_BASIGNARVALOR': False,
+        },
+    )
+    return campo
+
+
+@transaction.atomic
+def calcular_y_persistir_peso_real_prosesa(relacion, usuario):
+    relacion = CITACION_PROSESA_RELACION.objects.select_for_update().select_related(
+        'CI_NID_ORIGEN__SC_NID',
+        'CI_NID_RETIRO__SC_NID',
+    ).get(pk=relacion.pk)
+    pesajes = resolver_pesajes_prosesa(relacion)
+    calculo = _calcular_peso_real_desde_pesajes_prosesa(pesajes)
+    firma_fuentes = _firma_fuentes_peso_real_prosesa(pesajes)
+    peso_real_insumo = calculo['peso_real_insumo']
+
+    campo = _obtener_campo_peso_real_prosesa(relacion, usuario)
+    retiro = pesajes['retiro']
+    existente = DATO_OPERACION.objects.select_for_update().filter(
+        CI_NID=retiro,
+        CAMP_NID=campo,
+    ).order_by('-id').first()
+    metadata_existente = _leer_metadata_ticket_dato(existente) or {}
+    if (
+        existente
+        and all(
+            metadata_existente.get(clave) == valor
+            for clave, valor in firma_fuentes.items()
+        )
+        and existente.DO_NPESO == peso_real_insumo
+    ):
+        return existente, False
+
+    historial = list(metadata_existente.get('historial_calculos') or [])
+    if existente and metadata_existente:
+        historial.append({
+            'fecha_reemplazo': timezone.now().isoformat(),
+            'fuentes': {
+                clave: metadata_existente.get(clave)
+                for clave in firma_fuentes
+            },
+            'valores': {
+                clave: metadata_existente.get(f'{clave}_bruto')
+                for clave in CONFIGURACION_PESAJES_PROSESA
+            },
+            'peso_real_insumo': metadata_existente.get('peso_real_insumo'),
+        })
+
+    ahora = timezone.now()
+    detalle_retiro = getattr(retiro, 'detalle_operacional', None)
+    fuentes_detalle = {}
+    for clave in CONFIGURACION_PESAJES_PROSESA:
+        pesaje = pesajes[clave]
+        fuentes_detalle[clave] = {
+            'origen': pesaje['origen_peso'],
+            'peso_ticket_kg': pesaje['peso_original'],
+            'peso_efectivo_kg': pesaje['peso_efectivo'],
+            'ticket_dato_id': pesaje['dato_id'],
+            'override_dato_id': pesaje['override_dato_id'],
+            'folio': pesaje['folio'],
+            'patente': pesaje['patente'],
+        }
+    metadata = {
+        'citacion_piso1_id': pesajes['origen'].id,
+        'citacion_piso2_id': retiro.id,
+        'relacion_prosesa_id': relacion.id,
+        'guia': resolver_numero_guia_operacion(retiro),
+        'contenedor': pesajes['contenedor'],
+        **firma_fuentes,
+        'p1_ent_bruto': calculo['p1_ent'],
+        'p1_sal_bruto': calculo['p1_sal'],
+        'p2_ent_bruto': calculo['p2_ent'],
+        'p2_sal_bruto': calculo['p2_sal'],
+        'p1_ent_ticket_bruto': pesajes['p1_ent']['peso_original'],
+        'p1_sal_ticket_bruto': pesajes['p1_sal']['peso_original'],
+        'p2_ent_ticket_bruto': pesajes['p2_ent']['peso_original'],
+        'p2_sal_ticket_bruto': pesajes['p2_sal']['peso_original'],
+        'peso_contenedor_cargado': calculo['peso_contenedor_cargado'],
+        'peso_contenedor_vacio': calculo['peso_contenedor_vacio'],
+        'peso_real_insumo': peso_real_insumo,
+        'fuentes_pesajes': fuentes_detalle,
+        'unidad': 'kg',
+        'folio_p1_ent': pesajes['p1_ent']['folio'],
+        'folio_p1_sal': pesajes['p1_sal']['folio'],
+        'folio_p2_ent': pesajes['p2_ent']['folio'],
+        'folio_p2_sal': pesajes['p2_sal']['folio'],
+        'patente_piso1': pesajes['p1_ent']['patente'],
+        'patente_piso2': pesajes['p2_ent']['patente'],
+        'formula': FORMULA_PESO_REAL_PROSESA,
+        'version_formula': 2,
+        'fecha_calculo': ahora.isoformat(),
+        'usuario': usuario.username,
+        'usuario_id': usuario.id,
+        'historial_calculos': historial,
+        'origen_sap_futuro': getattr(settings, 'BODEGA_VIRTUAL', ''),
+        'destino_sap_futuro': getattr(detalle_retiro, 'CDO_CESTANQUE_DESTINO', '') if detalle_retiro else '',
+        'item_code_sap_futuro': getattr(detalle_retiro, 'CDO_CCODIGO_SAP', '') if detalle_retiro else '',
+    }
+    valores = {
+        'EP_NID': relacion.EP_NID,
+        'US_NID': usuario,
+        'SC_NID': retiro.SC_NID,
+        'ET_NID': retiro.ETAPA_ACTUAL,
+        'DO_CVALOR': json.dumps(metadata, ensure_ascii=False),
+        'DO_NPESO': peso_real_insumo,
+        'DO_FFECHAREGISTRO': ahora,
+    }
+    if existente:
+        for campo_nombre, valor in valores.items():
+            setattr(existente, campo_nombre, valor)
+        existente.save(update_fields=list(valores))
+        return existente, True
+    return DATO_OPERACION.objects.create(
+        CI_NID=retiro,
+        CAMP_NID=campo,
+        **valores,
+    ), True
+
+
+def _dato_peso_real_prosesa_persistido(citacion_piso_2):
+    return DATO_OPERACION.objects.filter(
+        CI_NID=citacion_piso_2,
+        CAMP_NID__CA_CCODIGO=CAMPO_PROSESA_PESO_REAL_INSUMO,
+    ).select_related('CAMP_NID').order_by('-id').first()
+
+
+def obtener_peso_real_prosesa_para_sap(citacion_piso_2):
+    if not es_recepcion_prosesa_piso_2(citacion_piso_2):
+        raise ValueError('La citacion no corresponde a PROSESA Piso 2.')
+    try:
+        relacion = CITACION_PROSESA_RELACION.objects.select_related(
+            'CI_NID_ORIGEN__SC_NID',
+            'CI_NID_RETIRO__SC_NID',
+        ).get(
+            CI_NID_RETIRO=citacion_piso_2,
+            EP_NID_id=citacion_piso_2.EP_NID_id,
+        )
+    except CITACION_PROSESA_RELACION.DoesNotExist:
+        raise ValueError('Falta la relacion entre Piso 1 y Piso 2.')
+    dato = _dato_peso_real_prosesa_persistido(citacion_piso_2)
+    if not dato or not dato.DO_NPESO or dato.DO_NPESO <= 0:
+        raise ValueError(
+            'Debe calcular y validar el peso real del insumo antes de autorizar la salida.'
+        )
+    metadata = _leer_metadata_ticket_dato(dato) or {}
+    if metadata.get('relacion_prosesa_id') != relacion.id:
+        raise ValueError(
+            'Debe calcular y validar el peso real del insumo antes de autorizar la salida.'
+        )
+    firma_actual = _firma_fuentes_peso_real_prosesa(
+        resolver_pesajes_prosesa(relacion)
+    )
+    if any(metadata.get(clave) != valor for clave, valor in firma_actual.items()):
+        raise ValueError(
+            'Debe recalcular y validar el peso real con los pesajes vigentes antes de autorizar la salida.'
+        )
+    return dato.DO_NPESO
+
+
+def contexto_peso_real_prosesa(citacion_piso_2):
+    contexto = {
+        'aplicable': es_recepcion_prosesa_piso_2(citacion_piso_2),
+        'qa_habilitado': bool(getattr(settings, 'QA_PESAJE', False)),
+        'disponible': False,
+        'resultado_valido': False,
+        'formula': FORMULA_PESO_REAL_PROSESA,
+        'origen_sap': getattr(settings, 'BODEGA_VIRTUAL', ''),
+        'cantidad_sap': None,
+    }
+    if not contexto['aplicable']:
+        return contexto
+    try:
+        relacion = CITACION_PROSESA_RELACION.objects.select_related(
+            'CI_NID_ORIGEN__SC_NID',
+            'CI_NID_RETIRO__SC_NID',
+            'CI_NID_RETIRO__detalle_operacional',
+        ).get(
+            CI_NID_RETIRO=citacion_piso_2,
+            EP_NID_id=citacion_piso_2.EP_NID_id,
+        )
+        pesajes = resolver_pesajes_prosesa(relacion)
+        calculo = _calcular_peso_real_desde_pesajes_prosesa(pesajes)
+        detalle = getattr(citacion_piso_2, 'detalle_operacional', None)
+        contexto.update({
+            'disponible': True,
+            'citacion_piso1_id': relacion.CI_NID_ORIGEN_id,
+            'citacion_piso2_id': relacion.CI_NID_RETIRO_id,
+            'guia': resolver_numero_guia_operacion(citacion_piso_2),
+            'contenedor': pesajes['contenedor'],
+            'peso_contenedor_cargado': calculo['peso_contenedor_cargado'],
+            'peso_contenedor_vacio': calculo['peso_contenedor_vacio'],
+            'peso_real_insumo': calculo['peso_real_insumo'],
+            'destino_sap': getattr(detalle, 'CDO_CESTANQUE_DESTINO', '') if detalle else '',
+            'item_code': getattr(detalle, 'CDO_CCODIGO_SAP', '') if detalle else '',
+            'pesajes': [],
+            'pesajes_por_clave': {},
+        })
+        for clave, configuracion in CONFIGURACION_PESAJES_PROSESA.items():
+            pesaje = pesajes[clave]
+            pesaje_contexto = {
+                'clave': clave,
+                'grupo': configuracion['grupo'],
+                'nombre': configuracion['nombre'],
+                'codigo_qa': configuracion['codigo_qa'],
+                'folio': pesaje['folio'],
+                'ticket_dato_id': pesaje['dato_id'],
+                'peso_original': pesaje['peso_original'],
+                'peso_efectivo': pesaje['peso_efectivo'],
+                'origen': pesaje['origen_peso'],
+                'override_dato_id': pesaje['override_dato_id'],
+            }
+            contexto['pesajes'].append(pesaje_contexto)
+            contexto['pesajes_por_clave'][clave] = pesaje_contexto
+        try:
+            contexto['peso_real_persistido'] = obtener_peso_real_prosesa_para_sap(
+                citacion_piso_2
+            )
+            contexto['resultado_valido'] = True
+        except ValueError as exc:
+            contexto['peso_real_persistido'] = None
+            contexto['resultado_persistido_error'] = str(exc)
+    except ValueError as exc:
+        contexto['error'] = str(exc)
+    except CITACION_PROSESA_RELACION.DoesNotExist:
+        contexto['error'] = 'Falta la relacion entre Piso 1 y Piso 2.'
+    contexto['transferencia_sap'] = build_stock_transfer_prosesa_piso_2(citacion_piso_2)
+    contexto['transferencia_sap_creada'] = bool(
+        contexto['transferencia_sap']['status'].get('creada')
+    )
+    return contexto
+
+
+def validar_cierre_prosesa_piso_2(citacion):
+    try:
+        relacion = CITACION_PROSESA_RELACION.objects.select_related(
+            'CI_NID_ORIGEN__SC_NID',
+            'CI_NID_RETIRO__SC_NID',
+        ).get(
+            CI_NID_RETIRO=citacion,
+            EP_NID_id=citacion.EP_NID_id,
+        )
+    except CITACION_PROSESA_RELACION.DoesNotExist:
+        raise ValueError('Falta la relacion entre Piso 1 y Piso 2.')
+
+    obtener_peso_real_prosesa_para_sap(citacion)
+    dato_calculo = _dato_peso_real_prosesa_persistido(citacion)
+    ciclo = _payload_salida_temporal_prosesa_piso_2(citacion)
+    if not ciclo['finalizada'] or not ciclo['salida_validada']:
+        raise ValueError('Debe registrar la salida temporal y el retorno del contenedor vacio.')
+    for paso in ('Pesaje Entrada', PASO_PROSESA_INICIO_RETIRO, 'Pesaje Salida', PASO_AUTORIZAR_SALIDA):
+        if not OPERACION_PLANTA_LOG.objects.filter(
+            CI_NID=citacion, OPL_CPASO=paso,
+            OPL_CESTADO=OPERACION_PLANTA_LOG.ESTADO_COMPLETADO,
+        ).exists():
+            raise ValueError(f'Debe completar {paso} antes de confirmar la salida.')
+    return relacion, dato_calculo
+
 def _cerrar_operacion_prosesa(citacion, fecha_cierre):
     if es_recepcion_prosesa_piso_1(citacion):
         # El camión termina su ciclo físico, pero la operación logística queda
@@ -25142,6 +28333,7 @@ def _cerrar_operacion_prosesa(citacion, fecha_cierre):
         return True
 
     if es_recepcion_prosesa_piso_2(citacion):
+        validar_cierre_prosesa_piso_2(citacion)
         relacion = CITACION_PROSESA_RELACION.objects.select_for_update().select_related(
             'CI_NID_ORIGEN'
         ).get(CI_NID_RETIRO=citacion, EP_NID_id=citacion.EP_NID_id)
@@ -25169,6 +28361,100 @@ def _cerrar_operacion_prosesa(citacion, fecha_cierre):
     return False
 
 
+
+@require_POST
+def OPERACION_PLANTA_RECEPCION_SERVICIO_CONFORME(request, pk):
+    empresa_id = Verificar_empresa(request)
+    if empresa_id not in (1, ID_ACEITES_SBH):
+        messages.error(request, 'Seleccione Terramar o Aceites SBH.')
+        return redirect('/')
+    operacion_url = f'{reverse("operacion_planta_citacion", args=[pk])}?_empresa_id={empresa_id}'
+    if not usuario_es_operacion_planta(request.user):
+        messages.error(request, 'No tiene permisos para Operación Planta.')
+        return redirect(operacion_url)
+    if not getattr(request.user, 'is_superuser', False):
+        if not _usuario_tiene_acceso_empresa(request.user, empresa_id):
+            messages.error(request, 'No tiene acceso a la empresa seleccionada.')
+            return redirect(operacion_url)
+        if not usuario_puede_paso_operacion(request.user, ['ASISTENTE CD']):
+            messages.error(request, 'Solo Asistente CD puede registrar Recepción Conforme.')
+            return redirect(operacion_url)
+
+    resultado = str(request.POST.get('recepcion_conforme') or '').strip().upper()
+    if resultado not in {'SI', 'NO'}:
+        messages.error(request, 'Debe indicar si la recepción fue conforme.')
+        return redirect(operacion_url)
+    observacion = str(request.POST.get('observacion') or '').strip()
+    archivos = request.FILES.getlist('documentos')
+    extensiones = {'.pdf', '.jpg', '.jpeg', '.png'}
+    mime_permitidos = {'application/pdf', 'image/jpeg', 'image/jpg', 'image/png'}
+    max_bytes = 20 * 1024 * 1024
+    for archivo in archivos:
+        extension = os.path.splitext(os.path.basename(archivo.name or ''))[1].lower()
+        mime = str(getattr(archivo, 'content_type', '') or '').lower()
+        if extension not in extensiones or archivo.size <= 0 or archivo.size > max_bytes:
+            messages.error(request, 'Archivo inválido. Formatos permitidos: PDF, JPG, JPEG y PNG (máximo 20 MB).')
+            return redirect(operacion_url)
+        if mime and mime not in mime_permitidos:
+            messages.error(request, 'El tipo de contenido del archivo no está permitido.')
+            return redirect(operacion_url)
+
+    try:
+        with transaction.atomic():
+            citacion = CITACION.objects.select_for_update().select_related(
+                'EP_NID', 'PL_NID', 'SC_NID',
+            ).get(pk=pk, EP_NID_id=empresa_id, CI_BHABILITADO=True)
+            if not rs.es_recepcion_servicio(citacion):
+                messages.error(request, 'La citación no corresponde a Recepción Servicio.')
+                return redirect(operacion_url)
+            if not citacion_habilitada_operacion(citacion):
+                messages.error(request, 'La citación aún no fue autorizada para ingresar a planta.')
+                return redirect(operacion_url)
+            log_existente = OPERACION_PLANTA_LOG.objects.filter(
+                CI_NID=citacion,
+                OPL_CPASO=rs.PASO_RECEPCION_CONFORME,
+                OPL_CESTADO=OPERACION_PLANTA_LOG.ESTADO_COMPLETADO,
+            ).first()
+            if log_existente:
+                messages.info(request, 'Recepción Conforme ya estaba registrada.')
+                return redirect(operacion_url)
+            paso_actual, _, _ = obtener_paso_activo_operacion(citacion, PASOS_RECEPCION_SERVICIO)
+            if paso_actual != rs.PASO_RECEPCION_CONFORME:
+                messages.error(request, 'Recepción Conforme no es el paso activo.')
+                return redirect(operacion_url)
+            for archivo in archivos:
+                ruta, nombre = guardar_archivo_expediente_citacion(
+                    citacion, CITACION_DOCUMENTO.TIPO_RECEPCION_SERVICIO, archivo,
+                )
+                CITACION_DOCUMENTO.objects.create(
+                    CI_NID=citacion,
+                    EP_NID=citacion.EP_NID,
+                    CD_CTIPO=CITACION_DOCUMENTO.TIPO_RECEPCION_SERVICIO,
+                    CD_CRUTA_ARCHIVO=ruta,
+                    CD_CNOMBRE_ARCHIVO=nombre,
+                    US_SUBE_NID=request.user,
+                )
+            citacion.CI_BCONFORME = resultado == 'SI'
+            citacion.save(update_fields=['CI_BCONFORME'])
+            texto_log = f'Recepción conforme: {resultado}.'
+            if observacion:
+                texto_log += f' {observacion}'
+            OPERACION_PLANTA_LOG.objects.create(
+                US_NID=request.user,
+                EP_NID=citacion.EP_NID,
+                PL_NID=citacion.PL_NID,
+                CI_NID=citacion,
+                OPL_CPASO=rs.PASO_RECEPCION_CONFORME,
+                OPL_CPERFIL_RESPONSABLE='ASISTENTE CD',
+                OPL_CESTADO=OPERACION_PLANTA_LOG.ESTADO_COMPLETADO,
+                OPL_COBSERVACION=texto_log,
+            )
+            rs.notificar_guardia_salida(citacion, request.user)
+    except CITACION.DoesNotExist:
+        raise Http404
+    messages.success(request, 'Recepción Conforme registrada. Guardia Portería puede confirmar la salida.')
+    return redirect(operacion_url)
+
 def OPERACION_PLANTA_GUARDAR_PASO(request, pk):
     if request.method == 'POST':
         logger.warning(
@@ -25179,7 +28465,7 @@ def OPERACION_PLANTA_GUARDAR_PASO(request, pk):
             dict(request.POST)
         )
     origen_post = request.POST.get('origen')
-    post_tradicional = origen_post in {'pesaje_alt', 'confirmar_salida'}
+    post_tradicional = origen_post in {'pesaje_alt', 'confirmar_salida', 'descarga_new_jersey'}
 
     def respuesta_error(message, status=400, citacion_obj=None):
         if post_tradicional:
@@ -25220,6 +28506,19 @@ def OPERACION_PLANTA_GUARDAR_PASO(request, pk):
         return respuesta_error('La citacion aun no esta habilitada para Operacion Planta.', status=400, citacion_obj=citacion)
     if operacion_planta_esta_terminada(citacion):
         return respuesta_error('Operacion terminada: el historial esta disponible en modo solo lectura.', status=409, citacion_obj=citacion)
+    if es_recepcion_new_jersey_p2(citacion):
+        try:
+            resultado = _accion_new_jersey_p2_compartida(
+                citacion, request.user, str(request.POST.get('paso') or '').strip(),
+                'completar', str(request.POST.get('observacion') or '').strip(),
+            ) if request.POST.get('paso') == nj_p2.PASO_TOMA else None
+        except PermissionError as exc:
+            return respuesta_error(str(exc), status=403, citacion_obj=citacion)
+        except ValueError as exc:
+            return respuesta_error(str(exc), status=409, citacion_obj=citacion)
+        if resultado is None:
+            return respuesta_error('Use las acciones internas de New Jersey P2.', status=400, citacion_obj=citacion)
+        return JsonResponse({'success': True, 'message': 'Toma de muestra finalizada.', **resultado})
 
     if post_tradicional:
         citacion_id_post = str(request.POST.get('citacion_id') or '').strip()
@@ -25257,8 +28556,82 @@ def OPERACION_PLANTA_GUARDAR_PASO(request, pk):
     if paso != paso_actual_visible:
         return respuesta_error(f'Solo puede guardar la etapa activa actual: {paso_actual_visible}.', status=409, citacion_obj=citacion)
 
+    if paso == PASO_NJ_DESCARGA_CONTENEDOR and es_recepcion_new_jersey_p1(citacion):
+        if not usuario_puede_paso_operacion(request.user, responsables_paso):
+            return respuesta_error('Solo ASISTENTE C D puede registrar la descarga.', status=403, citacion_obj=citacion)
+        accion = str(request.POST.get('accion') or '').strip()
+        if accion not in {'iniciar', 'confirmar'}:
+            return respuesta_error('Accion de descarga no valida.', status=400, citacion_obj=citacion)
+        try:
+            with transaction.atomic():
+                citacion = CITACION.objects.select_for_update().select_related('SC_NID').get(pk=citacion.pk)
+                if obtener_paso_activo_operacion(citacion)[0] != PASO_NJ_DESCARGA_CONTENEDOR:
+                    raise ValueError('Descarga Contenedor ya no es la etapa activa.')
+                metadata = _leer_metadata_terramar(citacion, CAMPO_NJ_DESCARGA_CONTENEDOR)
+                ahora = timezone.now()
+                if accion == 'iniciar':
+                    if metadata.get('inicio_iso'):
+                        raise ValueError('La descarga del contenedor ya fue iniciada.')
+                    detalle = obtener_detalle_operacional_citacion(citacion)
+                    contenedor = str(getattr(detalle, 'CDO_CBL_CONTENEDOR', '') or '').strip()
+                    destino = _obtener_estanque_destino_operacion(citacion)
+                    if not contenedor or not destino:
+                        raise ValueError('Debe existir contenedor y destino fisico antes de iniciar la descarga.')
+                    metadata = {
+                        'citacion_id': citacion.id,
+                        'paso_operacion': PASO_NJ_DESCARGA_CONTENEDOR,
+                        'contenedor': contenedor,
+                        'destino_fisico': destino,
+                        'inicio_iso': ahora.isoformat(),
+                        'usuario_inicio_id': request.user.id,
+                        'usuario_inicio': request.user.username,
+                    }
+                    mensaje = 'Descarga Contenedor iniciada.'
+                else:
+                    if not metadata.get('inicio_iso'):
+                        raise ValueError('Debe iniciar la descarga antes de confirmarla.')
+                    if metadata.get('fin_iso'):
+                        raise ValueError('La descarga del contenedor ya fue confirmada.')
+                    if metadata.get('citacion_id') != citacion.id:
+                        raise ValueError('La descarga registrada pertenece a otra citacion.')
+                    metadata.update({
+                        'fin_iso': ahora.isoformat(),
+                        'usuario_fin_id': request.user.id,
+                        'usuario_fin': request.user.username,
+                    })
+                    OPERACION_PLANTA_LOG.objects.create(
+                        US_NID=request.user, EP_NID=citacion.EP_NID, PL_NID=citacion.PL_NID,
+                        CI_NID=citacion, OPL_CPASO=PASO_NJ_DESCARGA_CONTENEDOR,
+                        OPL_CPERFIL_RESPONSABLE='ASISTENTE C D',
+                        OPL_CESTADO=OPERACION_PLANTA_LOG.ESTADO_COMPLETADO,
+                        OPL_COBSERVACION=(
+                            f'Contenedor {metadata["contenedor"]} descargado en '
+                            f'{metadata["destino_fisico"]}.'
+                        ),
+                    )
+                    mensaje = 'Descarga Contenedor confirmada. Continue con Pesaje Salida.'
+                _guardar_metadata_terramar(
+                    citacion, request.user, CAMPO_NJ_DESCARGA_CONTENEDOR,
+                    'Descarga Contenedor New Jersey P1', metadata,
+                )
+        except ValueError as exc:
+            return respuesta_error(str(exc), status=409, citacion_obj=citacion)
+        return respuesta_ok(mensaje, {'success': True, 'message': mensaje, 'paso': paso}, citacion)
+
+    if paso == PASO_CONFIRMAR_SALIDA and es_recepcion_prosesa_piso_2(citacion) and not usuario_es_guardia_porteria(request.user):
+        return respuesta_error('Solo Guardia Porteria confirma la salida final Piso 2.', status=403, citacion_obj=citacion)
     if not usuario_puede_paso_operacion(request.user, responsables_paso):
         return respuesta_error(f'Solo lectura: este paso corresponde a {" / ".join(responsables_paso)}', status=403, citacion_obj=citacion)
+
+    if (
+        (paso == PASO_PROSESA_DEPOSITAR_PISO_1 and es_recepcion_prosesa_contenedor_piso_1(citacion))
+        or (paso == PASO_PROSESA_INICIO_RETIRO and es_recepcion_prosesa_piso_2(citacion))
+    ):
+        return respuesta_error(
+            'Debe completar el retiro temporal y registrar el retorno desde el panel de este paso.',
+            status=409,
+            citacion_obj=citacion,
+        )
 
     if paso in PASOS_OPERACION_PLANTA_TICKET and not _ticket_pesaje_obligatorio_guardado(citacion, paso):
         return respuesta_error(TICKET_PESAJE_REQUIRED_MESSAGE, status=400, citacion_obj=citacion)
@@ -25289,6 +28662,12 @@ def OPERACION_PLANTA_GUARDAR_PASO(request, pk):
             'Analisis y Calidad se cierra unicamente mediante el servicio central de resultados.',
             status=409,
             citacion_obj=citacion,
+        )
+
+    if paso == PASO_NJ_P3_CARGA_DESCARGA and es_recepcion_new_jersey_p3(citacion):
+        return respuesta_error(
+            'Carga / Descarga P3 se inicia con Pesaje Entrada y se completa al obtener COM_SAL.',
+            status=409, citacion_obj=citacion,
         )
 
     if paso == PASO_CICLO_DESCARGA:
@@ -25331,6 +28710,16 @@ def OPERACION_PLANTA_GUARDAR_PASO(request, pk):
 
     if paso == PASO_AUTORIZAR_SALIDA:
         return respuesta_error('Debe autorizar la salida desde el panel Autorizar Salida.', status=400, citacion_obj=citacion)
+
+    if paso == PASO_CONFIRMAR_SALIDA and es_recepcion_prosesa_piso_2(citacion):
+        try:
+            validar_cierre_prosesa_piso_2(citacion)
+        except ValueError as exc:
+            return respuesta_error(
+                str(exc),
+                status=409,
+                citacion_obj=citacion,
+            )
 
     log_existente = OPERACION_PLANTA_LOG.objects.filter(
         CI_NID=citacion,
@@ -25388,9 +28777,20 @@ def OPERACION_PLANTA_GUARDAR_PASO(request, pk):
         if paso == 'Pesaje Entrada' and es_recepcion_terramar_principal(citacion):
             citacion = _recargar_citacion_bloqueada_operacion(citacion)
         if paso == PASO_TOMA_MUESTRA:
-            _finalizar_tiempo_toma_muestra(citacion, request.user, nombre_flujo)
+            tiempo_toma_muestra = _finalizar_tiempo_toma_muestra(
+                citacion, request.user, nombre_flujo
+            )
             if es_recepcion_bodega_externa_operacion(citacion):
-                asegurar_calidad_iniciada(citacion, request.user)
+                fecha_inicio_calidad = None
+                if _calidad_inicia_al_finalizar_toma_muestra(citacion):
+                    fecha_inicio_calidad = _parse_iso_operacion(
+                        (tiempo_toma_muestra or {}).get('fin_iso')
+                    )
+                asegurar_calidad_iniciada(
+                    citacion,
+                    request.user,
+                    fecha_inicio=fecha_inicio_calidad,
+                )
         campos_fecha_log = {}
         if paso == 'Pesaje Entrada' and es_recepcion_terramar_principal(citacion):
             campos_fecha_log['OPL_FFECHAREGISTRO'] = timezone.now()
@@ -25409,12 +28809,26 @@ def OPERACION_PLANTA_GUARDAR_PASO(request, pk):
             _registrar_inicio_espera_descarga_terramar(
                 citacion, request.user, log.OPL_FFECHAREGISTRO,
             )
+        if paso == 'Pesaje Entrada' and es_recepcion_new_jersey_p3(citacion):
+            _iniciar_carga_descarga_new_jersey_p3(
+                citacion, request.user, log.OPL_FFECHAREGISTRO,
+            )
         if paso == PASO_CONFIRMAR_SALIDA:
             if not _cerrar_operacion_prosesa(citacion, log.OPL_FFECHAREGISTRO):
                 citacion.CI_CESTADO = CIT_TERMINADO
                 citacion.CI_FFECHATERMINO = log.OPL_FFECHAREGISTRO
                 citacion.save(update_fields=['CI_CESTADO', 'CI_FFECHATERMINO'])
                 _cerrar_ciclo_camion_patio(citacion, log.OPL_FFECHAREGISTRO)
+                if es_recepcion_new_jersey_p3(citacion):
+                    nj_p3.completar_p3(citacion, request.user, log.OPL_FFECHAREGISTRO)
+                if es_recepcion_new_jersey_p1(citacion):
+                    try:
+                        nj_p2.preparar_p2_desde_cierre_p1(
+                            citacion, request.user, resolver_numero_guia_operacion(citacion),
+                        )
+                    except ValueError as exc:
+                        transaction.set_rollback(True)
+                        return respuesta_error(str(exc), status=409, citacion_obj=citacion)
 
     if paso == 'Pesaje Salida' and es_documentacion_despacho_terramar(citacion):
         asegurar_temporizador_documentacion_despacho_terramar(citacion, request.user)
@@ -25506,12 +28920,16 @@ def ajax_operacion_planta_registrar_accion_toma_muestra(request, pk):
 
     nombre_flujo, _ = obtener_pasos_operacion_citacion(citacion)
     observacion = str(request.POST.get('observacion') or '').strip()
-    config = _config_accion_toma_muestra(nombre_flujo)
+    config = _config_accion_toma_muestra(nombre_flujo, citacion)
     try:
         with transaction.atomic():
-            metadata = _registrar_toma_muestra_accion(citacion, request.user, nombre_flujo, observacion)
-            if config['tipo'] == 'vapor':
-                _iniciar_tiempo_vapor(citacion, request.user)
+            if es_recepcion_new_jersey_p2(citacion):
+                _accion_new_jersey_p2_compartida(citacion, request.user, nj_p2.PASO_TOMA, 'iniciar', observacion)
+                metadata = _leer_metadata_toma_muestra_accion(citacion) or {}
+            else:
+                metadata = _registrar_toma_muestra_accion(citacion, request.user, nombre_flujo, observacion)
+                if config['tipo'] == 'vapor':
+                    _iniciar_tiempo_vapor(citacion, request.user)
     except ValueError as e:
         return JsonResponse({'success': False, 'message': str(e)}, status=400)
     except Exception as e:
@@ -25757,7 +29175,7 @@ def ajax_operacion_planta_resolver_revision_calidad(request, pk):
                     {'success': False, 'message': 'Solo el perfil CALIDAD puede resolver esta revision.'},
                     status=403,
                 )
-            if not es_flujo_recepcion_estanque_sbh_calidad(citacion):
+            if not (es_flujo_recepcion_estanque_sbh_calidad(citacion) or es_recepcion_new_jersey_p2(citacion)):
                 return JsonResponse(
                     {'success': False, 'message': 'La revision manual no aplica a este flujo.'},
                     status=409,
@@ -25969,6 +29387,28 @@ def _paso_activo_es(citacion, paso):
     return obtener_paso_activo_operacion(citacion, pasos_config)[0] == paso
 
 
+def _configuracion_timbrado_recepcion(citacion):
+    """Resuelve etapa y perfil autorizados sin ampliar el alcance de cada flujo."""
+    paso_activo, _, _ = obtener_paso_activo_operacion(citacion)
+    if es_recepcion_terramar_principal(citacion) and paso_activo == PASO_DOCUMENTACION_TERRAMAR:
+        return {
+            'paso': PASO_DOCUMENTACION_TERRAMAR,
+            'responsables': [PERFIL_TERRAMAR_ASISTENTE_RECEPCION],
+            'requiere_documentacion_validada': False,
+        }
+    if paso_activo == PASO_AUTORIZAR_SALIDA and not es_recepcion_terramar_principal(citacion):
+        return {
+            'paso': PASO_AUTORIZAR_SALIDA,
+            'responsables': (
+                [PERFIL_TERRAMAR_ASISTENTE_DESPACHO]
+                if _empresa_timbre_recepcion(citacion) == 'TERRAMAR'
+                else ['ASISTENTE DE RECEPCION']
+            ),
+            'requiere_documentacion_validada': _empresa_timbre_recepcion(citacion) == 'TERRAMAR',
+        }
+    return None
+
+
 def ajax_operacion_planta_validar_documentacion_terramar(request, pk):
     if request.method != 'POST':
         return JsonResponse({'success': False, 'message': 'Metodo no permitido.'}, status=405)
@@ -25994,6 +29434,23 @@ def ajax_operacion_planta_validar_documentacion_terramar(request, pk):
             return JsonResponse({'success': False, 'message': 'La documentacion ya fue validada.'}, status=409)
         if not _paso_activo_es(citacion, PASO_DOCUMENTACION_TERRAMAR):
             return JsonResponse({'success': False, 'message': 'Documentacion no es la etapa activa.'}, status=409)
+        es_flujo_principal = es_recepcion_terramar_principal(citacion)
+        if es_flujo_principal:
+            if not _ticket_pesaje_obligatorio_guardado(citacion, 'Pesaje Salida'):
+                return JsonResponse({
+                    'success': False,
+                    'message': 'El ticket de Pesaje Salida es obligatorio para autorizar la salida.',
+                }, status=409)
+            estado_timbrado = _estado_timbrado_documentos_terramar(citacion)
+            if estado_timbrado['obligatorios_pendientes']:
+                pendientes = ', '.join(
+                    item.get('nombre') or 'Documento obligatorio'
+                    for item in estado_timbrado['obligatorios_pendientes']
+                )
+                return JsonResponse({
+                    'success': False,
+                    'message': f'Debe timbrar los documentos obligatorios antes de validar: {pendientes}.',
+                }, status=409)
         ahora = timezone.now()
         metadata = {
             'validada': True,
@@ -26005,6 +29462,15 @@ def ajax_operacion_planta_validar_documentacion_terramar(request, pk):
             'citacion_id': citacion.id,
             'paso_operacion': PASO_DOCUMENTACION_TERRAMAR,
         }
+        if es_flujo_principal:
+            metadata.update({
+                'salida_autorizada': True,
+                'accion': 'AUTORIZA_SALIDA',
+                'usuario_autorizacion_id': request.user.id,
+                'usuario_autorizacion': request.user.username,
+                'fecha_autorizacion_iso': ahora.isoformat(),
+                'fecha_autorizacion': timezone.localtime(ahora).strftime('%d/%m/%Y %H:%M'),
+            })
         _guardar_metadata_terramar(
             citacion,
             request.user,
@@ -26026,14 +29492,24 @@ def ajax_operacion_planta_validar_documentacion_terramar(request, pk):
         registrar_log_camion_no_planificado(
             request.user,
             citacion.EP_NID,
-            LOG_DOCUMENTACION_TERRAMAR,
-            f'Documentacion validada para citacion Terramar #{citacion.id}.',
+            LOG_AUTORIZA_SALIDA_TERRAMAR if es_flujo_principal else LOG_DOCUMENTACION_TERRAMAR,
+            (
+                f'Salida autorizada al completar Documentacion para citacion Terramar #{citacion.id}.'
+                if es_flujo_principal
+                else f'Documentacion validada para citacion Terramar #{citacion.id}.'
+            ),
             citacion.id,
             observacion[:128],
         )
+    mensaje = (
+        'Salida autorizada. La citacion avanzo directamente a Confirmar Salida.'
+        if es_flujo_principal
+        else 'Documentacion validada. La citacion avanzo a Autorizar Salida.'
+    )
     return JsonResponse({
         'success': True,
-        'message': 'Documentacion validada. La citacion avanzo a Autorizar Salida.',
+        'message': mensaje,
+        'salida_autorizada': es_flujo_principal,
         'paso': PASO_DOCUMENTACION_TERRAMAR,
         'usuario': request.user.username,
         'fecha': timezone.localtime(log.OPL_FFECHAREGISTRO).strftime('%d/%m/%Y %H:%M'),
@@ -26185,24 +29661,30 @@ def ajax_operacion_planta_timbrar_documentos_terramar(request, pk):
     )
     if error_response:
         return error_response
-    responsables_timbrado = [PERFIL_TERRAMAR_ASISTENTE_DESPACHO] if _empresa_timbre_recepcion(citacion) == 'TERRAMAR' else ['ASISTENTE DE RECEPCION']
-    if not usuario_puede_paso_operacion(request.user, responsables_timbrado):
+
+    configuracion = _configuracion_timbrado_recepcion(citacion)
+    if not configuracion:
+        return JsonResponse({
+            'success': False,
+            'message': 'El timbrado no esta habilitado en la etapa activa.',
+        }, status=409)
+    if not usuario_puede_paso_operacion(request.user, configuracion['responsables']):
         return JsonResponse({'success': False, 'message': 'Solo el perfil responsable puede timbrar documentos.'}, status=403)
-    responsables_timbrado = [PERFIL_TERRAMAR_ASISTENTE_DESPACHO] if _empresa_timbre_recepcion(citacion) == 'TERRAMAR' else ['ASISTENTE DE RECEPCION']
-    if not usuario_puede_paso_operacion(request.user, responsables_timbrado):
-        return JsonResponse({'success': False, 'message': 'Solo el perfil responsable puede timbrar documentos.'}, status=403)
-    if not _paso_activo_es(citacion, PASO_AUTORIZAR_SALIDA):
-        return JsonResponse({'success': False, 'message': 'Autorizar Salida no es la etapa activa.'}, status=409)
-    validacion = _leer_metadata_terramar(citacion, CAMPO_DOCUMENTACION_TERRAMAR)
-    if _empresa_timbre_recepcion(citacion) == 'TERRAMAR' and not validacion.get('validada'):
-        return JsonResponse({'success': False, 'message': 'Debe validar Documentacion antes de timbrar.'}, status=409)
+    if configuracion['requiere_documentacion_validada']:
+        validacion = _leer_metadata_terramar(citacion, CAMPO_DOCUMENTACION_TERRAMAR)
+        if not validacion.get('validada'):
+            return JsonResponse({'success': False, 'message': 'Debe validar Documentacion antes de timbrar.'}, status=409)
     if not obtener_documentos_salida_terramar(citacion):
         return JsonResponse({'success': False, 'message': 'No existen documentos disponibles para timbrar.'}, status=400)
 
     metadata = _procesar_documentos_timbrados_terramar(citacion, request.user)
     with transaction.atomic():
         citacion = _recargar_citacion_bloqueada_operacion(citacion)
-        if not _paso_activo_es(citacion, PASO_AUTORIZAR_SALIDA):
+        configuracion_bloqueada = _configuracion_timbrado_recepcion(citacion)
+        if (
+            not configuracion_bloqueada
+            or configuracion_bloqueada['paso'] != configuracion['paso']
+        ):
             return JsonResponse({'success': False, 'message': 'La etapa activa cambio durante el timbrado.'}, status=409)
         _guardar_metadata_terramar(
             citacion,
@@ -26227,7 +29709,6 @@ def ajax_operacion_planta_timbrar_documentos_terramar(request, pk):
         'reutilizados': metadata['reutilizados'],
         'documentacion': payload,
     })
-
 
 def ajax_operacion_planta_documento_terramar(request, pk, documento_key):
     citacion, error_response = _validar_citacion_terramar_etapa2(request, pk)
@@ -26286,14 +29767,20 @@ def ajax_operacion_planta_exportar_documentos_terramar(request, pk):
     )
     if error_response:
         return error_response
-    responsables_timbrado = [PERFIL_TERRAMAR_ASISTENTE_DESPACHO] if _empresa_timbre_recepcion(citacion) == 'TERRAMAR' else ['ASISTENTE DE RECEPCION']
-    if not usuario_puede_paso_operacion(request.user, responsables_timbrado):
-        return JsonResponse({'success': False, 'message': 'Solo el perfil responsable puede timbrar documentos.'}, status=403)
-    if not _paso_activo_es(citacion, PASO_AUTORIZAR_SALIDA):
-        return JsonResponse({'success': False, 'message': 'Autorizar Salida no es la etapa activa.'}, status=409)
-    documentacion = _leer_metadata_terramar(citacion, CAMPO_DOCUMENTACION_TERRAMAR)
-    if _empresa_timbre_recepcion(citacion) == 'TERRAMAR' and not documentacion.get('validada'):
-        return JsonResponse({'success': False, 'message': 'Debe validar Documentacion antes de exportar.'}, status=409)
+
+    configuracion = _configuracion_timbrado_recepcion(citacion)
+    if not configuracion:
+        return JsonResponse({
+            'success': False,
+            'message': 'La exportacion no esta habilitada en la etapa activa.',
+        }, status=409)
+    if not usuario_puede_paso_operacion(request.user, configuracion['responsables']):
+        return JsonResponse({'success': False, 'message': 'Solo el perfil responsable puede preparar documentos firmados.'}, status=403)
+    if configuracion['requiere_documentacion_validada']:
+        documentacion = _leer_metadata_terramar(citacion, CAMPO_DOCUMENTACION_TERRAMAR)
+        if not documentacion.get('validada'):
+            return JsonResponse({'success': False, 'message': 'Debe validar Documentacion antes de exportar.'}, status=409)
+
     estado = _estado_timbrado_documentos_terramar(citacion)
     if not estado['completo']:
         return JsonResponse({'success': False, 'message': 'Debe timbrar los documentos obligatorios antes de exportar.'}, status=409)
@@ -26466,19 +29953,30 @@ def ajax_operacion_planta_iniciar_ciclo_recepcion_bodega_externa(request, pk):
     citacion, error_response = _obtener_citacion_operacion_planta_ajax(request, pk)
     if error_response:
         return error_response
+    es_prosesa_piso_1 = es_recepcion_prosesa_contenedor_piso_1(citacion)
+    es_prosesa_piso_2 = es_recepcion_prosesa_piso_2(citacion)
     es_terramar_externa = es_recepcion_terramar_bodega_externa_operacion(citacion)
-    perfil_inicio = [PERFIL_TERRAMAR_ASISTENTE_BODEGA] if es_terramar_externa else ['ASISTENTE C D']
-    if not usuario_puede_paso_operacion(request.user, perfil_inicio):
+    perfil_inicio = (
+        ['ASISTENTE RECEPCION'] if es_prosesa_piso_2
+        else ([PERFIL_TERRAMAR_ASISTENTE_BODEGA] if es_terramar_externa else ['ASISTENTE C D'])
+    )
+    if (not usuario_es_asistente_recepcion(request.user) if es_prosesa_piso_2 else not usuario_puede_paso_operacion(request.user, perfil_inicio)):
         mensaje = (
-            'Solo Asistente Bodega puede iniciar la salida a Bodega Externa.'
-            if es_terramar_externa
-            else 'Solo Asistente_C_D puede autorizar la salida a Bodega Externa.'
+            'Solo Asistente Recepcion puede iniciar el retiro de contenedor.'
+            if es_prosesa_piso_2 else (
+                'Solo Asistente Bodega puede iniciar la salida a Bodega Externa.'
+                if es_terramar_externa else 'Solo Asistente_C_D puede autorizar la salida a Bodega Externa.'
+            )
         )
         return JsonResponse({'success': False, 'message': mensaje}, status=403)
 
     try:
-        if es_terramar_externa:
+        if es_prosesa_piso_2:
+            payload, creado = _iniciar_retiro_temporal_prosesa_piso_2(citacion, request.user)
+        elif es_terramar_externa:
             payload, creado = _iniciar_ciclo_terramar_bodega_externa(citacion, request.user, request.POST.get('observacion'))
+        elif es_prosesa_piso_1:
+            payload, creado = _iniciar_salida_temporal_prosesa_piso_1(citacion, request.user)
         else:
             payload, creado = _iniciar_ciclo_recepcion_bodega_externa(citacion, request.user)
     except OperacionPlantaDuplicada as e:
@@ -26486,13 +29984,49 @@ def ajax_operacion_planta_iniciar_ciclo_recepcion_bodega_externa(request, pk):
     except ValueError as e:
         return JsonResponse({'success': False, 'message': str(e)}, status=409 if es_terramar_externa else 400)
     except Exception as e:
-        return JsonResponse({'success': False, 'message': f'No fue posible autorizar salida a Bodega Externa: {str(e)}'}, status=500)
+        accion = 'salida temporal' if es_prosesa_piso_1 else 'salida a Bodega Externa'
+        return JsonResponse({'success': False, 'message': f'No fue posible autorizar {accion}: {str(e)}'}, status=500)
 
+    mensaje_creado = (
+        'Retiro de contenedor iniciado. Guardia Porteria debe validar la salida temporal.'
+        if es_prosesa_piso_2 else (
+            'Salida temporal autorizada para depositar el contenedor en Piso 1.'
+            if es_prosesa_piso_1 else 'Camion autorizado para salir a Bodega Externa.'
+        )
+    )
+    mensaje_existente = (
+        'El retiro de contenedor ya estaba iniciado.'
+        if es_prosesa_piso_2 else (
+            'La salida temporal ya estaba autorizada.'
+            if es_prosesa_piso_1 else 'La salida a Bodega Externa ya estaba autorizada.'
+        )
+    )
     return JsonResponse({
         'success': True,
-        'message': 'Camion autorizado para salir a Bodega Externa.' if creado else 'La salida a Bodega Externa ya estaba autorizada.',
+        'message': mensaje_creado if creado else mensaje_existente,
         'ciclo_bodega_externa': payload,
         'creado': creado,
+    })
+
+
+def ajax_operacion_planta_validar_salida_temporal_prosesa_piso_2(request, pk):
+    if request.method != 'POST':
+        return JsonResponse({'success': False, 'message': 'Metodo no permitido.'}, status=405)
+    if not usuario_es_guardia_porteria(request.user):
+        return JsonResponse({'success': False, 'message': 'Solo Guardia Porteria valida la salida temporal.'}, status=403)
+    citacion, error_response = _obtener_citacion_operacion_planta_ajax(request, pk)
+    if error_response:
+        return error_response
+    if not es_recepcion_prosesa_piso_2(citacion):
+        return JsonResponse({'success': False, 'message': 'Esta accion solo aplica a PROSESA Piso 2.'}, status=400)
+    try:
+        payload, creado = _validar_salida_temporal_prosesa_piso_2(citacion, request.user)
+    except ValueError as exc:
+        return JsonResponse({'success': False, 'message': str(exc)}, status=409)
+    return JsonResponse({
+        'success': True,
+        'message': 'Salida temporal validada por Guardia Porteria.' if creado else 'La salida temporal ya estaba validada.',
+        'ciclo_bodega_externa': payload, 'creado': creado,
     })
 
 
@@ -26505,13 +30039,23 @@ def ajax_operacion_planta_finalizar_ciclo_recepcion_bodega_externa(request, pk):
     citacion, error_response = _obtener_citacion_operacion_planta_ajax(request, pk)
     if error_response:
         return error_response
-    if not usuario_puede_paso_operacion(request.user, ['GUARDIA PORTERIA']):
-        return JsonResponse({'success': False, 'message': 'Solo Guardia Porteria puede registrar el regreso desde Bodega Externa.'}, status=403)
+    if (not usuario_es_guardia_porteria(request.user) if es_recepcion_prosesa_piso_2(citacion) else not usuario_puede_paso_operacion(request.user, ['GUARDIA PORTERIA'])):
+        return JsonResponse({'success': False, 'message': 'Solo Guardia Porteria puede registrar el regreso a planta.'}, status=403)
 
+    es_prosesa_piso_1 = es_recepcion_prosesa_contenedor_piso_1(citacion)
+    es_prosesa_piso_2 = es_recepcion_prosesa_piso_2(citacion)
     es_terramar_externa = es_recepcion_terramar_bodega_externa_operacion(citacion)
     try:
-        if es_terramar_externa:
+        if es_prosesa_piso_2:
+            payload, creado = _finalizar_retiro_temporal_prosesa_piso_2(
+                citacion, request.user, request.POST.get('observacion')
+            )
+        elif es_terramar_externa:
             payload, creado = _finalizar_ciclo_terramar_bodega_externa(citacion, request.user, request.POST.get('observacion'))
+        elif es_prosesa_piso_1:
+            payload, creado = _finalizar_salida_temporal_prosesa_piso_1(
+                citacion, request.user, request.POST.get('observacion')
+            )
         else:
             payload, creado = _finalizar_ciclo_recepcion_bodega_externa(citacion, request.user, request.POST.get('observacion'))
     except OperacionPlantaDuplicada as e:
@@ -26519,13 +30063,24 @@ def ajax_operacion_planta_finalizar_ciclo_recepcion_bodega_externa(request, pk):
     except ValueError as e:
         return JsonResponse({'success': False, 'message': str(e)}, status=409 if es_terramar_externa else 400)
     except Exception as e:
-        return JsonResponse({'success': False, 'message': f'No fue posible registrar regreso desde Bodega Externa: {str(e)}'}, status=500)
+        origen = 'la salida temporal' if es_prosesa_piso_1 else 'Bodega Externa'
+        return JsonResponse({'success': False, 'message': f'No fue posible registrar regreso desde {origen}: {str(e)}'}, status=500)
 
+    mensaje_creado = (
+        'Retorno a planta registrado. Se habilito Pesaje Salida.'
+        if es_prosesa_piso_1 or es_prosesa_piso_2 else
+        'Camion regreso desde Bodega Externa. La citacion avanzo a Pesaje Salida.'
+    )
+    mensaje_existente = (
+        'El retorno a planta ya estaba registrado.'
+        if es_prosesa_piso_1 or es_prosesa_piso_2 else
+        'El regreso desde Bodega Externa ya estaba registrado.'
+    )
     return JsonResponse({
         'success': True,
-        'message': 'Camion regreso desde Bodega Externa. La citacion avanzo a Pesaje Salida.' if creado else 'El regreso desde Bodega Externa ya estaba registrado.',
+        'message': mensaje_creado if creado else mensaje_existente,
         'ciclo_bodega_externa': payload,
-        'paso': PASO_CICLO_DESCARGA,
+        'paso': PASO_PROSESA_DEPOSITAR_PISO_1 if es_prosesa_piso_1 else PASO_CICLO_DESCARGA,
         'usuario': request.user.username,
         'fecha': payload.get('fin_legible') or '',
         'creado': creado,
@@ -26541,6 +30096,19 @@ def ajax_operacion_planta_iniciar_ciclo_descarga(request, pk):
     citacion, error_response = _obtener_citacion_operacion_planta_ajax(request, pk)
     if error_response:
         return error_response
+    if es_recepcion_new_jersey_p2(citacion):
+        try:
+            resultado = _accion_new_jersey_p2_compartida(
+                citacion, request.user, nj_p2.PASO_DESCARGA, 'iniciar',
+                str(request.POST.get('observacion') or '').strip(),
+                str(request.POST.get('tipo_descarga') or '').strip(),
+            )
+        except PermissionError as exc:
+            return JsonResponse({'success': False, 'message': str(exc)}, status=403)
+        except ValueError as exc:
+            return JsonResponse({'success': False, 'message': str(exc)}, status=409)
+        return JsonResponse({'success': True, 'message': 'Descarga iniciada.',
+                             'ciclo_descarga': _payload_ciclo_descarga(citacion), **resultado})
     if es_recepcion_bodega_externa_operacion(citacion) or es_recepcion_terramar_bodega_externa_operacion(citacion):
         return JsonResponse({'success': False, 'message': 'El flujo Recepcion Bodega Externa utiliza un ciclo externo de salida y regreso.'}, status=400)
     _, error_response = _validar_accion_ciclo_descarga(request, citacion)
@@ -26628,6 +30196,19 @@ def ajax_operacion_planta_finalizar_ciclo_descarga(request, pk):
     citacion, error_response = _obtener_citacion_operacion_planta_ajax(request, pk)
     if error_response:
         return error_response
+    if es_recepcion_new_jersey_p2(citacion):
+        try:
+            resultado = _accion_new_jersey_p2_compartida(
+                citacion, request.user, nj_p2.PASO_DESCARGA, 'completar',
+                str(request.POST.get('observacion') or '').strip(),
+                str(request.POST.get('tipo_descarga') or '').strip(),
+            )
+        except PermissionError as exc:
+            return JsonResponse({'success': False, 'message': str(exc)}, status=403)
+        except ValueError as exc:
+            return JsonResponse({'success': False, 'message': str(exc)}, status=409)
+        return JsonResponse({'success': True, 'message': 'Descarga finalizada. P2 completado.',
+                             'ciclo_descarga': _payload_ciclo_descarga(citacion), **resultado})
     if es_recepcion_bodega_externa_operacion(citacion) or es_recepcion_terramar_bodega_externa_operacion(citacion):
         return JsonResponse({'success': False, 'message': 'El flujo Recepcion Bodega Externa utiliza un ciclo externo de salida y regreso.'}, status=400)
     _, error_response = _validar_accion_ciclo_descarga(request, citacion)
@@ -26661,10 +30242,16 @@ def ajax_operacion_planta_finalizar_ciclo_descarga(request, pk):
 def _autorizar_salida_terramar(request, citacion):
     if not _usuario_tiene_acceso_empresa(request.user, citacion.EP_NID_id):
         return JsonResponse({'success': False, 'message': 'No tiene acceso a la empresa de la citacion.'}, status=403)
-    if not usuario_puede_paso_operacion(request.user, [PERFIL_TERRAMAR_ASISTENTE_DESPACHO]):
+    if es_recepcion_terramar_principal(citacion):
         return JsonResponse({
             'success': False,
-            'message': f'Solo {PERFIL_TERRAMAR_ASISTENTE_DESPACHO} puede autorizar la salida Terramar.',
+            'message': 'En RECEPCION_TERRAMAR la salida se autoriza al completar Documentacion.',
+        }, status=409)
+    perfil_responsable = PERFIL_TERRAMAR_ASISTENTE_DESPACHO
+    if not usuario_puede_paso_operacion(request.user, [perfil_responsable]):
+        return JsonResponse({
+            'success': False,
+            'message': f'Solo {perfil_responsable} puede autorizar la salida Terramar.',
         }, status=403)
     observacion = str(request.POST.get('observacion') or '').strip()
 
@@ -26702,7 +30289,7 @@ def _autorizar_salida_terramar(request, citacion):
             PL_NID=citacion.PL_NID,
             CI_NID=citacion,
             OPL_CPASO=PASO_AUTORIZAR_SALIDA,
-            OPL_CPERFIL_RESPONSABLE=PERFIL_TERRAMAR_ASISTENTE_DESPACHO,
+            OPL_CPERFIL_RESPONSABLE=perfil_responsable,
             OPL_CESTADO=OPERACION_PLANTA_LOG.ESTADO_COMPLETADO,
             OPL_COBSERVACION=observacion,
             OPL_FFECHAREGISTRO=ahora,
@@ -26764,6 +30351,250 @@ def ajax_operacion_planta_verificar_documentos_sap_despacho(request, pk):
     })
 
 
+def ajax_operacion_planta_calcular_peso_real_prosesa(request, pk):
+    if request.method != 'POST':
+        return JsonResponse({'success': False, 'message': 'Metodo no permitido.'}, status=405)
+    if not usuario_es_operacion_planta(request.user):
+        return JsonResponse({'success': False, 'message': 'No tiene permisos para Operacion Planta.'}, status=403)
+    citacion, error_response = _obtener_citacion_operacion_planta_ajax(request, pk)
+    if error_response:
+        return error_response
+    if not es_recepcion_prosesa_piso_2(citacion):
+        return JsonResponse({'success': False, 'message': 'Esta accion solo corresponde a PROSESA Piso 2.'}, status=409)
+    if not (request.user.is_superuser or usuario_es_asistente_recepcion(request.user)):
+        return JsonResponse({'success': False, 'message': 'Solo Asistente Recepcion puede validar el peso real.'}, status=403)
+
+    claves_override = tuple(CONFIGURACION_PESAJES_PROSESA)
+    overrides_enviados = {
+        clave: request.POST.get(clave)
+        for clave in claves_override
+        if clave in request.POST
+    }
+    if overrides_enviados and not getattr(settings, 'QA_PESAJE', False):
+        return JsonResponse({
+            'success': False,
+            'message': 'QA_PESAJE esta deshabilitado; no se permiten overrides manuales.',
+        }, status=403)
+    try:
+        with transaction.atomic():
+            citacion = _recargar_citacion_bloqueada_operacion(citacion)
+            if obtener_paso_activo_operacion(citacion)[0] != PASO_AUTORIZAR_SALIDA:
+                raise ValueError('Debe completar Pesaje Salida antes de calcular el peso real.')
+            relacion = CITACION_PROSESA_RELACION.objects.select_for_update().select_related(
+                'CI_NID_ORIGEN__SC_NID',
+                'CI_NID_RETIRO__SC_NID',
+            ).get(
+                CI_NID_RETIRO=citacion,
+                EP_NID_id=citacion.EP_NID_id,
+            )
+            if overrides_enviados:
+                guardar_overrides_qa_pesaje_prosesa(
+                    relacion,
+                    overrides_enviados,
+                    request.user,
+                )
+            dato, actualizado = calcular_y_persistir_peso_real_prosesa(
+                relacion,
+                request.user,
+            )
+            metadata = _leer_metadata_ticket_dato(dato) or {}
+    except CITACION_PROSESA_RELACION.DoesNotExist:
+        return JsonResponse({'success': False, 'message': 'Falta la relacion entre Piso 1 y Piso 2.'}, status=409)
+    except PermissionError as exc:
+        return JsonResponse({'success': False, 'message': str(exc)}, status=403)
+    except ValueError as exc:
+        return JsonResponse({'success': False, 'message': str(exc)}, status=409)
+    return JsonResponse({
+        'success': True,
+        'message': 'Peso real calculado y validado correctamente.',
+        'actualizado': actualizado,
+        'peso_contenedor_cargado': metadata.get('peso_contenedor_cargado'),
+        'peso_contenedor_vacio': metadata.get('peso_contenedor_vacio'),
+        'peso_real_insumo': dato.DO_NPESO,
+        'unidad': 'kg',
+        'fuentes_pesajes': metadata.get('fuentes_pesajes') or {},
+    })
+
+@require_POST
+def ajax_operacion_planta_preview_transferencia_sap_prosesa(request, pk):
+    if not getattr(settings, 'SAP_RECEPCION_PREVIEW_ENABLED', False):
+        return JsonResponse({'success': False, 'message': 'Preview SAP deshabilitado.'}, status=404)
+    if not usuario_es_operacion_planta(request.user):
+        return JsonResponse({'success': False, 'message': 'Sin permisos de Operacion Planta.'}, status=403)
+    citacion, error_response = _obtener_citacion_operacion_planta_ajax(request, pk)
+    if error_response:
+        return error_response
+    if not es_recepcion_prosesa_piso_2(citacion):
+        return JsonResponse({'success': False, 'message': 'Solo aplica a PROSESA Piso 2.'}, status=404)
+    if not (request.user.is_superuser or usuario_es_asistente_recepcion(request.user)):
+        return JsonResponse({'success': False, 'message': 'Solo Asistente Recepcion puede previsualizar.'}, status=403)
+    if obtener_paso_activo_operacion(citacion)[0] != PASO_AUTORIZAR_SALIDA:
+        return JsonResponse({'success': False, 'message': 'Autorizar Salida no es la etapa activa.'}, status=409)
+    preview = build_stock_transfer_prosesa_piso_2(citacion)
+    return JsonResponse({
+        'success': preview['ready_for_post'],
+        'read_only': True,
+        'message': 'Previsualizacion de transferencia SAP generada.',
+        'preview': preview,
+        'transferencia_sap_creada': bool(preview['status'].get('creada')),
+    })
+
+
+@require_POST
+def ajax_operacion_planta_crear_transferencia_sap_prosesa(request, pk):
+    if not usuario_es_operacion_planta(request.user):
+        return JsonResponse({'success': False, 'message': 'Sin permisos de Operacion Planta.'}, status=403)
+    citacion, error_response = _obtener_citacion_operacion_planta_ajax(request, pk)
+    if error_response:
+        return error_response
+    if not es_recepcion_prosesa_piso_2(citacion):
+        return JsonResponse({'success': False, 'message': 'Solo aplica a PROSESA Piso 2.'}, status=404)
+    if not (request.user.is_superuser or usuario_es_asistente_recepcion(request.user)):
+        return JsonResponse({'success': False, 'message': 'Solo Asistente Recepcion puede crear la transferencia.'}, status=403)
+    if obtener_paso_activo_operacion(citacion)[0] != PASO_AUTORIZAR_SALIDA:
+        return JsonResponse({'success': False, 'message': 'Autorizar Salida no es la etapa activa.'}, status=409)
+    result = send_stock_transfer_prosesa_piso_2_to_sap(citacion, request.user)
+    return JsonResponse(result, status=200 if result.get('success') else 409)
+
+@require_POST
+def ajax_operacion_planta_aplicar_pesos_qa_new_jersey_p3(request, pk):
+    if not usuario_es_operacion_planta(request.user):
+        return JsonResponse({'success': False, 'message': 'Sin permisos de Operacion Planta.'}, status=403)
+    citacion, error_response = _obtener_citacion_operacion_planta_ajax(request, pk)
+    if error_response:
+        return error_response
+    if not es_recepcion_new_jersey_p3(citacion):
+        return JsonResponse({'success': False, 'message': 'Solo aplica a New Jersey P3.'}, status=404)
+    if not (request.user.is_superuser or usuario_es_asistente_recepcion(request.user)):
+        return JsonResponse({'success': False, 'message': 'Solo Asistente Recepcion puede aplicar pesos QA.'}, status=403)
+    if not getattr(settings, 'QA_PESAJE', False):
+        return JsonResponse({'success': False, 'message': 'QA_PESAJE esta deshabilitado.'}, status=403)
+    if obtener_paso_activo_operacion(citacion)[0] != PASO_AUTORIZAR_SALIDA:
+        return JsonResponse({'success': False, 'message': 'Debe completar Pesaje Salida antes de aplicar pesos QA.'}, status=409)
+    if estado_transferencia_new_jersey_p3(citacion).get('bloqueada'):
+        return JsonResponse({'success': False, 'message': 'Los pesos QA estan bloqueados por el estado de la transferencia SAP.'}, status=409)
+    overrides = {
+        clave: request.POST.get(clave, '')
+        for clave in CONFIGURACION_PESAJES_NEW_JERSEY_P3
+    }
+    try:
+        with transaction.atomic():
+            citacion = _recargar_citacion_bloqueada_operacion(citacion)
+            resultado = aplicar_overrides_qa_pesaje_new_jersey_p3(
+                citacion, overrides, request.user,
+            )
+    except PermissionError as exc:
+        return JsonResponse({'success': False, 'message': str(exc)}, status=403)
+    except ValueError as exc:
+        return JsonResponse({'success': False, 'message': str(exc)}, status=400)
+    return JsonResponse({
+        'success': True,
+        'message': (
+            'Pesos QA aplicados. Debe calcular y validar nuevamente el peso real.'
+            if resultado['actualizado']
+            else 'Los pesos efectivos no cambiaron.'
+        ),
+        **resultado,
+    })
+
+
+@require_POST
+def ajax_operacion_planta_calcular_peso_real_new_jersey_p3(request, pk):
+    if not usuario_es_operacion_planta(request.user):
+        return JsonResponse({'success': False, 'message': 'Sin permisos de Operacion Planta.'}, status=403)
+    citacion, error_response = _obtener_citacion_operacion_planta_ajax(request, pk)
+    if error_response:
+        return error_response
+    if not es_recepcion_new_jersey_p3(citacion):
+        return JsonResponse({'success': False, 'message': 'Solo aplica a New Jersey P3.'}, status=404)
+    if not (request.user.is_superuser or usuario_es_asistente_recepcion(request.user)):
+        return JsonResponse({'success': False, 'message': 'Solo Asistente Recepcion puede validar el peso real.'}, status=403)
+    if obtener_paso_activo_operacion(citacion)[0] != PASO_AUTORIZAR_SALIDA:
+        return JsonResponse({'success': False, 'message': 'Debe completar Pesaje Salida antes de calcular el peso real.'}, status=409)
+    if any(clave in request.POST for clave in CONFIGURACION_PESAJES_NEW_JERSEY_P3):
+        return JsonResponse({
+            'success': False,
+            'message': 'Use Aplicar pesos QA antes de calcular y validar el peso real.',
+        }, status=400)
+    if estado_transferencia_new_jersey_p3(citacion).get('bloqueada'):
+        return JsonResponse({'success': False, 'message': 'El peso real esta bloqueado por el estado de la transferencia SAP.'}, status=409)
+    try:
+        with transaction.atomic():
+            citacion = _recargar_citacion_bloqueada_operacion(citacion)
+            dato, actualizado = calcular_y_persistir_peso_real_new_jersey_p3(citacion, request.user)
+            metadata = _leer_metadata_ticket_dato(dato) or {}
+    except ValueError as exc:
+        return JsonResponse({'success': False, 'message': str(exc)}, status=409)
+    return JsonResponse({
+        'success': True, 'message': 'Peso real New Jersey calculado y validado.',
+        'actualizado': actualizado, 'peso_real_kg': dato.DO_NPESO,
+        'peso_real_mt': metadata.get('peso_real_mt'),
+        'peso_conjunto_cargado_kg': metadata.get('peso_conjunto_cargado_kg'),
+        'peso_contenedor_vacio_kg': metadata.get('peso_contenedor_vacio_kg'),
+        'fuentes_pesajes': metadata.get('fuentes_pesajes') or {},
+    })
+
+
+@require_POST
+def ajax_operacion_planta_guardar_tk_final_new_jersey_p3(request, pk):
+    if not usuario_es_operacion_planta(request.user):
+        return JsonResponse({'success': False, 'message': 'Sin permisos de Operacion Planta.'}, status=403)
+    citacion, error_response = _obtener_citacion_operacion_planta_ajax(request, pk)
+    if error_response:
+        return error_response
+    if not es_recepcion_new_jersey_p3(citacion):
+        return JsonResponse({'success': False, 'message': 'Solo aplica a New Jersey P3.'}, status=404)
+    if not (request.user.is_superuser or usuario_es_asistente_recepcion(request.user)):
+        return JsonResponse({'success': False, 'message': 'Solo Asistente Recepcion puede definir el TK final.'}, status=403)
+    if obtener_paso_activo_operacion(citacion)[0] != PASO_AUTORIZAR_SALIDA:
+        return JsonResponse({'success': False, 'message': 'Autorizar Salida no es la etapa activa.'}, status=409)
+    try:
+        resultado = guardar_destino_final_p3(citacion, request.user, request.POST.get('tk_destino'))
+    except ValueError as exc:
+        return JsonResponse({'success': False, 'message': str(exc)}, status=409)
+    return JsonResponse({'success': True, 'message': 'TK destino final guardado.', **resultado})
+
+
+@require_POST
+def ajax_operacion_planta_preview_transferencia_sap_new_jersey_p3(request, pk):
+    if not getattr(settings, 'SAP_RECEPCION_PREVIEW_ENABLED', False):
+        return JsonResponse({'success': False, 'message': 'Preview SAP deshabilitado.'}, status=404)
+    if not usuario_es_operacion_planta(request.user):
+        return JsonResponse({'success': False, 'message': 'Sin permisos de Operacion Planta.'}, status=403)
+    citacion, error_response = _obtener_citacion_operacion_planta_ajax(request, pk)
+    if error_response:
+        return error_response
+    if not es_recepcion_new_jersey_p3(citacion):
+        return JsonResponse({'success': False, 'message': 'Solo aplica a New Jersey P3.'}, status=404)
+    if not (request.user.is_superuser or usuario_es_asistente_recepcion(request.user)):
+        return JsonResponse({'success': False, 'message': 'Solo Asistente Recepcion puede previsualizar.'}, status=403)
+    if obtener_paso_activo_operacion(citacion)[0] != PASO_AUTORIZAR_SALIDA:
+        return JsonResponse({'success': False, 'message': 'Autorizar Salida no es la etapa activa.'}, status=409)
+    preview = build_stock_transfer_new_jersey_p3(citacion)
+    return JsonResponse({
+        'success': preview['ready_for_post'], 'read_only': True,
+        'message': 'Previsualizacion de transferencia SAP New Jersey P3 generada.',
+        'preview': preview,
+        'transferencia_sap_creada': bool(preview['status'].get('creada')),
+    })
+
+
+@require_POST
+def ajax_operacion_planta_crear_transferencia_sap_new_jersey_p3(request, pk):
+    if not usuario_es_operacion_planta(request.user):
+        return JsonResponse({'success': False, 'message': 'Sin permisos de Operacion Planta.'}, status=403)
+    citacion, error_response = _obtener_citacion_operacion_planta_ajax(request, pk)
+    if error_response:
+        return error_response
+    if not es_recepcion_new_jersey_p3(citacion):
+        return JsonResponse({'success': False, 'message': 'Solo aplica a New Jersey P3.'}, status=404)
+    if not (request.user.is_superuser or usuario_es_asistente_recepcion(request.user)):
+        return JsonResponse({'success': False, 'message': 'Solo Asistente Recepcion puede crear la transferencia.'}, status=403)
+    if obtener_paso_activo_operacion(citacion)[0] != PASO_AUTORIZAR_SALIDA:
+        return JsonResponse({'success': False, 'message': 'Autorizar Salida no es la etapa activa.'}, status=409)
+    resultado = send_stock_transfer_new_jersey_p3_to_sap(citacion, request.user)
+    return JsonResponse(resultado, status=200 if resultado.get('success') else 409)
+
 def ajax_operacion_planta_autorizar_salida(request, pk):
     if request.method != 'POST':
         return JsonResponse({'success': False, 'message': 'Metodo no permitido.'}, status=405)
@@ -26773,6 +30604,52 @@ def ajax_operacion_planta_autorizar_salida(request, pk):
     citacion, error_response = _obtener_citacion_operacion_planta_ajax(request, pk)
     if error_response:
         return error_response
+    if es_recepcion_prosesa_piso_2(citacion):
+        if not usuario_es_asistente_recepcion(request.user):
+            return JsonResponse({'success': False, 'message': 'Solo Asistente Recepcion autoriza la salida Piso 2.'}, status=403)
+        try:
+            with transaction.atomic():
+                citacion = _recargar_citacion_bloqueada_operacion(citacion)
+                log = OPERACION_PLANTA_LOG.objects.filter(
+                    CI_NID=citacion, OPL_CPASO=PASO_AUTORIZAR_SALIDA,
+                    OPL_CESTADO=OPERACION_PLANTA_LOG.ESTADO_COMPLETADO,
+                ).order_by('-OPL_FFECHAREGISTRO').first()
+                if log:
+                    creado = False
+                else:
+                    if obtener_paso_activo_operacion(citacion)[0] != PASO_AUTORIZAR_SALIDA:
+                        raise ValueError('Autorizar Salida no es la etapa activa.')
+                    if not _payload_salida_temporal_prosesa_piso_2(citacion)['finalizada']:
+                        raise ValueError('Debe registrar el retorno del contenedor antes de autorizar la salida.')
+                    for paso_previo in ('Pesaje Entrada', PASO_PROSESA_INICIO_RETIRO, 'Pesaje Salida'):
+                        if not OPERACION_PLANTA_LOG.objects.filter(
+                            CI_NID=citacion, OPL_CPASO=paso_previo,
+                            OPL_CESTADO=OPERACION_PLANTA_LOG.ESTADO_COMPLETADO,
+                        ).exists():
+                            raise ValueError(f'Debe completar {paso_previo} antes de autorizar la salida.')
+                    obtener_peso_real_prosesa_para_sap(citacion)
+                    log = OPERACION_PLANTA_LOG.objects.create(
+                        US_NID=request.user, EP_NID=citacion.EP_NID, PL_NID=citacion.PL_NID,
+                        CI_NID=citacion, OPL_CPASO=PASO_AUTORIZAR_SALIDA,
+                        OPL_CPERFIL_RESPONSABLE='ASISTENTE RECEPCION',
+                        OPL_CESTADO=OPERACION_PLANTA_LOG.ESTADO_COMPLETADO,
+                        OPL_COBSERVACION='Salida final autorizada tras retorno y Pesaje Salida.',
+                    )
+                    _registrar_syslog_operacion_planta(
+                        citacion, request.user, 'PROSESA_P2_AUT_SAL',
+                        f'Asistente Recepcion autoriza salida final de citacion #{citacion.id}.',
+                        'PROSESA_PISO_2',
+                    )
+                    creado = True
+        except ValueError as exc:
+            return JsonResponse({'success': False, 'message': str(exc)}, status=409)
+        return JsonResponse({
+            'success': True,
+            'message': 'Salida autorizada. Guardia Porteria puede confirmar la salida final.',
+            'paso': PASO_AUTORIZAR_SALIDA, 'creado': creado,
+            'usuario': log.US_NID.username if log.US_NID_id else '',
+            'fecha': timezone.localtime(log.OPL_FFECHAREGISTRO).strftime('%d/%m/%Y %H:%M'),
+        })
     if es_citacion_recepcion_terramar(citacion):
         return _autorizar_salida_terramar(request, citacion)
     if _empresa_timbre_recepcion(citacion) == 'SBH' and str(citacion.CI_CTIPO or '').upper() == CIT_RECEPCION and str(request.POST.get('accion') or '').strip() == 'guardar_conformidad':
@@ -26789,6 +30666,20 @@ def ajax_operacion_planta_autorizar_salida(request, pk):
         except ValueError as exc:
             return JsonResponse({'success': False, 'message': str(exc)}, status=400)
         return JsonResponse({'success': True, 'message': 'Conformidad registrada. Autorizar Salida sigue pendiente.', 'revision_conformidad': metadata})
+    if es_recepcion_new_jersey_p3(citacion):
+        if not (request.user.is_superuser or usuario_es_asistente_recepcion(request.user)):
+            return JsonResponse({'success': False, 'message': 'Solo Asistente Recepcion autoriza la salida New Jersey P3.'}, status=403)
+        try:
+            obtener_peso_real_new_jersey_p3_para_sap(citacion)
+        except ValueError as exc:
+            return JsonResponse({'success': False, 'message': str(exc)}, status=409)
+        transferencia_p3 = estado_transferencia_new_jersey_p3(citacion)
+        if not transferencia_p3.get('creada'):
+            return JsonResponse({
+                'success': False,
+                'message': 'Debe crear la transferencia SAP final antes de autorizar la salida.',
+                'transferencia_sap': transferencia_p3,
+            }, status=409)
     log_existente = OPERACION_PLANTA_LOG.objects.filter(
         CI_NID=citacion,
         OPL_CPASO=PASO_AUTORIZAR_SALIDA,
@@ -26928,7 +30819,11 @@ def ajax_operacion_planta_autorizar_salida(request, pk):
         if not estado_timbrado['completo']:
             return JsonResponse({'success': False, 'message': 'Debe timbrar todos los documentos obligatorios antes de autorizar la salida.'}, status=409)
 
-    if str(getattr(citacion, 'CI_CTIPO', '') or '').upper() == CIT_RECEPCION:
+    if (
+        str(getattr(citacion, 'CI_CTIPO', '') or '').upper() == CIT_RECEPCION
+        and not es_recepcion_new_jersey_p1(citacion)
+        and not es_recepcion_new_jersey_p3(citacion)
+    ):
         sap_update_status = get_goods_receipt_draft_update_status(citacion)
         if sap_update_status.get('is_error'):
             return JsonResponse({
@@ -27211,6 +31106,20 @@ def ajax_operacion_planta_preview_sap_despacho(request, pk):
         }, status=403)
 
     preview = construir_diagnostico_preview_update_drafts_operacionales(citacion)
+    if preview.get("success") and preview.get("documentos"):
+        carga = CITACION_DESPACHO_CARGA.objects.filter(CI_NID=citacion).first()
+        try:
+            preview["disponibilidad_lotes"] = validar_disponibilidad_final_despacho(
+                citacion,
+                carga,
+                preview["documentos"],
+            )
+            preview["validacion_estructural"]["disponibilidad_lotes_suficiente"] = True
+        except despacho_carga.CargaInvalida as exc:
+            preview["success"] = False
+            preview["resultado"] = "PREVIEW INVÁLIDO"
+            preview["validacion_estructural"]["disponibilidad_lotes_suficiente"] = False
+            preview.setdefault("motivos", []).append(str(exc))
     _registrar_log_preview_sap_despacho(preview)
     return JsonResponse(preview)
 
@@ -27268,7 +31177,12 @@ def ajax_operacion_planta_actualizar_sap_despacho(request, pk):
         str(request.POST.get('allow_retry') or '').strip().lower() in {'1', 'true', 'yes'}
         and getattr(request.user, 'is_superuser', False)
     )
-    result = sap_despacho_actualizar_borrador(citacion, request.user, allow_retry=allow_retry)
+    result = sap_despacho_actualizar_borrador(
+        citacion,
+        request.user,
+        allow_retry=allow_retry,
+        revalidar_disponibilidad=es_sbh,
+    )
     if not result.get('success') and (result.get('status') or {}).get('is_error'):
         _notificar_soporte_error_sap_despacho(citacion, request.user, result)
         result['message'] = result.get('message') or 'No se puede autorizar la salida porque la actualizacion SAP fallo. Soporte fue notificado.'
@@ -27276,6 +31190,64 @@ def ajax_operacion_planta_actualizar_sap_despacho(request, pk):
         _limpiar_resultado_sap_despacho_para_usuario(result, request.user),
         status=200 if result.get('success') else 400
     )
+
+
+@require_POST
+def ajax_operacion_planta_preview_update_sap_recepcion(request, pk):
+    if not getattr(settings, 'SAP_RECEPCION_PREVIEW_ENABLED', False):
+        return JsonResponse({
+            'success': False,
+            'message': 'Preview SAP de recepcion no disponible.',
+        }, status=404)
+    if not usuario_es_operacion_planta(request.user):
+        return JsonResponse({
+            'success': False,
+            'message': 'No tiene permisos para Operacion Planta.',
+        }, status=403)
+
+    citacion, error_response = _obtener_citacion_operacion_planta_ajax(request, pk)
+    if error_response:
+        return error_response
+    if not es_recepcion_prosesa_descarga_camion(citacion):
+        return JsonResponse({
+            'success': False,
+            'message': 'El preview solo aplica a Recepcion PROSESA con descarga sobre camion.',
+        }, status=404)
+
+    _, pasos_config = obtener_pasos_operacion_citacion(citacion)
+    paso_actual_visible, _, _ = obtener_paso_activo_operacion(citacion, pasos_config)
+    if paso_actual_visible != PASO_AUTORIZAR_SALIDA:
+        return JsonResponse({
+            'success': False,
+            'message': f'Solo puede previsualizar SAP durante la etapa activa: {PASO_AUTORIZAR_SALIDA}.',
+        }, status=409)
+    if not usuario_puede_actualizar_borrador_sap_recepcion(citacion, request.user):
+        return JsonResponse({
+            'success': False,
+            'message': 'Solo Asistente_C_D, Asistente_Recepcion SBH o administrador pueden previsualizar el Borrador SAP de recepcion.',
+        }, status=403)
+
+    try:
+        preview = build_goods_receipt_draft_update_preview(citacion)
+    except Exception as exc:
+        return JsonResponse({
+            'success': False,
+            'message': str(exc),
+            'read_only': True,
+            'preview': {'payload': {}, 'errors': [str(exc)]},
+        }, status=400)
+
+    tiene_errores = bool(preview.get('errors'))
+    return JsonResponse({
+        'success': not tiene_errores,
+        'message': (
+            'Previsualizacion generada. No se envio informacion a SAP.'
+            if not tiene_errores
+            else 'Previsualizacion generada con errores. No se envio informacion a SAP.'
+        ),
+        'read_only': True,
+        'preview': preview,
+    })
 
 
 def ajax_operacion_planta_actualizar_sap_recepcion(request, pk):
@@ -27394,10 +31366,20 @@ def ajax_operacion_planta_borrador_sap_preview(request, pk):
             'request_json': estado_draft.get('request_json') or {},
             'response_json': estado_draft.get('response_json') or {},
         }
+        detalle_operacional = _detalle_operacional_citacion(citacion)
+        tipo_recepcion = str(
+            getattr(detalle_operacional, 'CDO_CTIPO_RECEPCION', '') or ''
+        ).strip().upper()
         return JsonResponse({
             'success': not bool(preview.get('errors')),
             'message': 'Preview generado.' if not preview.get('errors') else 'Preview generado con errores.',
             'read_only': True,
+            'presentation': {
+                'tipo_recepcion': tipo_recepcion,
+                'tipo_recepcion_label': (
+                    etiqueta_tipo_recepcion_sbh(tipo_recepcion) or tipo_recepcion
+                ),
+            },
             'preview': preview,
         })
 
@@ -27413,7 +31395,6 @@ def ajax_operacion_planta_borrador_sap_preview(request, pk):
         'message': 'Preview generado.' if not preview.get('errors') else 'Preview generado con errores.',
         'preview': preview,
     })
-
 
 def ajax_operacion_planta_borrador_sap_enviar(request, pk):
     if request.method != 'POST':
@@ -27507,7 +31488,21 @@ def _validar_operacion_planta_ticket_request(request, citacion_id, paso_nombre):
         OPL_CESTADO=OPERACION_PLANTA_LOG.ESTADO_COMPLETADO
     ).values_list('OPL_CPASO', flat=True))
     paso_actual_visible = resolver_estado_operacional_visible(citacion, pasos_config, logs_completados)
-    if paso_nombre != paso_actual_visible:
+    ciclo_descarga_p3 = (
+        _payload_ciclo_descarga(citacion)
+        if es_recepcion_new_jersey_p3(citacion)
+        else None
+    )
+    permite_ticket_salida_p3 = bool(
+        es_recepcion_new_jersey_p3(citacion)
+        and citacion_habilitada_operacion(citacion)
+        and paso_nombre == 'Pesaje Salida'
+        and paso_actual_visible == PASO_NJ_P3_CARGA_DESCARGA
+        and 'Pesaje Entrada' in logs_completados
+        and (ciclo_descarga_p3 or {}).get('en_proceso')
+        and 'Pesaje Salida' not in logs_completados
+    )
+    if paso_nombre != paso_actual_visible and not permite_ticket_salida_p3:
         return None, None, JsonResponse({'valid': False, 'msg': f'Solo puede operar la etapa activa actual: {paso_actual_visible}.'}, status=409)
 
     return citacion, tipo_ticket, None
@@ -27527,7 +31522,7 @@ def ajax_operacion_planta_obtener_ticket_pesaje(request):
         return error_response
 
     valores_ingreso = obtener_valores_ingreso_camion(citacion)
-    patente = valores_ingreso.get('patente') or (citacion.CA_NID.CAM_CPATENTE if citacion.CA_NID else '')
+    patente = obtener_patente_operacional_vigente(citacion, valores_ingreso)
     patente_normalizada = _normalizar_patente(patente)
     _debug_ticket_pesaje(
         'Patente obtenida para ticket',
@@ -27586,6 +31581,34 @@ def ajax_operacion_planta_obtener_ticket_pesaje(request):
                 return JsonResponse(respuesta, status=409)
             return JsonResponse(respuesta)
 
+        if (
+            (
+                es_recepcion_prosesa_piso_1(citacion)
+                or es_recepcion_prosesa_piso_2(citacion)
+                or es_recepcion_new_jersey_p3(citacion)
+            )
+            and dato_existente
+            and payload_existente
+        ):
+            respuesta_existente = {
+                'valid': True,
+                'guardado': True,
+                'dato_id': dato_existente.id,
+                'peso_neto': payload_existente.get('peso_neto'),
+                'folio': payload_existente.get('folio'),
+                'observacion': payload_existente.get('observacion') or '',
+                'download_url': payload_existente.get('download_url') or '',
+                'nombre_archivo_pdf': payload_existente.get('nombre_archivo_pdf') or '',
+            }
+            if es_recepcion_new_jersey_p3(citacion) and tipo_ticket == 'SAL':
+                ciclo_p3 = _finalizar_carga_descarga_new_jersey_p3(citacion, request.user)
+                respuesta_existente.update({
+                    'carga_descarga_completada': True,
+                    'duracion_carga_descarga': ciclo_p3.get('duracion_legible') or '',
+                    'recargar_operacion': True,
+                })
+            return JsonResponse(respuesta_existente)
+
         ruta_pdf = _buscar_ticket_pesaje_mas_reciente(patente_normalizada, tipo_ticket)
         if not ruta_pdf:
             return JsonResponse({'valid': False, 'msg': f'No se encontro ticket COM_{tipo_ticket} para la patente {patente_normalizada}.'}, status=404)
@@ -27594,6 +31617,10 @@ def ajax_operacion_planta_obtener_ticket_pesaje(request):
             ruta_pdf,
             tipo_ticket,
             semantica_despacho_sbh=es_despacho_sbh_operacion(citacion),
+            conservar_pesos_brutos=(
+                es_recepcion_prosesa_piso_1(citacion)
+                or es_recepcion_prosesa_piso_2(citacion)
+            ),
         )
         ruta_local = _copiar_ticket_local_si_necesario(ruta_pdf)
         if not _ruta_ticket_permitida(ruta_local):
@@ -27643,6 +31670,13 @@ def ajax_operacion_planta_obtener_ticket_pesaje(request):
             'download_url': payload.get('download_url', ''),
             'nombre_archivo_pdf': payload.get('nombre_archivo_pdf', os.path.basename(ruta_local)),
         }
+        if es_recepcion_new_jersey_p3(citacion) and tipo_ticket == 'SAL':
+            ciclo_p3 = _finalizar_carga_descarga_new_jersey_p3(citacion, request.user)
+            respuesta.update({
+                'carga_descarga_completada': True,
+                'duracion_carga_descarga': ciclo_p3.get('duracion_legible') or '',
+                'recargar_operacion': True,
+            })
         if mop_requerido:
             resultado_mop = _resolver_ticket_mop_despacho_terramar(
                 citacion,
@@ -28065,6 +32099,7 @@ def SEGUIMIENTO_OPERACIONAL(request):
         producto_generico = item.IT_NID.IT_CNOMBRE if item and item.IT_NID else 'Sin producto'
         detalle_operacional = detalle_operacional_dict(citacion)
         insumo_sap_planificado = obtener_insumo_sap_planificado(citacion, detalle_operacional).get('insumo')
+        detalle_despacho = {}
         if tipo_citacion == CIT_DESPACHO:
             detalle_despacho = detalle_despacho_resumen_dict(citacion, detalle_operacional)
             nombre_producto_sap = detalle_despacho.get('sap_nombre_producto') or insumo_sap_planificado or producto_generico
@@ -28125,6 +32160,8 @@ def SEGUIMIENTO_OPERACIONAL(request):
                 'tipo_citacion': tipo_citacion or 'RECEPCION',
                 'tipo_citacion_label': tipo_citacion_label,
                 'secuencia': nombre_flujo,
+                'fecha_llegada_destino': detalle_despacho.get('fecha_llegada_destino_display', ''),
+                'hora_llegada_destino': detalle_despacho.get('hora_llegada_destino', ''),
                 'ingreso_autorizado': timezone.localtime(log_autorizacion.LOG_FFECHAREGISTRO).strftime('%d/%m/%Y %H:%M') if log_autorizacion and log_autorizacion.LOG_FFECHAREGISTRO else '',
                 'tiempo_planta': formatear_duracion_planta(log_autorizacion.LOG_FFECHAREGISTRO if log_autorizacion else None),
                 'etapa_actual': etapa_actual,
@@ -29024,6 +33061,86 @@ def buscar_clientes(request):
 
     return JsonResponse(data)
 
+def editar_citacion_prosesa_piso_2(request, pk):
+    """Edita solo la planificacion del camion de retiro; conserva el snapshot Piso 1."""
+    if request.method not in ('GET', 'POST'):
+        return JsonResponse({'error': 'Metodo no permitido.'}, status=405)
+    def cargar():
+        return CITACION.objects.select_related(
+            'SC_NID', 'PRO_NID', 'detalle_operacional',
+            'relacion_prosesa_retiro__CI_NID_ORIGEN',
+        ).filter(pk=pk, EP_NID_id=ID_ACEITES_SBH).first()
+
+    citacion = CITACION.objects.select_related('SC_NID').filter(pk=pk).first()
+    if not citacion:
+        return JsonResponse({'error': 'Citacion no encontrada.'}, status=404)
+    if not es_recepcion_prosesa_piso_2(citacion):
+        return JsonResponse({'not_prosesa_piso2': True}, status=404)
+    if Verificar_empresa(request) != ID_ACEITES_SBH:
+        return JsonResponse({'error': 'Debe seleccionar Empresa 2.'}, status=403)
+    citacion = cargar()
+    if not (
+        request.user.is_superuser
+        or usuario_es_planificador(request.user)
+        or validar_perfiles_activos(request.user.id, 'pla_listone')
+    ):
+        return JsonResponse({'error': 'No tiene permisos para editar citaciones.'}, status=403)
+
+    if not citacion.CI_BHABILITADO or citacion.CI_BARCHIVADO or not citacion_puede_editar_planificacion(citacion):
+        return JsonResponse({'error': 'La citacion ya no admite edicion de planificacion.'}, status=409)
+    if CAMION_PATIO.objects.filter(CI_NID=citacion).exists():
+        return JsonResponse({'error': 'La citacion ya tiene un camion en patio.'}, status=409)
+    relacion = CITACION_PROSESA_RELACION.objects.filter(CI_NID_RETIRO=citacion).select_related('CI_NID_ORIGEN').first()
+    if not relacion:
+        return JsonResponse({'error': 'Falta la relacion con Piso 1.'}, status=409)
+
+    if request.method == 'GET':
+        detalle = getattr(citacion, 'detalle_operacional', None)
+        origen = relacion.CI_NID_ORIGEN
+        base_line = _dato_operacion_prosesa(citacion, CAMPO_PROSESA_BASE_LINE_SAP)
+        datos = _datos_recepcion_servicio_prosesa(citacion)
+        datos.update({
+            'base_entry': str(getattr(detalle, 'CDO_CDOCENTRY', '') or ''),
+            'base_line': str(getattr(base_line, 'DO_CVALOR', '') or ''),
+            'bl': str(getattr(detalle, 'CDO_CBL', '') or ''),
+            'cantidad_disponible': str(getattr(detalle, 'CDO_NCANTIDAD_DISPONIBLE', '') or ''),
+            'tipo_recepcion': str(getattr(detalle, 'CDO_CTIPO_RECEPCION', '') or ''),
+        })
+        return JsonResponse({'success': True, 'datos': datos})
+
+    permitidos = {
+        'csrfmiddlewaretoken', '_empresa_id', 'patente_retiro_prosesa',
+        'empresa_transporte_retiro_prosesa', 'empresa_transporte_retiro_prosesa_id',
+    }
+    if set(request.POST) - permitidos:
+        return JsonResponse({'error': 'Solo puede modificar patente y empresa de transporte.'}, status=400)
+    try:
+        nuevos = validar_camion_retiro_planificado_prosesa_piso_2(request.POST)
+    except ValueError as exc:
+        return JsonResponse({'error': str(exc)}, status=400)
+    codigos = (
+        (CAMPO_PROSESA_PISO2_PATENTE_RETIRO, nuevos['patente_retiro_prosesa'], 'Patente'),
+        (CAMPO_PROSESA_PISO2_EMPRESA_TRANSPORTE, nuevos['empresa_transporte_retiro_prosesa'], 'Empresa transporte'),
+        (CAMPO_PROSESA_PISO2_TRANSPORTISTA_ID, nuevos['empresa_transporte_retiro_prosesa_id'], 'Transportista ID'),
+    )
+    with transaction.atomic():
+        citacion = CITACION.objects.select_for_update().get(pk=pk)
+        if not citacion_puede_editar_planificacion(citacion) or CAMION_PATIO.objects.filter(CI_NID=citacion).exists():
+            return JsonResponse({'error': 'La citacion ya no admite edicion de planificacion.'}, status=409)
+        for codigo, nuevo, etiqueta in codigos:
+            dato = _dato_operacion_prosesa(citacion, codigo)
+            anterior = str(getattr(dato, 'DO_CVALOR', '') or '').strip()
+            if anterior == nuevo:
+                continue
+            guardar_dato_operacion_codigo(citacion, codigo, nuevo, request.user, etiqueta=etiqueta)
+            registrar_log_camion_no_planificado(
+                request.user, citacion.EP_NID, 'EDIT_PROSESA_PISO2',
+                f'Citacion #{citacion.pk}; {etiqueta}: {anterior!r} -> {nuevo!r}.',
+                citacion.pk, codigo, raise_on_error=True,
+            )
+    return JsonResponse({'success': True, 'message': 'Planificacion de retiro actualizada.'})
+
+
 def _citacion_recepcion_terramar_editable(request, pk):
     empresa_id = Verificar_empresa(request)
     if not empresa_id:
@@ -29238,6 +33355,7 @@ def get_citation_data(request, pk):
         data = {
             'success': True,
             'editable': True,
+            'empresa_id': citacion.EP_NID_id,
             'tipos_documento': render_to_string('home/partials/select_options.html', {
                 'options': [{'id': doc.LIS_CNOMBREDOCUMENTO, 'name': doc.LIS_CNOMBREDOCUMENTO} for doc in ltsDocumento],
                 'selected': citacion.CI_CTIPODOCUMENTO
@@ -29374,6 +33492,7 @@ def actualizar_citacion_despacho_planificacion(request, pk):
     ).strip()
     datos = {
         'fecha_despacho': request.POST.get('fecha_despacho'),
+        'fecha_llegada_destino': request.POST.get('fecha_llegada_destino'),
         'hora_llegada_planta': request.POST.get('hora_llegada_planta'),
         'hora_llegada_destino': request.POST.get('hora_llegada_destino'),
         'orden_carga': request.POST.get('orden_carga'),
@@ -29386,7 +33505,10 @@ def actualizar_citacion_despacho_planificacion(request, pk):
         'cliente_nombre': '',
         'asignaciones_sap': asignaciones_recibidas,
     }
-    validar_programacion_despacho_sbh_item(datos)
+    validar_programacion_despacho_sbh_item(
+        datos,
+        requerir_fecha_llegada_destino=citacion.EP_NID_id == ID_ACEITES_SBH,
+    )
     asignaciones = validar_asignaciones_sap_planificadas(datos)
 
     primera_asignacion = next(
@@ -29489,6 +33611,7 @@ def actualizar_citacion_despacho_planificacion(request, pk):
             'CDD_CPATENTE': str(request.POST.get('patente') or '').strip().upper(),
             'CDD_CORDEN_CARGA': datos['orden_carga'],
             'CDD_FFECHA_DESPACHO': datos['fecha_despacho'],
+            'CDD_FFECHA_LLEGADA_DESTINO': datos['fecha_llegada_destino'],
             'CDD_FHORA_LLEGADA_PLANTA': datos['hora_llegada_planta'],
             'CDD_FHORA_LLEGADA_DESTINO': datos['hora_llegada_destino'],
             'CDD_CVENTANA_HORARIA_DESPACHO': datos['hora_llegada_planta'],
@@ -29517,6 +33640,8 @@ def update_citation(request, pk):
     if request.method == 'POST':
         try:
             citacion = CITACION.objects.get(id=pk)
+            if es_recepcion_prosesa_piso_2(citacion):
+                return JsonResponse({'valid': False, 'msg': 'Use el editor de retiro de contenedor para esta citacion.'}, status=403)
             if not request.user.is_superuser and not usuario_es_planificador(request.user) and not validar_perfiles_activos(request.user.id, "pla_listone"):
                 return JsonResponse({'valid': False, 'msg': 'No tiene permisos para editar esta citacion.'}, status=403)
             if not citacion_puede_editar_planificacion(citacion):
@@ -36067,10 +40192,13 @@ def asegurar_notificaciones_asistente_recepcion_pendientes(user, empresa_id):
         'ET_NID',
         'US_INICIO_ID'
     ).filter(
+        Q(CI_NID__CI_CESTADO=CIT_EN_PROCESO) | Q(
+            CI_NID__SC_NID__SE_CCODIGO=SECUENCIA_RECEPCION_NEW_JERSEY_P3,
+            CI_NID__CI_CESTADO=nj_p3.ESTADO_CITACION_P3_CAMION_CONFIRMADO,
+        ),
         EL_CACCION='ENVIA_ASISTENTE',
         EP_NID_id=empresa_id,
         EL_FFECHAFIN=None,
-        CI_NID__CI_CESTADO=CIT_EN_PROCESO,
         CI_NID__CI_BHABILITADO=True,
         CI_NID__CI_BARCHIVADO=False
     ).order_by('-EL_FFECHAINICIO')[:20]
@@ -38429,6 +42557,7 @@ def _ids_citaciones_por_patente(patente, empresa_id):
     camion_ids = _queryset_patente_normalizada(CAMION.objects.all(), 'CAM_CPATENTE', patente).values_list('id', flat=True)
     ids.update(CITACION.objects.filter(EP_NID_id=empresa_id, CA_NID_id__in=camion_ids, CI_BHABILITADO=True).values_list('id', flat=True))
     ids.update(_queryset_patente_normalizada(CITACION_RECEPCION_TERRAMAR_DETALLE.objects.filter(EP_NID_id=empresa_id), 'RTD_CPATENTE', patente).values_list('CI_NID_id', flat=True))
+    ids.update(_queryset_patente_normalizada(RECEPCION_SERVICIO_DETALLE.objects.filter(EP_NID_id=empresa_id), 'RSD_CPATENTE', patente).values_list('CI_NID_id', flat=True))
     return ids
 
 
@@ -38472,10 +42601,33 @@ def buscar_despachos_sbh_cercanos_sin_ingreso(patente, empresa_id):
     if empresa_id != ID_ACEITES_SBH:
         return []
     ahora = timezone.localtime()
-    inicio, fin = ahora - timedelta(hours=24), ahora + timedelta(hours=72)
+    inicio = ahora.date() - timedelta(days=1)
+    fin = ahora + timedelta(hours=72)
     candidatos = [
         citacion for citacion in _citaciones_por_patente_operacional(patente, empresa_id)
         if _tipo_citacion_patio(citacion) == CIT_DESPACHO
+        and citacion.CI_FFECHACITACION
+        and inicio <= timezone.localdate(citacion.CI_FFECHACITACION)
+        and timezone.localtime(citacion.CI_FFECHACITACION) <= fin
+        and not _estado_citacion_no_vigente(citacion)
+        and not _salida_confirmada_citacion(citacion)
+        and not _citacion_tiene_proceso_operacional_iniciado(citacion)
+        and citacion_disponible_para_asociar_camion_patio(citacion)
+    ]
+    return sorted(candidatos, key=lambda c: (
+        abs((timezone.localtime(c.CI_FFECHACITACION) - ahora).total_seconds()), c.id,
+    ))
+
+
+def buscar_despachos_terramar_cercanos_sin_ingreso(patente, empresa_id):
+    """Devuelve despachos Terramar vigentes para registrar una llegada por Guardia."""
+    if empresa_id != ID_TERRAMAR:
+        return []
+    ahora = timezone.localtime()
+    inicio, fin = ahora - timedelta(hours=24), ahora + timedelta(hours=72)
+    candidatos = [
+        citacion for citacion in _citaciones_por_patente_operacional(patente, empresa_id)
+        if es_citacion_despacho_terramar_principal(citacion)
         and citacion.CI_FFECHACITACION
         and inicio <= timezone.localtime(citacion.CI_FFECHACITACION) <= fin
         and not _estado_citacion_no_vigente(citacion)
@@ -38486,6 +42638,39 @@ def buscar_despachos_sbh_cercanos_sin_ingreso(patente, empresa_id):
     return sorted(candidatos, key=lambda c: (
         abs((timezone.localtime(c.CI_FFECHACITACION) - ahora).total_seconds()), c.id,
     ))
+
+
+def _payload_planificacion_despacho_terramar(citacion):
+    datos = _payload_citacion_terramar_patio(citacion)
+    detalle = _detalle_despacho_citacion_patio(citacion)
+    return {
+        'citacion_id': citacion.id,
+        'planificacion_id': citacion.PL_NID_id,
+        'empresa_id': citacion.EP_NID_id,
+        'empresa': citacion.EP_NID.EP_CRAZONSOCIAL if citacion.EP_NID else '',
+        'tipo': CIT_DESPACHO,
+        'fecha_citacion': timezone.localtime(citacion.CI_FFECHACITACION).strftime('%d/%m/%Y %H:%M'),
+        'estado': citacion.CI_CESTADO or '',
+        'secuencia': citacion.SC_NID.SE_CNOMBRE if citacion.SC_NID else '',
+        'patente': datos.get('patente') or '',
+        'conductor': datos.get('conductor_nombre') or '',
+        'rut_conductor': datos.get('conductor_rut') or '',
+        'telefono': datos.get('conductor_telefono') or '',
+        'codigo_pais': datos.get('codigo_pais') or '',
+        'empresa_transporte': datos.get('empresa_transporte_nombre') or '',
+        'transporte_a_cargo': datos.get('transporte_a_cargo') or '',
+        'cliente': datos.get('cliente') or '',
+        'producto': datos.get('insumo') or '',
+        'destino': getattr(detalle, 'CDD_CDESTINO', '') or '',
+        'salida_documento': datos.get('tipo_documento') or '',
+        'fecha_despacho': detalle.CDD_FFECHA_DESPACHO.strftime('%d/%m/%Y') if detalle and detalle.CDD_FFECHA_DESPACHO else '',
+        'fecha_llegada_destino': detalle.CDD_FFECHA_LLEGADA_DESTINO.strftime('%d/%m/%Y') if detalle and detalle.CDD_FFECHA_LLEGADA_DESTINO else '',
+        'hora_llegada_planta': detalle.CDD_FHORA_LLEGADA_PLANTA.strftime('%H:%M') if detalle and detalle.CDD_FHORA_LLEGADA_PLANTA else '',
+        'hora_llegada_destino': detalle.CDD_FHORA_LLEGADA_DESTINO.strftime('%H:%M') if detalle and detalle.CDD_FHORA_LLEGADA_DESTINO else '',
+        'tipo_camion': str(getattr(detalle, 'CDD_CTIPO_CAMION', '') or '').strip(),
+        'orden_carga': str(getattr(detalle, 'CDD_CORDEN_CARGA', '') or '').strip(),
+        'condicion_entrega': str(getattr(detalle, 'CDD_CCONDICION_ENTREGA', '') or '').strip(),
+    }
 
 
 def _payload_citacion_vigente_sin_ingreso(citacion, patente, cantidad):
@@ -38516,6 +42701,7 @@ def _datos_planificacion_despacho_sbh(citacion):
         'cliente': str((citacion.SN_NID.SN_CRAZONSOCIAL if citacion.SN_NID else '') or getattr(detalle, 'CDD_CSAP_CLIENTE_NOMBRE', '') or '').strip(),
         'producto': str(getattr(detalle, 'CDD_CSAP_NOMBRE_PRODUCTO', '') or '').strip(),
         'fecha_despacho': detalle.CDD_FFECHA_DESPACHO.strftime('%d/%m/%Y') if detalle and detalle.CDD_FFECHA_DESPACHO else '',
+        'fecha_llegada_destino': detalle.CDD_FFECHA_LLEGADA_DESTINO.strftime('%d/%m/%Y') if detalle and detalle.CDD_FFECHA_LLEGADA_DESTINO else '',
         'hora_llegada_planta': detalle.CDD_FHORA_LLEGADA_PLANTA.strftime('%H:%M') if detalle and detalle.CDD_FHORA_LLEGADA_PLANTA else '',
         'hora_llegada_destino': detalle.CDD_FHORA_LLEGADA_DESTINO.strftime('%H:%M') if detalle and detalle.CDD_FHORA_LLEGADA_DESTINO else '',
         'destino': str(getattr(detalle, 'CDD_CDESTINO', '') or '').strip(),
@@ -38545,8 +42731,12 @@ def _payload_planificacion_estado_camion(citacion):
 def _camion_patio_es_ciclo_activo(camion):
     """Determina actividad real y normaliza cierres legados con evidencia inequívoca."""
     estado = str(getattr(camion, 'CPA_CESTADO', '') or '').strip().upper()
+    if camion.CI_NID_id and _estado_citacion_no_vigente(camion.CI_NID):
+        return False
     if estado == CAMION_PATIO.ESTADO_PENDIENTE_ASOCIACION:
         return True
+    if estado == CAMION_PATIO.ESTADO_FUERA_TEMPORAL and camion.CI_NID_id and es_recepcion_prosesa_piso_2(camion.CI_NID):
+        return bool(_payload_salida_temporal_prosesa_piso_2(camion.CI_NID)['en_proceso'])
     if estado != CAMION_PATIO.ESTADO_ASOCIADO_CITACION:
         return False
 
@@ -38589,20 +42779,28 @@ def _camion_patio_es_ciclo_activo(camion):
     return False
 
 
+class ProcesosActivosPatenteAmbiguos(ValueError):
+    """Hay mas de un ciclo vigente para la misma patente y empresa."""
+
 def _camion_patio_activo_por_patente(patente, empresa_id):
     normalizada = _normalizar_patente_busqueda(patente)
     if not normalizada:
         return None
-    queryset = CAMION_PATIO.objects.filter(
+    queryset = CAMION_PATIO.objects.select_related('CI_NID').filter(
         EP_NID_id=empresa_id,
         CPA_CESTADO__in=CAMION_PATIO.ESTADOS_ACTIVOS,
     )
+    activos = []
     for camion in _queryset_patente_normalizada(
         queryset, 'CPA_CPATENTE', normalizada,
     ).order_by('-CPA_FFECHALLEGADA', '-id'):
         if _camion_patio_es_ciclo_activo(camion):
-            return camion
-    return None
+            activos.append(camion)
+            if len(activos) > 1:
+                raise ProcesosActivosPatenteAmbiguos(
+                    f'La patente {normalizada} tiene multiples procesos activos en patio.'
+                )
+    return activos[0] if activos else None
 
 
 def _payload_camion_patio_activo_pendiente(camion):
@@ -38802,6 +43000,123 @@ def _estado_camion_payload(citacion):
     }
 
 
+def _estado_camion_base_prosesa_piso_2(citacion, camion):
+    paso, responsables, _ = obtener_paso_activo_operacion(citacion)
+    ultimo_log = OPERACION_PLANTA_LOG.objects.filter(
+        CI_NID=citacion, OPL_CESTADO=OPERACION_PLANTA_LOG.ESTADO_COMPLETADO,
+    ).order_by('-OPL_FFECHAREGISTRO', '-id').first()
+    return {
+        'tipo_resultado': 'PROCESO_ACTIVO',
+        'patente': camion.CPA_CPATENTE,
+        'citacion': citacion.id,
+        'citacion_id': citacion.id,
+        'empresa_id': citacion.EP_NID_id,
+        'tipo': 'RECEPCION',
+        'flujo': 'RECEPCION PROSESA PISO 2',
+        'ultima_etapa': ultimo_log.OPL_CPASO if ultimo_log else 'Sin registro',
+        'ultima_accion': ultimo_log.OPL_CPASO if ultimo_log else 'Sin registro',
+        'ultima_actualizacion': _fecha_operacion_legible(
+            ultimo_log.OPL_FFECHAREGISTRO if ultimo_log else camion.CPA_FFECHAACTUALIZACION,
+        ),
+        'responsable_actual': ' / '.join(responsables) if responsables else 'Sin responsable',
+        'proxima_accion': f'Completar {paso}' if paso else 'Sin accion pendiente',
+        'accion_url': (
+            f'{reverse("operacion_planta_citacion", args=[citacion.id])}'
+            f'?_empresa_id={citacion.EP_NID_id}'
+            if citacion.CI_CESTADO != CIT_TERMINADO else ''
+        ),
+        'url_operacion': (
+            f'{reverse("operacion_planta_citacion", args=[citacion.id])}'
+            f'?_empresa_id={citacion.EP_NID_id}'
+            if citacion.CI_CESTADO != CIT_TERMINADO else ''
+        ),
+        'salida_vigente_texto': 'No',
+        'ingreso_reingreso_texto': 'No',
+        'producto': '', 'codigo_producto': '', 'cliente': '',
+    }
+
+
+def _estado_camion_payload_prosesa_piso_2(data, citacion, usuario):
+    ciclo = _payload_salida_temporal_prosesa_piso_2(citacion)
+    ingreso_ordenado = SYSLOGGER.objects.filter(
+        LOG_COPERACION='ENVIA_GUARDIA_PORTERIA', LOG_CADD1=str(citacion.id),
+    ).exists()
+    ingreso_validado = SYSLOGGER.objects.filter(
+        LOG_COPERACION='AUTORIZA_INGRESO_PLANTA', LOG_CADD1=str(citacion.id),
+    ).exists()
+    paso, _, completados = obtener_paso_activo_operacion(citacion)
+    finalizada = str(citacion.CI_CESTADO or '').upper() == CIT_TERMINADO
+    if finalizada:
+        estado = 'Salida confirmada'
+    elif paso == PASO_CONFIRMAR_SALIDA and PASO_AUTORIZAR_SALIDA in completados:
+        estado = 'Autorizado salida final'
+    elif ciclo['finalizada']:
+        estado = 'Retornado'
+    elif ciclo['salida_validada']:
+        estado = 'Fuera temporalmente'
+    elif ciclo['iniciada']:
+        estado = 'Autorizado salida temporal por retiro'
+    elif ingreso_validado:
+        estado = 'Dentro de planta'
+    elif ingreso_ordenado:
+        estado = 'Autorizado ingreso planta'
+    else:
+        estado = 'Patio de camiones / pendiente Asistente Recepcion'
+    if not ingreso_validado and not finalizada and citacion.PL_NID_id:
+        data['accion_url'] = (
+            f'{reverse("pla_listone", args=[citacion.PL_NID_id])}'
+            f'?citacion={citacion.id}&_empresa_id={citacion.EP_NID_id}'
+        )
+        data['accion_etapa_nombre'] = 'Ingreso a planta'
+    data['proxima_accion'] = (
+        'Registrar Pesaje Salida' if ciclo['finalizada'] and paso == 'Pesaje Salida'
+        else 'Guardia Porteria valida ingreso a planta' if ingreso_ordenado and not ingreso_validado
+        else 'Asistente Recepcion genera orden de ingreso' if not ingreso_ordenado and not ingreso_validado
+        else data.get('proxima_accion', '')
+    )
+    data.update({
+        'estado_prosesa_piso_2': estado,
+        'estado_actual': estado,
+        'guia': ciclo['guia'],
+        'contenedor': ciclo['contenedor'],
+        'motivo': ciclo['destino'] if ciclo['iniciada'] else '',
+        'destino': ciclo['destino'] if ciclo['iniciada'] else '',
+        'salida_vigente': ciclo['en_proceso'],
+        'salida_vigente_texto': 'Si' if ciclo['en_proceso'] else 'No',
+        'timer_activo': ciclo['en_proceso'],
+        'timer_inicio_iso': ciclo['inicio_iso'],
+        'timer_inicio_ms': ciclo['inicio_ms'],
+        'timer_duracion': ciclo['duracion_legible'],
+        'estado_ciclo_externo': ciclo['estado'] if ciclo['iniciada'] else '',
+        'fecha_salida_bodega_externa': ciclo['inicio_legible'],
+        'fecha_regreso_bodega_externa': ciclo['fin_legible'],
+        'autorizado_por': ciclo['usuario_inicio'],
+        'puede_autorizar_ingreso_planta': bool(
+            ingreso_ordenado and not ingreso_validado
+            and usuario_es_guardia_porteria(usuario)
+        ),
+        'autorizar_ingreso_planta_url': reverse(
+            'pla_citacion_enviar_guardia_porteria', args=[citacion.id],
+        ),
+        'puede_validar_salida_temporal': bool(
+            ciclo['iniciada'] and not ciclo['salida_validada']
+            and usuario_es_guardia_porteria(usuario)
+        ),
+        'puede_registrar_retorno': bool(
+            ciclo['salida_validada'] and not ciclo['finalizada']
+            and usuario_es_guardia_porteria(usuario)
+        ),
+        'validar_salida_temporal_url': reverse(
+            'ajax_operacion_planta_validar_salida_temporal_prosesa_piso_2', args=[citacion.id],
+        ),
+        'registrar_retorno_url': reverse(
+            'ajax_operacion_planta_finalizar_ciclo_recepcion_bodega_externa', args=[citacion.id],
+        ),
+        'mensaje': estado,
+    })
+    return data
+
+
 @transaction.atomic
 def estado_camion_registrar_ingreso_despacho_sbh(request):
     if request.method != 'POST':
@@ -38814,7 +43129,11 @@ def estado_camion_registrar_ingreso_despacho_sbh(request):
     patente = _normalizar_patente_busqueda(request.POST.get('patente'))
     if not patente:
         return JsonResponse({'success': False, 'message': 'Debe ingresar una patente valida.'}, status=400)
-    camion_existente = _camion_patio_activo_por_patente(patente, empresa_id)
+    try:
+        camion_existente = _camion_patio_activo_por_patente(patente, empresa_id)
+    except ProcesosActivosPatenteAmbiguos as exc:
+        logger.error('Registro de ingreso Despacho SBH: %s', exc)
+        return JsonResponse({'success': False, 'message': str(exc)}, status=409)
     if camion_existente:
         return JsonResponse({'success': False, 'message': f'La patente ya tiene un ingreso activo en patio #{camion_existente.id}.'}, status=409)
 
@@ -38869,6 +43188,673 @@ def estado_camion_registrar_ingreso_despacho_sbh(request):
     })
 
 
+
+@transaction.atomic
+def estado_camion_registrar_ingreso_despacho_terramar(request):
+    if request.method != 'POST':
+        return JsonResponse({'success': False, 'message': 'Metodo no permitido.'}, status=405)
+    empresa_id = Verificar_empresa(request)
+    if empresa_id != ID_TERRAMAR:
+        return JsonResponse({'success': False, 'message': 'Esta accion solo esta disponible para DESPACHO TERRAMAR.'}, status=403)
+    if not (getattr(request.user, 'is_superuser', False) or usuario_es_guardia(request.user)):
+        return JsonResponse({'success': False, 'message': 'Solo Guardia puede registrar la llegada.'}, status=403)
+    patente = _normalizar_patente_busqueda(request.POST.get('patente'))
+    if not patente:
+        return JsonResponse({'success': False, 'message': 'Debe ingresar una patente valida.'}, status=400)
+    try:
+        camion_existente = _camion_patio_activo_por_patente(patente, empresa_id)
+    except ProcesosActivosPatenteAmbiguos as exc:
+        logger.error('Registro de ingreso Despacho Terramar: %s', exc)
+        return JsonResponse({'success': False, 'message': str(exc)}, status=409)
+    if camion_existente:
+        return JsonResponse({'success': False, 'message': f'La patente ya tiene un ingreso activo en patio #{camion_existente.id}.'}, status=409)
+
+    candidatos = buscar_despachos_terramar_cercanos_sin_ingreso(patente, empresa_id)
+    if not candidatos:
+        return JsonResponse({'success': False, 'message': 'La planificacion ya no esta disponible. Vuelva a consultar la patente.'}, status=409)
+    citacion = candidatos[0] if len(candidatos) == 1 else None
+    citacion_solicitada = str(request.POST.get('citacion_id') or '').strip()
+    if citacion and citacion_solicitada and citacion_solicitada != str(citacion.id):
+        return JsonResponse({'success': False, 'message': 'La citacion seleccionada no coincide con la planificacion vigente.'}, status=409)
+    if len(candidatos) > 1 and citacion_solicitada:
+        return JsonResponse({'success': False, 'message': 'Guardia no debe resolver multiples planificaciones; registre el ingreso sin seleccionar una.'}, status=400)
+
+    datos = _payload_planificacion_despacho_terramar(citacion) if citacion else {}
+    empresa = EMPRESA.objects.get(pk=empresa_id)
+    camion = CAMION_PATIO.objects.create(
+        EP_NID=empresa, CI_NID=None,
+        CON_NID=getattr(citacion, 'CON_NID', None) if citacion else None,
+        transporte_a_cargo=datos.get('transporte_a_cargo', ''),
+        CPA_CPATENTE=patente,
+        CPA_CNOMBRE_CONDUCTOR=datos.get('conductor', ''),
+        CPA_CRUT_CONDUCTOR=datos.get('rut_conductor', ''),
+        CPA_CTELEFONO_CONDUCTOR=datos.get('telefono', ''),
+        CPA_CCODIGO_PAIS_TELEFONO=datos.get('codigo_pais', ''),
+        CPA_CTRANSPORTISTA_DECLARADO=datos.get('empresa_transporte', ''),
+        CPA_CCLIENTE_DECLARADO=datos.get('cliente', ''),
+        CPA_CPRODUCTO_DECLARADO=datos.get('producto', ''),
+        CPA_CTIPO_DOCUMENTO=datos.get('salida_documento', ''),
+        CPA_CESTADO=CAMION_PATIO.ESTADO_PENDIENTE_ASOCIACION,
+        US_GUARDIA_ID=request.user,
+    )
+    CAMION_PATIO_TRAZABILIDAD_PLANIFICACION.objects.create(
+        CPA_NID=camion, CI_NID=citacion, PL_NID=citacion.PL_NID if citacion else None,
+        EP_NID=empresa, CPTR_CPATENTE_CONSULTADA=patente,
+        CPTR_CRESULTADO_BUSQUEDA='GUARDIA_MATCH' if citacion else 'GUARDIA_MULTIPLE',
+        CPTR_BCARGADO_DESDE_PLANIFICACION=bool(citacion),
+        CPTR_CPATENTE_PLANIFICADA=datos.get('patente', ''),
+        CPTR_CPATENTE_LLEGADA=patente, US_NID=request.user, CPTR_FFECHACONSULTA=timezone.now(),
+    )
+    registrar_log_camion_no_planificado(
+        request.user, empresa, 'GUARDIA_ING_TERRAMAR',
+        f'Guardia registra llegada de Despacho Terramar en camion patio #{camion.id}; patente {patente}; candidatos {len(candidatos)}.',
+        citacion.id if citacion else '', camion.id, raise_on_error=True,
+    )
+    return JsonResponse({
+        'success': True,
+        'message': 'Ingreso registrado. Guardia debe derivarlo al asistente de Despacho.',
+        'camion_patio_id': camion.id,
+        'citacion_asociada': camion.CI_NID_id,
+        'estado': camion.CPA_CESTADO,
+    })
+
+
+
+RESULTADO_RECEPCION_SERVICIO_PROSESA = 'SERVICIO_PROSESA_PISO2'
+RESULTADO_RECEPCION_SERVICIO_NEW_JERSEY_P3 = nj_p3.RESULTADO_PATIO_P3
+FLUJO_RECEPCION_SERVICIO_PROSESA = 'PROSESA'
+FLUJO_RECEPCION_SERVICIO_NEW_JERSEY_P3 = 'NEW_JERSEY_P3'
+
+
+def _datos_recepcion_servicio_prosesa(citacion):
+    detalle = getattr(citacion, 'detalle_operacional', None)
+    relacion = citacion.relacion_prosesa_retiro
+    origen = relacion.CI_NID_ORIGEN
+    planificados = dict(DATO_OPERACION.objects.filter(
+        CI_NID=citacion,
+        CAMP_NID__CA_CCODIGO__in=(
+            CAMPO_PROSESA_PISO2_PATENTE_RETIRO,
+            CAMPO_PROSESA_PISO2_EMPRESA_TRANSPORTE,
+            CAMPO_PROSESA_PISO2_TRANSPORTISTA_ID,
+        ),
+    ).order_by('id').values_list('CAMP_NID__CA_CCODIGO', 'DO_CVALOR'))
+    guia = (
+        str(getattr(detalle, 'CDO_CGUIA', '') or '').strip()
+        or str(citacion.CI_CNUMERODOCUMENTO or '').strip()
+        or resolver_guia_prosesa_piso_1(origen)[0]
+    )
+    return {
+        'flujo_codigo': FLUJO_RECEPCION_SERVICIO_PROSESA,
+        'flujo_nombre': 'PROSESA',
+        'sector': 'PROSESA',
+        'proceso': 'Contenedor a Piso 2',
+        'citacion_id': citacion.id,
+        'planificacion_id': citacion.PL_NID_id,
+        'origen_id': origen.id,
+        'p1_id': origen.id,
+        'p2_id': citacion.id,
+        'p3_id': None,
+        'guia': guia,
+        'patente_planificada': planificados.get(CAMPO_PROSESA_PISO2_PATENTE_RETIRO, ''),
+        'empresa_transporte': planificados.get(CAMPO_PROSESA_PISO2_EMPRESA_TRANSPORTE, ''),
+        'transportista_id': planificados.get(CAMPO_PROSESA_PISO2_TRANSPORTISTA_ID, ''),
+        'producto': str(getattr(detalle, 'CDO_CINSUMO', '') or ''),
+        'item_code': str(getattr(detalle, 'CDO_CCODIGO_SAP', '') or ''),
+        'pedido_sap': str(getattr(detalle, 'CDO_CPEDIDO_SAP', '') or ''),
+        'proveedor': (
+            citacion.PRO_NID.SN_CRAZONSOCIAL if citacion.PRO_NID_id
+            else str(getattr(detalle, 'CDO_CPRODUCTOR', '') or '')
+        ),
+        'contenedor': str(getattr(detalle, 'CDO_CBL_CONTENEDOR', '') or ''),
+        'almacen': str(getattr(detalle, 'CDO_CALMACEN_DESTINO', '') or ''),
+        'estanque': str(getattr(detalle, 'CDO_CESTANQUE_DESTINO', '') or ''),
+        'tk_destino': str(getattr(detalle, 'CDO_CESTANQUE_DESTINO', '') or ''),
+    }
+
+
+def _datos_recepcion_servicio_new_jersey_p3(datos):
+    return {
+        **datos,
+        'flujo_codigo': FLUJO_RECEPCION_SERVICIO_NEW_JERSEY_P3,
+        'flujo_nombre': 'NEW JERSEY P3',
+        'sector': 'New Jersey',
+        'proceso': 'P3',
+        'p1_id': datos.get('citacion_p1_id'),
+        'p2_id': datos.get('citacion_p2_id'),
+        'p3_id': datos.get('citacion_id'),
+        'origen_id': datos.get('citacion_p1_id'),
+        'patente_planificada': datos.get('patente_esperada') or '',
+        'estanque': datos.get('tk_destino') or '',
+        'almacen': '',
+    }
+
+
+def _buscar_recepcion_servicio_prosesa(valor, tipo, solo_pendientes=True):
+    base = CITACION.objects.select_related(
+        'PL_NID', 'PRO_NID', 'detalle_operacional',
+        'relacion_prosesa_retiro__CI_NID_ORIGEN',
+    ).filter(
+        EP_NID_id=ID_ACEITES_SBH,
+        CI_CTIPO=CIT_RECEPCION,
+        CI_BHABILITADO=True,
+        CI_BARCHIVADO=False,
+        PL_NID__PL_BARCHIVADO=False,
+        SC_NID__SE_CCODIGO=SECUENCIA_RECEPCION_PROSESA_PISO_2,
+        relacion_prosesa_retiro__isnull=False,
+    )
+    if solo_pendientes:
+        base = base.filter(CI_CESTADO='Insumo Programado')
+    if tipo == 'patente':
+        if solo_pendientes:
+            base = base.filter(
+                id__in=citaciones_prosesa_piso_2_pendientes_por_patente(valor)
+                .values_list('id', flat=True)
+            )
+        else:
+            base = base.filter(
+                dato_operacion__CAMP_NID__CA_CCODIGO=CAMPO_PROSESA_PISO2_PATENTE_RETIRO,
+                dato_operacion__DO_CVALOR=_normalizar_patente(valor),
+            )
+    elif tipo == 'guia':
+        guia = str(valor or '').strip()
+        base = base.filter(
+            Q(CI_CNUMERODOCUMENTO__iexact=guia)
+            | Q(detalle_operacional__CDO_CGUIA__iexact=guia)
+            | Q(relacion_prosesa_retiro__CI_NID_ORIGEN__CI_CNUMERODOCUMENTO__iexact=guia)
+            | Q(relacion_prosesa_retiro__CI_NID_ORIGEN__detalle_operacional__CDO_CGUIA__iexact=guia)
+        )
+    else:
+        return []
+    return list(base.distinct().order_by('id'))
+
+
+def _buscar_recepcion_servicio_new_jersey_p3(valor, tipo, solo_pendientes=True):
+    filtros = {'patente': valor} if tipo == 'patente' else {'guia': valor} if tipo == 'guia' else {}
+    if not filtros:
+        return []
+    encontrados = nj_p3.buscar_procesos_vivos(ID_ACEITES_SBH, **filtros)
+    if solo_pendientes:
+        encontrados = [datos for datos in encontrados if not datos.get('camion_id')]
+    return encontrados
+
+
+def _buscar_recepcion_servicio(valor, tipo, solo_pendientes=True):
+    candidatos = []
+    for citacion in _buscar_recepcion_servicio_prosesa(valor, tipo, solo_pendientes):
+        candidatos.append({
+            'flujo_codigo': FLUJO_RECEPCION_SERVICIO_PROSESA,
+            'citacion': citacion,
+            'datos': _datos_recepcion_servicio_prosesa(citacion),
+        })
+    for datos in _buscar_recepcion_servicio_new_jersey_p3(valor, tipo, solo_pendientes):
+        citacion = CITACION.objects.select_related('PL_NID').filter(
+            pk=datos['citacion_id'],
+            EP_NID_id=ID_ACEITES_SBH,
+            CI_BHABILITADO=True,
+        ).first()
+        if citacion:
+            candidatos.append({
+                'flujo_codigo': FLUJO_RECEPCION_SERVICIO_NEW_JERSEY_P3,
+                'citacion': citacion,
+                'datos': _datos_recepcion_servicio_new_jersey_p3(datos),
+            })
+    return candidatos
+
+
+def _recepcion_servicio_usada(candidato):
+    return CAMION_PATIO.objects.filter(CI_NID=candidato['citacion']).exists()
+
+
+def _validar_datos_conductor_recepcion_servicio(request):
+    conductor = re.sub(r'\s+', ' ', str(request.POST.get('nombre_conductor') or '')).strip()
+    if not conductor:
+        raise ValueError('Debe ingresar el nombre del conductor.')
+    if len(conductor) > 256:
+        raise ValueError('El nombre del conductor es demasiado largo.')
+    rut = str(request.POST.get('rut_conductor') or '').strip()
+    if not rut:
+        raise ValueError('Debe ingresar el RUT del conductor.')
+    try:
+        rut = normalizar_rut_chileno(rut)
+    except RutChilenoInvalido:
+        raise ValueError('El RUT del conductor no es valido.')
+    if not request.POST.get('codigo_pais') or not request.POST.get('telefono_conductor'):
+        raise ValueError('Debe ingresar codigo pais y telefono del conductor.')
+    telefono = normalize_international_phone(
+        request.POST.get('codigo_pais'),
+        request.POST.get('telefono_conductor'),
+    )
+    return conductor, rut, telefono
+
+
+
+def _usuario_puede_planificar_recepcion_servicio(user):
+    return bool(
+        getattr(user, 'is_superuser', False)
+        or usuario_es_planificador(user)
+        or usuario_tiene_perfil_asistente_recepcion(user)
+    )
+
+
+def _contexto_planificacion_recepcion_servicio(request, empresa_id, error=''):
+    filtro = str(request.GET.get('estado') or request.POST.get('estado') or 'PENDIENTES').strip().upper()
+    if filtro not in {'PENDIENTES', 'ACTIVOS', 'COMPLETADOS', 'TODOS'}:
+        filtro = 'PENDIENTES'
+    idempotencia = str(request.POST.get('idempotencia') or uuid.uuid4())
+    contexto = {
+        'empresa_id': empresa_id,
+        'solo_planificacion': True,
+        'section': 'planificacion',
+        'puede_planificar': _usuario_puede_planificar_recepcion_servicio(request.user),
+        'proveedores_servicio': SOCIONEGOCIO.objects.filter(
+            EP_NID_id=empresa_id, SN_CTIPO='S', SN_BHABILITADO=True,
+        ).order_by('SN_CRAZONSOCIAL', 'id'),
+        'tipos_servicio': RECEPCION_SERVICIO_DETALLE.TipoServicio.choices,
+        'servicios': rs.listar(empresa_id, filtro),
+        'filtro_estado': filtro,
+        'idempotencia': idempotencia,
+        'form_data': request.POST if request.method == 'POST' else {},
+        'error': error,
+        'hoy': timezone.localdate().isoformat(),
+    }
+    return contexto
+
+
+def _recepcion_servicio_planificacion(request, empresa_id):
+    puede_planificar = _usuario_puede_planificar_recepcion_servicio(request.user)
+    if request.method == 'POST':
+        if not puede_planificar:
+            return JsonResponse({'success': False, 'message': 'No tiene permiso para crear recepciones de servicio.'}, status=403)
+        try:
+            detalle, creada = rs.crear_planificacion(empresa_id, request.user, request.POST)
+        except (ValueError, EMPRESA.DoesNotExist, SOCIONEGOCIO.DoesNotExist) as exc:
+            contexto = _contexto_planificacion_recepcion_servicio(request, empresa_id, str(exc))
+            return render(request, 'home/RECEPCION_SERVICIO/registro.html', contexto, status=400)
+        if creada:
+            messages.success(request, f'Recepción Servicio planificada. Citación #{detalle.CI_NID_id}.')
+        else:
+            messages.info(request, f'La planificación ya estaba registrada como citación #{detalle.CI_NID_id}.')
+        return redirect(
+            f'{reverse("recepcion_servicio_registro")}?section=planificacion'
+            f'&_empresa_id={empresa_id}&creada={detalle.CI_NID_id}'
+        )
+    return render(
+        request,
+        'home/RECEPCION_SERVICIO/registro.html',
+        _contexto_planificacion_recepcion_servicio(request, empresa_id),
+    )
+
+def RECEPCION_SERVICIO_REGISTRO(request):
+    if request.method not in ('GET', 'POST'):
+        return JsonResponse({'success': False, 'message': 'Metodo no permitido.'}, status=405)
+    es_asistente_recepcion = bool(
+        getattr(request.user, 'is_superuser', False)
+        or usuario_tiene_perfil_asistente_recepcion(request.user)
+    )
+    es_planificacion = bool(
+        getattr(request.user, 'is_superuser', False)
+        or usuario_es_planificador(request.user)
+    )
+    if not (es_asistente_recepcion or es_planificacion):
+        return JsonResponse({'success': False, 'message': 'No tiene acceso a Recepción Servicio.'}, status=403)
+    empresa_id = Verificar_empresa(request)
+    if empresa_id not in (1, ID_ACEITES_SBH):
+        return JsonResponse({'success': False, 'message': 'Seleccione Terramar o Aceites SBH.'}, status=403)
+    if not getattr(request.user, 'is_superuser', False) and not _usuario_tiene_acceso_empresa(request.user, empresa_id):
+        return JsonResponse({'success': False, 'message': 'No tiene acceso a la empresa seleccionada.'}, status=403)
+
+    section = str(
+        request.POST.get('section') or request.GET.get('section')
+        or request.POST.get('seccion') or request.GET.get('seccion') or ''
+    ).strip().lower()
+    if section == 'planificacion':
+        return _recepcion_servicio_planificacion(request, empresa_id)
+    if not es_asistente_recepcion:
+        return JsonResponse({'success': False, 'message': 'Solo Asistente Recepción puede registrar camiones desde este módulo.'}, status=403)
+
+    contexto = {
+        'empresa_id': empresa_id,
+        'servicio_habilitado': empresa_id == ID_ACEITES_SBH,
+        'tipo_busqueda': request.POST.get('tipo_busqueda', 'patente') if request.method == 'POST' else request.GET.get('tipo_busqueda', 'patente'),
+        'busqueda': request.POST.get('busqueda', '') if request.method == 'POST' else request.GET.get('busqueda', ''),
+        'form_data': request.POST if request.method == 'POST' else {},
+    }
+
+    if empresa_id != ID_ACEITES_SBH:
+        if request.method == 'POST':
+            return JsonResponse({'success': False, 'message': 'Este servicio solo esta habilitado para Aceites SBH.'}, status=403)
+        return render(request, 'home/RECEPCION_SERVICIO/registro.html', contexto)
+
+    def mostrar_error(mensaje, status=400):
+        contexto['error'] = mensaje
+        return render(request, 'home/RECEPCION_SERVICIO/registro.html', contexto, status=status)
+
+    if request.method == 'GET' and request.GET.get('registrado'):
+        camion = CAMION_PATIO.objects.select_related('CI_NID').filter(
+            pk=request.GET['registrado'],
+            EP_NID_id=empresa_id,
+            trazabilidad_planificacion__CPTR_CRESULTADO_BUSQUEDA__in=(
+                RESULTADO_RECEPCION_SERVICIO_PROSESA,
+                RESULTADO_RECEPCION_SERVICIO_NEW_JERSEY_P3,
+            ),
+        ).first()
+        if camion:
+            resultado = camion.trazabilidad_planificacion.CPTR_CRESULTADO_BUSQUEDA
+            contexto['registrado'] = camion
+            contexto['registrado_flujo'] = (
+                'NEW JERSEY P3'
+                if resultado == RESULTADO_RECEPCION_SERVICIO_NEW_JERSEY_P3
+                else 'PROSESA'
+            )
+            return render(request, 'home/RECEPCION_SERVICIO/registro.html', contexto)
+
+    busqueda = str(contexto['busqueda'] or '').strip()
+    tipo = contexto['tipo_busqueda']
+    if not busqueda:
+        if request.method == 'POST':
+            return mostrar_error('Ingrese una patente o guia para localizar la planificacion.')
+        return render(request, 'home/RECEPCION_SERVICIO/registro.html', contexto)
+    if tipo not in ('patente', 'guia'):
+        return mostrar_error('Seleccione Patente o Guia.', 400)
+
+    candidatos = _buscar_recepcion_servicio(busqueda, tipo, solo_pendientes=True)
+    if not candidatos and request.method == 'POST':
+        citacion_post = str(request.POST.get('citacion_id') or '').strip()
+        repetibles = [
+            candidato
+            for candidato in _buscar_recepcion_servicio(busqueda, tipo, solo_pendientes=False)
+            if candidato['flujo_codigo'] == FLUJO_RECEPCION_SERVICIO_NEW_JERSEY_P3
+            and str(candidato['citacion'].id) == citacion_post
+        ]
+        if len(repetibles) == 1:
+            candidatos = repetibles
+    if not candidatos:
+        utilizadas = _buscar_recepcion_servicio(busqueda, tipo, solo_pendientes=False)
+        if any(_recepcion_servicio_usada(candidato) for candidato in utilizadas):
+            return mostrar_error('La planificacion encontrada ya fue utilizada para registrar un camion.', 409)
+        return mostrar_error('No se encontro una planificacion pendiente en Recepcion Servicio.', 404)
+    if len(candidatos) > 1:
+        return mostrar_error('La busqueda coincide con varias planificaciones pendientes. Refine la consulta.', 409)
+
+    candidato = candidatos[0]
+    citacion = candidato['citacion']
+    flujo_codigo = candidato['flujo_codigo']
+    contexto['datos'] = candidato['datos']
+    contexto['flujo_codigo'] = flujo_codigo
+    utilizada = _recepcion_servicio_usada(candidato)
+    if utilizada and not (
+        request.method == 'POST'
+        and flujo_codigo == FLUJO_RECEPCION_SERVICIO_NEW_JERSEY_P3
+    ):
+        contexto['utilizada'] = True
+        return mostrar_error('La planificacion encontrada ya fue utilizada para registrar un camion.', 409)
+    if request.method == 'GET':
+        return render(request, 'home/RECEPCION_SERVICIO/registro.html', contexto)
+
+    if str(request.POST.get('citacion_id') or '') != str(citacion.id):
+        return mostrar_error('La citacion seleccionada no coincide con la planificacion encontrada.', 409)
+    try:
+        conductor, rut, telefono = _validar_datos_conductor_recepcion_servicio(request)
+    except ValueError as exc:
+        return mostrar_error(str(exc))
+
+    if flujo_codigo == FLUJO_RECEPCION_SERVICIO_NEW_JERSEY_P3:
+        try:
+            camion, _ = nj_p3.confirmar_camion_p3(
+                citacion.id,
+                request.POST.get('patente'),
+                request.user,
+                transportista_id=request.POST.get('transportista_id'),
+                empresa_transporte=request.POST.get('empresa_transporte'),
+                nombre_conductor=conductor,
+                rut_conductor=rut,
+                codigo_pais=telefono['country_code'],
+                telefono_conductor=telefono['local_number'],
+            )
+        except (CITACION.DoesNotExist, OPERACION_NEW_JERSEY_PROCESO.DoesNotExist):
+            return mostrar_error('El proceso New Jersey P3 no existe.', 404)
+        except ValueError as exc:
+            return mostrar_error(str(exc))
+        return redirect(f'{reverse("recepcion_servicio_registro")}?_empresa_id={empresa_id}&registrado={camion.id}')
+
+    try:
+        llegada = validar_camion_retiro_planificado_prosesa_piso_2({
+            'patente_retiro_prosesa': request.POST.get('patente'),
+            'empresa_transporte_retiro_prosesa': request.POST.get('empresa_transporte'),
+            'empresa_transporte_retiro_prosesa_id': request.POST.get('transportista_id'),
+        }, requeridos=True)
+    except ValueError as exc:
+        return mostrar_error(str(exc))
+
+    with transaction.atomic():
+        citacion = CITACION.objects.select_for_update().get(
+            pk=citacion.pk, EP_NID_id=empresa_id,
+        )
+        if citacion.CI_CESTADO != 'Insumo Programado' or CAMION_PATIO.objects.filter(CI_NID=citacion).exists():
+            return mostrar_error('La planificacion Piso 2 ya fue utilizada o dejo de estar pendiente.', 409)
+        try:
+            camion_activo = _camion_patio_activo_por_patente(llegada['patente_retiro_prosesa'], empresa_id)
+        except ProcesosActivosPatenteAmbiguos as exc:
+            logger.error('Registro de llegada Recepcion Servicio Prosesa: %s', exc)
+            return mostrar_error(str(exc), 409)
+        if camion_activo:
+            return mostrar_error(f'La patente ya tiene un camion activo en patio #{camion_activo.id}.', 409)
+        datos = _datos_recepcion_servicio_prosesa(citacion)
+        camion = CAMION_PATIO.objects.create(
+            EP_NID=citacion.EP_NID,
+            CI_NID=citacion,
+            CPA_CPATENTE=llegada['patente_retiro_prosesa'],
+            CPA_CNOMBRE_CONDUCTOR=conductor,
+            CPA_CRUT_CONDUCTOR=rut,
+            CPA_CTELEFONO_CONDUCTOR=telefono['local_number'],
+            CPA_CCODIGO_PAIS_TELEFONO=telefono['country_code'],
+            CPA_CTRANSPORTISTA_DECLARADO=llegada['empresa_transporte_retiro_prosesa'],
+            CPA_CPROVEEDOR_DECLARADO=datos['proveedor'],
+            CPA_CPRODUCTO_DECLARADO=datos['producto'],
+            CPA_CINSUMO_DECLARADO_GUIA=datos['producto'],
+            CPA_CTIPO_DOCUMENTO=CAMION_PATIO.TIPO_DOCUMENTO_GUIA_DESPACHO,
+            CPA_CNUMERO_GUIA=datos['guia'],
+            CPA_CLOTE_CONTENEDOR=datos['contenedor'],
+            CPA_CESTADO=CAMION_PATIO.ESTADO_ASOCIADO_CITACION,
+            US_GUARDIA_ID=request.user,
+            US_ASOCIA_ID=request.user,
+            CPA_FFECHAASOCIACION=timezone.now(),
+        )
+        CAMION_PATIO_TRAZABILIDAD_PLANIFICACION.objects.create(
+            CPA_NID=camion,
+            CI_NID=citacion,
+            PL_NID=citacion.PL_NID,
+            EP_NID=citacion.EP_NID,
+            CPTR_CPATENTE_CONSULTADA=_normalizar_patente(busqueda) if tipo == 'patente' else llegada['patente_retiro_prosesa'],
+            CPTR_CRESULTADO_BUSQUEDA=RESULTADO_RECEPCION_SERVICIO_PROSESA,
+            CPTR_BCARGADO_DESDE_PLANIFICACION=True,
+            CPTR_CPATENTE_PLANIFICADA=datos['patente_planificada'],
+            CPTR_CPATENTE_LLEGADA=camion.CPA_CPATENTE,
+            CPTR_CGUIA_ESPERADA=datos['guia'],
+            CPTR_CGUIA_RECIBIDA=datos['guia'],
+            CPTR_CRESULTADO_GUIA='COINCIDE',
+            US_NID=request.user,
+            CPTR_FFECHACONSULTA=timezone.now(),
+        )
+    return redirect(f'{reverse("recepcion_servicio_registro")}?_empresa_id={empresa_id}&registrado={camion.id}')
+
+
+def RECEPCION_SERVICIO_GUARDIA_VALIDAR(request, pk):
+    if request.method != 'POST':
+        return JsonResponse({'success': False, 'message': 'Metodo no permitido.'}, status=405)
+    if not (usuario_es_guardia(request.user) or getattr(request.user, 'is_superuser', False)):
+        return JsonResponse({'success': False, 'message': 'Solo Guardia puede validar la llegada del servicio.'}, status=403)
+    empresa_id = Verificar_empresa(request)
+    if empresa_id != ID_ACEITES_SBH:
+        return JsonResponse({'success': False, 'message': 'Seleccione Aceites SBH.'}, status=403)
+    if not getattr(request.user, 'is_superuser', False) and not _usuario_tiene_acceso_empresa(request.user, empresa_id):
+        return JsonResponse({'success': False, 'message': 'No tiene acceso a esta empresa.'}, status=403)
+    try:
+        with transaction.atomic():
+            camion = CAMION_PATIO.objects.select_for_update(of=('self',)).select_related(
+                'CI_NID', 'EP_NID',
+            ).get(pk=pk, EP_NID_id=empresa_id)
+            citacion = CITACION.objects.select_for_update().get(
+                pk=camion.CI_NID_id, EP_NID_id=empresa_id,
+            )
+            if es_recepcion_prosesa_piso_2(citacion) and usuario_es_guardia_porteria(request.user):
+                return JsonResponse({'success': False, 'message': 'Solo Guardia Patio valida la llegada Piso 2.'}, status=403)
+            if not CAMION_PATIO_TRAZABILIDAD_PLANIFICACION.objects.filter(
+                CPA_NID=camion,
+                CI_NID=citacion,
+                CPTR_CRESULTADO_BUSQUEDA=RESULTADO_RECEPCION_SERVICIO_PROSESA,
+            ).exists():
+                return JsonResponse({'success': False, 'message': 'El camion no corresponde a Recepcion Servicio Prosesa.'}, status=409)
+            if (
+                camion.CPA_CESTADO != CAMION_PATIO.ESTADO_ASOCIADO_CITACION
+                or citacion.CI_CESTADO != 'Insumo Programado'
+                or SYSLOGGER.objects.filter(
+                    LOG_COPERACION='ING_CAMION', LOG_CADD1=str(citacion.id),
+                ).exists()
+            ):
+                return JsonResponse({'success': False, 'message': 'Esta llegada ya fue validada o la planificacion dejo de estar pendiente.'}, status=409)
+            if not citacion.ETAPA_SIGUIENTE:
+                return JsonResponse({'success': False, 'message': 'La secuencia Piso 2 no tiene una etapa siguiente configurada.'}, status=409)
+            for codigo, valor, etiqueta in (
+                ('ING_PATENTE', camion.CPA_CPATENTE, 'Patente'),
+                ('ING_NOMBRE_CONDUCTOR', camion.CPA_CNOMBRE_CONDUCTOR, 'Nombre conductor'),
+                ('ING_RUT_CONDUCTOR', camion.CPA_CRUT_CONDUCTOR, 'RUT conductor'),
+                ('ING_EMPRESA_TRANSPORTE', camion.CPA_CTRANSPORTISTA_DECLARADO, 'Empresa transporte'),
+                ('ING_TELEFONO_CONDUCTOR', camion.CPA_CTELEFONO_CONDUCTOR, 'Telefono conductor'),
+            ):
+                guardar_dato_operacion_codigo(citacion, codigo, valor, request.user, etiqueta=etiqueta)
+            siguiente = _preparar_citacion_patio_para_revision_ar(
+                citacion, camion, request.user,
+            )
+    except CAMION_PATIO.DoesNotExist:
+        return JsonResponse({'success': False, 'message': 'Camion de servicio no encontrado.'}, status=404)
+    except CITACION.DoesNotExist:
+        return JsonResponse({'success': False, 'message': 'Citacion de servicio no encontrada.'}, status=404)
+    except Exception:
+        logger.exception('Error validando llegada de Recepcion Servicio Prosesa camion=%s', pk)
+        return JsonResponse({'success': False, 'message': 'No fue posible validar la llegada. Revise la configuracion del flujo.'}, status=409)
+    return JsonResponse({
+        'success': True,
+        'message': 'Llegada validada por Guardia y enviada a Asistente Recepcion.',
+        'citacion_id': citacion.id,
+        'camion_patio_id': camion.id,
+        'siguiente_etapa': siguiente.ET_NID.ET_CCODIGO,
+    })
+
+
+
+@require_POST
+def RECEPCION_SERVICIO_CONFIRMAR_INGRESO(request, pk):
+    if not (getattr(request.user, 'is_superuser', False) or usuario_es_guardia_porteria(request.user)):
+        return JsonResponse({'success': False, 'message': 'Solo Guardia Portería puede confirmar el ingreso.'}, status=403)
+    empresa_id = Verificar_empresa(request)
+    if empresa_id not in (1, ID_ACEITES_SBH):
+        return JsonResponse({'success': False, 'message': 'Seleccione Terramar o Aceites SBH.'}, status=403)
+    if not getattr(request.user, 'is_superuser', False) and not _usuario_tiene_acceso_empresa(request.user, empresa_id):
+        return JsonResponse({'success': False, 'message': 'No tiene acceso a la empresa seleccionada.'}, status=403)
+    try:
+        with transaction.atomic():
+            citacion = CITACION.objects.select_for_update().get(
+                pk=pk, EP_NID_id=empresa_id, CI_BHABILITADO=True,
+            )
+            if not rs.es_recepcion_servicio(citacion):
+                return JsonResponse({'success': False, 'message': 'La citación no corresponde a Recepción Servicio.'}, status=404)
+            detalle = RECEPCION_SERVICIO_DETALLE.objects.select_related('PRO_NID').get(
+                CI_NID=citacion, EP_NID_id=empresa_id,
+            )
+            patente = rs.normalizar_patente(request.POST.get('patente') or detalle.RSD_CPATENTE)
+            if patente != detalle.RSD_CPATENTE:
+                return JsonResponse({'success': False, 'message': 'La patente no coincide con la planificación seleccionada.'}, status=409)
+            log_autorizacion = SYSLOGGER.objects.filter(
+                EP_NID_id=empresa_id,
+                LOG_COPERACION='AUTORIZA_INGRESO_PLANTA',
+                LOG_CADD1=str(citacion.id),
+            ).first()
+            camion_existente = CAMION_PATIO.objects.filter(
+                CI_NID=citacion,
+                EP_NID_id=empresa_id,
+                CPA_CESTADO__in=CAMION_PATIO.ESTADOS_ACTIVOS,
+            ).order_by('id').first()
+            if log_autorizacion and camion_existente:
+                return JsonResponse({
+                    'success': True,
+                    'idempotent': True,
+                    'message': 'El ingreso ya estaba confirmado.',
+                    'citacion_id': citacion.id,
+                    'camion_patio_id': camion_existente.id,
+                    'operacion_url': f'{reverse("operacion_planta_citacion", args=[citacion.id])}?_empresa_id={empresa_id}',
+                })
+            if citacion.CI_FFECHATERMINO or _estado_citacion_no_vigente(citacion):
+                return JsonResponse({'success': False, 'message': 'La citación ya no está disponible para ingresar.'}, status=409)
+            try:
+                camion_activo = _camion_patio_activo_por_patente(patente, empresa_id)
+            except ProcesosActivosPatenteAmbiguos as exc:
+                return JsonResponse({'success': False, 'message': str(exc)}, status=409)
+            if camion_activo and camion_activo.CI_NID_id != citacion.id:
+                return JsonResponse({'success': False, 'message': f'La patente ya tiene un proceso activo en patio #{camion_activo.id}.'}, status=409)
+            camion = camion_existente or CAMION_PATIO.objects.create(
+                EP_NID=citacion.EP_NID,
+                CI_NID=citacion,
+                CPA_CPATENTE=patente,
+                CPA_CNOMBRE_CONDUCTOR=detalle.RSD_CNOMBRE_CHOFER,
+                CPA_CTRANSPORTISTA_DECLARADO=detalle.PRO_NID.SN_CRAZONSOCIAL,
+                CPA_CPROVEEDOR_DECLARADO=detalle.PRO_NID.SN_CRAZONSOCIAL,
+                CPA_CPRODUCTO_DECLARADO=detalle.get_RSD_CTIPO_SERVICIO_display(),
+                CPA_CINSUMO_DECLARADO_GUIA=detalle.get_RSD_CTIPO_SERVICIO_display(),
+                CPA_CTIPO_RECEPCION='SERVICIO',
+                CPA_CTIPO_DOCUMENTO='',
+                CPA_COBSERVACION=detalle.RSD_COBSERVACION,
+                CPA_CESTADO=CAMION_PATIO.ESTADO_ASOCIADO_CITACION,
+                US_GUARDIA_ID=request.user,
+                US_ASOCIA_ID=request.user,
+                CPA_FFECHAASOCIACION=timezone.now(),
+            )
+            CAMION_PATIO_TRAZABILIDAD_PLANIFICACION.objects.get_or_create(
+                CPA_NID=camion,
+                defaults={
+                    'CI_NID': citacion,
+                    'PL_NID': citacion.PL_NID,
+                    'EP_NID': citacion.EP_NID,
+                    'CPTR_CPATENTE_CONSULTADA': patente,
+                    'CPTR_CRESULTADO_BUSQUEDA': rs.RESULTADO_PLANIFICADA,
+                    'CPTR_BCARGADO_DESDE_PLANIFICACION': True,
+                    'CPTR_CPATENTE_PLANIFICADA': detalle.RSD_CPATENTE,
+                    'CPTR_CPATENTE_LLEGADA': patente,
+                    'US_NID': request.user,
+                    'CPTR_FFECHACONSULTA': timezone.now(),
+                },
+            )
+            guardar_dato_operacion_codigo(citacion, 'ING_PATENTE', patente, request.user, etiqueta='Patente')
+            guardar_dato_operacion_codigo(citacion, 'ING_NOMBRE_CONDUCTOR', detalle.RSD_CNOMBRE_CHOFER, request.user, etiqueta='Nombre conductor')
+            guardar_dato_operacion_codigo(citacion, 'ING_EMPRESA_TRANSPORTE', detalle.PRO_NID.SN_CRAZONSOCIAL, request.user, etiqueta='Empresa transporte')
+            if not log_autorizacion:
+                registrar_log_camion_no_planificado(
+                    request.user,
+                    citacion.EP_NID,
+                    'AUTORIZA_INGRESO_PLANTA',
+                    f'Guardia Portería autoriza ingreso de Recepción Servicio #{citacion.id}.',
+                    citacion.id,
+                    rs.SECUENCIA_CODIGO,
+                )
+            citacion.CI_CESTADO = CIT_EN_PROCESO
+            if not citacion.CI_FFECHAINICIO:
+                citacion.CI_FFECHAINICIO = timezone.now()
+            citacion.save(update_fields=['CI_CESTADO', 'CI_FFECHAINICIO'])
+            notificados = rs.notificar_asistente_cd(citacion, request.user)
+    except (CITACION.DoesNotExist, RECEPCION_SERVICIO_DETALLE.DoesNotExist):
+        return JsonResponse({'success': False, 'message': 'Planificación de Recepción Servicio no encontrada.'}, status=404)
+    except Exception:
+        logger.exception('Error confirmando ingreso Recepción Servicio citacion=%s', pk)
+        return JsonResponse({'success': False, 'message': 'No fue posible confirmar el ingreso.'}, status=409)
+    return JsonResponse({
+        'success': True,
+        'message': 'Ingreso confirmado. La recepción quedó disponible para Asistente CD.',
+        'citacion_id': citacion.id,
+        'camion_patio_id': camion.id,
+        'notificados_asistente_cd': notificados,
+        'operacion_url': f'{reverse("operacion_planta_citacion", args=[citacion.id])}?_empresa_id={empresa_id}',
+    })
+
 def estado_camion_ajax(request):
     if request.method != 'GET':
         return JsonResponse({'success': False, 'message': 'Metodo no permitido.'}, status=405)
@@ -38878,13 +43864,74 @@ def estado_camion_ajax(request):
     patente = str(request.GET.get('patente') or '').strip()
     if not _normalizar_patente_busqueda(patente):
         return JsonResponse({'success': False, 'message': 'Por favor ingrese una patente'})
-    camion_patio = _camion_patio_activo_por_patente(patente, Empresa)
+    try:
+        camion_patio = _camion_patio_activo_por_patente(patente, Empresa)
+    except ProcesosActivosPatenteAmbiguos as exc:
+        logger.error('Estado del camion: %s', exc)
+        return JsonResponse({
+            'success': False,
+            'tipo_resultado': 'PROCESOS_ACTIVOS_AMBIGUOS',
+            'message': str(exc),
+        }, status=409)
     if camion_patio:
+        es_servicio_prosesa = isinstance(camion_patio, CAMION_PATIO) and (
+            CAMION_PATIO_TRAZABILIDAD_PLANIFICACION.objects.filter(
+                CPA_NID_id=camion_patio.id,
+                CPTR_CRESULTADO_BUSQUEDA=RESULTADO_RECEPCION_SERVICIO_PROSESA,
+            ).exists()
+        )
+        if es_servicio_prosesa and camion_patio.CI_NID_id and not SYSLOGGER.objects.filter(
+            LOG_COPERACION='ING_CAMION', LOG_CADD1=str(camion_patio.CI_NID_id),
+        ).exists():
+            datos_servicio = _datos_recepcion_servicio_prosesa(camion_patio.CI_NID)
+            validado_guardia = SYSLOGGER.objects.filter(
+                LOG_COPERACION='ING_CAMION',
+                LOG_CADD1=str(camion_patio.CI_NID_id),
+            ).exists()
+            puede_validar_guardia = bool(
+                not validado_guardia
+                and usuario_es_guardia(request.user)
+                and not usuario_es_guardia_porteria(request.user)
+            )
+            datos_servicio.update({
+                'camion_patio_id': camion_patio.id,
+                'patente': camion_patio.CPA_CPATENTE,
+                'conductor': camion_patio.CPA_CNOMBRE_CONDUCTOR,
+                'estado': camion_patio.CPA_CESTADO,
+                'titulo': 'Planificacion Recepcion Servicio encontrada',
+                'servicio': 'Retiro contenedor',
+                'mensaje': (
+                    'Llegada validada por Guardia y enviada a Asistente Recepcion.'
+                    if validado_guardia else
+                    'Camion registrado y vinculado a Piso 2. Pendiente de validacion de Guardia; no se ha iniciado Operacion Planta.'
+                ),
+                'validado_guardia': validado_guardia,
+                'puede_validar_guardia': puede_validar_guardia,
+                'validar_url': reverse('recepcion_servicio_guardia_validar', args=[camion_patio.id]) if puede_validar_guardia else '',
+                'url_guardia': (
+                    f'{reverse("pla_listone", args=[camion_patio.CI_NID.PL_NID_id])}'
+                    f'?citacion={camion_patio.CI_NID_id}&_empresa_id={Empresa}'
+                    if usuario_es_guardia(request.user) or getattr(request.user, 'is_superuser', False) else ''
+                ),
+            })
+            return JsonResponse({
+                'success': True,
+                'tipo_resultado': 'RECEPCION_SERVICIO_PROSESA',
+                'data': datos_servicio,
+            })
         if (
-            camion_patio.CPA_CESTADO == CAMION_PATIO.ESTADO_ASOCIADO_CITACION
+            camion_patio.CPA_CESTADO in (
+                CAMION_PATIO.ESTADO_ASOCIADO_CITACION, CAMION_PATIO.ESTADO_FUERA_TEMPORAL,
+            )
             and camion_patio.CI_NID_id
         ):
-            data = _estado_camion_payload(camion_patio.CI_NID)
+            if es_recepcion_prosesa_piso_2(camion_patio.CI_NID):
+                data = _estado_camion_payload_prosesa_piso_2(
+                    _estado_camion_base_prosesa_piso_2(camion_patio.CI_NID, camion_patio),
+                    camion_patio.CI_NID, request.user,
+                )
+            else:
+                data = _estado_camion_payload(camion_patio.CI_NID)
             data.update({
                 'camion_patio_id': camion_patio.id,
                 'camion_patio_estado': camion_patio.CPA_CESTADO,
@@ -38898,6 +43945,7 @@ def estado_camion_ajax(request):
         data['puede_derivar'] = bool(
             not data['derivado']
             and usuario_tiene_perfil_guardia_derivacion(request.user)
+            and not (getattr(request.user, 'id', None) and usuario_es_guardia_porteria(request.user) and _camion_patio_es_candidato_prosesa_piso_2(camion_patio))
         )
         return JsonResponse({
             'success': True, 'tipo_resultado': 'INGRESO_PATIO_PENDIENTE',
@@ -38925,6 +43973,66 @@ def estado_camion_ajax(request):
                 'candidatos': [_payload_planificacion_estado_camion(c) for c in candidatos_sbh],
                 'puede_registrar_ingreso': bool(getattr(request.user, 'is_superuser', False) or usuario_es_guardia(request.user)),
                 'registro_url': reverse('estado_camion_registrar_ingreso_despacho_sbh'),
+            },
+        })
+    servicios_pendientes = (
+        rs.pendientes_por_patente(Empresa, patente)
+        if getattr(request.user, 'is_authenticated', False) else []
+    )
+    if servicios_pendientes:
+        puede_confirmar = bool(getattr(request.user, 'is_superuser', False) or usuario_es_guardia_porteria(request.user))
+        candidatos = []
+        for detalle in servicios_pendientes:
+            citacion = detalle.CI_NID
+            candidatos.append({
+                'citacion_id': citacion.id,
+                'planificacion_id': citacion.PL_NID_id,
+                'empresa_id': Empresa,
+                'empresa': citacion.EP_NID.EP_CRAZONSOCIAL,
+                'tipo_servicio': detalle.get_RSD_CTIPO_SERVICIO_display(),
+                'proveedor': detalle.PRO_NID.SN_CRAZONSOCIAL,
+                'patente': detalle.RSD_CPATENTE,
+                'nombre_chofer': detalle.RSD_CNOMBRE_CHOFER,
+                'fecha_citacion': timezone.localtime(citacion.CI_FFECHACITACION).strftime('%d/%m/%Y %H:%M'),
+                'observacion': detalle.RSD_COBSERVACION,
+                'confirmar_ingreso_url': reverse('recepcion_servicio_confirmar_ingreso', args=[citacion.id]),
+            })
+        return JsonResponse({
+            'success': True,
+            'tipo_resultado': rs.RESULTADO_PLANIFICADA,
+            'data': {
+                'titulo': 'Recepción Servicio planificada',
+                'mensaje': 'Seleccione la planificación y confirme el ingreso a planta.',
+                'patente': rs.normalizar_patente(patente),
+                'candidatos': candidatos,
+                'puede_confirmar_ingreso': puede_confirmar,
+            },
+        })
+    candidatos_terramar = (
+        buscar_despachos_terramar_cercanos_sin_ingreso(patente, Empresa)
+        if Empresa == 1 else []
+    )
+    if candidatos_terramar:
+        multiples = len(candidatos_terramar) > 1
+        empresa = EMPRESA.objects.filter(pk=Empresa).first()
+        registrar_log_camion_no_planificado(
+            request.user, empresa, 'EST_CAM_PLAN_TERRAMAR',
+            f'Estado del camion encuentra {len(candidatos_terramar)} planificacion(es) Despacho Terramar para patente {_normalizar_patente_busqueda(patente)}.',
+            candidatos_terramar[0].id, _normalizar_patente_busqueda(patente),
+        )
+        return JsonResponse({
+            'success': True,
+            'tipo_resultado': 'MULTIPLE_MATCHES' if multiples else 'PLANIFICACION_ENCONTRADA',
+            'data': {
+                'patente': _normalizar_patente_busqueda(patente),
+                'titulo': 'Multiples planificaciones encontradas' if multiples else 'Planificacion encontrada',
+                'mensaje': (
+                    'No existe un proceso activo en planta para esta patente. '
+                    + ('Guardia registra solo la llegada; Asistente Despacho resolvera la planificacion correcta.' if multiples else 'Puede registrar la llegada y enviarla a Asistente de Despacho.')
+                ),
+                'candidatos': [_payload_planificacion_despacho_terramar(c) for c in candidatos_terramar],
+                'puede_registrar_ingreso': bool(getattr(request.user, 'is_superuser', False) or usuario_es_guardia(request.user)),
+                'registro_url': reverse('estado_camion_registrar_ingreso_despacho_terramar'),
             },
         })
     vigentes = buscar_citacion_vigente_sin_ingreso_por_patente(patente, Empresa)
@@ -39128,3 +44236,462 @@ def ajax_actualizar_peso_dato_operacion(request):
         import traceback
         traceback.print_exc()
         return JsonResponse({'valid': False, 'msg': f'Error al actualizar el peso: {str(e)}'})
+# Fin del modulo de vistas.
+
+
+def PLANIFICACION_NEW_JERSEY_P2(request):
+    """Cola única del Planificador para P2 y P3 New Jersey."""
+    empresa_id = Verificar_empresa(request)
+    if empresa_id != ID_ACEITES_SBH:
+        return JsonResponse({'success': False, 'message': 'Empresa no permitida.'}, status=403)
+    if not (request.user.is_superuser or usuario_es_planificador(request.user)):
+        return JsonResponse({'success': False, 'message': 'Solo Planificador puede gestionar New Jersey.'}, status=403)
+    if not request.user.is_superuser and not _usuario_tiene_acceso_empresa(request.user, empresa_id):
+        return JsonResponse({'success': False, 'message': 'Sin acceso a Empresa 2.'}, status=403)
+    estado = str(request.GET.get('estado') or 'PENDIENTE').upper()
+    if estado not in {'PENDIENTE', 'EN_PROCESO', 'COMPLETADO', 'TODOS'}:
+        estado = 'PENDIENTE'
+
+    operaciones = OPERACION_NEW_JERSEY.objects.select_related('PRO_NID').prefetch_related(
+        'procesos__CI_NID__detalle_operacional', 'procesos__CI_NID__SC_NID',
+    ).filter(EP_NID_id=ID_ACEITES_SBH, ONJ_BHABILITADO=True)
+    filas = []
+    for operacion in operaciones:
+        relaciones = {proceso.ONJP_CTIPO: proceso for proceso in operacion.procesos.all()}
+        p1_rel = relaciones.get(OPERACION_NEW_JERSEY_PROCESO.TipoProceso.PROCESO_1)
+        p2_rel = relaciones.get(OPERACION_NEW_JERSEY_PROCESO.TipoProceso.PROCESO_2)
+        p3_rel = relaciones.get(OPERACION_NEW_JERSEY_PROCESO.TipoProceso.PROCESO_3)
+        p1 = p1_rel.CI_NID if p1_rel else None
+        p2 = p2_rel.CI_NID if p2_rel else None
+
+        if p2_rel and (estado == 'TODOS' or p2_rel.ONJP_CESTADO == estado):
+            detalle = getattr(p2, 'detalle_operacional', None)
+            filas.append({
+                'tipo_proceso': 'P2', 'proceso': p2_rel, 'operacion': operacion,
+                'p1': p1, 'p2': p2, 'p3': None,
+                'guia': p2.CI_CNUMERODOCUMENTO or '',
+                'contenedor': getattr(detalle, 'CDO_CBL_CONTENEDOR', '') or '',
+                'item_code': operacion.ONJ_CITEM_CODE or '',
+                'producto': operacion.ONJ_CPRODUCTO or getattr(detalle, 'CDO_CINSUMO', '') or '',
+                'proveedor': operacion.PRO_NID.SN_CRAZONSOCIAL if operacion.PRO_NID_id else getattr(detalle, 'CDO_CPRODUCTOR', '') or '',
+                'pedido_sap': operacion.ONJ_CPURCHASE_ORDER or '',
+                'lote_sap': (obtener_lote_sap_new_jersey_p1(p1).get('batch_number') if p1 else '') or '',
+                'tk_destino': str(getattr(detalle, 'CDO_CESTANQUE_DESTINO', '') or operacion.ONJ_CTK_DESTINO or '').strip(),
+                'fecha_p1': p1.CI_FFECHACITACION if p1 else None,
+                'estado_p1': p1_rel.ONJP_CESTADO if p1_rel else 'SIN RELACION',
+                'estado_p2': p2_rel.ONJP_CESTADO,
+                'estado_p3': p3_rel.ONJP_CESTADO if p3_rel else 'PENDIENTE',
+                'estado_fila': p2_rel.ONJP_CESTADO,
+                '_orden': p2_rel.ONJP_FFECHACREACION,
+            })
+
+        p3_estado = p3_rel.ONJP_CESTADO if p3_rel else 'PENDIENTE'
+        p3_pendiente = (
+            not p3_rel
+            and p2_rel
+            and p2_rel.ONJP_CESTADO == OPERACION_NEW_JERSEY_PROCESO.Estado.COMPLETADO
+            and operacion.ONJ_CESTADO == OPERACION_NEW_JERSEY.Estado.PENDIENTE_PROCESO_3
+        )
+        if (p3_rel or p3_pendiente) and (estado == 'TODOS' or p3_estado == estado):
+            p3 = p3_rel.CI_NID if p3_rel else None
+            fuente = p3 or p2
+            detalle = getattr(fuente, 'detalle_operacional', None) if fuente else None
+            datos_p3 = nj_p3.datos_proceso_p3(p3_rel) if p3_rel else {}
+            filas.append({
+                'tipo_proceso': 'P3', 'proceso': p3_rel, 'operacion': operacion,
+                'p1': p1, 'p2': p2, 'p3': p3,
+                'guia': getattr(fuente, 'CI_CNUMERODOCUMENTO', '') or '',
+                'contenedor': getattr(detalle, 'CDO_CBL_CONTENEDOR', '') or '',
+                'item_code': operacion.ONJ_CITEM_CODE or '',
+                'producto': operacion.ONJ_CPRODUCTO or getattr(detalle, 'CDO_CINSUMO', '') or '',
+                'proveedor': operacion.PRO_NID.SN_CRAZONSOCIAL if operacion.PRO_NID_id else getattr(detalle, 'CDO_CPRODUCTOR', '') or '',
+                'pedido_sap': operacion.ONJ_CPURCHASE_ORDER or '',
+                'lote_sap': datos_p3.get('lote_sap') or ((obtener_lote_sap_new_jersey_p1(p1).get('batch_number') if p1 else '') or ''),
+                'tk_destino': str(getattr(detalle, 'CDO_CESTANQUE_DESTINO', '') or operacion.ONJ_CTK_DESTINO or '').strip(),
+                'fecha_p1': p1.CI_FFECHACITACION if p1 else None,
+                'estado_p1': p1_rel.ONJP_CESTADO if p1_rel else 'SIN RELACION',
+                'estado_p2': p2_rel.ONJP_CESTADO if p2_rel else 'SIN RELACION',
+                'estado_p3': p3_estado, 'estado_fila': p3_estado,
+                'patente_esperada': datos_p3.get('patente_esperada') or '',
+                'empresa_transporte': datos_p3.get('empresa_transporte') or '',
+                '_orden': p3_rel.ONJP_FFECHACREACION if p3_rel else p2_rel.ONJP_FFECHAMODIFICACION,
+            })
+
+    filas.sort(key=lambda fila: (fila['_orden'], fila['operacion'].id, fila['tipo_proceso']), reverse=True)
+    pagina = Paginator(filas, 50).get_page(request.GET.get('page'))
+    transportistas = queryset_transportistas_validos_ingreso_camion(
+        ID_ACEITES_SBH, estrictamente_empresa=True,
+    ).order_by('SN_CRAZONSOCIAL', 'id')
+    return render(request, 'home/PLANIFICACION/new_jersey_p2_pendientes.html', {
+        'filas': pagina.object_list, 'pagina': pagina, 'estado': estado,
+        'empresa_activa_id': empresa_id, 'transportistas': transportistas,
+    })
+
+@require_POST
+def PLANIFICACION_ACTIVAR_NEW_JERSEY_P2(request, proceso_id):
+    empresa_id = Verificar_empresa(request)
+    if empresa_id != ID_ACEITES_SBH:
+        return JsonResponse({'success': False, 'message': 'Empresa no permitida.'}, status=403)
+    if not (request.user.is_superuser or usuario_es_planificador(request.user)):
+        return JsonResponse({'success': False, 'message': 'Solo Planificador puede activar P2.'}, status=403)
+    if not request.user.is_superuser and not _usuario_tiene_acceso_empresa(request.user, empresa_id):
+        return JsonResponse({'success': False, 'message': 'Sin acceso a Empresa 2.'}, status=403)
+    try:
+        proceso = nj_p2.activar_p2(proceso_id, request.user)
+    except OPERACION_NEW_JERSEY_PROCESO.DoesNotExist:
+        return JsonResponse({'success': False, 'message': 'P2 no encontrado.'}, status=404)
+    except (CITACION.DoesNotExist, ValueError) as exc:
+        return JsonResponse({'success': False, 'message': str(exc)}, status=409)
+    messages.success(request, f'Proceso 2 de citación #{proceso.CI_NID_id} activado para Asistente C D.')
+    return redirect(f"{reverse('planificacion_new_jersey_p2')}?_empresa_id={empresa_id}")
+
+
+@require_POST
+def PLANIFICACION_INICIAR_NEW_JERSEY_P3(request, operacion_id):
+    empresa_id = Verificar_empresa(request)
+    if empresa_id != ID_ACEITES_SBH:
+        return JsonResponse({'success': False, 'message': 'Empresa no permitida.'}, status=403)
+    if not (request.user.is_superuser or usuario_es_planificador(request.user)):
+        return JsonResponse({'success': False, 'message': 'Solo Planificador puede iniciar P3.'}, status=403)
+    if not request.user.is_superuser and not _usuario_tiene_acceso_empresa(request.user, empresa_id):
+        return JsonResponse({'success': False, 'message': 'Sin acceso a Empresa 2.'}, status=403)
+    try:
+        resultado = nj_p3.iniciar_p3(
+            operacion_id,
+            request.user,
+            request.POST.get('transportista_id'),
+            request.POST.get('patente'),
+        )
+    except (OPERACION_NEW_JERSEY.DoesNotExist, SECUENCIA.DoesNotExist):
+        return JsonResponse({'success': False, 'message': 'Operación New Jersey P3 no encontrada.'}, status=404)
+    except (ValueError, nj_p3.CarpetaRecepcionP3Ambigua) as exc:
+        return JsonResponse({'success': False, 'message': str(exc)}, status=409)
+    citacion = resultado['citacion']
+    planificacion = resultado['planificacion']
+    fecha = planificacion.CAL_NID
+    messages.success(
+        request,
+        f'P3 iniciado correctamente. Citación #{citacion.id} creada. '
+        f'Carpeta de Recepción: #{planificacion.id} - '
+        f'{fecha.CA_NDIA:02d}/{fecha.CA_NMES:02d}/{fecha.CA_NANO}.',
+    )
+    return redirect(f"{reverse('planificacion_new_jersey_p2')}?_empresa_id={empresa_id}")
+
+
+
+
+def _render_operacion_new_jersey_p2(request, citacion, empresa_id):
+    """Render P2 using the same Operation Plant shell as the other flows."""
+    proceso = nj_p2.obtener_proceso_p2(citacion)
+    operacion = proceso.ONJ_NID
+    p1_proceso = OPERACION_NEW_JERSEY_PROCESO.objects.select_related('CI_NID').get(
+        ONJ_NID=operacion,
+        ONJP_CTIPO=OPERACION_NEW_JERSEY_PROCESO.TipoProceso.PROCESO_1,
+    )
+    p1 = p1_proceso.CI_NID
+    _, documentos_p1 = obtener_datos_operacion_citacion(p1)
+    documentos_p1 = documentos_revision_camion(p1, documentos_p1)
+    snapshot_dato = DATO_OPERACION.objects.filter(
+        CI_NID=citacion, CAMP_NID__CA_CCODIGO=nj_p2.CAMPO_SNAPSHOT_P2,
+    ).order_by('-id').first()
+    try:
+        snapshot = json.loads(snapshot_dato.DO_CVALOR) if snapshot_dato else {}
+    except (TypeError, ValueError):
+        snapshot = {}
+    if not isinstance(snapshot, dict):
+        snapshot = {}
+    detalle = getattr(citacion, 'detalle_operacional', None)
+    guia = (snapshot.get('guia') or citacion.CI_CNUMERODOCUMENTO
+            or (detalle.CDO_CGUIA if detalle else ''))
+    contenedor = (snapshot.get('contenedor')
+                  or (detalle.CDO_CBL_CONTENEDOR if detalle else ''))
+    datos = {
+        'Guía': guia, 'Contenedor': contenedor,
+        'Producto': snapshot.get('producto') or operacion.ONJ_CPRODUCTO,
+        'ItemCode': snapshot.get('item_code') or operacion.ONJ_CITEM_CODE,
+        'Purchase Order': snapshot.get('purchase_order') or operacion.ONJ_CPURCHASE_ORDER,
+        'BaseEntry': snapshot.get('base_entry') or operacion.ONJ_CBASE_ENTRY,
+        'BaseLine': snapshot.get('base_line') or operacion.ONJ_CBASE_LINE,
+        'TK destino': nj_p2.destino_vigente_p2(citacion),
+        'TK heredado P1': snapshot.get('tk_destino') or operacion.ONJ_CTK_DESTINO,
+    }
+    paso_actual = nj_p2.paso_actual_p2(citacion)
+    logs = list(OPERACION_PLANTA_LOG.objects.select_related('US_NID').filter(
+        CI_NID=citacion,
+    ).order_by('-OPL_FFECHAREGISTRO', '-id'))
+    acceso_empresa = request.user.is_superuser or _usuario_tiene_acceso_empresa(request.user, empresa_id)
+    puede_editar = acceso_empresa and usuario_puede_paso_operacion(request.user, [nj_p2.RESPONSABLE_P2])
+    puede_editar_calidad = acceso_empresa and usuario_puede_paso_operacion(request.user, ['CALIDAD'])
+    pasos = []
+    for orden, nombre in enumerate(nj_p2.PASOS_P2, start=1):
+        etapa_codigo = next(codigo for codigo, etiqueta in nj_p2.ETAPAS_P2 if etiqueta == nombre)
+        etapa_log = ETAPA_LOG.objects.select_related('US_INICIO_ID', 'US_FIN_ID').filter(
+            CI_NID=citacion, ET_NID__ET_CCODIGO=etapa_codigo,
+        ).order_by('-id').first()
+        nombres_log = {nombre}
+        if nombre == nj_p2.PASO_DESCARGA:
+            nombres_log.add('Descarga')
+        completado = next((log for log in logs if log.OPL_CPASO in nombres_log), None)
+        activo = paso_actual == nombre
+        toma = nombre == nj_p2.PASO_TOMA
+        calidad = nombre == nj_p2.PASO_CALIDAD
+        descarga = nombre == nj_p2.PASO_DESCARGA
+        calidad_payload = _payload_resultado_calidad(citacion) if calidad else None
+        if calidad and not calidad_payload and etapa_log:
+            inicio = etapa_log.EL_FFECHAINICIO
+            calidad_payload = {
+                'estado': 'PENDIENTE', 'mensaje': 'En espera de resultados de análisis',
+                'origen': 'OPERACION_PLANTA', 'temporizador_activo': not etapa_log.EL_FFECHAFIN,
+                'inicio_iso': inicio.isoformat() if inicio else '',
+                'inicio': timezone.localtime(inicio).strftime('%d/%m/%Y %H:%M') if inicio else '',
+                'duracion_legible': formatear_duracion_operacional((etapa_log.EL_FFECHAFIN or timezone.now()) - inicio) if inicio else '00:00:00',
+                'historial': [],
+            }
+        calidad_iniciada = calidad and bool(calidad_payload)
+        estado_calidad = (
+            'EN PROCESO' if calidad_payload['estado'] == 'PENDIENTE'
+            else calidad_payload['estado']
+        ) if calidad_iniciada else 'PENDIENTE'
+        editor_paso = (puede_editar_calidad and calidad_iniciada) if calidad else (activo and puede_editar)
+        pasos.append({
+            'orden': orden, 'nombre': nombre, 'nombre_visible': nombre,
+            'etapa_codigo': etapa_codigo,
+            'responsable': 'CALIDAD' if calidad else nj_p2.RESPONSABLE_P2,
+            'estado': estado_calidad if calidad else ('COMPLETADO' if completado else ('ACTIVO' if activo else 'PENDIENTE')),
+            'activo': activo, 'seleccionado': activo or (paso_actual is None and orden == len(nj_p2.PASOS_P2)),
+            'oculto_visual': False, 'puede_editar': editor_paso,
+            'solo_lectura_msg': (
+                'Solo el perfil CALIDAD puede gestionar Calidad.'
+                if calidad_iniciada and not editor_paso else
+                'Solo ASISTENTE C D puede gestionar el paso activo.'
+                if activo and not editor_paso else ''
+            ),
+            'fecha': completado.OPL_FFECHAREGISTRO if completado else None,
+            'usuario': completado.US_NID.username if completado else '',
+            'observacion': completado.OPL_COBSERVACION if completado else '',
+            'es_new_jersey_p2': True,
+            'requiere_accion_toma_muestra': toma,
+            'accion_toma_muestra': _payload_toma_muestra_accion(citacion, 'NEW JERSEY PROCESO 2') if toma else None,
+            'tiempo_toma_muestra': _payload_tiempo_toma_muestra(citacion, 'NEW JERSEY PROCESO 2') if toma else None,
+            'tiempo_vapor': _payload_tiempo_vapor(citacion) if toma else None,
+            'requiere_resultado_calidad': calidad,
+            'calidad_paralela': calidad,
+            'resultado_calidad': calidad_payload,
+            'validacion_calidad': _payload_validacion_calidad(citacion) if calidad else None,
+            'requiere_ciclo_descarga': descarga,
+            'ciclo_descarga': _payload_ciclo_descarga(citacion) if descarga else None,
+            'tipos_ciclo_descarga': opciones_tipos_ciclo_descarga('NEW JERSEY PROCESO 2', citacion) if descarga else [],
+            'p2': {
+                'inicio': etapa_log.EL_FFECHAINICIO if etapa_log else None,
+                'fin': etapa_log.EL_FFECHAFIN if etapa_log else None,
+                'usuario_inicio': etapa_log.US_INICIO_ID.username if etapa_log and etapa_log.US_INICIO_ID_id else '',
+                'usuario_fin': etapa_log.US_FIN_ID.username if etapa_log and etapa_log.US_FIN_ID_id else '',
+                'puede_iniciar': activo and nombre != nj_p2.PASO_CALIDAD and not etapa_log,
+                'puede_completar': activo and etapa_log is not None and not etapa_log.EL_FFECHAFIN,
+            },
+        })
+    return render(request, 'home/CITACION/operacion_planta.html', {
+        'citacion': citacion, 'nombre_flujo': 'New Jersey - Proceso 2',
+        'pasos': pasos, 'numero_guia_operacion': guia,
+        'snapshot_recepcion_sbh': datos, 'documentos_operacion': documentos_p1,
+        'insumo_operacion': datos['Producto'], 'codigo_sap_operacion': datos['ItemCode'],
+        'new_jersey_relacion': {
+            'operacion_id': operacion.id, 'p1_id': p1.id,
+            'estado_p1': p1_proceso.ONJP_CESTADO,
+            'p2': proceso, 'estado_p3': 'PENDIENTE',
+        },
+        'es_new_jersey_p2': True, 'paso_actual': paso_actual,
+        'solicitud_sap_new_jersey_p2': estado_solicitud_traslado_new_jersey_p2(citacion),
+        'sap_preview_new_jersey_p2_enabled': getattr(settings, 'SAP_RECEPCION_PREVIEW_ENABLED', False),
+        'new_jersey_p2_sap_origen': get_new_jersey_virtual_warehouse(),
+        'new_jersey_p2_sap_destino': nj_p2.destino_vigente_p2(citacion),
+        'new_jersey_p2_tk_heredado': operacion.ONJ_CTK_DESTINO,
+        'new_jersey_p2_estanques': nj_p2.estanques_validos_p2(),
+        'operacion_solo_lectura': paso_actual is None,
+        'puede_editar': puede_editar, 'logs': logs,
+        'empresa_activa_id': empresa_id,
+    })
+
+
+@transaction.atomic
+def _accion_new_jersey_p2_compartida(citacion, usuario, paso, accion, observacion='', tipo_descarga=''):
+    """Use standard operational data/timers while retaining P2's own stage transitions."""
+    if not es_recepcion_new_jersey_p2(citacion):
+        raise ValueError('La citación no corresponde a New Jersey P2.')
+    perfil_requerido = ['CALIDAD'] if paso == nj_p2.PASO_CALIDAD else [nj_p2.RESPONSABLE_P2]
+    if not usuario_puede_paso_operacion(usuario, perfil_requerido):
+        raise PermissionError('Solo el perfil responsable puede gestionar este paso P2.')
+    if not getattr(usuario, 'is_superuser', False) and not _usuario_tiene_acceso_empresa(usuario, citacion.EP_NID_id):
+        raise PermissionError('Sin acceso a Empresa 2.')
+    if paso == nj_p2.PASO_CALIDAD:
+        if not RESULTADO_CALIDAD_OPERACION.objects.filter(CI_NID=citacion).exists():
+            raise ValueError('Calidad aún no ha comenzado.')
+    elif nj_p2.paso_actual_p2(citacion) != paso:
+        raise ValueError('El paso P2 indicado no es el activo.')
+    nombre_flujo, _ = obtener_pasos_operacion_citacion(citacion)
+    if paso == nj_p2.PASO_TOMA:
+        if accion == 'iniciar':
+            abierto = ETAPA_LOG.objects.filter(
+                CI_NID=citacion, ET_NID__ET_CCODIGO='NJ_P2_TOMA_MUESTRA',
+                EL_FFECHAFIN__isnull=True,
+            ).exists()
+            if not abierto:
+                nj_p2.registrar_accion_p2(citacion.id, usuario, paso, accion)
+            _registrar_toma_muestra_accion(citacion, usuario, nombre_flujo, observacion)
+            return {'paso': paso, 'accion': accion, 'siguiente': paso}
+        if accion == 'completar':
+            if not _toma_muestra_accion_guardada(citacion):
+                raise ValueError(TOMA_MUESTRA_ACCION_REQUIRED_MESSAGE)
+            if observacion:
+                _actualizar_observacion_toma_muestra_accion(citacion, observacion)
+            _finalizar_tiempo_toma_muestra(citacion, usuario, nombre_flujo)
+            resultado = nj_p2.registrar_accion_p2(citacion.id, usuario, paso, accion, observacion)
+            asegurar_calidad_iniciada(citacion, usuario)
+            return resultado
+    if paso == nj_p2.PASO_CALIDAD:
+        if accion == 'validar':
+            if _payload_validacion_calidad(citacion).get('registrada'):
+                return {'paso': paso, 'accion': accion, 'siguiente': paso}
+            _registrar_validacion_calidad(
+                citacion, usuario, insumo=_insumo_operacion_planta(citacion),
+                fecha_ingreso=_fecha_ingreso_operacion_planta(citacion),
+            )
+            return {'paso': paso, 'accion': accion, 'siguiente': paso}
+        if accion in {'aprobar', 'rechazar'}:
+            if not _payload_validacion_calidad(citacion).get('registrada'):
+                raise ValueError('Debe validar insumo y guía antes de registrar Calidad.')
+            procesar_resultado_calidad(
+                citacion, 'APROBADO' if accion == 'aprobar' else 'RECHAZADO',
+                RESULTADO_CALIDAD_OPERACION.Origen.OPERACION_PLANTA,
+                observacion=observacion, usuario=usuario,
+            )
+            return {'paso': paso, 'accion': accion, 'siguiente': nj_p2.paso_actual_p2(citacion)}
+    if paso == nj_p2.PASO_DESCARGA:
+        if accion == 'iniciar':
+            if not estado_solicitud_traslado_new_jersey_p2(citacion)['created']:
+                raise ValueError(MENSAJE_SOLICITUD_REQUERIDA)
+            _iniciar_ciclo_descarga(citacion, usuario, tipo_descarga)
+            abierto = ETAPA_LOG.objects.filter(
+                CI_NID=citacion, ET_NID__ET_CCODIGO='NJ_P2_DESCARGA',
+                EL_FFECHAFIN__isnull=True,
+            ).exists()
+            if not abierto:
+                return nj_p2.registrar_accion_p2(citacion.id, usuario, paso, accion)
+            return {'paso': paso, 'accion': accion, 'siguiente': paso}
+        if accion == 'completar':
+            if not _payload_ciclo_descarga(citacion).get('en_proceso'):
+                raise ValueError('Debe iniciar Ciclo Descarga antes de finalizar.')
+            resultado = nj_p2.registrar_accion_p2(citacion.id, usuario, paso, accion, observacion)
+            _finalizar_ciclo_descarga(citacion, usuario, observacion)
+            return resultado
+    raise ValueError('Acción P2 no válida.')
+
+
+@require_POST
+@csrf_protect
+def ajax_operacion_planta_guardar_tk_new_jersey_p2(request, pk):
+    empresa_id = Verificar_empresa(request)
+    if empresa_id != ID_ACEITES_SBH:
+        return JsonResponse({'success': False, 'message': 'Empresa no permitida.'}, status=403)
+    if not usuario_es_operacion_planta(request.user) or not usuario_puede_paso_operacion(
+        request.user, [nj_p2.RESPONSABLE_P2]
+    ):
+        return JsonResponse({'success': False, 'message': 'Solo Asistente C D puede modificar el destino P2.'}, status=403)
+    if not request.user.is_superuser and not _usuario_tiene_acceso_empresa(request.user, empresa_id):
+        return JsonResponse({'success': False, 'message': 'Sin acceso a Empresa 2.'}, status=403)
+    citacion = CITACION.objects.select_related('SC_NID').filter(
+        pk=pk, EP_NID_id=empresa_id, CI_BHABILITADO=True,
+    ).first()
+    if not es_recepcion_new_jersey_p2(citacion):
+        return JsonResponse({'success': False, 'message': 'Citación P2 no encontrada.'}, status=404)
+    if estado_solicitud_traslado_new_jersey_p2(citacion)['blocked']:
+        return JsonResponse({'success': False, 'message': 'El estanque destino no puede cambiarse después de iniciar la solicitud SAP.'}, status=409)
+    try:
+        destino = nj_p2.guardar_destino_p2(pk, request.user, request.POST.get('tk_destino'))
+    except ValueError as exc:
+        return JsonResponse({'success': False, 'message': str(exc)}, status=400)
+    return JsonResponse({'success': True, **destino})
+
+
+@require_POST
+@csrf_protect
+def ajax_operacion_planta_preview_solicitud_sap_new_jersey_p2(request, pk):
+    if not getattr(settings, 'SAP_RECEPCION_PREVIEW_ENABLED', False):
+        return JsonResponse({'success': False, 'message': 'Preview SAP deshabilitado.'}, status=404)
+    empresa_id = Verificar_empresa(request)
+    if empresa_id != ID_ACEITES_SBH:
+        return JsonResponse({'success': False, 'message': 'Empresa no permitida.'}, status=403)
+    if not usuario_es_operacion_planta(request.user) or not usuario_puede_paso_operacion(
+        request.user, [nj_p2.RESPONSABLE_P2]
+    ):
+        return JsonResponse({'success': False, 'message': 'Solo Asistente C D puede previsualizar.'}, status=403)
+    if not request.user.is_superuser and not _usuario_tiene_acceso_empresa(request.user, empresa_id):
+        return JsonResponse({'success': False, 'message': 'Sin acceso a Empresa 2.'}, status=403)
+    citacion = CITACION.objects.select_related('SC_NID').filter(
+        pk=pk, EP_NID_id=empresa_id, CI_BHABILITADO=True,
+    ).first()
+    if not es_recepcion_new_jersey_p2(citacion):
+        return JsonResponse({'success': False, 'message': 'Citacion P2 no encontrada.'}, status=404)
+    if nj_p2.paso_actual_p2(citacion) != nj_p2.PASO_DESCARGA:
+        return JsonResponse({'success': False, 'message': 'Ciclo Descarga no es el paso activo.'}, status=409)
+    preview = build_inventory_transfer_request_new_jersey_p2(citacion)
+    return JsonResponse({
+        'success': preview['ready_for_post'], 'read_only': True,
+        'message': 'Previsualizacion de solicitud SAP generada.',
+        'preview': preview,
+    })
+
+
+@require_POST
+@csrf_protect
+def ajax_operacion_planta_crear_solicitud_sap_new_jersey_p2(request, pk):
+    empresa_id = Verificar_empresa(request)
+    if empresa_id != ID_ACEITES_SBH:
+        return JsonResponse({'success': False, 'message': 'Empresa no permitida.'}, status=403)
+    if not usuario_es_operacion_planta(request.user) or not usuario_puede_paso_operacion(
+        request.user, [nj_p2.RESPONSABLE_P2]
+    ):
+        return JsonResponse({'success': False, 'message': 'Solo Asistente C D puede crear la solicitud.'}, status=403)
+    if not request.user.is_superuser and not _usuario_tiene_acceso_empresa(request.user, empresa_id):
+        return JsonResponse({'success': False, 'message': 'Sin acceso a Empresa 2.'}, status=403)
+    citacion = CITACION.objects.select_related('SC_NID').filter(
+        pk=pk, EP_NID_id=empresa_id, CI_BHABILITADO=True,
+    ).first()
+    if not es_recepcion_new_jersey_p2(citacion):
+        return JsonResponse({'success': False, 'message': 'Citacion P2 no encontrada.'}, status=404)
+    if nj_p2.paso_actual_p2(citacion) != nj_p2.PASO_DESCARGA:
+        return JsonResponse({'success': False, 'message': 'Ciclo Descarga no es el paso activo.'}, status=409)
+    result = send_inventory_transfer_request_new_jersey_p2_to_sap(citacion, request.user)
+    return JsonResponse(result, status=200 if result.get('success') else 409)
+
+
+@require_POST
+def OPERACION_PLANTA_ACCION_NEW_JERSEY_P2(request, pk):
+    empresa_id = Verificar_empresa(request)
+    if empresa_id != ID_ACEITES_SBH:
+        return JsonResponse({'success': False, 'message': 'Empresa no permitida.'}, status=403)
+    paso = str(request.POST.get('paso') or '').strip()
+    perfil_requerido = ['CALIDAD'] if paso == nj_p2.PASO_CALIDAD else [nj_p2.RESPONSABLE_P2]
+    if not usuario_es_operacion_planta(request.user) or not usuario_puede_paso_operacion(
+        request.user, perfil_requerido
+    ):
+        return JsonResponse({'success': False, 'message': 'Perfil no autorizado para el paso P2.'}, status=403)
+    if not request.user.is_superuser and not _usuario_tiene_acceso_empresa(request.user, empresa_id):
+        return JsonResponse({'success': False, 'message': 'Sin acceso a Empresa 2.'}, status=403)
+    citacion = CITACION.objects.select_related('SC_NID').filter(
+        pk=pk, EP_NID_id=empresa_id, CI_BHABILITADO=True,
+    ).first()
+    if not citacion or not es_recepcion_new_jersey_p2(citacion):
+        return JsonResponse({'success': False, 'message': 'Citación P2 no encontrada.'}, status=404)
+    try:
+        resultado = _accion_new_jersey_p2_compartida(
+            citacion, request.user, str(request.POST.get('paso') or '').strip(),
+            str(request.POST.get('accion') or '').strip().lower(),
+            str(request.POST.get('observacion') or '').strip(),
+            str(request.POST.get('tipo_descarga') or '').strip(),
+        )
+    except PermissionError as exc:
+        return JsonResponse({'success': False, 'message': str(exc)}, status=403)
+    except ValueError as exc:
+        return JsonResponse({'success': False, 'message': str(exc)}, status=409)
+    return JsonResponse({'success': True, **resultado})

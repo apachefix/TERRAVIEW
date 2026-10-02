@@ -1,0 +1,68 @@
+{% extends "layouts/base.html" %}
+{% block title %}New Jersey Pendientes{% endblock %}
+{% block content %}
+<section class="pcoded-main-container"><div class="pcoded-content">
+  <div class="page-header"><h4>New Jersey Pendientes</h4><p>Procesos P2 y P3 de las operaciones New Jersey.</p></div>
+  <div class="mb-3">
+    <a class="btn btn-sm {% if estado == 'PENDIENTE' %}btn-primary{% else %}btn-outline-primary{% endif %}" href="{% url 'planificacion_new_jersey_p2' %}?estado=PENDIENTE&_empresa_id={{ empresa_activa_id }}">Pendientes</a>
+    <a class="btn btn-sm {% if estado == 'EN_PROCESO' %}btn-primary{% else %}btn-outline-primary{% endif %}" href="{% url 'planificacion_new_jersey_p2' %}?estado=EN_PROCESO&_empresa_id={{ empresa_activa_id }}">Activos</a>
+    <a class="btn btn-sm {% if estado == 'COMPLETADO' %}btn-primary{% else %}btn-outline-primary{% endif %}" href="{% url 'planificacion_new_jersey_p2' %}?estado=COMPLETADO&_empresa_id={{ empresa_activa_id }}">Completados</a>
+    <a class="btn btn-sm {% if estado == 'TODOS' %}btn-primary{% else %}btn-outline-primary{% endif %}" href="{% url 'planificacion_new_jersey_p2' %}?estado=TODOS&_empresa_id={{ empresa_activa_id }}">Todos</a>
+  </div>
+  <div class="card"><div class="card-body table-responsive">
+    <table class="table table-striped table-bordered table-sm">
+      <thead><tr><th>Proceso</th><th>Operación NJ</th><th>Citación P1</th><th>Citación P2</th><th>Citación P3</th><th>Guía</th><th>Contenedor</th><th>ItemCode</th><th>Producto</th><th>Modalidad</th><th>Estado</th><th>Proveedor</th><th>Pedido SAP</th><th>Lote SAP</th><th>TK destino</th><th>Transporte P3</th><th>Patente P3</th><th>Acción</th></tr></thead>
+      <tbody>
+        {% for fila in filas %}
+        <tr>
+          <td><strong>{{ fila.tipo_proceso }}</strong></td>
+          <td>#{{ fila.operacion.id }}</td>
+          <td>{% if fila.p1 %}<a href="{% url 'operacion_planta_citacion' fila.p1.id %}?_empresa_id={{ empresa_activa_id }}">#{{ fila.p1.id }}</a>{% else %}—{% endif %}</td>
+          <td>{% if fila.p2 %}<a href="{% url 'operacion_planta_citacion' fila.p2.id %}?_empresa_id={{ empresa_activa_id }}">#{{ fila.p2.id }}</a>{% else %}—{% endif %}</td>
+          <td>{% if fila.p3 %}#{{ fila.p3.id }}{% else %}Pendiente{% endif %}</td>
+          <td>{{ fila.guia|default:'—' }}</td><td>{{ fila.contenedor|default:'—' }}</td><td>{{ fila.item_code|default:'—' }}</td>
+          <td>{{ fila.producto|default:'—' }}</td><td>{{ fila.operacion.ONJ_CMODALIDAD }}</td><td>{{ fila.estado_fila }}<br><small class="text-muted">{{ fila.operacion.ONJ_CESTADO }}</small></td>
+          <td>{{ fila.proveedor|default:'—' }}</td><td>{{ fila.pedido_sap|default:'—' }}</td><td>{{ fila.lote_sap|default:'—' }}</td>
+          <td>{{ fila.tk_destino|default:'—' }}</td><td>{{ fila.empresa_transporte|default:'—' }}</td><td>{{ fila.patente_esperada|default:'—' }}</td>
+          <td>
+            {% if fila.tipo_proceso == 'P2' and fila.estado_p2 == 'PENDIENTE' %}
+            <form method="post" action="{% url 'planificacion_activar_new_jersey_p2' fila.proceso.id %}">{% csrf_token %}
+              <input type="hidden" name="_empresa_id" value="{{ empresa_activa_id }}">
+              <button class="btn btn-success btn-sm" type="submit">Activar Proceso 2</button>
+            </form>
+            {% elif fila.tipo_proceso == 'P2' %}
+              <a class="btn btn-outline-primary btn-sm" href="{% url 'operacion_planta_citacion' fila.p2.id %}?_empresa_id={{ empresa_activa_id }}">Ver P2</a>
+            {% elif fila.tipo_proceso == 'P3' and not fila.p3 %}
+              <button class="btn btn-success btn-sm" type="button" data-toggle="modal" data-target="#iniciarP3{{ fila.operacion.id }}">Iniciar P3</button>
+            {% else %}
+              <span class="badge badge-info">P3 iniciado</span>
+            {% endif %}
+          </td>
+        </tr>
+        {% empty %}<tr><td colspan="18" class="text-center">No hay procesos New Jersey en este estado.</td></tr>{% endfor %}
+      </tbody>
+    </table>
+    {% for fila in filas %}
+      {% if fila.tipo_proceso == 'P3' and not fila.p3 %}
+      <div class="modal fade" id="iniciarP3{{ fila.operacion.id }}" tabindex="-1" role="dialog" aria-hidden="true">
+        <div class="modal-dialog" role="document"><div class="modal-content">
+          <form method="post" action="{% url 'planificacion_iniciar_new_jersey_p3' fila.operacion.id %}">{% csrf_token %}
+            <input type="hidden" name="_empresa_id" value="{{ empresa_activa_id }}">
+            <div class="modal-header"><h5 class="modal-title">Iniciar New Jersey P3 · Operación #{{ fila.operacion.id }}</h5><button type="button" class="close" data-dismiss="modal"><span>&times;</span></button></div>
+            <div class="modal-body">
+              <div class="alert alert-light border">Se creará una nueva citación P3. El CAMION_PATIO se registrará cuando el camión llegue físicamente.</div>
+              <div class="form-group"><label>Empresa transporte *</label><select name="transportista_id" class="form-control" required><option value="">Seleccione</option>{% for transportista in transportistas %}<option value="{{ transportista.id }}">{{ transportista.SN_CRAZONSOCIAL }}</option>{% endfor %}</select></div>
+              <div class="form-group"><label>Patente *</label><input name="patente" class="form-control text-uppercase" maxlength="32" required></div>
+            </div>
+            <div class="modal-footer"><button type="button" class="btn btn-secondary" data-dismiss="modal">Cerrar</button><button type="submit" class="btn btn-success">Iniciar P3</button></div>
+          </form>
+        </div></div>
+      </div>
+      {% endif %}
+    {% endfor %}
+    {% if pagina.has_previous %}<a href="?estado={{ estado }}&page={{ pagina.previous_page_number }}&_empresa_id={{ empresa_activa_id }}">Anterior</a>{% endif %}
+    <span class="mx-2">Página {{ pagina.number }} de {{ pagina.paginator.num_pages }}</span>
+    {% if pagina.has_next %}<a href="?estado={{ estado }}&page={{ pagina.next_page_number }}&_empresa_id={{ empresa_activa_id }}">Siguiente</a>{% endif %}
+  </div></div>
+</div></section>
+{% endblock %}

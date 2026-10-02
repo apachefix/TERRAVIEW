@@ -2,6 +2,7 @@
 const cargaSbh = (() => {
     let state = null, editable = false, citacion = null, catalogs = {}, serial = 0;
     let busy = false, loaded = false, sending = false, changesPending = false;
+    let previewEnabled = false, previewing = false;
     const esc = value => escapeHtml(String(value == null ? '' : value));
     const num = value => Number(String(value || '0').replace(',', '.'));
     const units = value => Math.round(num(value) * 100000);
@@ -19,6 +20,11 @@ const cargaSbh = (() => {
     const updateSendButton = () => $('#btn_enviar_estanque')
         .prop('disabled', !canAdvance())
         .text(sending ? 'Enviando a SAP...' : 'Enviar siguiente etapa');
+    const canPreview = () => previewEnabled && editable && canAdvance() && !previewing;
+    const updatePreviewButton = () => $('#btn_preview_borrador_sap_despacho_carga')
+        .toggle(previewEnabled && editable)
+        .prop('disabled', !canPreview())
+        .text(previewing ? 'Preparando preview...' : 'Previsualizar Borrador SAP');
     const stock = block => {
         const rows = catalogs[block.abs_id]?.stocks?.[block.item_code] || [];
         return rows.filter(row => String(row.warehouse_code) === block.warehouse_code)
@@ -71,6 +77,7 @@ const cargaSbh = (() => {
         totals();
         $('#btn_guardar_estanque').prop('disabled', !editable || !loaded || busy).text(busy ? 'Guardando...' : 'Guardar');
         updateSendButton();
+        updatePreviewButton();
     }
     function blockHtml(agreement, b, bi, disabled) {
         b.abs_id = agreement.sap_abs_id;
@@ -139,6 +146,7 @@ const cargaSbh = (() => {
         const token = ++serial;
         state = JSON.parse(JSON.stringify(response.carga_operacional));
         editable = canEdit; citacion = response.citacion_id; catalogs = {}; busy = false; loaded = false; sending = false; changesPending = false;
+        previewEnabled = response.sap_despacho_preview_enabled === true; previewing = false;
         $('#estanque_camion_form_campos').html('<div id="sbh_carga_estado" class="alert alert-info"></div><div id="sbh_carga"></div><button type="button" id="sbh_recargar" class="btn btn-link">Actualizar catálogo SAP</button><div class="mt-3">' + renderRevisionDocuments(response.documentos || []) + '</div>');
         $('#sbh_recargar').on('click', () => loadCatalogs(token));
         $('#estanque_camion_bloqueo').hide();
@@ -182,6 +190,33 @@ const cargaSbh = (() => {
             if (token === serial && state) { busy = false; render(); }
         }
     }
+    async function preview() {
+        if (!canPreview()) return;
+        const token = serial;
+        previewing = true; updatePreviewButton();
+        try {
+            const response = await $.ajax({url: `/pla-citacion-estanque/${citacion}/`, type: 'POST',
+                headers: {'X-CSRFToken': '{{ csrf_token }}'}, data: {preview_despacho_sap: '1'}});
+            if (token !== serial) return;
+            if (!response || response.success !== true || response.read_only !== true) {
+                throw {responseJSON: response || {}};
+            }
+            const documentos = (response.borradores || []).map((borrador, index) =>
+                `<h6>Borrador ${index + 1} ? Acuerdo ${esc(borrador.numero_acuerdo)}</h6>` +
+                `<pre class="text-left border rounded p-2" style="max-height:45vh;overflow:auto;white-space:pre-wrap;">${esc(JSON.stringify(borrador.payload, null, 2))}</pre>`
+            ).join('');
+            const warnings = (response.warnings || []).map(w => `<li>${esc(w)}</li>`).join('');
+            await Swal.fire({title: 'Previsualizar Borrador SAP', width: 'min(95vw, 900px)',
+                html: `<p class="text-left">Solo lectura ? ${esc(response.cantidad_borradores)} borrador(es) para /Drafts.</p>${documentos}${warnings ? `<ul class="text-left">${warnings}</ul>` : ''}`,
+                confirmButtonText: 'Cerrar'});
+        } catch (xhr) {
+            if (token !== serial) return;
+            Swal.fire({icon: 'error', title: 'No se pudo previsualizar',
+                text: xhr.responseJSON?.message || 'No fue posible construir los borradores SAP.'});
+        } finally {
+            if (token === serial) { previewing = false; updatePreviewButton(); }
+        }
+    }
     function beginSend() {
         if (!canAdvance()) return false;
         sending = true; render(); return true;
@@ -217,5 +252,5 @@ const cargaSbh = (() => {
             disabled: !canAdvance(),
         };
     };
-    return {mount, save, beginSend, endSend, invalidateAndReload, status, active: () => state !== null, reset: () => { serial++; state = null; sending = false; changesPending = false; }};
+    return {mount, save, preview, beginSend, endSend, invalidateAndReload, status, active: () => state !== null, reset: () => { serial++; state = null; sending = false; changesPending = false; previewEnabled = false; previewing = false; $('#btn_preview_borrador_sap_despacho_carga').hide().prop('disabled', true); }};
 })();

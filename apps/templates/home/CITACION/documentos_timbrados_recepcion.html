@@ -1,0 +1,36 @@
+<div class="op-lab-title"><i class="fas fa-stamp"></i> Documentos timbrados</div>
+{% if paso.documentacion_terramar.timbrados %}
+<ul class="list-group mb-3">
+    {% for documento in paso.documentacion_terramar.timbrados %}
+    <li class="list-group-item d-flex justify-content-between align-items-center">
+        <span>{{ documento.stamped_name }} <span class="badge badge-success">{{ documento.estado_timbrado }}</span></span>
+        <a class="btn btn-sm btn-success" href="{{ documento.stamped_download_url }}">Descargar</a>
+    </li>
+    {% endfor %}
+</ul>
+{% else %}
+<div class="alert alert-warning">A&uacute;n no se han generado documentos timbrados.</div>
+{% endif %}
+{% if paso.documentacion_terramar.obligatorios_pendientes %}
+<div class="alert alert-warning">Pendientes obligatorios: {{ paso.documentacion_terramar.obligatorios_pendientes|join:', ' }}</div>
+{% endif %}
+
+{% if paso.activo and paso.puede_editar %}
+<div class="d-flex flex-wrap mb-3" style="gap:8px;">
+    <button type="button" class="btn btn-dark btn-timbrar-documentos-terramar"><i class="fas fa-stamp"></i> Timbrar documentos</button>
+    <button type="button" class="btn btn-success btn-exportar-documentos-terramar" {% if not paso.documentacion_terramar.timbrado_completo %}disabled{% endif %}><i class="fas fa-download"></i> Descargar documentos firmados</button>
+    <button type="button" class="btn btn-outline-secondary btn-copiar-ruta-terramar" disabled><i class="fas fa-copy"></i> Copiar ruta</button>
+    <button type="button"
+            class="btn btn-success btn-operacion-whatsapp btn-operacion-whatsapp-terramar"
+            data-phone="{{ telefono_conductor|default:'' }}"
+            data-citacion="{{ citacion.id }}"
+            data-patente="{{ patente|default:'' }}">
+        <i class="fab fa-whatsapp"></i> Abrir WhatsApp
+    </button>
+</div>
+<div class="alert alert-light border mb-3">
+    Descargue los documentos firmados y luego adj&uacute;ntelos manualmente desde WhatsApp.<br>
+    WhatsApp solo abrir&aacute; la conversaci&oacute;n; no adjunta ni env&iacute;a archivos autom&aacute;ticamente.
+</div>
+<div class="alert d-none exportar-documentos-terramar-resultado" role="status"></div>
+{% endif %}

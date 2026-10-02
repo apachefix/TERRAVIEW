@@ -314,7 +314,7 @@
                     Swal.fire({
                         icon: 'error',
                         title: 'Error',
-                        text: 'Ocurrió un error al buscar la patente'
+                        text: (xhr.responseJSON && xhr.responseJSON.message) || 'Ocurrió un error al buscar la patente'
                     });
                 }
             });
@@ -399,6 +399,107 @@
         }
 
         function mostrarModalEstadoCamion(datos) {
+            if (datos.tipo_resultado === 'RECEPCION_SERVICIO_PLANIFICADA') {
+                var contenidoRecepcionServicio = '<div class="text-left"><div class="alert alert-info">' +
+                    escapeHtmlEstadoCamion(datos.mensaje || '') + '</div>';
+                (datos.candidatos || []).forEach(function (candidato) {
+                    contenidoRecepcionServicio += '<div class="card mb-3"><div class="card-body">' +
+                        '<h6 class="mb-2">Citación #' + escapeHtmlEstadoCamion(candidato.citacion_id) + '</h6>' +
+                        '<div><strong>Servicio:</strong> ' + escapeHtmlEstadoCamion(candidato.tipo_servicio) + '</div>' +
+                        '<div><strong>Proveedor:</strong> ' + escapeHtmlEstadoCamion(candidato.proveedor) + '</div>' +
+                        '<div><strong>Patente:</strong> ' + escapeHtmlEstadoCamion(candidato.patente) + '</div>' +
+                        '<div><strong>Chofer:</strong> ' + escapeHtmlEstadoCamion(candidato.nombre_chofer) + '</div>' +
+                        '<div><strong>Fecha:</strong> ' + escapeHtmlEstadoCamion(candidato.fecha_citacion) + '</div>' +
+                        (candidato.observacion ? '<div><strong>Observación:</strong> ' + escapeHtmlEstadoCamion(candidato.observacion) + '</div>' : '') +
+                        (datos.puede_confirmar_ingreso ? '<button type="button" class="btn btn-success mt-3 btn-confirmar-ingreso-servicio" data-url="' +
+                            escapeHtmlEstadoCamion(candidato.confirmar_ingreso_url) + '" data-patente="' + escapeHtmlEstadoCamion(candidato.patente) +
+                            '" data-empresa="' + escapeHtmlEstadoCamion(candidato.empresa_id) + '">Confirmar ingreso</button>' : '') +
+                        '</div></div>';
+                });
+                contenidoRecepcionServicio += '</div>';
+                Swal.fire({
+                    title: datos.titulo || 'Recepción Servicio',
+                    html: contenidoRecepcionServicio,
+                    width: '720px',
+                    confirmButtonText: 'Cerrar',
+                    didOpen: function () {
+                        document.querySelectorAll('.btn-confirmar-ingreso-servicio').forEach(function (boton) {
+                            boton.addEventListener('click', function () {
+                                boton.disabled = true;
+                                $.ajax({
+                                    url: boton.dataset.url,
+                                    type: 'POST',
+                                    headers: {'X-CSRFToken': csrfEstadoCamion()},
+                                    data: {patente: boton.dataset.patente, _empresa_id: boton.dataset.empresa},
+                                    success: function (respuesta) {
+                                        if (respuesta.operacion_url) window.location.href = respuesta.operacion_url;
+                                        else Swal.fire({icon: 'success', title: 'Ingreso confirmado', text: respuesta.message}).then(buscarPatente);
+                                    },
+                                    error: function (xhr) {
+                                        boton.disabled = false;
+                                        Swal.fire({icon: 'error', title: 'No fue posible confirmar', text: (xhr.responseJSON || {}).message || 'Intente nuevamente.'});
+                                    }
+                                });
+                            });
+                        });
+                    }
+                });
+                return;
+            }
+            if (datos.tipo_resultado === 'RECEPCION_SERVICIO_PROSESA') {
+                var camposServicio = [
+                    ['Servicio', datos.servicio],
+                    ['Proceso', 'PROSESA - Contenedor a Piso 2'],
+                    ['Citaci&oacute;n Piso 2', '#' + datos.citacion_id],
+                    ['Piso 1 origen', '#' + datos.origen_id],
+                    ['Gu&iacute;a', datos.guia],
+                    ['Patente planificada', datos.patente_planificada],
+                    ['Patente llegada', datos.patente],
+                    ['Empresa transporte', datos.empresa_transporte],
+                    ['Conductor', datos.conductor],
+                    ['Estado', datos.mensaje]
+                ];
+                var contenidoServicio = '<div class="text-left"><div class="alert alert-info">Planificaci&oacute;n Recepci&oacute;n Servicio encontrada</div><table class="table table-bordered">';
+                camposServicio.forEach(function (campo) {
+                    contenidoServicio += '<tr><th>' + campo[0] + '</th><td>' + escapeHtmlEstadoCamion(campo[1]) + '</td></tr>';
+                });
+                contenidoServicio += '</table>';
+                if (datos.puede_validar_guardia) {
+                    contenidoServicio += '<button type="button" id="servicio-validar-guardia" class="btn btn-success mr-2">Validar llegada y enviar a Asistente Recepci&oacute;n</button>';
+                }
+                if (datos.url_guardia) {
+                    contenidoServicio += '<a class="btn btn-outline-primary" href="' + escapeHtmlEstadoCamion(datos.url_guardia) + '">Abrir citaci&oacute;n</a>';
+                }
+                contenidoServicio += '</div>';
+                Swal.fire({
+                    title: 'Recepci\u00f3n Servicio',
+                    html: contenidoServicio,
+                    width: '75%',
+                    confirmButtonText: 'Cerrar',
+                    didOpen: function () {
+                        var boton = document.getElementById('servicio-validar-guardia');
+                        if (!boton) return;
+                        boton.addEventListener('click', function () {
+                            boton.disabled = true;
+                            $.ajax({
+                                url: datos.validar_url,
+                                type: 'POST',
+                                headers: {'X-CSRFToken': csrfEstadoCamion()},
+                                data: {_empresa_id: 2},
+                                success: function (respuesta) {
+                                    Swal.fire({icon: 'success', title: 'Llegada validada', text: respuesta.message})
+                                        .then(buscarPatente);
+                                },
+                                error: function (xhr) {
+                                    boton.disabled = false;
+                                    Swal.fire({icon: 'error', title: 'No fue posible validar', text: (xhr.responseJSON || {}).message || 'Intente nuevamente.'});
+                                }
+                            });
+                        });
+                    }
+                });
+                return;
+            }
             if (datos.tipo_resultado === 'INGRESO_PATIO_PENDIENTE') {
                 var contenidoPatio = '<div class=text-left><div class=alert>' + escapeHtmlEstadoCamion(datos.mensaje) + '</div>';
                 contenidoPatio += '<p><strong>Patente:</strong> ' + escapeHtmlEstadoCamion(datos.patente) + '</p>';
@@ -444,7 +545,7 @@
                     contenidoPlan += '<div>Fecha citacion: ' + escapeHtmlEstadoCamion(candidato.fecha_citacion) + ' | Fecha despacho: ' + escapeHtmlEstadoCamion(candidato.fecha_despacho) + '</div>';
                     contenidoPlan += '<div>Llegada planta: ' + escapeHtmlEstadoCamion(candidato.hora_llegada_planta) + ' | Conductor: ' + escapeHtmlEstadoCamion(candidato.conductor) + '</div>';
                     contenidoPlan += '<div>RUT conductor: ' + escapeHtmlEstadoCamion(candidato.rut_conductor) + ' | Telefono: ' + escapeHtmlEstadoCamion((candidato.codigo_pais || '') + ' ' + (candidato.telefono || '')) + '</div>';
-                    contenidoPlan += '<div>Llegada destino: ' + escapeHtmlEstadoCamion(candidato.hora_llegada_destino) + ' | Formato camion: ' + escapeHtmlEstadoCamion(candidato.tipo_camion) + '</div>';
+                    contenidoPlan += '<div>Llegada estimada al destino: ' + escapeHtmlEstadoCamion((candidato.fecha_llegada_destino || '') + ' ' + (candidato.hora_llegada_destino || '')) + ' | Formato camion: ' + escapeHtmlEstadoCamion(candidato.tipo_camion) + '</div>';
                     contenidoPlan += '<div>Transportista: ' + escapeHtmlEstadoCamion(candidato.empresa_transporte) + ' | Cliente: ' + escapeHtmlEstadoCamion(candidato.cliente) + '</div>';
                     contenidoPlan += '<div>Transporte a cargo: ' + escapeHtmlEstadoCamion(candidato.transporte_a_cargo) + ' | Producto: ' + escapeHtmlEstadoCamion(candidato.producto) + '</div>';
                     contenidoPlan += '<div>Destino: ' + escapeHtmlEstadoCamion(candidato.destino) + ' | Secuencia: ' + escapeHtmlEstadoCamion(candidato.secuencia) + '</div>';
@@ -491,6 +592,9 @@
                 ['Cliente', datos.cliente]
             ];
 
+            if (datos.estado_prosesa_piso_2) {
+                campos.splice(4, 0, ['Guía', datos.guia], ['Contenedor', datos.contenedor], ['Estado Piso 2', datos.estado_prosesa_piso_2]);
+            }
             var contenido = '<div class="text-left">';
             contenido += '<div class="alert alert-info mb-3">' + escapeHtmlEstadoCamion(datos.mensaje) + '</div>';
             if (datos.accion_url) {
@@ -510,6 +614,15 @@
             });
             contenido += '<tr><th>Tiempo transcurrido</th><td><span id="estado-camion-timer">' + escapeHtmlEstadoCamion(datos.timer_duracion || '00:00:00') + '</span></td></tr>';
             contenido += '</table></div>';
+            if (datos.puede_autorizar_ingreso_planta) {
+                contenido += '<button type="button" id="estado-camion-ingreso-piso2" class="btn btn-success mt-3 mr-2">Autorizar ingreso a planta</button>';
+            }
+            if (datos.puede_validar_salida_temporal) {
+                contenido += '<button type="button" id="estado-camion-validar-salida-piso2" class="btn btn-success mt-3">Validar salida temporal</button>';
+            }
+            if (datos.puede_registrar_retorno) {
+                contenido += '<button type="button" id="estado-camion-retorno-piso2" class="btn btn-success mt-3">Registrar retorno a planta</button>';
+            }
             if (datos.url_operacion && !datos.accion_url) {
                 contenido += '<div class="mt-3"><a class="btn btn-outline-primary btn-sm" href="' + escapeHtmlEstadoCamion(datos.url_operacion) + '">Abrir Operacion Planta</a></div>';
             }
@@ -526,6 +639,27 @@
                 width: '80%',
                 confirmButtonText: 'Cerrar',
                 didOpen: function () {
+                    [['estado-camion-ingreso-piso2', datos.autorizar_ingreso_planta_url],
+                     ['estado-camion-validar-salida-piso2', datos.validar_salida_temporal_url],
+                     ['estado-camion-retorno-piso2', datos.registrar_retorno_url]].forEach(function (accion) {
+                        var boton = document.getElementById(accion[0]);
+                        if (!boton) return;
+                        boton.addEventListener('click', function () {
+                            boton.disabled = true;
+                            $.ajax({
+                                url: accion[1], type: 'POST',
+                                headers: {'X-CSRFToken': csrfEstadoCamion()},
+                                data: {_empresa_id: datos.empresa_id},
+                                success: function (respuesta) {
+                                    Swal.fire({icon: 'success', title: 'Estado actualizado', text: respuesta.message}).then(buscarPatente);
+                                },
+                                error: function (xhr) {
+                                    boton.disabled = false;
+                                    Swal.fire({icon: 'error', title: 'No fue posible continuar', text: (xhr.responseJSON || {}).message || 'Intente nuevamente.'});
+                                }
+                            });
+                        });
+                    });
                     if (datos.timer_activo && datos.timer_inicio_ms) {
                         var timer = document.getElementById('estado-camion-timer');
                         window.estadoCamionTimerInterval = setInterval(function () {

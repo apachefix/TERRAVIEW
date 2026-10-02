@@ -44,7 +44,7 @@
     </li>
 
     {% if request.user|has_vista:'PLANIFICACIONES' or request.user|es_planificador or request.user|es_usuario_maesc or request.user|es_ingreso_camion or request.user|es_asistente_despacho_empresa:request.session.empresa_id or request.user.is_superuser == 1 %}
-    <li class="nav-item pcoded-hasmenu {% if request.GET.tipo == 'RECEPCION' or request.GET.tipo == 'DESPACHO' or request.GET.flujo == 'TRANSFERENCIA' or request.resolver_match.url_name == 'planificacion_recepcion_transferencia' %}pcoded-trigger{% endif %}">
+    <li class="nav-item pcoded-hasmenu {% if request.GET.tipo == 'RECEPCION' or request.GET.tipo == 'DESPACHO' or request.GET.flujo == 'TRANSFERENCIA' or request.resolver_match.url_name == 'planificacion_recepcion_transferencia' or request.resolver_match.url_name == 'planificacion_new_jersey_p2' %}pcoded-trigger{% endif %}">
         <a href="#" class="nav-link "><span class="pcoded-micon"><i class="fas fa-tasks"></i></span><span class="pcoded-mtext">{% if request.user|es_ingreso_camion or request.user|es_asistente_despacho_empresa:request.session.empresa_id %}Ingreso de cami&oacute;n{% else %}Planificaciones{% endif %}</span></a>
         <ul class="pcoded-submenu">
             {% if request.user|es_guardia or request.user|es_asistente_recepcion or request.user|es_asistente_despacho_empresa:request.session.empresa_id or request.user|es_asistente_cd or request.user|es_planificador or request.user|es_usuario_maesc or request.user.is_superuser == 1 %}
@@ -61,14 +61,15 @@
                 <li class="{% if request.GET.tipo == 'DESPACHO' %}active{% endif %}"><a href="{% url 'pla_listall' %}?tipo=DESPACHO{% if request.session.empresa_id %}&_empresa_id={{ request.session.empresa_id }}{% endif %}">Despacho</a></li>
             {% endif %}
             {% if not request.user|es_ingreso_camion and not request.user|es_asistente_despacho_empresa:request.session.empresa_id %}
-                <li class="nav-item pcoded-hasmenu {% if request.GET.tipo == 'RECEPCION' or request.GET.flujo == 'TRANSFERENCIA' or request.resolver_match.url_name == 'planificacion_recepcion_transferencia' %}pcoded-trigger{% endif %}">
+                <li class="nav-item pcoded-hasmenu {% if request.GET.tipo == 'RECEPCION' or request.GET.flujo == 'TRANSFERENCIA' or request.resolver_match.url_name == 'planificacion_recepcion_transferencia' or request.resolver_match.url_name == 'planificacion_new_jersey_p2' %}pcoded-trigger{% endif %}">
                     <a href="#" class="nav-link">Planificaciones</a>
                     <ul class="pcoded-submenu">
                         {% if request.session.empresa_id == 2 and request.user|es_planificador %}
-                            <li class="pcoded-hasmenu {% if request.GET.tipo == 'RECEPCION' or request.GET.flujo == 'TRANSFERENCIA' or request.resolver_match.url_name == 'planificacion_recepcion_transferencia' %}pcoded-trigger{% endif %}">
+                            <li class="pcoded-hasmenu {% if request.GET.tipo == 'RECEPCION' or request.GET.flujo == 'TRANSFERENCIA' or request.resolver_match.url_name == 'planificacion_recepcion_transferencia' or request.resolver_match.url_name == 'planificacion_new_jersey_p2' %}pcoded-trigger{% endif %}">
                                 <a href="#!">Recepci&oacute;n</a>
                                 <ul class="pcoded-submenu">
                                     <li class="{% if request.GET.tipo == 'RECEPCION' and request.GET.flujo != 'TRANSFERENCIA' %}active{% endif %}"><a href="{% url 'pla_listall' %}?tipo=RECEPCION&flujo=INGRESO_MERCADERIA&_empresa_id=2">Ingreso de mercader&iacute;a</a></li>
+                                    <li class="{% if request.resolver_match.url_name == 'planificacion_new_jersey_p2' %}active{% endif %}"><a href="{% url 'planificacion_new_jersey_p2' %}?_empresa_id=2">New Jersey Pendientes</a></li>
                                     <li class="{% if request.GET.flujo == 'TRANSFERENCIA' or request.resolver_match.url_name == 'planificacion_recepcion_transferencia' %}active{% endif %}"><a href="{% url 'planificacion_recepcion_transferencia' %}?_empresa_id=2">Transferencia</a></li>
                                 </ul>
                             </li>
@@ -87,6 +88,18 @@
             {% endif %}
         </ul>
     </li>
+    {% endif %}
+
+    {% if request.session.empresa_id == 1 or request.session.empresa_id == 2 %}
+    {% if request.user|es_asistente_recepcion_rbac or request.user|es_planificador or request.user.is_superuser %}
+    <li class="nav-item pcoded-hasmenu {% if request.resolver_match.url_name == 'recepcion_servicio_registro' %}pcoded-trigger{% endif %}">
+        <a href="#" class="nav-link"><span class="pcoded-micon"><i class="fas fa-concierge-bell"></i></span><span class="pcoded-mtext">Recepci&oacute;n Servicio</span></a>
+        <ul class="pcoded-submenu">
+            {% if request.user|es_asistente_recepcion_rbac or request.user.is_superuser %}<li><a href="{% url 'recepcion_servicio_registro' %}?_empresa_id={{ request.session.empresa_id }}">Registro de cami&oacute;n</a></li>{% endif %}
+            <li><a href="{% url 'recepcion_servicio_registro' %}?section=planificacion&amp;_empresa_id={{ request.session.empresa_id }}">Planificaci&oacute;n</a></li>
+        </ul>
+    </li>
+    {% endif %}
     {% endif %}
 
     {% if not request.user|es_usuario_maesc %}

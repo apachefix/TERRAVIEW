@@ -34,6 +34,7 @@ class ClienteEdicionDespachoTests(SimpleTestCase):
     def post(self, asignaciones, **extra):
         data = {
             'fecha_despacho': '2026-09-10',
+            'fecha_llegada_destino': '2026-09-11',
             'hora_llegada_planta': '08:30',
             'hora_llegada_destino': '13:45',
             'orden_carga': '2°',

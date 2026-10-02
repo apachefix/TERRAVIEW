@@ -361,7 +361,12 @@ class CargaPorEstanqueTests(CargaEstanqueFixture, TestCase):
             )
         self.assertEqual(response.status_code, 200)
         self.assertTrue(json.loads(response.content)['success'])
-        actualizar.assert_called_once_with(self.citacion, self.asistente_despacho, allow_retry=False)
+        actualizar.assert_called_once_with(
+            self.citacion,
+            self.asistente_despacho,
+            allow_retry=False,
+            revalidar_disponibilidad=True,
+        )
 
         with patch.object(
             views,

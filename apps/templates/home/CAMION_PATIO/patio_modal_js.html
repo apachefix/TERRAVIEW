@@ -54,10 +54,12 @@
         $('#patioCitacionesFiltroEmpty').toggle(!!filtro && visibles === 0);
     }
 
-    function patioPrepararFiltrosCitaciones(hayCitaciones) {
+    function patioPrepararFiltrosCitaciones(hayCitaciones, tipoPredeterminado) {
+        const tipo = patioNormalizarTipoCitacion(tipoPredeterminado);
         $('.patio-citation-filter').toggle(!!hayCitaciones);
         $('#patioCitacionesFiltroEmpty').hide();
-        patioAplicarFiltroCitaciones('');
+        $('.patio-citation-filter-btn[data-tipo-citacion-filtro="DESPACHO"]').toggle(tipo !== 'RECEPCION');
+        patioAplicarFiltroCitaciones(tipo);
     }
 
     function patioField(name, label, value, required, wrapperClass) {
@@ -253,7 +255,7 @@ return '<form id="patioEditForm">' +
         const citacionAprobadaId = camion.solicitud_citacion_id || null;
         $('#btnAsociarCamionPatio')
             .toggle(!!permisos.puede_asociar)
-            .prop('disabled', !permisos.puede_asociar || camion.estado === 'ASOCIADO_CITACION' || solicitudBloqueaAsociacion || permisos.asociacion_directa_asistente_despacho || datosBloqueanAsociacion)
+            .prop('disabled', !permisos.puede_asociar || camion.estado === 'ASOCIADO_CITACION' || solicitudBloqueaAsociacion || (permisos.asociacion_directa_asistente_despacho && Number(PATIO_EMPRESA_ID) !== 1) || datosBloqueanAsociacion)
             .text(permisos.asociacion_directa_asistente_despacho ? 'Seleccione una citacion' : 'Buscar citacion');
         patioRenderNoPlanificado(camion, permisos);
         $('#patioCitacionAprobada').toggle(!!citacionAprobadaId);
@@ -290,6 +292,7 @@ return '<form id="patioEditForm">' +
                 ['Planificacion candidata', camion.planificacion_candidata_id],
                 ['Fecha citacion candidata', camion.fecha_citacion_candidata],
                 ['Fecha despacho candidata', camion.fecha_despacho_candidata],
+                ['Llegada estimada al destino', ((camion.fecha_llegada_destino_candidata || '') + ' ' + (camion.hora_llegada_destino_candidata || '')).trim()],
                 ['Estado candidato', camion.estado_citacion_candidata],
                 ['Resultado busqueda', camion.resultado_busqueda_planificacion],
                 ['Responsable pendiente', camion.responsable_pendiente]
@@ -330,23 +333,19 @@ return '<form id="patioEditForm">' +
                 : '';
             const aprobadaClass = cit.es_citacion_aprobada ? ' is-approved-citation' : '';
             const aprobadaBadge = cit.es_citacion_aprobada ? '<span class="badge badge-success">Citacion aprobada</span>' : '';
-            const esDespacho = tipoNormalizado === 'DESPACHO';
             const secuencia = cit.secuencia_operacional || {};
             const secuenciaNombre = secuencia.nombre || 'No informada';
-            let patenteBloque = '';
-            if (esDespacho) {
-                let patenteEstado = '<span class="text-muted">Patente pendiente</span>';
-                if (cit.patente) {
-                    patenteEstado = '<strong>' + patioEscape(cit.patente) + '</strong>';
-                    if (cit.patente_coincide) {
-                        patenteEstado += ' <span class="badge badge-success">Patente coincide</span>';
-                    } else {
-                        patenteEstado += ' <span class="badge badge-light border">Patente no coincide</span>' +
-                            '<div class="patio-muted">Camion en patio: ' + patioEscape(camion.patente || '-') + '<br>Citacion: ' + patioEscape(cit.patente || '-') + '</div>';
-                    }
+            let patenteEstado = '<span class="text-muted">No informada en planificacion</span>';
+            if (cit.patente) {
+                patenteEstado = '<strong>' + patioEscape(cit.patente) + '</strong>';
+                if (cit.patente_coincide) {
+                    patenteEstado += ' <span class="badge badge-success">Patente coincide</span>';
+                } else {
+                    patenteEstado += ' <span class="badge badge-light border">Patente no coincide</span>' +
+                        '<div class="patio-muted">Camion en patio: ' + patioEscape(camion.patente || 'No informada') + '<br>Citacion: ' + patioEscape(cit.patente) + '</div>';
                 }
-                patenteBloque = '<div><span class="patio-muted">Patente</span><br>' + patenteEstado + '</div>';
             }
+            const patenteBloque = '<div><span class="patio-muted">Patente</span><br>' + patenteEstado + '</div>';
             let blBloque = '';
             if (cit.bl) {
                 let blEstado = '';
@@ -358,29 +357,41 @@ return '<form id="patioEditForm">' +
                 blBloque = '<div><span class="patio-muted">BL planificaci\u00f3n</span><br><strong>' + patioEscape(cit.bl) + '</strong>' + blEstado + '</div>';
             }
             const datosDespachoSbh = cit.es_despacho_sbh
-                ? '<div><span class="patio-muted">Tipo documento</span><br>' + patioEscape(cit.salida_documento_label || '-') + '</div>' +
-                  '<div><span class="patio-muted">Destino</span><br>' + patioEscape(cit.destino || '-') + '</div>' +
-                  '<div><span class="patio-muted">Ventana horaria</span><br>' + patioEscape(cit.ventana_horaria || '-') + '</div>'
+                ? '<div><span class="patio-muted">Tipo documento</span><br>' + patioEscape(cit.salida_documento_label || 'No informado') + '</div>' +
+                  '<div><span class="patio-muted">Destino</span><br>' + patioEscape(cit.destino || 'No informado') + '</div>' +
+                  '<div><span class="patio-muted">Ventana horaria</span><br>' + patioEscape(cit.ventana_horaria || 'No informada') + '</div>'
                 : '';
+            const desglose = cit.desglose || [];
+            const desgloseHtml = desglose.length
+                ? '<div class="mt-2 border-top pt-2">' + desglose.map(function (item) {
+                    return '<div class="d-flex justify-content-between align-items-start" style="gap:8px;">' +
+                        '<span><span class="text-success font-weight-bold">&#10003;</span> ' + patioEscape(item.detalle || item.criterio) + '</span>' +
+                        '<span class="badge badge-light border">+' + patioEscape(item.puntos) + '</span></div>';
+                }).join('') + '</div>'
+                : '<div class="patio-muted mt-2">' + patioEscape((cit.razones || []).join(', ') || 'Sin coincidencias fuertes') + '</div>';
             return '<div class="patio-citation-option citacion-sugerida-card' + aprobadaClass + '" data-citacion-id="' + patioEscape(cit.id) + '" data-tipo-citacion="' + patioEscape(tipoNormalizado) + '">' +
                 '<div class="d-flex justify-content-between align-items-start flex-wrap" style="gap:8px;">' +
                 '<div class="patio-citation-heading"><strong>Citacion #' + patioEscape(cit.id) + '</strong><span class="badge ' + tipoClass + '">' + patioEscape(tipo) + '</span>' + aprobadaBadge + '</div>' +
                 '<div class="d-flex flex-wrap" style="gap:6px;"><span class="badge badge-primary">Score ' + patioEscape(cit.score) + '</span>' + abrir + '</div>' +
                 '</div>' +
                 '<div class="patio-citation-grid mt-2">' +
-                '<div><span class="patio-muted">Producto</span><br>' + patioEscape(cit.producto || '-') + '</div>' +
-                '<div><span class="patio-muted">Proveedor</span><br>' + patioEscape(cit.proveedor || '-') + '</div>' +
-                '<div><span class="patio-muted">Cliente</span><br>' + patioEscape(cit.cliente || '-') + '</div>' +
-                '<div><span class="patio-muted">Pedido SAP</span><br>' + patioEscape(cit.pedido_sap || '-') + '</div>' +
+                patenteBloque +
+                '<div><span class="patio-muted">Producto</span><br>' + patioEscape(cit.producto || 'No informado en planificacion') + '</div>' +
+                '<div><span class="patio-muted">Transportista</span><br>' + patioEscape(cit.transportista || 'No informado en planificacion') + '</div>' +
+                '<div><span class="patio-muted">Conductor</span><br>' + patioEscape(cit.conductor || 'No informado en planificacion') + '</div>' +
+                '<div><span class="patio-muted">Proveedor</span><br>' + patioEscape(cit.proveedor || 'No informado en planificacion') + '</div>' +
+                '<div><span class="patio-muted">Cliente</span><br>' + patioEscape(cit.cliente || 'No informado en planificacion') + '</div>' +
+                '<div><span class="patio-muted">Guia</span><br>' + patioEscape(cit.guia || 'Aun no registrada') + '</div>' +
+                '<div><span class="patio-muted">Contenedor / CRT</span><br>' + patioEscape(cit.contenedor || 'No informado en planificacion') + '</div>' +
+                '<div><span class="patio-muted">Pedido SAP</span><br>' + patioEscape(cit.pedido_sap || 'No informado') + '</div>' +
                 datosDespachoSbh +
                 blBloque +
-                '<div><span class="patio-muted">Planificacion</span><br>' + patioEscape(cit.planificacion || '-') + '</div>' +
+                '<div><span class="patio-muted">Planificacion</span><br>' + patioEscape(cit.planificacion || 'No informada') + '</div>' +
                 '<div><span class="patio-muted">Secuencia operacional</span><br><strong class="patio-sequence-value">' + patioEscape(secuenciaNombre) + '</strong></div>' +
-                patenteBloque +
-                '<div><span class="patio-muted">Fecha</span><br>' + patioEscape(cit.fecha_planificacion || '-') + '</div>' +
-                '</div><div class="patio-muted mt-2">' + patioEscape((cit.razones || []).join(', ') || 'Sin coincidencias fuertes') + '</div></div>';
+                '<div><span class="patio-muted">Fecha</span><br>' + patioEscape(cit.fecha_planificacion || 'No informada') + '</div>' +
+                '</div>' + desgloseHtml + '</div>';
         }).join('') : '<div class="alert alert-warning">No hay citaciones abiertas disponibles.</div>');
-        patioPrepararFiltrosCitaciones(!!citaciones.length);
+        patioPrepararFiltrosCitaciones(!!citaciones.length, camion.tipo_operacion_sugerida);
     }
 
     function abrirCamionPatio(id) {
@@ -734,4 +745,3 @@ $(document).on('input blur', '#patioEditForm [name="rut_conductor"]', function (
     window.abrirCamionPatio = abrirCamionPatio;
 })();
 </script>
-

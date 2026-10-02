@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import json
 import re
-from datetime import date
+from datetime import date, datetime
 from decimal import Decimal, InvalidOperation
 from typing import Any, Dict, List, Optional, Tuple
 
@@ -13,11 +13,13 @@ from requests import HTTPError
 
 from apps.home.models import (
     CAMPO,
+    CAMION_PATIO,
     CITACION,
     CITACION_DETALLE_OPERACIONAL,
     DATO_OPERACION,
     OPERACION_PLANTA_LOG,
 )
+from apps.home.phone_utils import split_legacy_phone
 from apps.home.sap_di_api import HANA_IDENTIFIER_RE, SapDiApiError, _first_row, _load_config as load_hana_config
 from apps.integrations.sap_b1.sap_config import SAP_ENV_QA, normalize_sap_environment
 from apps.integrations.sap_b1.service_layer_probe import (
@@ -35,7 +37,10 @@ LOG_BORRADOR_SAP_GUIA_ENVIO = LOG_BORRADOR_SAP_RECEPCION_ENVIO
 LOG_BORRADOR_SAP_GUIA_ENVIO_LEGACY = "BORRADOR_SAP_GUIA_ENVIO"
 LOG_UPDATE_SAP_RECEPCION_ENVIO = "UPDATE_SAP_RECEPCION_ENVIO"
 LOG_UPDATE_SAP_RECEPCION_ERROR = "UPDATE_SAP_RECEPCION_ERROR"
+LOG_PURCHASE_DELIVERY_NOTE_PROSESA_PISO_1 = "PURCHASE_DELIVERY_NOTE_PROSESA_PISO_1_ENVIO"
+LOG_LOTE_SAP_PROSESA_PISO_1_CAMBIO = "LOTE_SAP_PROSESA_PISO_1_CAMBIO"
 CAMPO_LOTE_RECEPCION_SAP = "SAP_RECEPCION_LOTE_GENERADO"
+CAMPO_LOTE_SAP_PROSESA_PISO_1 = "SAP_LOTE_INGRESO_PROSESA_PISO1"
 CAMPO_TICKET_PESAJE_SAL = "OP_TICKET_PESAJE_SAL"
 CAMPO_PESO_INFORMADO_GUIA = "SAP_PESO_INFORMADO_GUIA"
 ORIGEN_CANTIDAD_PESAJE_SALIDA = "pesaje_salida"
@@ -47,6 +52,8 @@ UNIDAD_SAP_TONELADA_METRICA = 'MT'
 MODO_LOTE_MANUAL_SAP = 'MANUAL_SAP'
 MODO_LOTE_AUTOMATICO_TERRAVIEW = 'AUTOMATICO_TERRAVIEW'
 DEFAULT_DRAFT_OBJECT_CODE = "oPurchaseDeliveryNotes"
+SECUENCIA_RECEPCION_PROSESA_DESCARGA_CAMION = "RECEPCION_BODEGA_EXTERNA"
+SECUENCIA_RECEPCION_PROSESA_CONTENEDOR_PISO_1 = "RECEPCION_PROSESA_PISO_1"
 
 
 class GoodsReceiptDraftError(Exception):
@@ -95,6 +102,11 @@ def _json_safe(value: Any) -> Any:
     return value
 
 
+def _decimal_text(value: Any) -> str:
+    decimal_value = _as_decimal(value)
+    return format(decimal_value, "f") if decimal_value is not None else ""
+
+
 def _enviar_lote_en_update_draft_recepcion() -> bool:
     return bool(getattr(settings, 'SAP_RECEPCION_ENVIAR_LOTE_EN_UPDATE_DRAFT', False))
 
@@ -106,8 +118,310 @@ def convertir_peso_salida_kg_a_cantidad_sap_mt(peso_salida_kg: Any) -> Optional[
     return peso / KILOGRAMOS_POR_TONELADA_METRICA
 
 
+def obtener_fecha_sistema_sap(company_db_esperada: str = "") -> str:
+    """Obtiene CURRENT_DATE de HANA y valida la CompanyDB configurada."""
+    hana_config = load_hana_config()
+    company_db = _clean_text(hana_config.get("CompanyDB"))
+    company_db_esperada = _clean_text(company_db_esperada)
+    if not company_db or not HANA_IDENTIFIER_RE.match(company_db):
+        raise GoodsReceiptDraftError(
+            "No se pudo resolver una CompanyDB HANA valida para la fecha SAP."
+        )
+    if (
+        company_db_esperada
+        and company_db.upper() != company_db_esperada.upper()
+    ):
+        raise GoodsReceiptDraftError(
+            "La CompanyDB HANA configurada no coincide con la CompanyDB "
+            "de Service Layer."
+        )
+
+    row = _first_row("SELECT CURRENT_DATE FROM DUMMY")
+    fecha_raw = (row or {}).get("CURRENT_DATE")
+    if isinstance(fecha_raw, datetime):
+        fecha_raw = fecha_raw.date()
+    if isinstance(fecha_raw, date):
+        return fecha_raw.isoformat()
+    try:
+        return date.fromisoformat(_clean_text(fecha_raw)[:10]).isoformat()
+    except (TypeError, ValueError):
+        raise GoodsReceiptDraftError(
+            "SAP HANA no devolvio una fecha de sistema valida."
+        )
+
+
 def _latest_detail(citacion: CITACION) -> Optional[CITACION_DETALLE_OPERACIONAL]:
     return CITACION_DETALLE_OPERACIONAL.objects.filter(CI_NID=citacion).order_by("-id").first()
+
+
+def es_recepcion_prosesa_descarga_camion(
+    citacion: CITACION,
+    detalle: Optional[CITACION_DETALLE_OPERACIONAL] = None,
+) -> bool:
+    """Aisla la integracion documental de Recepcion PROSESA sobre camion."""
+    if getattr(citacion, "EP_NID_id", None) != 2:
+        return False
+    tipo = _clean_text(getattr(citacion, "CI_CTIPO", ""))
+    if not tipo:
+        planificacion = getattr(citacion, "PL_NID", None)
+        tipo = _clean_text(getattr(planificacion, "PL_CTIPOCUPO", ""))
+    if tipo.upper() != "RECEPCION":
+        return False
+    secuencia = getattr(citacion, "SC_NID", None)
+    if _clean_text(getattr(secuencia, "SE_CCODIGO", "")).upper() != SECUENCIA_RECEPCION_PROSESA_DESCARGA_CAMION:
+        return False
+    detalle = detalle if detalle is not None else _latest_detail(citacion)
+    almacen = _clean_text(detalle.CDO_CALMACEN_DESTINO if detalle else "").upper()
+    return almacen in {"PROSESA", "PROCESA"}
+
+
+def es_recepcion_prosesa_contenedor_piso_1(citacion: CITACION) -> bool:
+    """Identifica exclusivamente Recepcion PROSESA Contenedor a Piso 1."""
+    if getattr(citacion, "EP_NID_id", None) != 2:
+        return False
+    tipo = _clean_text(getattr(citacion, "CI_CTIPO", ""))
+    if not tipo:
+        planificacion = getattr(citacion, "PL_NID", None)
+        tipo = _clean_text(getattr(planificacion, "PL_CTIPOCUPO", ""))
+    secuencia = getattr(citacion, "SC_NID", None)
+    return bool(
+        tipo.upper() == "RECEPCION"
+        and _clean_text(getattr(secuencia, "SE_CCODIGO", "")).upper()
+        == SECUENCIA_RECEPCION_PROSESA_CONTENEDOR_PISO_1
+    )
+
+
+def resolver_datos_documentales_recepcion(
+    citacion: CITACION,
+    detalle: Optional[CITACION_DETALLE_OPERACIONAL] = None,
+) -> Dict[str, Any]:
+    """Resuelve el snapshot documental sin persistir ni modificar sus fuentes."""
+    detalle = detalle if detalle is not None else _latest_detail(citacion)
+    camion = (
+        CAMION_PATIO.objects.filter(CI_NID=citacion)
+        .order_by("-CPA_FFECHAACTUALIZACION", "-id")
+        .first()
+    )
+
+    def primero(*candidatos: Tuple[Any, str]) -> Tuple[str, str]:
+        for valor, fuente in candidatos:
+            limpio = _clean_text(valor)
+            if limpio:
+                return limpio, fuente
+        return "", ""
+
+    campos = {
+        "cda": primero(
+            (getattr(detalle, "CDO_CCDA", ""), "CITACION_DETALLE_OPERACIONAL.CDO_CCDA"),
+            (getattr(camion, "CPA_CCDA", ""), "CAMION_PATIO.CPA_CCDA"),
+        ),
+        "di": primero(
+            (getattr(detalle, "CDO_CDI", ""), "CITACION_DETALLE_OPERACIONAL.CDO_CDI"),
+            (getattr(camion, "CPA_CDI", ""), "CAMION_PATIO.CPA_CDI"),
+        ),
+        "bl": primero(
+            (getattr(detalle, "CDO_CBL_CONTENEDOR", ""), "CITACION_DETALLE_OPERACIONAL.CDO_CBL_CONTENEDOR"),
+            (getattr(detalle, "CDO_CBL", ""), "CITACION_DETALLE_OPERACIONAL.CDO_CBL"),
+            (_dato_valor(citacion, "AR_BL_VALIDADO"), "DATO_OPERACION.AR_BL_VALIDADO"),
+            (_dato_valor(citacion, "ING_BL"), "DATO_OPERACION.ING_BL"),
+            (getattr(camion, "CPA_CBL", ""), "CAMION_PATIO.CPA_CBL"),
+        ),
+        # La prioridad historica anterior permanece para PROSESA. Los nuevos
+        # ingresos requieren una fuente de BL explicita, independiente del contenedor.
+        "bl_documental": primero(
+            (getattr(detalle, "CDO_CBL", ""), "CITACION_DETALLE_OPERACIONAL.CDO_CBL"),
+            (_dato_valor(citacion, "AR_BL_VALIDADO"), "DATO_OPERACION.AR_BL_VALIDADO"),
+            (_dato_valor(citacion, "ING_BL"), "DATO_OPERACION.ING_BL"),
+            (getattr(camion, "CPA_CBL", ""), "CAMION_PATIO.CPA_CBL"),
+        ),
+        "nave_naviera": primero(
+            (getattr(detalle, "CDO_CNAVE_NAVIERA", ""), "CITACION_DETALLE_OPERACIONAL.CDO_CNAVE_NAVIERA"),
+            (getattr(camion, "CPA_CNAVE_NAVIERA", ""), "CAMION_PATIO.CPA_CNAVE_NAVIERA"),
+        ),
+        "fecha_produccion": primero(
+            (getattr(detalle, "CDO_CFECHA_PRODUCCION", ""), "CITACION_DETALLE_OPERACIONAL.CDO_CFECHA_PRODUCCION"),
+            (getattr(camion, "CPA_CFECHAPRODUCCION", ""), "CAMION_PATIO.CPA_CFECHAPRODUCCION"),
+        ),
+        "fecha_vencimiento": primero(
+            (getattr(detalle, "CDO_CFECHA_VENCIMIENTO", ""), "CITACION_DETALLE_OPERACIONAL.CDO_CFECHA_VENCIMIENTO"),
+            (getattr(camion, "CPA_CFECHAVENCIMIENTOPRODUCTO", ""), "CAMION_PATIO.CPA_CFECHAVENCIMIENTOPRODUCTO"),
+        ),
+        "sui": primero(
+            (getattr(detalle, "CDO_CSUI", ""), "CITACION_DETALLE_OPERACIONAL.CDO_CSUI"),
+            (getattr(camion, "CPA_CSUI", ""), "CAMION_PATIO.CPA_CSUI"),
+        ),
+        "booking": primero(
+            (getattr(detalle, "CDO_CBOOKING", ""), "CITACION_DETALLE_OPERACIONAL.CDO_CBOOKING"),
+        ),
+    }
+    datos = {nombre: valor for nombre, (valor, _) in campos.items()}
+    fuentes = {nombre: fuente for nombre, (_, fuente) in campos.items()}
+    return {
+        **datos,
+        "fuentes": fuentes,
+        "camion_patio_id": getattr(camion, "id", None),
+    }
+
+
+def resolver_datos_transporte_recepcion(citacion: CITACION) -> Dict[str, Any]:
+    """Resuelve el snapshot de transporte y conductor sin modificar sus fuentes."""
+    camion = (
+        CAMION_PATIO.objects.filter(CI_NID=citacion)
+        .select_related("CON_NID", "CON_NID__SN_NID")
+        .order_by("-CPA_FFECHAACTUALIZACION", "-id")
+        .first()
+    )
+    conductor = getattr(camion, "CON_NID", None) or getattr(citacion, "CON_NID", None)
+    transportista = getattr(conductor, "SN_NID", None)
+    cargo = _clean_text(getattr(camion, "transporte_a_cargo", "")).upper()
+
+    def resolver(camion_attr, dato_codigo, maestro, fuente_maestro):
+        candidatos = (
+            (getattr(camion, camion_attr, ""), "CAMION_PATIO." + camion_attr),
+            (_dato_valor(citacion, dato_codigo), "DATO_OPERACION." + dato_codigo),
+            (maestro, fuente_maestro),
+        )
+        return next(
+            ((_clean_text(valor), fuente) for valor, fuente in candidatos if _clean_text(valor)),
+            ("", ""),
+        )
+
+    nombre_maestro = _clean_text(getattr(conductor, "CON_CNOMBRE", ""))
+    apellido_maestro = _clean_text(getattr(conductor, "CON_CAPELLIDO", ""))
+    nombre_maestro = " ".join(filter(None, (nombre_maestro, apellido_maestro)))
+    campos = {
+        "rut_conductor": resolver(
+            "CPA_CRUT_CONDUCTOR", "ING_RUT_CONDUCTOR",
+            getattr(conductor, "CON_CRUT", ""), "CONDUCTOR.CON_CRUT",
+        ),
+        "nombre_conductor": resolver(
+            "CPA_CNOMBRE_CONDUCTOR", "ING_NOMBRE_CONDUCTOR",
+            nombre_maestro, "CONDUCTOR.CON_CNOMBRE_CON_CAPELLIDO",
+        ),
+        "telefono_conductor": resolver(
+            "CPA_CTELEFONO_CONDUCTOR", "ING_TELEFONO_CONDUCTOR",
+            getattr(conductor, "CON_CTELEFONO", ""), "CONDUCTOR.CON_CTELEFONO",
+        ),
+        "codigo_pais_telefono": resolver(
+            "CPA_CCODIGO_PAIS_TELEFONO", "ING_CODIGO_PAIS_TELEFONO",
+            getattr(conductor, "CON_CCODIGO_PAIS_TELEFONO", ""),
+            "CONDUCTOR.CON_CCODIGO_PAIS_TELEFONO",
+        ),
+    }
+    candidatos_transporte = [
+        (
+            getattr(camion, "CPA_CTRANSPORTISTA_DECLARADO", ""),
+            "CAMION_PATIO.CPA_CTRANSPORTISTA_DECLARADO",
+        ),
+        (
+            _dato_valor(citacion, "ING_EMPRESA_TRANSPORTE"),
+            "DATO_OPERACION.ING_EMPRESA_TRANSPORTE",
+        ),
+    ]
+    if cargo != "CLIENTE":
+        candidatos_transporte.append((
+            getattr(transportista, "SN_CRAZONSOCIAL", ""),
+            "CONDUCTOR.SN_NID.SN_CRAZONSOCIAL",
+        ))
+    nombre_transporte = next(
+        (
+            (_clean_text(valor), fuente)
+            for valor, fuente in candidatos_transporte
+            if _clean_text(valor)
+            and not (
+                cargo == "CLIENTE"
+                and _clean_text(valor).upper() == "CLIENTE"
+            )
+        ),
+        ("", ""),
+    )
+    campos["nombre_transporte"] = nombre_transporte
+    campos["patente"] = resolver("CPA_CPATENTE", "ING_PATENTE", "", "")
+    datos = {nombre: valor for nombre, (valor, _) in campos.items()}
+    if datos["telefono_conductor"]:
+        datos["telefono_conductor"] = split_legacy_phone(
+            datos["codigo_pais_telefono"], datos["telefono_conductor"]
+        )["full_number"]
+    return {
+        **datos,
+        "transporte_a_cargo": cargo,
+        "fuentes": {nombre: fuente for nombre, (_, fuente) in campos.items()},
+        "camion_patio_id": getattr(camion, "id", None),
+    }
+
+
+def normalizar_fecha_documental_sap(value: Any) -> Optional[str]:
+    texto = _clean_text(value)
+    if not texto:
+        return None
+    formatos = (
+        "%d%m%Y",
+        "%d/%m/%Y",
+        "%d-%m-%Y",
+        "%d.%m.%Y",
+        "%Y-%m-%d",
+        "%Y/%m/%d",
+    )
+    for formato in formatos:
+        try:
+            fecha = datetime.strptime(texto, formato).date()
+            return f"{fecha.isoformat()}T00:00:00"
+        except ValueError:
+            continue
+    try:
+        fecha_iso = datetime.fromisoformat(texto.replace("Z", "+00:00"))
+    except ValueError:
+        return None
+    return f"{fecha_iso.date().isoformat()}T00:00:00"
+
+def resolver_datos_ingreso_mercaderia_sbh(
+    citacion: CITACION,
+    detalle: Optional[CITACION_DETALLE_OPERACIONAL] = None,
+) -> Dict[str, Any]:
+    """Agrupa datos de recepcion; cada builder decide que campos SAP enviar."""
+    detalle = detalle if detalle is not None else _latest_detail(citacion)
+    documentos = resolver_datos_documentales_recepcion(citacion, detalle)
+    transporte = resolver_datos_transporte_recepcion(citacion)
+    nombre_transporte = _clean_text(transporte.get("nombre_transporte"))
+    if nombre_transporte.upper() in {"TERRAMAR", "CLIENTE"}:
+        nombre_transporte = ""
+    fechas_originales = {
+        "fecha_produccion": _clean_text(documentos.get("fecha_produccion")),
+        "fecha_vencimiento": _clean_text(documentos.get("fecha_vencimiento")),
+    }
+    fechas = {
+        nombre: normalizar_fecha_documental_sap(valor) if valor else ""
+        for nombre, valor in fechas_originales.items()
+    }
+    fechas_invalidas = {
+        nombre: valor
+        for nombre, valor in fechas_originales.items()
+        if valor and not fechas[nombre]
+    }
+    return {
+        "transporte": {
+            "nombre_transporte": nombre_transporte,
+            "rut_conductor": _clean_text(transporte.get("rut_conductor")),
+            "nombre_conductor": _clean_text(transporte.get("nombre_conductor")),
+            "telefono_conductor": _clean_text(transporte.get("telefono_conductor")),
+            "patente": _clean_text(transporte.get("patente")),
+        },
+        "documentos": {
+            "bl": _clean_text(documentos.get("bl_documental")),
+            "cda": _clean_text(documentos.get("cda")),
+            "di": _clean_text(documentos.get("di")),
+            "nave_naviera": _clean_text(documentos.get("nave_naviera")),
+            "booking": _clean_text(documentos.get("booking")),
+            "sui": _clean_text(documentos.get("sui")),
+        },
+        "fechas": fechas,
+        "fechas_invalidas": fechas_invalidas,
+        "recepcion": {
+            "tipo_documento": _clean_text(getattr(citacion, "CI_CTIPODOCUMENTO", "")),
+            "numero_documento": _clean_text(getattr(citacion, "CI_CNUMERODOCUMENTO", "")),
+            "contenedor": _clean_text(getattr(detalle, "CDO_CBL_CONTENEDOR", "")),
+        },
+    }
 
 
 def get_plant_destination_from_citation(
@@ -130,6 +444,218 @@ def _dato_operacion(citacion: CITACION, codigo: str) -> Optional[DATO_OPERACION]
 def _dato_valor(citacion: CITACION, codigo: str) -> str:
     dato = _dato_operacion(citacion, codigo)
     return _clean_text(dato.DO_CVALOR if dato else "")
+
+
+def resolver_item_code_lote_prosesa_piso_1(citacion: CITACION) -> str:
+    """Resuelve el ItemCode persistido en backend para el flujo Piso 1."""
+    if not es_recepcion_prosesa_contenedor_piso_1(citacion):
+        raise GoodsReceiptDraftError(
+            "La citacion no corresponde a Recepcion PROSESA Contenedor a Piso 1."
+        )
+    detalle = _latest_detail(citacion)
+    item_code = _clean_text(getattr(detalle, "CDO_CCODIGO_SAP", ""))
+    if not item_code:
+        raise GoodsReceiptDraftError(
+            "No se puede generar el lote SAP: falta ItemCode en el detalle operacional."
+        )
+    return item_code
+
+
+def numero_linea_lote_desde_line_num(line_num: int) -> int:
+    """Convierte LineNum SAP (base cero) a posicion humana del lote."""
+    numero = _as_decimal(line_num)
+    if (
+        numero is None or numero < 0
+        or numero != numero.to_integral_value()
+    ):
+        raise GoodsReceiptDraftError("LineNum SAP invalido para generar lote.")
+    return int(numero) + 1
+
+
+def componer_lote_sap(
+    item_code: str, correlativo: int, numero_linea: int,
+) -> Dict[str, Any]:
+    """Aplica la regla compartida del nombre; no consulta HANA."""
+    item_code = _clean_text(item_code)
+    correlativo_decimal = _as_decimal(correlativo)
+    linea_decimal = _as_decimal(numero_linea)
+    if not item_code:
+        raise GoodsReceiptDraftError("Falta ItemCode para generar lote SAP.")
+    if (
+        correlativo_decimal is None or correlativo_decimal <= 0
+        or correlativo_decimal != correlativo_decimal.to_integral_value()
+    ):
+        raise GoodsReceiptDraftError("Correlativo SAP invalido para generar lote.")
+    if (
+        linea_decimal is None or linea_decimal <= 0
+        or linea_decimal != linea_decimal.to_integral_value()
+    ):
+        raise GoodsReceiptDraftError("Numero de linea invalido para generar lote.")
+    correlativo = int(correlativo_decimal)
+    numero_linea = int(linea_decimal)
+    tipo_lote = "MP" if item_code[:2].upper() in {"PD", "EP", "TT"} else "PT"
+    sufijo = f"{numero_linea:02d}"
+    return {
+        "item_code": item_code,
+        "tipo_lote": tipo_lote,
+        "correlativo": correlativo,
+        "sufijo": sufijo,
+        "batch_number": f"LOTE-{tipo_lote}-{item_code}-{correlativo}-{sufijo}",
+    }
+
+
+def generar_lote_sap_recepcion_prosesa_piso_1(
+    item_code: str,
+    numero_linea: int = 1,
+) -> Dict[str, Any]:
+    """Calcula el lote de Piso 1 con contador HANA y ordinal de linea."""
+    item_code = _clean_text(item_code)
+    if not item_code:
+        raise GoodsReceiptDraftError(
+            "No se puede generar el lote SAP: falta ItemCode."
+        )
+    numero_linea_decimal = _as_decimal(numero_linea)
+    if (
+        numero_linea_decimal is None
+        or numero_linea_decimal <= 0
+        or numero_linea_decimal != numero_linea_decimal.to_integral_value()
+    ):
+        raise GoodsReceiptDraftError(
+            "No se puede generar el lote SAP: numero de linea invalido."
+        )
+    numero_linea = int(numero_linea_decimal)
+
+    hana_config = load_hana_config()
+    company_db = _clean_text(hana_config.get("CompanyDB"))
+    if not company_db or not HANA_IDENTIFIER_RE.match(company_db):
+        raise GoodsReceiptDraftError(
+            "No se pudo resolver una CompanyDB HANA valida para generar el lote SAP."
+        )
+
+    sql = f'''
+        SELECT COALESCE(MAX(CAST(J0."CUENTA" AS INTEGER)), 0) + 1 AS "CORRELATIVO"
+        FROM "{company_db}"."Add conteo de entradas para lote" J0
+        WHERE J0."ItemCode" = ?
+    '''
+    try:
+        row = _first_row(sql, [item_code])
+    except Exception as exc:
+        raise GoodsReceiptDraftError(
+            f"No fue posible consultar el correlativo SAP para el ItemCode {item_code}: {exc}"
+        ) from exc
+
+    correlativo_decimal = _as_decimal((row or {}).get("CORRELATIVO"))
+    if (
+        correlativo_decimal is None
+        or correlativo_decimal <= 0
+        or correlativo_decimal != correlativo_decimal.to_integral_value()
+    ):
+        raise GoodsReceiptDraftError(
+            f"HANA devolvio un correlativo invalido para el ItemCode {item_code}."
+        )
+    correlativo = int(correlativo_decimal)
+    return componer_lote_sap(item_code, correlativo, numero_linea)
+
+
+def obtener_lote_sap_prosesa_piso_1(citacion: CITACION) -> Dict[str, Any]:
+    raw = _dato_valor(citacion, CAMPO_LOTE_SAP_PROSESA_PISO_1)
+    if not raw:
+        return {}
+    try:
+        data = json.loads(raw)
+    except (TypeError, ValueError):
+        return {}
+    return data if isinstance(data, dict) else {}
+
+
+def guardar_lote_sap_prosesa_piso_1(
+    citacion: CITACION,
+    user: Any,
+    lote_data: Dict[str, Any],
+    *,
+    motivo: str,
+) -> Dict[str, Any]:
+    if not es_recepcion_prosesa_contenedor_piso_1(citacion):
+        raise GoodsReceiptDraftError(
+            "El lote SAP solo se puede guardar para Contenedor a Piso 1."
+        )
+    batch_number = _clean_text(lote_data.get("batch_number"))
+    item_code = _clean_text(lote_data.get("item_code"))
+    correlativo = _clean_int(lote_data.get("correlativo"))
+    if not batch_number or not item_code or not correlativo:
+        raise GoodsReceiptDraftError("Los datos del lote SAP son incompletos.")
+
+    campo = CAMPO.objects.filter(
+        EP_NID=citacion.EP_NID,
+        CA_CCODIGO=CAMPO_LOTE_SAP_PROSESA_PISO_1,
+        CA_BHABILITADO=True,
+    ).first()
+    if not campo:
+        campo = CAMPO.objects.create(
+            EP_NID=citacion.EP_NID,
+            US_NID=user,
+            CA_CTIPO="TEXTO",
+            CA_CCODIGO=CAMPO_LOTE_SAP_PROSESA_PISO_1,
+            CA_CETIQUETA="Lote SAP ingreso PROSESA Piso 1",
+            CA_CPLACEMARK="Lote SAP ingreso PROSESA Piso 1",
+            CA_BOBLIGATORIO=False,
+            CA_BHABILITADO=True,
+            CA_BASIGNARVALOR=False,
+        )
+
+    ahora = timezone.now()
+    audit_data = {
+        "item_code": item_code,
+        "tipo_lote": _clean_text(lote_data.get("tipo_lote")),
+        "correlativo": correlativo,
+        "sufijo": _clean_text(lote_data.get("sufijo")),
+        "batch_number": batch_number,
+        "fecha_hora": timezone.localtime(ahora).isoformat(),
+        "usuario": getattr(user, "username", ""),
+        "motivo": _clean_text(motivo),
+    }
+    DATO_OPERACION.objects.update_or_create(
+        CI_NID=citacion,
+        SC_NID=citacion.SC_NID,
+        CAMP_NID=campo,
+        defaults={
+            "EP_NID": citacion.EP_NID,
+            "ET_NID": citacion.ETAPA_ACTUAL,
+            "US_NID": user,
+            "DO_CVALOR": json.dumps(audit_data, ensure_ascii=False),
+            "DO_FFECHAREGISTRO": ahora,
+        },
+    )
+    return audit_data
+
+
+def _registrar_cambio_lote_sap_prosesa_piso_1(
+    citacion: CITACION,
+    user: Any,
+    lote_anterior: Dict[str, Any],
+    lote_vigente: Dict[str, Any],
+) -> None:
+    data = {
+        "accion": LOG_LOTE_SAP_PROSESA_PISO_1_CAMBIO,
+        "citacion": citacion.id,
+        "item_code": lote_vigente.get("item_code"),
+        "batch_number_anterior": lote_anterior.get("batch_number"),
+        "correlativo_anterior": lote_anterior.get("correlativo"),
+        "batch_number_vigente": lote_vigente.get("batch_number"),
+        "correlativo_vigente": lote_vigente.get("correlativo"),
+        "usuario": getattr(user, "username", ""),
+        "fecha_hora": timezone.localtime(timezone.now()).isoformat(),
+    }
+    OPERACION_PLANTA_LOG.objects.create(
+        US_NID=user,
+        EP_NID=citacion.EP_NID,
+        PL_NID=citacion.PL_NID,
+        CI_NID=citacion,
+        OPL_CPASO=LOG_LOTE_SAP_PROSESA_PISO_1_CAMBIO,
+        OPL_CPERFIL_RESPONSABLE="ASISTENTE DE RECEPCION",
+        OPL_CESTADO=OPERACION_PLANTA_LOG.ESTADO_COMPLETADO,
+        OPL_COBSERVACION=json.dumps(data, ensure_ascii=False),
+    )
 
 
 def _ticket_salida_metadata(citacion: CITACION) -> Tuple[Optional[Dict[str, Any]], Optional[DATO_OPERACION]]:
@@ -271,6 +797,400 @@ def find_matching_purchase_order_line(
     return None, "No se encontro linea SAP por contenedor ni ItemCode"
 
 
+def build_purchase_delivery_note_prosesa_contenedor_piso_1(
+    citacion: CITACION,
+) -> Dict[str, Any]:
+    """Construye el ingreso real de Piso 1 a la bodega virtual SAP."""
+    validations: List[str] = []
+    warnings: List[str] = []
+    errors: List[str] = []
+    client: Optional[SapServiceLayerClient] = None
+    fecha_sistema_sap = ""
+    lote_sap: Dict[str, Any] = {}
+
+    if not es_recepcion_prosesa_contenedor_piso_1(citacion):
+        return {
+            "ready_for_post": False,
+            "document_type": "PurchaseDeliveryNotes",
+            "endpoint": "/PurchaseDeliveryNotes",
+            "flow": "RECEPCION_PROSESA_CONTENEDOR_PISO_1",
+            "payload": {},
+            "source_data": {},
+            "purchase_order": {},
+            "selected_line": {},
+            "validations": [],
+            "warnings": [],
+            "errors": [
+                "La citacion no corresponde a Empresa 2, Recepcion PROSESA, "
+                "Contenedor a Piso 1."
+            ],
+            "document_boundary": {
+                "status": "NOT_APPLICABLE",
+                "post_allowed": False,
+            },
+        }
+
+    detalle = _latest_detail(citacion)
+    doc_entry = _resolve_doc_entry(citacion, detalle)
+    datos_documentales = resolver_datos_documentales_recepcion(citacion, detalle)
+    secuencia = getattr(citacion, "SC_NID", None)
+    warehouse_code = _clean_text(getattr(settings, "BODEGA_VIRTUAL", ""))
+    peso_informado_kg = _as_decimal(_dato_valor(citacion, CAMPO_PESO_INFORMADO_GUIA))
+    quantity = convertir_peso_salida_kg_a_cantidad_sap_mt(peso_informado_kg)
+    folio_prefix, folio_number, folio_errors = get_folio_from_citation(citacion)
+    fechas_documentales: Dict[str, str] = {}
+    for campo, etiqueta in (
+        ("fecha_produccion", "Fecha de produccion"),
+        ("fecha_vencimiento", "Fecha de vencimiento"),
+    ):
+        valor_fecha = _clean_text(datos_documentales.get(campo))
+        if not valor_fecha:
+            continue
+        fecha_normalizada = normalizar_fecha_documental_sap(valor_fecha)
+        if fecha_normalizada:
+            fechas_documentales[campo] = fecha_normalizada
+            validations.append(f"{etiqueta} valida para SAP: {fecha_normalizada}")
+        else:
+            errors.append(
+                f"{etiqueta} invalida para SAP: {valor_fecha}. "
+                "Use DDMMAAAA, DD/MM/AAAA, DD-MM-AAAA o AAAA-MM-DD."
+            )
+
+    source_data: Dict[str, Any] = {
+        "citacion": getattr(citacion, "id", None),
+        "empresa": getattr(citacion, "EP_NID_id", None),
+        "tipo_citacion": _clean_text(getattr(citacion, "CI_CTIPO", "")).upper(),
+        "secuencia_codigo": _clean_text(getattr(secuencia, "SE_CCODIGO", "")).upper(),
+        "modalidad": "CONTENEDOR A PISO 1",
+        "doc_entry": doc_entry,
+        "base_entry": doc_entry,
+        "pedido_sap": _clean_text(getattr(detalle, "CDO_CPEDIDO_SAP", "")),
+        "item_code": _clean_text(getattr(detalle, "CDO_CCODIGO_SAP", "")),
+        "insumo": _clean_text(getattr(detalle, "CDO_CINSUMO", "")),
+        "card_code": _clean_text(getattr(detalle, "CDO_CPROVEEDOR_CODIGO", "")),
+        "card_name": _clean_text(getattr(detalle, "CDO_CPRODUCTOR", "")),
+        "detalle_bl": _clean_text(getattr(detalle, "CDO_CBL_CONTENEDOR", "")),
+        "ar_bl_validado": _dato_valor(citacion, "AR_BL_VALIDADO"),
+        "ing_bl": _dato_valor(citacion, "ING_BL"),
+        "cantidad_disponible_planificada": _json_safe(
+            getattr(detalle, "CDO_NCANTIDAD_DISPONIBLE", None)
+        ),
+        "peso_informado_guia_kg": _json_safe(peso_informado_kg),
+        "quantity": _json_safe(quantity),
+        "quantity_source": f"DATO_OPERACION.{CAMPO_PESO_INFORMADO_GUIA} / 1000",
+        "quantity_unit": UNIDAD_SAP_TONELADA_METRICA,
+        "almacen_destino_planificado": _clean_text(
+            getattr(detalle, "CDO_CALMACEN_DESTINO", "")
+        ),
+        "estanque_destino_planificado": _clean_text(
+            getattr(detalle, "CDO_CESTANQUE_DESTINO", "")
+        ),
+        "warehouse_code": warehouse_code,
+        "destino_sap_inicial": warehouse_code,
+        "folio_prefix": folio_prefix,
+        "folio_number": folio_number,
+        "series": _draft_series(),
+        "endpoint": "/PurchaseDeliveryNotes",
+        "datos_documentales": _json_safe(datos_documentales),
+        "fechas_documentales_sap": fechas_documentales,
+    }
+
+    if detalle:
+        validations.append("Snapshot operacional de planificacion encontrado.")
+    else:
+        errors.append("La citacion no tiene detalle operacional persistido.")
+
+    if doc_entry:
+        validations.append(f"BaseEntry/DocEntry preparado: {doc_entry}")
+    else:
+        errors.append("Falta DocEntry del Purchase Order SAP.")
+
+    if source_data["item_code"]:
+        validations.append(f"ItemCode planificado: {source_data['item_code']}")
+    else:
+        errors.append("Falta ItemCode en el detalle operacional.")
+
+    if source_data["card_code"]:
+        validations.append(f"Proveedor SAP planificado: {source_data['card_code']}")
+    else:
+        errors.append("Falta CardCode del proveedor en el detalle operacional.")
+
+    if quantity is None or quantity <= 0:
+        errors.append(
+            "No se puede crear el Ingreso SAP: falta un peso informado valido "
+            f"en {CAMPO_PESO_INFORMADO_GUIA}."
+        )
+    else:
+        validations.append(
+            "Quantity convertida desde el peso informado: "
+            f"{_decimal_text(peso_informado_kg)} kg / 1000 = "
+            f"{_decimal_text(quantity)} {UNIDAD_SAP_TONELADA_METRICA}."
+        )
+
+    if warehouse_code:
+        validations.append(f"WarehouseCode de bodega virtual: {warehouse_code}")
+    else:
+        errors.append(
+            "No está configurada la bodega virtual SAP para Contenedor a Piso 1."
+        )
+
+    if folio_errors:
+        errors.extend(folio_errors)
+    else:
+        validations.append(f"FolioPrefixString: {folio_prefix}")
+        validations.append(f"FolioNumber: {folio_number}")
+
+    documentos_faltantes = [
+        nombre.upper()
+        for nombre in ("cda", "di", "bl", "nave_naviera", "fecha_produccion", "fecha_vencimiento", "sui")
+        if not _clean_text(datos_documentales.get(nombre))
+    ]
+    if documentos_faltantes:
+        warnings.append(
+            "Datos documentales aun no informados: " + ", ".join(documentos_faltantes) + "."
+        )
+    else:
+        validations.append("Snapshot documental completo disponible.")
+
+    purchase_order_summary: Dict[str, Any] = {}
+    selected_line_summary: Dict[str, Any] = {}
+    if doc_entry and warehouse_code:
+        try:
+            config = load_config(citacion.EP_NID_id)
+            source_data["company_db"] = config.company_db
+            source_data["sap_username"] = config.username
+            fecha_sistema_sap = obtener_fecha_sistema_sap(config.company_db)
+            source_data["sap_system_date"] = fecha_sistema_sap
+            source_data["posting_date_source"] = "HANA CURRENT_DATE"
+            validations.append(
+                f"Fecha de sistema SAP/HANA: {fecha_sistema_sap}"
+            )
+            client = SapServiceLayerClient(config)
+            client.login()
+            purchase_order = client.get_json(
+                f"PurchaseOrders({doc_entry})",
+                f"PurchaseOrders({doc_entry})",
+            )
+            purchase_order_summary = {
+                "DocEntry": purchase_order.get("DocEntry") or doc_entry,
+                "DocNum": purchase_order.get("DocNum"),
+                "CardCode": purchase_order.get("CardCode") or source_data["card_code"],
+                "CardName": purchase_order.get("CardName") or source_data["card_name"],
+                "DocStatus": purchase_order.get("DocumentStatus") or purchase_order.get("DocStatus"),
+            }
+            validations.append("Purchase Order consultada en SAP en modo lectura.")
+
+            citation_data = {
+                **source_data,
+                "cantidad_disponible": source_data["cantidad_disponible_planificada"],
+            }
+            selected_line, match_reason = find_matching_purchase_order_line(
+                purchase_order,
+                citation_data,
+            )
+            if not selected_line:
+                errors.append(match_reason)
+            else:
+                numero_linea = next(
+                    (
+                        index + 1
+                        for index, line in enumerate(
+                            purchase_order.get("DocumentLines") or []
+                        )
+                        if line is selected_line
+                    ),
+                    None,
+                )
+                base_line = _line_num(selected_line)
+                if base_line is None:
+                    base_line = _clean_int(selected_line.get("_ResolvedBaseLine"))
+                item_code = _line_item_code(selected_line) or source_data["item_code"]
+                source_data.update({
+                    "base_line": base_line,
+                    "numero_linea_lote": numero_linea,
+                    "item_code_sap": item_code,
+                    "card_code_sap": purchase_order_summary["CardCode"],
+                    "card_name_sap": purchase_order_summary["CardName"],
+                })
+                try:
+                    lote_sap = generar_lote_sap_recepcion_prosesa_piso_1(
+                        item_code,
+                        numero_linea=numero_linea,
+                    )
+                    source_data["lote_sap"] = _json_safe(lote_sap)
+                    validations.append(
+                        "Lote SAP calculado desde el correlativo HANA: "
+                        f"{lote_sap['batch_number']}."
+                    )
+                except (GoodsReceiptDraftError, SapDiApiError) as exc:
+                    errors.append(
+                        f"No fue posible generar el lote SAP para el ItemCode "
+                        f"{item_code}: {exc}"
+                    )
+                remaining = _line_open_quantity(selected_line)
+                line_status = _clean_text(selected_line.get("LineStatus"))
+                sap_quantity_unit = _clean_text(
+                    selected_line.get("UoMCode") or selected_line.get("MeasureUnit")
+                )
+                source_data.update({
+                    "remaining_open_quantity": _json_safe(remaining),
+                    "sap_quantity_unit": sap_quantity_unit,
+                })
+                selected_line_summary = {
+                    "BaseEntry": doc_entry,
+                    "BaseLine": base_line,
+                    "LineNum": base_line,
+                    "NumeroLineaNegocio": numero_linea,
+                    "ItemCode": item_code,
+                    "ItemDescription": (
+                        selected_line.get("ItemDescription")
+                        or selected_line.get("Dscription")
+                        or ""
+                    ),
+                    "Quantity": _json_safe(selected_line.get("Quantity")),
+                    "RemainingOpenQuantity": _json_safe(
+                        _line_open_quantity(selected_line)
+                    ),
+                    "UoMCode": selected_line.get("UoMCode") or "",
+                    "MeasureUnit": selected_line.get("MeasureUnit") or "",
+                    "LineStatus": selected_line.get("LineStatus") or "",
+                    "U_NXContenedor": selected_line.get("U_NXContenedor") or "",
+                }
+                validations.append(match_reason)
+                if base_line is None:
+                    errors.append("No fue posible resolver BaseLine del Purchase Order.")
+                else:
+                    validations.append(f"BaseLine preparado: {base_line}")
+                if line_status and line_status != "bost_Open":
+                    errors.append(f"Linea SAP no esta abierta: {line_status}")
+                else:
+                    validations.append("Linea SAP esta abierta.")
+                if not sap_quantity_unit:
+                    warnings.append(
+                        "La linea SAP no informa UoMCode/MeasureUnit; "
+                        "Quantity se preparara en MT segun la regla del flujo."
+                    )
+                elif sap_quantity_unit.upper() != UNIDAD_SAP_TONELADA_METRICA:
+                    errors.append(
+                        "La cantidad informada esta expresada en MT, pero la linea SAP "
+                        f"usa {sap_quantity_unit}."
+                    )
+                if remaining is None:
+                    warnings.append(
+                        "No fue posible determinar RemainingOpenQuantity; "
+                        "el saldo se conserva solo como diagnostico."
+                    )
+                elif quantity is not None and quantity > remaining:
+                    warnings.append(
+                        "La cantidad informada "
+                        f"({_decimal_text(quantity)} {UNIDAD_SAP_TONELADA_METRICA}) supera "
+                        "la cantidad abierta disponible en SAP "
+                        f"({_decimal_text(remaining)} {sap_quantity_unit or UNIDAD_SAP_TONELADA_METRICA}); "
+                        "SAP validara el documento al enviarlo."
+                    )
+                elif quantity is not None and quantity < remaining:
+                    warnings.append(
+                        "La cantidad informada "
+                        f"({_decimal_text(quantity)} {UNIDAD_SAP_TONELADA_METRICA}) es menor "
+                        "que la cantidad abierta disponible en SAP "
+                        f"({_decimal_text(remaining)} {sap_quantity_unit or UNIDAD_SAP_TONELADA_METRICA})."
+                    )
+                elif quantity is not None:
+                    validations.append(
+                        "Quantity coincide con RemainingOpenQuantity: "
+                        f"{_decimal_text(quantity)} {sap_quantity_unit or UNIDAD_SAP_TONELADA_METRICA}."
+                    )
+        except HTTPError as exc:
+            errors.append(f"Error HTTP al consultar Purchase Order: {exc}")
+            source_data["sap_error"] = _extract_sap_error(exc)
+        except SapServiceLayerProbeError as exc:
+            errors.append(f"Error Service Layer: {exc}")
+        except (GoodsReceiptDraftError, SapDiApiError) as exc:
+            errors.append(f"No fue posible obtener la fecha SAP: {exc}")
+        finally:
+            if client:
+                client.logout()
+
+    payload: Dict[str, Any] = {}
+    if (
+        not errors
+        and selected_line_summary
+        and quantity is not None
+        and fecha_sistema_sap
+        and lote_sap
+    ):
+        document_line = {
+            "LineNum": 0,
+            "ItemCode": selected_line_summary["ItemCode"],
+            "Quantity": _json_safe(quantity),
+            "BaseType": 22,
+            "BaseEntry": doc_entry,
+            "BaseLine": selected_line_summary["BaseLine"],
+            "WarehouseCode": warehouse_code,
+            "BatchNumbers": [{
+                "BatchNumber": lote_sap["batch_number"],
+                "Quantity": _json_safe(quantity),
+            }],
+        }
+        udf_documentales_confirmados = {
+            "U_HCO_FVEN": fechas_documentales.get("fecha_produccion"),
+            "U_NXFlote": fechas_documentales.get("fecha_vencimiento"),
+        }
+        document_line.update({
+            campo_sap: valor
+            for campo_sap, valor in udf_documentales_confirmados.items()
+            if _clean_text(valor)
+        })
+        fecha_accion = fecha_sistema_sap
+        payload = {
+            "DocType": "dDocument_Items",
+            "DocDate": fecha_accion,
+            "DocDueDate": fecha_accion,
+            "CardCode": (
+                _clean_text(purchase_order_summary.get("CardCode"))
+                or source_data["card_code"]
+            ),
+            "FolioPrefixString": folio_prefix,
+            "FolioNumber": folio_number,
+            "Series": _draft_series(),
+            "TaxDate": fecha_accion,
+            "DocumentLines": [document_line],
+        }
+
+    document_boundary = {
+        "status": "READY" if payload else "INVALID",
+        "post_allowed": bool(payload),
+    }
+    return {
+        "ready_for_post": bool(payload),
+        "document_type": "PurchaseDeliveryNotes",
+        "endpoint": "/PurchaseDeliveryNotes",
+        "flow": "RECEPCION_PROSESA_CONTENEDOR_PISO_1",
+        "payload": payload,
+        "source_data": source_data,
+        "purchase_order": purchase_order_summary,
+        "selected_line": selected_line_summary,
+        "validations": validations,
+        "warnings": warnings,
+        "errors": errors,
+        "document_boundary": document_boundary,
+    }
+
+
+def build_goods_receipt_draft_preview_prosesa_contenedor_piso_1(
+    citacion: CITACION,
+) -> Dict[str, Any]:
+    """Alias transitorio; Piso 1 ya construye un PurchaseDeliveryNote real."""
+    return build_purchase_delivery_note_prosesa_contenedor_piso_1(citacion)
+
+
+def preparar_recepcion_prosesa_contenedor_piso_1_para_draft(
+    citacion: CITACION,
+) -> Dict[str, Any]:
+    """Alias compatible del builder ya definido para Piso 1."""
+    return build_purchase_delivery_note_prosesa_contenedor_piso_1(citacion)
+
+
 def _draft_series() -> int:
     return int(getattr(settings, "SAP_GOODS_RECEIPT_DRAFT_SERIES", DEFAULT_DRAFT_SERIES))
 
@@ -339,6 +1259,134 @@ def get_goods_receipt_draft_status(citacion: CITACION) -> Dict[str, Any]:
     }
 
 
+def _purchase_delivery_note_piso_1_log(
+    citacion: CITACION,
+    *,
+    completed_only: bool = False,
+) -> Optional[OPERACION_PLANTA_LOG]:
+    queryset = OPERACION_PLANTA_LOG.objects.filter(
+        CI_NID=citacion,
+        OPL_CPASO=LOG_PURCHASE_DELIVERY_NOTE_PROSESA_PISO_1,
+    )
+    if completed_only:
+        queryset = queryset.filter(
+            OPL_CESTADO=OPERACION_PLANTA_LOG.ESTADO_COMPLETADO,
+        )
+    return (
+        queryset.select_related("US_NID")
+        .order_by("-OPL_FFECHAREGISTRO", "-id")
+        .first()
+    )
+
+
+def get_purchase_delivery_note_prosesa_piso_1_status(
+    citacion: CITACION,
+) -> Dict[str, Any]:
+    log = _purchase_delivery_note_piso_1_log(citacion)
+    if not log:
+        return {
+            "sent": False,
+            "created": False,
+            "local_status": "Pendiente de crear",
+            "sap_status": "No enviado",
+            "label": "Pendiente de crear",
+            "endpoint": "/PurchaseDeliveryNotes",
+        }
+    data = _parse_log_json(log)
+    response = data.get("response") if isinstance(data.get("response"), dict) else {}
+    payload = data.get("payload") if isinstance(data.get("payload"), dict) else {}
+    document_line = (payload.get("DocumentLines") or [{}])[0]
+    batch = (document_line.get("BatchNumbers") or [{}])[0]
+    success = bool(data.get("success")) and (
+        log.OPL_CESTADO == OPERACION_PLANTA_LOG.ESTADO_COMPLETADO
+    )
+    return {
+        "sent": success,
+        "created": success,
+        "local_status": "Ingreso SAP creado" if success else "Error al crear Ingreso SAP",
+        "sap_status": "Creado en SAP" if success else "Rechazado/no creado en SAP",
+        "label": "Ingreso SAP creado" if success else "Error al crear Ingreso SAP",
+        "status_code": data.get("status_code"),
+        "endpoint": data.get("endpoint") or "/PurchaseDeliveryNotes",
+        "docentry": response.get("DocEntry") or response.get("docentry"),
+        "docnum": response.get("DocNum") or response.get("docnum"),
+        "response": response,
+        "response_json": response or data.get("sap_error") or {},
+        "request_json": payload,
+        "item_code": data.get("item_code") or document_line.get("ItemCode"),
+        "batch_number": data.get("batch_number") or batch.get("BatchNumber"),
+        "correlativo": data.get("correlativo"),
+        "quantity": data.get("quantity") or document_line.get("Quantity"),
+        "sap_error": data.get("sap_error"),
+        "sap_error_message": data.get("sap_error_message") or "",
+        "company_db": data.get("company_db"),
+        "sap_username": data.get("sap_username"),
+        "usuario": log.US_NID.username if log.US_NID else "",
+        "fecha_hora": timezone.localtime(log.OPL_FFECHAREGISTRO).strftime(
+            "%d/%m/%Y %H:%M"
+        ),
+    }
+
+
+def _save_purchase_delivery_note_piso_1_log(
+    citacion: CITACION,
+    user: Any,
+    *,
+    success: bool,
+    payload: Dict[str, Any],
+    status_code: Optional[int] = None,
+    response: Optional[Dict[str, Any]] = None,
+    sap_error: Optional[Dict[str, Any]] = None,
+    company_db: str = "",
+    sap_username: str = "",
+) -> OPERACION_PLANTA_LOG:
+    document_line = (payload.get("DocumentLines") or [{}])[0]
+    batch = (document_line.get("BatchNumbers") or [{}])[0]
+    batch_number = _clean_text(batch.get("BatchNumber"))
+    correlativo = None
+    if batch_number:
+        partes_lote = batch_number.rsplit("-", 2)
+        correlativo = _clean_int(partes_lote[-2]) if len(partes_lote) == 3 else None
+    log_data = {
+        "accion": LOG_PURCHASE_DELIVERY_NOTE_PROSESA_PISO_1,
+        "document_type": "PurchaseDeliveryNotes",
+        "endpoint": "/PurchaseDeliveryNotes",
+        "success": success,
+        "company_db": company_db,
+        "sap_username": sap_username,
+        "citacion": citacion.id,
+        "status_code": status_code,
+        "item_code": document_line.get("ItemCode"),
+        "batch_number": batch_number,
+        "correlativo": correlativo,
+        "quantity": batch.get("Quantity") or document_line.get("Quantity"),
+        "docentry": (response or {}).get("DocEntry") or (response or {}).get("docentry"),
+        "docnum": (response or {}).get("DocNum") or (response or {}).get("docnum"),
+        "payload": payload,
+        "response": response or {},
+        "sap_error": sap_error,
+        "sap_error_message": _sap_error_message(sap_error),
+        "usuario": getattr(user, "username", ""),
+        "fecha_hora": timezone.localtime(timezone.now()).strftime(
+            "%d/%m/%Y %H:%M:%S"
+        ),
+    }
+    return OPERACION_PLANTA_LOG.objects.create(
+        US_NID=user,
+        EP_NID=citacion.EP_NID,
+        PL_NID=citacion.PL_NID,
+        CI_NID=citacion,
+        OPL_CPASO=LOG_PURCHASE_DELIVERY_NOTE_PROSESA_PISO_1,
+        OPL_CPERFIL_RESPONSABLE="ASISTENTE DE RECEPCION",
+        OPL_CESTADO=(
+            OPERACION_PLANTA_LOG.ESTADO_COMPLETADO
+            if success
+            else OPERACION_PLANTA_LOG.ESTADO_PENDIENTE
+        ),
+        OPL_COBSERVACION=json.dumps(log_data, ensure_ascii=False),
+    )
+
+
 def get_goods_receipt_draft_guide_status(citacion: CITACION) -> Dict[str, Any]:
     log = (
         OPERACION_PLANTA_LOG.objects.filter(
@@ -395,6 +1443,9 @@ def build_goods_receipt_draft_preview(
     origen_cantidad: str = ORIGEN_CANTIDAD_PESAJE_SALIDA,
     cantidad_informada: Any = None,
 ) -> Dict[str, Any]:
+    if es_recepcion_prosesa_contenedor_piso_1(citacion):
+        return build_purchase_delivery_note_prosesa_contenedor_piso_1(citacion)
+
     validations: List[str] = []
     warnings: List[str] = []
     errors: List[str] = []
@@ -402,6 +1453,35 @@ def build_goods_receipt_draft_preview(
 
     detalle = _latest_detail(citacion)
     doc_entry = _resolve_doc_entry(citacion, detalle)
+    aplica_documentos_prosesa = es_recepcion_prosesa_descarga_camion(citacion, detalle)
+    datos_documentales = (
+        resolver_datos_documentales_recepcion(citacion, detalle)
+        if aplica_documentos_prosesa
+        else {}
+    )
+    datos_transporte = (
+        resolver_datos_transporte_recepcion(citacion)
+        if aplica_documentos_prosesa
+        else {}
+    )
+    fechas_documentales: Dict[str, str] = {}
+    if aplica_documentos_prosesa:
+        for campo, etiqueta in (
+            ("fecha_produccion", "Fecha de produccion"),
+            ("fecha_vencimiento", "Fecha de vencimiento"),
+        ):
+            valor_fecha = _clean_text(datos_documentales.get(campo))
+            if not valor_fecha:
+                continue
+            fecha_normalizada = normalizar_fecha_documental_sap(valor_fecha)
+            if fecha_normalizada:
+                fechas_documentales[campo] = fecha_normalizada
+                validations.append(f"{etiqueta} valida para SAP: {fecha_normalizada}")
+            else:
+                errors.append(
+                    f"{etiqueta} invalida para SAP: {valor_fecha}. "
+                    "Use DDMMAAAA, DD/MM/AAAA, DD-MM-AAAA o AAAA-MM-DD."
+                )
 
     if origen_cantidad == ORIGEN_CANTIDAD_PESO_GUIA:
         quantity = _as_decimal(
@@ -458,6 +1538,10 @@ def build_goods_receipt_draft_preview(
         "estanque_destino": estanque_destino,
         "warehouse_code": estanque_destino,
         "origen_cantidad": origen_cantidad,
+        **({
+            "quantity_unit": UNIDAD_SAP_TONELADA_METRICA,
+            "quantity_semantics": "cantidad_informada_guia_mt",
+        } if aplica_documentos_prosesa and origen_cantidad == ORIGEN_CANTIDAD_PESO_GUIA else {}),
         "quantity": _json_safe(quantity),
         "exit_weight": (
             _json_safe(quantity)
@@ -482,6 +1566,10 @@ def build_goods_receipt_draft_preview(
         "folio_number": folio_number,
         "series": _draft_series(),
         "doc_object_code": 20,
+        "recepcion_prosesa_descarga_camion": aplica_documentos_prosesa,
+        "datos_documentales": _json_safe(datos_documentales),
+        "datos_transporte": _json_safe(datos_transporte),
+        "fechas_documentales_sap": fechas_documentales,
     }
 
     if folio_errors:
@@ -527,10 +1615,16 @@ def build_goods_receipt_draft_preview(
         )
 
     if quantity and origen_cantidad == ORIGEN_CANTIDAD_PESO_GUIA:
-        validations.append(
-            "Peso informado en guia encontrado: "
-            f"{_json_safe(quantity)}"
-        )
+        if aplica_documentos_prosesa:
+            validations.append(
+                "Cantidad informada en guia encontrada: "
+                f"{_decimal_text(quantity)} {UNIDAD_SAP_TONELADA_METRICA}"
+            )
+        else:
+            validations.append(
+                "Peso informado en guia encontrado: "
+                f"{_json_safe(quantity)}"
+            )
     elif quantity and origen_cantidad == ORIGEN_CANTIDAD_DISPONIBLE:
         validations.append(
             "Cantidad disponible encontrada: "
@@ -658,6 +1752,10 @@ def build_goods_receipt_draft_preview(
             ),
             "Quantity": selected_line.get("Quantity"),
             "RemainingOpenQuantity": _json_safe(remaining),
+            **({
+                "UoMCode": selected_line.get("UoMCode") or "",
+                "MeasureUnit": selected_line.get("MeasureUnit") or "",
+            } if aplica_documentos_prosesa and origen_cantidad == ORIGEN_CANTIDAD_PESO_GUIA else {}),
             "LineStatus": line_status,
             "U_NXContenedor": (
                 selected_line.get("U_NXContenedor")
@@ -686,6 +1784,20 @@ def build_goods_receipt_draft_preview(
                 f"Linea SAP no esta abierta: {line_status}"
             )
 
+        sap_quantity_unit = _clean_text(selected_line.get("UoMCode"))
+        if aplica_documentos_prosesa and origen_cantidad == ORIGEN_CANTIDAD_PESO_GUIA:
+            source_data["sap_quantity_unit"] = sap_quantity_unit
+        if (
+            aplica_documentos_prosesa
+            and origen_cantidad == ORIGEN_CANTIDAD_PESO_GUIA
+            and sap_quantity_unit
+            and sap_quantity_unit.upper() != UNIDAD_SAP_TONELADA_METRICA
+        ):
+            errors.append(
+                "La cantidad informada esta expresada en MT, pero la linea SAP "
+                f"usa {sap_quantity_unit}. No se compararan unidades diferentes."
+            )
+
         if quantity and remaining and quantity != remaining:
             quantity_label = (
                 "peso informado en guia"
@@ -697,13 +1809,21 @@ def build_goods_receipt_draft_preview(
                 )
             )
 
-            warnings.append(
-                f"Quantity del borrador usa {quantity_label} "
-                f"{_json_safe(quantity)}; "
-                "la linea SAP tiene RemainingOpenQuantity "
-                f"{_json_safe(remaining)}. "
-                "Confirmar unidad con SAP antes de enviar."
-            )
+            if aplica_documentos_prosesa and origen_cantidad == ORIGEN_CANTIDAD_PESO_GUIA:
+                warnings.append(
+                    "La cantidad informada "
+                    f"({_decimal_text(quantity)} {UNIDAD_SAP_TONELADA_METRICA}) "
+                    "difiere de la cantidad abierta disponible en SAP "
+                    f"({_decimal_text(remaining)} {sap_quantity_unit or UNIDAD_SAP_TONELADA_METRICA})."
+                )
+            else:
+                warnings.append(
+                    f"Quantity del borrador usa {quantity_label} "
+                    f"{_json_safe(quantity)}; "
+                    "la linea SAP tiene RemainingOpenQuantity "
+                    f"{_json_safe(remaining)}. "
+                    "Confirmar unidad con SAP antes de enviar."
+                )
 
         quantity_exceeds_remaining = bool(
             quantity
@@ -711,11 +1831,22 @@ def build_goods_receipt_draft_preview(
             and quantity > remaining
         )
 
+        quantity_exceeds_message = ""
         if quantity_exceeds_remaining:
-            warnings.append(
-                "La cantidad informada supera la cantidad "
-                "abierta en SAP. Revisar unidad de medida."
-            )
+            if aplica_documentos_prosesa and origen_cantidad == ORIGEN_CANTIDAD_PESO_GUIA:
+                quantity_exceeds_message = (
+                    "La cantidad informada "
+                    f"({_decimal_text(quantity)} {UNIDAD_SAP_TONELADA_METRICA}) "
+                    "supera la cantidad abierta disponible en SAP "
+                    f"({_decimal_text(remaining)} {sap_quantity_unit or UNIDAD_SAP_TONELADA_METRICA}). "
+                    "El borrador se creara para revision manual en SAP."
+                )
+            else:
+                quantity_exceeds_message = (
+                    "La cantidad informada supera la cantidad "
+                    "abierta en SAP. Revisar unidad de medida."
+                )
+            warnings.append(quantity_exceeds_message)
 
         source_data["remaining_open_quantity"] = (
             _json_safe(remaining)
@@ -723,6 +1854,8 @@ def build_goods_receipt_draft_preview(
         source_data["quantity_exceeds_remaining"] = (
             quantity_exceeds_remaining
         )
+        if aplica_documentos_prosesa and origen_cantidad == ORIGEN_CANTIDAD_PESO_GUIA:
+            source_data["quantity_exceeds_message"] = quantity_exceeds_message
 
         if (
             not card_code
@@ -761,6 +1894,22 @@ def build_goods_receipt_draft_preview(
                 "WarehouseCode": estanque_destino,
             }
 
+            if aplica_documentos_prosesa:
+                udf_documentales = {
+                    "U_CDA": datos_documentales.get("cda"),
+                    "U_DI": datos_documentales.get("di"),
+                    "U_BL": datos_documentales.get("bl"),
+                    "U_HCO_NAVIERAS": datos_documentales.get("nave_naviera"),
+                    "U_HCO_FVEN": fechas_documentales.get("fecha_produccion"),
+                    "U_NXFlote": fechas_documentales.get("fecha_vencimiento"),
+                    "U_SUI": datos_documentales.get("sui"),
+                }
+                document_line.update({
+                    campo_sap: valor
+                    for campo_sap, valor in udf_documentales.items()
+                    if _clean_text(valor)
+                })
+
             if line_total not in [None, ""]:
                 document_line["LineTotal"] = (
                     _json_safe(line_total)
@@ -780,6 +1929,18 @@ def build_goods_receipt_draft_preview(
                     document_line
                 ],
             }
+            if aplica_documentos_prosesa:
+                udf_transporte = {
+                    "U_NXNombreTransporte": datos_transporte.get("nombre_transporte"),
+                    "U_NXRutChofer": datos_transporte.get("rut_conductor"),
+                    "U_NXNombreChofer": datos_transporte.get("nombre_conductor"),
+                    "U_NXTelefonoChofer": datos_transporte.get("telefono_conductor"),
+                }
+                payload.update({
+                    campo_sap: _clean_text(valor)
+                    for campo_sap, valor in udf_transporte.items()
+                    if _clean_text(valor)
+                })
 
     return {
         "payload": payload,
@@ -1144,6 +2305,7 @@ def build_goods_receipt_draft_update_with_salida_lote(
             "draft_docentry": docentry,
             "draft_docnum": docnum,
             "item_code": item_code,
+            "warehouse_code": _clean_text(line.get("WarehouseCode")),
             "lote": lote,
             "peso_salida": _json_safe(peso_salida_kg),
             "peso_salida_kg": _json_safe(peso_salida_kg),
@@ -1159,6 +2321,23 @@ def build_goods_receipt_draft_update_with_salida_lote(
         "status": get_goods_receipt_draft_update_status(citacion),
         "draft_status": draft_status,
     }
+
+
+def build_goods_receipt_draft_update_preview(
+    citacion: CITACION,
+) -> Dict[str, Any]:
+    """Construye el mismo PATCH del update real sin persistir ni enviar datos."""
+    draft_status = get_goods_receipt_draft_guide_status(citacion)
+    item_code = draft_status.get("item_code") or ""
+    peso_salida = get_exit_weight_from_citation(citacion)
+    enviar_lote = _enviar_lote_en_update_draft_recepcion()
+    lote = generar_lote_recepcion_sap(item_code) if enviar_lote else ""
+    return build_goods_receipt_draft_update_with_salida_lote(
+        citacion,
+        peso_salida,
+        lote,
+        enviar_lote=enviar_lote,
+    )
 
 
 def _registrar_log_update_sap_recepcion(
@@ -1253,54 +2432,49 @@ def _send_goods_receipt_draft_update_to_sap_locked(
             "status": existing,
         }
 
-    draft_status = get_goods_receipt_draft_guide_status(citacion)
-    item_code = draft_status.get("item_code") or ""
-    peso_salida = get_exit_weight_from_citation(citacion)
-    enviar_lote = _enviar_lote_en_update_draft_recepcion()
-    lote = ""
-    if enviar_lote:
-        try:
-            lote = generar_lote_recepcion_sap(item_code)
-        except Exception as exc:
-            preview = build_goods_receipt_draft_update_with_salida_lote(
-                citacion,
-                peso_salida,
-                lote="",
-                enviar_lote=True,
-            )
-            source = preview.get("source_data") or {}
-            _registrar_log_update_sap_recepcion(
-                citacion,
-                user,
-                success=False,
-                payload=preview.get("payload") or {},
-                sap_error={"error": str(exc)},
-                docentry=source.get("draft_docentry") or draft_status.get("docentry") or "",
-                docnum=source.get("draft_docnum") or draft_status.get("docnum") or "",
-                item_code=item_code,
-                lote="",
-                peso_salida_kg=source.get("peso_salida_kg"),
-                cantidad_sap=source.get("cantidad_sap"),
-                unidad_sap=source.get("unidad_sap") or UNIDAD_SAP_TONELADA_METRICA,
-                lote_enviado=False,
-                modo_lote=source.get("modo_lote") or MODO_LOTE_AUTOMATICO_TERRAVIEW,
-            )
-            return {
-                "success": False,
-                "message": str(exc),
-                "preview": preview,
-                "sap_error": {"error": str(exc)},
-                "status": get_goods_receipt_draft_update_status(citacion),
-            }
-        _guardar_lote_recepcion(citacion, user, lote)
+    try:
+        preview = build_goods_receipt_draft_update_preview(citacion)
+    except Exception as exc:
+        draft_status = get_goods_receipt_draft_guide_status(citacion)
+        item_code = draft_status.get("item_code") or ""
+        peso_salida = get_exit_weight_from_citation(citacion)
+        preview = build_goods_receipt_draft_update_with_salida_lote(
+            citacion,
+            peso_salida,
+            lote="",
+            enviar_lote=True,
+        )
+        source = preview.get("source_data") or {}
+        _registrar_log_update_sap_recepcion(
+            citacion,
+            user,
+            success=False,
+            payload=preview.get("payload") or {},
+            sap_error={"error": str(exc)},
+            docentry=source.get("draft_docentry") or draft_status.get("docentry") or "",
+            docnum=source.get("draft_docnum") or draft_status.get("docnum") or "",
+            item_code=item_code,
+            lote="",
+            peso_salida_kg=source.get("peso_salida_kg"),
+            cantidad_sap=source.get("cantidad_sap"),
+            unidad_sap=source.get("unidad_sap") or UNIDAD_SAP_TONELADA_METRICA,
+            lote_enviado=False,
+            modo_lote=source.get("modo_lote") or MODO_LOTE_AUTOMATICO_TERRAVIEW,
+        )
+        return {
+            "success": False,
+            "message": str(exc),
+            "preview": preview,
+            "sap_error": {"error": str(exc)},
+            "status": get_goods_receipt_draft_update_status(citacion),
+        }
 
-    preview = build_goods_receipt_draft_update_with_salida_lote(
-        citacion,
-        peso_salida,
-        lote,
-        enviar_lote=enviar_lote,
-    )
     source = preview.get("source_data") or {}
+    item_code = source.get("item_code") or ""
+    lote = source.get("lote") or ""
+    enviar_lote = source.get("modo_lote") == MODO_LOTE_AUTOMATICO_TERRAVIEW
+    if source.get("lote_enviado") and lote:
+        _guardar_lote_recepcion(citacion, user, lote)
     docentry = source.get("draft_docentry")
     if preview.get("errors") or not preview.get("payload"):
         message = preview["errors"][0] if preview.get("errors") else "Faltan datos obligatorios para actualizar SAP."
@@ -1437,6 +2611,13 @@ def send_goods_receipt_draft_from_peso_guia_to_sap(
     confirm_quantity_exceeds: bool = False,
     allow_duplicate: bool = False,
 ) -> Dict[str, Any]:
+    if es_recepcion_prosesa_contenedor_piso_1(citacion):
+        return send_goods_receipt_draft_to_sap(
+            citacion,
+            user,
+            allow_duplicate=allow_duplicate,
+        )
+
     existing_status = get_goods_receipt_draft_guide_status(citacion)
     # allow_duplicate se conserva solo por compatibilidad de firma: nunca habilita reenvios.
     if existing_status.get("sent"):
@@ -1462,11 +2643,20 @@ def send_goods_receipt_draft_from_peso_guia_to_sap(
         }
 
     source_data = preview.get("source_data") or {}
-    if source_data.get("quantity_exceeds_remaining") and not confirm_quantity_exceeds:
+    es_prosesa_camion = bool(
+        source_data.get("recepcion_prosesa_descarga_camion")
+    )
+    if (
+        source_data.get("quantity_exceeds_remaining")
+        and not es_prosesa_camion
+        and not confirm_quantity_exceeds
+    ):
         return {
             "success": False,
             "confirmation_required": True,
-            "message": "La cantidad informada supera la cantidad abierta en SAP. Revisar unidad de medida.",
+            "message": source_data.get("quantity_exceeds_message") or (
+                "La cantidad informada supera la cantidad abierta en SAP. Revisar unidad de medida."
+            ),
             "preview": preview,
             "status": existing_status,
             **_draft_debug_response(preview=preview, user=user),
@@ -1600,7 +2790,177 @@ def send_goods_receipt_draft_from_peso_guia_to_sap(
     }
 
 
+def send_purchase_delivery_note_prosesa_contenedor_piso_1_to_sap(
+    citacion: CITACION,
+    user: Any,
+    *,
+    allow_duplicate: bool = False,
+) -> Dict[str, Any]:
+    if not es_recepcion_prosesa_contenedor_piso_1(citacion):
+        return {
+            "success": False,
+            "message": "La citacion no corresponde a Contenedor a Piso 1.",
+        }
+
+    existing = _purchase_delivery_note_piso_1_log(
+        citacion,
+        completed_only=True,
+    )
+    if existing:
+        status = get_purchase_delivery_note_prosesa_piso_1_status(citacion)
+        return {
+            "success": False,
+            "message": (
+                "Ya existe un Ingreso SAP para esta citacion: DocEntry %s. "
+                "El reenvio esta bloqueado."
+            ) % (status.get("docentry") or "sin DocEntry informado"),
+            "existing": status,
+        }
+
+    preview = build_purchase_delivery_note_prosesa_contenedor_piso_1(citacion)
+    if preview.get("errors") or not preview.get("payload"):
+        return {
+            "success": False,
+            "message": "Previsualizacion invalida. No se envio a SAP.",
+            "preview": preview,
+        }
+
+    lote_previo = obtener_lote_sap_prosesa_piso_1(citacion)
+    lote_vigente = (preview.get("source_data") or {}).get("lote_sap") or {}
+    if not lote_vigente.get("batch_number"):
+        return {
+            "success": False,
+            "message": "No fue posible generar el lote SAP. No se envio a SAP.",
+            "preview": preview,
+        }
+    try:
+        lote_auditado = guardar_lote_sap_prosesa_piso_1(
+            citacion,
+            user,
+            lote_vigente,
+            motivo="RECALCULO_PRE_POST",
+        )
+        if (
+            lote_previo.get("batch_number")
+            and lote_previo.get("batch_number") != lote_vigente.get("batch_number")
+        ):
+            _registrar_cambio_lote_sap_prosesa_piso_1(
+                citacion,
+                user,
+                lote_previo,
+                lote_auditado,
+            )
+    except Exception as exc:
+        return {
+            "success": False,
+            "message": f"No fue posible auditar el lote SAP vigente: {exc}",
+            "preview": preview,
+        }
+
+    config = load_config(citacion.EP_NID_id, for_write=True)
+    client = SapServiceLayerClient(config)
+    response_payload: Dict[str, Any] = {}
+    status_code: Optional[int] = None
+    try:
+        print(
+            f"\n[Ingreso SAP][PurchaseDeliveryNotes][Citacion {citacion.id}] "
+            f"CompanyDB={config.company_db}, endpoint=PurchaseDeliveryNotes, "
+            f"ItemCode={lote_vigente.get('item_code')}, "
+            f"BatchNumber={lote_vigente.get('batch_number')}, "
+            f"correlativo={lote_vigente.get('correlativo')}, "
+            f"Quantity={preview['payload']['DocumentLines'][0].get('Quantity')}"
+        )
+        print(json.dumps(preview["payload"], indent=2, ensure_ascii=False))
+        folio_source = preview.get("source_data") or {}
+        _log_recepcion_folio(
+            citacion,
+            str(folio_source.get("folio_prefix") or ""),
+            folio_source.get("folio_number"),
+            str(folio_source.get("destino_sap_inicial") or ""),
+        )
+        client.login()
+        response = client.post_purchase_delivery_note(preview["payload"])
+        status_code = response.get("status_code")
+        response_payload = response.get("data") or {}
+        print(
+            f"[Ingreso SAP][PurchaseDeliveryNotes][Citacion {citacion.id}] "
+            f"status_code={status_code}, "
+            f"DocEntry={response_payload.get('DocEntry')}, "
+            f"DocNum={response_payload.get('DocNum')}, "
+            f"response={json.dumps(response_payload, ensure_ascii=False)}"
+        )
+    except HTTPError as exc:
+        error_data = _extract_sap_error(exc)
+        _save_purchase_delivery_note_piso_1_log(
+            citacion,
+            user,
+            success=False,
+            payload=preview["payload"],
+            status_code=error_data.get("status_code"),
+            sap_error=error_data,
+            company_db=config.company_db,
+            sap_username=config.username,
+        )
+        return {
+            "success": False,
+            "message": (
+                _sap_error_message(error_data)
+                or "SAP rechazo la creacion del Ingreso SAP."
+            ),
+            "status_code": error_data.get("status_code"),
+            "sap_error": error_data,
+            "preview": preview,
+            "endpoint": "/PurchaseDeliveryNotes",
+        }
+    except SapServiceLayerProbeError as exc:
+        error_data = {"message": str(exc)}
+        _save_purchase_delivery_note_piso_1_log(
+            citacion,
+            user,
+            success=False,
+            payload=preview["payload"],
+            sap_error=error_data,
+            company_db=config.company_db,
+            sap_username=config.username,
+        )
+        return {
+            "success": False,
+            "message": str(exc),
+            "sap_error": error_data,
+            "preview": preview,
+            "endpoint": "/PurchaseDeliveryNotes",
+        }
+    finally:
+        client.logout()
+
+    _save_purchase_delivery_note_piso_1_log(
+        citacion,
+        user,
+        success=True,
+        payload=preview["payload"],
+        status_code=status_code,
+        response=response_payload,
+        company_db=config.company_db,
+        sap_username=config.username,
+    )
+    return {
+        "success": True,
+        "message": "Ingreso SAP creado.",
+        "status_code": status_code,
+        "response": response_payload,
+        "preview": preview,
+        "endpoint": "/PurchaseDeliveryNotes",
+        "status": get_purchase_delivery_note_prosesa_piso_1_status(citacion),
+    }
+
+
 def send_goods_receipt_draft_to_sap(citacion: CITACION, user: Any, allow_duplicate: bool = False) -> Dict[str, Any]:
+    if es_recepcion_prosesa_contenedor_piso_1(citacion):
+        return send_purchase_delivery_note_prosesa_contenedor_piso_1_to_sap(
+            citacion,
+            user,
+            allow_duplicate=allow_duplicate,
+        )
     existing = _existing_draft_log(citacion)
     legacy_status = get_goods_receipt_draft_status(citacion)
     guide_status = get_goods_receipt_draft_guide_status(citacion)

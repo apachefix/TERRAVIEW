@@ -1410,7 +1410,7 @@
         background: rgba(255, 255, 255, 0.72);
     }
 
-    /* Ciclo compartido por Vapor y Toma de muestra, independiente del cronometro real. */
+    /* Reloj visual compartido; independiente del cronometro real de cada proceso. */
     .op-vapor-hourglass {
         display: block;
         width: 64px;
@@ -2498,7 +2498,7 @@
     <div class="pcoded-content" data-operacion-solo-lectura="{% if operacion_solo_lectura %}true{% else %}false{% endif %}">
         {% if operacion_solo_lectura %}
         <div class="alert alert-info d-flex justify-content-between align-items-center mb-3">
-            <span><i class="fas fa-history mr-2"></i><strong>Operación terminada.</strong> Historial disponible en modo solo lectura.</span>
+            <span><i class="fas fa-history mr-2"></i><strong>Operación terminada.</strong> {% if es_new_jersey_p2 %}Calidad puede continuar pendiente de revisión.{% else %}Historial disponible en modo solo lectura.{% endif %}</span>
             <a class="btn btn-sm btn-outline-info" href="{% url 'cit_listall_recepciones' %}?contexto=operacion_planta_terminadas&tipo={{ citacion.CI_CTIPO }}&empresa_id={{ empresa_activa_id }}&_empresa_id={{ empresa_activa_id }}">Volver a operaciones terminadas</a>
         </div>
         {% endif %}
@@ -2518,10 +2518,10 @@
                         <div class="operacion-hero-metrics">
                             <div class="operacion-hero-chip"><span>Citacion</span> #{{ citacion.id }}</div>
                             <div class="operacion-hero-chip"><span>Guia</span> {% if numero_guia_operacion %}#{{ numero_guia_operacion }}{% else %}Sin registrar{% endif %}</div>
-                            <div class="operacion-hero-chip"><span>Patente</span> {{ patente }}</div>
+                            {% if es_new_jersey_p2 %}<div class="operacion-hero-chip"><span>Contenedor</span> {{ snapshot_recepcion_sbh.Contenedor }}</div>{% else %}<div class="operacion-hero-chip"><span>Patente</span> {{ patente }}</div>{% endif %}
                             <div class="operacion-hero-chip"><span>Tipo</span> {{ citacion.CI_CTIPO }}</div>
                             <div class="operacion-hero-chip"><span>Flujo</span> {{ nombre_flujo }}</div>
-                            <div class="operacion-hero-chip"><span>Fecha ingreso</span> {{ fecha_ingreso_operacion|default:'Sin fecha' }}</div>
+                            {% if not es_new_jersey_p2 %}<div class="operacion-hero-chip"><span>Fecha ingreso</span> {{ fecha_ingreso_operacion|default:'Sin fecha' }}</div>{% endif %}
                             <div class="operacion-hero-chip"><span>Insumo</span> {{ insumo_operacion|default:'Sin insumo' }}</div>
                         </div>
                     </div>
@@ -2532,6 +2532,7 @@
                                 <div class="operacion-hero-status-value">{{ paso.nombre_visible|default:paso.nombre }}</div>
                             {% endif %}
                         {% endfor %}
+                        {% if es_new_jersey_p2 and not paso_actual %}<div class="operacion-hero-status-value">P2 completado</div>{% endif %}
                     </div>
                 </div>
                 <div class="operacion-hero-breadcrumb">
@@ -2545,6 +2546,23 @@
             </div>
         </div>
 
+        {% if new_jersey_relacion %}
+        <div class="card"><div class="card-body">
+            <h5>Operación New Jersey #{{ new_jersey_relacion.operacion_id }}</h5>
+            <div class="row">
+                <div class="col-md-4"><strong>P1</strong> · #{% if es_new_jersey_p2 %}{{ new_jersey_relacion.p1_id }}{% else %}{{ citacion.id }}{% endif %} · {{ new_jersey_relacion.estado_p1 }}</div>
+                <div class="col-md-4"><strong>P2</strong> ·
+                    {% if new_jersey_relacion.p2 %}
+                        #{{ new_jersey_relacion.p2.CI_NID_id }} · {{ new_jersey_relacion.p2.ONJP_CESTADO }}
+                        {% if new_jersey_relacion.p2.ONJP_CESTADO != 'PENDIENTE' %}
+                        <a href="{% url 'operacion_planta_citacion' new_jersey_relacion.p2.CI_NID_id %}?_empresa_id={{ empresa_activa_id }}">Ver P2</a>
+                        {% endif %}
+                    {% else %}Pendiente de cierre P1{% endif %}
+                </div>
+                <div class="col-md-4"><strong>P3</strong> · {{ new_jersey_relacion.estado_p3 }}</div>
+            </div>
+        </div></div>
+        {% endif %}
         {% if paso_pesaje_activo_alt %}
         <div class="op-alt-pesaje-close">
             <div>
@@ -2605,6 +2623,7 @@
                 </div>
             </div>
             {% endif %}
+            {% if not es_new_jersey_p2 %}
             <div class="col-12">
                 <div class="card operacion-contact-card">
                     <div class="card-body">
@@ -2660,6 +2679,7 @@
                     </div>
                 </div>
             </div>
+            {% endif %}
 
             <div class="col-12">
                 <div class="card operacion-doc-card">
@@ -2754,6 +2774,9 @@
                                     </div>
                                     {% endif %}
 
+                                    {% if es_new_jersey_p2 and not paso_actual and paso.orden == 3 %}
+                                    <div class="alert alert-success">P2 completado. La operación padre está pendiente de Proceso 3.</div>
+                                    {% endif %}
                                     {% if paso.no_ejecutado_inspeccion %}
                                     <div class="alert alert-warning">No ejecutado: camión rechazado en la inspección previa. Continúa directamente a Confirmar salida.</div>
                                     {% else %}
@@ -2856,7 +2879,7 @@
                                                         class="op-glass-button {% if paso.tipo_ticket_pesaje == 'SAL' %}is-success{% else %}is-secondary{% endif %} btn-obtener-ticket-pesaje"
                                                         data-paso="{{ paso.nombre }}"
                                                         data-tipo-ticket="{{ paso.tipo_ticket_pesaje }}"
-                                                        {% if not paso.activo or not paso.puede_editar %}disabled{% endif %}>
+                                                        {% if not paso.puede_obtener_ticket_pesaje %}disabled{% endif %}>
                                                     <i class="op-glass-icon fas fa-file-pdf"></i>
                                                     {% if paso.tipo_ticket_pesaje == 'SAL' %}
                                                         Obtener ticket de salida
@@ -2891,6 +2914,62 @@
                                                 </span>
                                             {% endif %}
                                         </div>
+                                    </div>
+                                    {% endif %}
+
+                                    {% if paso.requiere_descarga_contenedor_new_jersey %}
+                                    <div class="op-lab-panel operacion-nj-descarga-contenedor">
+                                        <div class="op-lab-title"><i class="fas fa-box-open"></i> Descarga Contenedor</div>
+                                        <div class="op-dashboard-muted mb-3">
+                                            El contenedor permanece dentro de planta SBH. Responsable provisional: {{ paso.responsable }}.
+                                        </div>
+                                        <div class="op-field-summary-grid mb-3">
+                                            <div class="op-field-summary-card">
+                                                <div class="op-field-summary-label">Citacion</div>
+                                                <div class="op-field-summary-value">#{{ citacion.id }}</div>
+                                            </div>
+                                            <div class="op-field-summary-card">
+                                                <div class="op-field-summary-label">Contenedor</div>
+                                                <div class="op-field-summary-value">{{ paso.descarga_contenedor_new_jersey.contenedor|default:'Sin registrar' }}</div>
+                                            </div>
+                                            <div class="op-field-summary-card">
+                                                <div class="op-field-summary-label">Destino fisico</div>
+                                                <div class="op-field-summary-value">{{ paso.descarga_contenedor_new_jersey.destino_fisico|default:'Sin registrar' }}</div>
+                                            </div>
+                                        </div>
+                                        {% if paso.descarga_contenedor_new_jersey.iniciada %}
+                                        <div class="op-dashboard-muted mb-2">
+                                            Inicio: {{ paso.descarga_contenedor_new_jersey.inicio_iso }} por {{ paso.descarga_contenedor_new_jersey.usuario_inicio }}.
+                                        </div>
+                                        {% endif %}
+                                        {% if paso.descarga_contenedor_new_jersey.finalizada %}
+                                        <div class="alert alert-success mb-0">
+                                            Descarga confirmada: {{ paso.descarga_contenedor_new_jersey.fin_iso }}
+                                            por {{ paso.descarga_contenedor_new_jersey.usuario_fin }}.
+                                        </div>
+                                        {% elif paso.activo and paso.puede_editar %}
+                                        <form method="post" action="{% url 'operacion_planta_guardar_paso' citacion.id %}">
+                                            {% csrf_token %}
+                                            <input type="hidden" name="_empresa_id" value="{{ empresa_activa_id }}">
+                                            <input type="hidden" name="empresa_id" value="{{ empresa_activa_id }}">
+                                            <input type="hidden" name="origen" value="descarga_new_jersey">
+                                            <input type="hidden" name="citacion_id" value="{{ citacion.id }}">
+                                            <input type="hidden" name="paso" value="{{ paso.nombre }}">
+                                            {% if paso.descarga_contenedor_new_jersey.iniciada %}
+                                            <input type="hidden" name="accion" value="confirmar">
+                                            <button type="submit" class="op-glass-button is-success">
+                                                <i class="op-glass-icon fas fa-check-circle"></i> Confirmar descarga
+                                            </button>
+                                            {% else %}
+                                            <input type="hidden" name="accion" value="iniciar">
+                                            <button type="submit" class="op-glass-button is-primary">
+                                                <i class="op-glass-icon fas fa-play"></i> Iniciar descarga
+                                            </button>
+                                            {% endif %}
+                                        </form>
+                                        {% else %}
+                                        <div class="alert alert-light border mb-0">{{ paso.solo_lectura_msg|default:'Pendiente de Pesaje Entrada' }}</div>
+                                        {% endif %}
                                     </div>
                                     {% endif %}
 
@@ -2987,13 +3066,28 @@
 
                                     {% if paso.requiere_resultado_calidad %}
                                     <div class="op-lab-panel operacion-calidad-box" data-paso="{{ paso.nombre }}">
+                                        {% if paso.es_new_jersey_p2 and paso.puede_editar and paso.resultado_calidad.estado == 'PENDIENTE' %}
+                                        <form class="nj-p2-accion mb-3" method="post" action="{% url 'operacion_planta_accion_new_jersey_p2' citacion.id %}">{% csrf_token %}
+                                            <input type="hidden" name="_empresa_id" value="{{ empresa_activa_id }}">
+                                            <input type="hidden" name="paso" value="Calidad">
+                                            {% if not paso.validacion_calidad.registrada %}
+                                            <button class="btn btn-outline-primary" type="submit" name="accion" value="validar">Validar insumo y guía</button>
+                                            {% else %}
+                                            <div class="alert alert-info">Insumo y guía validados por {{ paso.validacion_calidad.usuario }}.</div>
+                                            <label for="nj-p2-observacion-calidad">Observación de Calidad</label>
+                                            <textarea id="nj-p2-observacion-calidad" class="form-control mb-2" name="observacion" rows="2"></textarea>
+                                            <button class="btn btn-outline-danger" type="submit" name="accion" value="rechazar">Rechazar</button>
+                                            <button class="btn btn-success" type="submit" name="accion" value="aprobar">Aprobar Calidad</button>
+                                            {% endif %}
+                                        </form>
+                                        {% endif %}
                                         <div class="op-quality-overview">
-                                            <div class="op-lab-title"><i class="fas fa-flask"></i> Analisis y Calidad</div>
+                                            <div class="op-lab-title"><i class="fas fa-flask"></i> {% if es_new_jersey_p2 %}Calidad{% else %}Analisis y Calidad{% endif %}</div>
                                             <div class="op-lab-subtitle">{% if paso.calidad_paralela %}Proceso paralelo al avance operacional del camion{% else %}Proceso interno automatico de TERRAVIEW{% endif %}</div>
                                             <div class="op-result-dashboard-grid mt-3">
                                                 <div class="op-dashboard-card"><div class="op-dashboard-card-title">Citacion</div><strong>#{{ citacion.id }}</strong></div>
                                                 <div class="op-dashboard-card"><div class="op-dashboard-card-title">Numero de guia</div><strong>{{ numero_guia_operacion|default:'Sin registrar' }}</strong></div>
-                                                <div class="op-dashboard-card"><div class="op-dashboard-card-title">Patente</div><strong>{{ patente|default:'Sin registrar' }}</strong></div>
+                                                {% if not es_new_jersey_p2 %}<div class="op-dashboard-card"><div class="op-dashboard-card-title">Patente</div><strong>{{ patente|default:'Sin registrar' }}</strong></div>{% endif %}
                                                 <div class="op-dashboard-card"><div class="op-dashboard-card-title">Insumo</div><strong>{{ insumo_operacion|default:'Sin insumo' }}</strong></div>
                                             </div>
                                             <div class="op-action-state mt-3">
@@ -3031,7 +3125,7 @@
                                                     Resultado rechazado por an&aacute;lisis autom&aacute;tico. Pendiente de revisi&oacute;n manual de Calidad.
                                                 </div>
                                             {% elif paso.resultado_calidad.estado == 'RECHAZADO' %}
-                                                <div class="alert alert-danger mt-3 mb-0"><i class="fas fa-truck mr-2"></i>Cami&oacute;n autorizado para salir de planta por rechazo de calidad</div>
+                                                {% if es_new_jersey_p2 %}<div class="alert alert-warning mt-3 mb-0">Calidad rechazada. Puede registrar una nueva aprobación tras revisar el resultado.</div>{% else %}<div class="alert alert-danger mt-3 mb-0"><i class="fas fa-truck mr-2"></i>Cami&oacute;n autorizado para salir de planta por rechazo de calidad</div>{% endif %}
                                             {% elif paso.resultado_calidad.estado == 'APRUEBA_CLIENTE' %}
                                                 <div class="alert alert-warning mt-3 mb-0"><i class="fas fa-user-clock mr-2"></i>En espera de aprobaci&oacute;n del cliente</div>
                                             {% elif paso.resultado_calidad.estado == 'APROBADO' %}
@@ -3039,9 +3133,11 @@
                                             {% endif %}
                                         </div>
                                         <div class="op-lab-result-card op-quality-clock-panel">
-                                                <div class="op-hourglass {% if not paso.resultado_calidad.temporizador_activo %}descarga-finalizada{% else %}descarga-activa{% endif %}">
-                                                    <div class="op-hourglass-inner"><span class="op-hourglass-neck"></span><span class="op-hourglass-glass-shine"></span><span class="op-hourglass-sand-layer"><span class="op-hourglass-sand-top"></span><span class="op-hourglass-flow"></span><span class="op-hourglass-sand-bottom"></span></span></div>
-                                                </div>
+                                                {% if paso.resultado_calidad.temporizador_activo %}
+                                                    {% include 'home/CITACION/_process_hourglass.html' with finalizada=False only %}
+                                                {% else %}
+                                                    {% include 'home/CITACION/_process_hourglass.html' with finalizada=True only %}
+                                                {% endif %}
                                                 <div class="op-quality-clock-label">Tiempo transcurrido</div>
                                                 <strong class="op-wait-clock-time" {% if paso.resultado_calidad.temporizador_activo %}data-wait-start="{{ paso.resultado_calidad.inicio_iso }}"{% endif %}>{{ paso.resultado_calidad.duracion_legible }}</strong>
                                                 <div class="op-quality-clock-meta">
@@ -3307,16 +3403,17 @@
                                     {% if paso.requiere_ciclo_bodega_externa %}
                                     <div class="op-cycle-panel operacion-ciclo-bodega-externa-box"
                                          data-paso="{{ paso.nombre }}"
+                                         data-salida-temporal-prosesa="{% if paso.es_salida_temporal_prosesa_piso_1 or paso.es_salida_temporal_prosesa_piso_2 %}true{% else %}false{% endif %}"
                                          data-iniciada="{% if paso.ciclo_bodega_externa.iniciada %}true{% else %}false{% endif %}"
                                          data-finalizada="{% if paso.ciclo_bodega_externa.finalizada %}true{% else %}false{% endif %}">
                                         <div class="op-cycle-header">
                                             <div>
                                                 <div class="op-cycle-title">
                                                     <span class="op-cycle-title-icon"><i class="fas {% if paso.es_terramar_bodega_externa %}fa-warehouse{% else %}fa-route{% endif %}"></i></span>
-                                                    {% if paso.es_terramar_bodega_externa %}DESCARGA EN BODEGA EXTERNA{% else %}SALIDA A BODEGA EXTERNA{% endif %}
+                                                    {% if paso.es_salida_temporal_prosesa_piso_2 %}RETIRO TEMPORAL DE CONTENEDOR VACIO{% elif paso.es_salida_temporal_prosesa_piso_1 %}SALIDA TEMPORAL A PROSESA PISO 1{% elif paso.es_terramar_bodega_externa %}DESCARGA EN BODEGA EXTERNA{% else %}SALIDA A BODEGA EXTERNA{% endif %}
                                                 </div>
                                                 <div class="op-cycle-subtitle">
-                                                    {% if paso.es_terramar_bodega_externa %}Responsable inicio: Asistente Bodega{% else %}Responsable inicio: Asistente_C_D{% endif %} | Responsable cierre: Guardia Porteria
+                                                    {% if paso.es_salida_temporal_prosesa_piso_2 %}Responsable inicio: Asistente Recepcion{% elif paso.es_terramar_bodega_externa %}Responsable inicio: Asistente Bodega{% else %}Responsable inicio: Asistente_C_D{% endif %} | {% if paso.es_salida_temporal_prosesa_piso_1 or paso.es_salida_temporal_prosesa_piso_2 %}Responsable retorno{% else %}Responsable cierre{% endif %}: Guardia Porteria
                                                 </div>
                                             </div>
                                             <span class="op-cycle-state-badge {{ paso.ciclo_bodega_externa.estado_badge }}">
@@ -3342,6 +3439,12 @@
                                                 <div class="op-field-summary-label">Insumo</div>
                                                 <div class="op-field-summary-value {% if not paso.ciclo_bodega_externa.insumo %}is-muted{% endif %}">{{ paso.ciclo_bodega_externa.insumo|default:"Sin insumo" }}</div>
                                             </div>
+                                            {% if paso.es_salida_temporal_prosesa_piso_2 %}
+                                            <div class="op-field-summary-card">
+                                                <div class="op-field-summary-label">Contenedor</div>
+                                                <div class="op-field-summary-value">{{ paso.ciclo_bodega_externa.contenedor|default:"Sin contenedor" }}</div>
+                                            </div>
+                                            {% endif %}
                                             <div class="op-field-summary-card">
                                                 <div class="op-field-summary-label">Destino</div>
                                                 <div class="op-field-summary-value">{{ paso.ciclo_bodega_externa.destino }}</div>
@@ -3349,27 +3452,17 @@
                                         </div>
 
                                         <div class="alert alert-info mt-3 mb-0">
-                                            {% if paso.es_terramar_bodega_externa %}Asistente Bodega inicia la salida del camion hacia la descarga externa. Guardia Porteria confirma el regreso a planta.{% else %}Sala Control debe autorizar la salida del camion hacia Bodega Externa. El proceso permanecera activo hasta que Guardia Porteria registre el regreso del camion.{% endif %}
+                                            {% if paso.es_salida_temporal_prosesa_piso_2 %}Asistente Recepcion inicia el retiro del contenedor vacio. Guardia Porteria valida la salida temporal y registra el retorno; el camion y la citacion permanecen activos.{% elif paso.es_salida_temporal_prosesa_piso_1 %}Asistente_C_D autoriza la salida temporal para depositar el contenedor en Piso 1. El camion permanece asociado a la citacion hasta que Guardia Porteria registre el retorno.{% elif paso.es_terramar_bodega_externa %}Asistente Bodega inicia la salida del camion hacia la descarga externa. Guardia Porteria confirma el regreso a planta.{% else %}Sala Control debe autorizar la salida del camion hacia Bodega Externa. El proceso permanecera activo hasta que Guardia Porteria registre el regreso del camion.{% endif %}
                                         </div>
 
                                         {% if paso.ciclo_bodega_externa.iniciada %}
                                             <div class="op-cycle-runtime mt-3">
-                                                <div class="op-hourglass {% if paso.ciclo_bodega_externa.finalizada %}descarga-finalizada{% else %}descarga-activa{% endif %}">
-                                                    <div class="op-hourglass-inner">
-                                                        <span class="op-hourglass-neck"></span>
-                                                        <span class="op-hourglass-glass-shine"></span>
-                                                        <span class="op-hourglass-sand-layer">
-                                                            <span class="op-hourglass-sand-top"></span>
-                                                            <span class="op-hourglass-flow"></span>
-                                                            <span class="op-hourglass-sand-bottom"></span>
-                                                        </span>
-                                                    </div>
-                                                </div>
+                                                {% include 'home/CITACION/_process_hourglass.html' with finalizada=paso.ciclo_bodega_externa.finalizada only %}
                                                 <div>
                                                     <div class="op-dashboard-card-title">
-                                                        {% if paso.ciclo_bodega_externa.finalizada %}Ciclo Bodega Externa finalizado{% elif paso.es_terramar_bodega_externa %}CAMION EN DESCARGA EXTERNA{% else %}Camion en Bodega Externa{% endif %}
+                                                        {% if paso.es_salida_temporal_prosesa_piso_2 %}{{ paso.ciclo_bodega_externa.estado }}{% elif paso.es_salida_temporal_prosesa_piso_1 %}{% if paso.ciclo_bodega_externa.finalizada %}Retorno a planta registrado{% else %}CAMION FUERA DE PLANTA{% endif %}{% elif paso.ciclo_bodega_externa.finalizada %}Ciclo Bodega Externa finalizado{% elif paso.es_terramar_bodega_externa %}CAMION EN DESCARGA EXTERNA{% else %}Camion en Bodega Externa{% endif %}
                                                     </div>
-                                                    <div class="op-dashboard-muted">Tiempo transcurrido desde salida hacia Bodega Externa</div>
+                                                    <div class="op-dashboard-muted">{% if paso.es_salida_temporal_prosesa_piso_1 or paso.es_salida_temporal_prosesa_piso_2 %}Tiempo de retiro temporal{% else %}Tiempo transcurrido desde salida hacia Bodega Externa{% endif %}</div>
                                                     <div class="op-wait-clock-time op-bodega-externa-live-time"
                                                          {% if paso.ciclo_bodega_externa.en_proceso %}data-wait-start="{{ paso.ciclo_bodega_externa.inicio_iso }}" data-wait-start-ms="{{ paso.ciclo_bodega_externa.inicio_ms }}"{% endif %}>
                                                         {{ paso.ciclo_bodega_externa.duracion_legible|default:"00:00:00" }}
@@ -3397,7 +3490,12 @@
                                                     {% endif %}
                                                     <button type="button" class="op-glass-button is-success btn-iniciar-ciclo-bodega-externa" data-paso="{{ paso.nombre }}">
                                                         <i class="op-glass-icon fas {% if paso.es_terramar_bodega_externa %}fa-warehouse{% else %}fa-route{% endif %}"></i>
-                                                        {% if paso.es_terramar_bodega_externa %}INICIAR SALIDA A BODEGA EXTERNA{% else %}AUTORIZAR SALIDA A BODEGA EXTERNA{% endif %}
+                                                        {% if paso.es_salida_temporal_prosesa_piso_2 %}INICIAR RETIRO DE CONTENEDOR{% elif paso.es_salida_temporal_prosesa_piso_1 %}AUTORIZAR SALIDA PARA DEPOSITAR CONTENEDOR{% elif paso.es_terramar_bodega_externa %}INICIAR SALIDA A BODEGA EXTERNA{% else %}AUTORIZAR SALIDA A BODEGA EXTERNA{% endif %}
+                                                    </button>
+                                                {% elif paso.es_salida_temporal_prosesa_piso_2 and paso.ciclo_bodega_externa.en_proceso and not paso.ciclo_bodega_externa.salida_validada and paso.puede_finalizar_ciclo_bodega_externa %}
+                                                    <button type="button" class="op-glass-button is-success btn-validar-salida-temporal-prosesa-piso2">
+                                                        <i class="op-glass-icon fas fa-check-circle"></i>
+                                                        VALIDAR SALIDA TEMPORAL
                                                     </button>
                                                 {% elif paso.ciclo_bodega_externa.en_proceso and paso.puede_finalizar_ciclo_bodega_externa %}
                                                     <div class="w-100">
@@ -3406,14 +3504,14 @@
                                                         <div class="d-flex justify-content-end mt-2">
                                                             <button type="button" class="op-glass-button is-success btn-finalizar-ciclo-bodega-externa" data-paso="{{ paso.nombre }}">
                                                                 <i class="op-glass-icon fas fa-check-circle"></i>
-                                                                {% if paso.es_terramar_bodega_externa %}CONFIRMAR REGRESO DE BODEGA EXTERNA{% else %}REGISTRAR REGRESO DESDE BODEGA EXTERNA{% endif %}
+                                                                {% if paso.es_salida_temporal_prosesa_piso_2 or paso.es_salida_temporal_prosesa_piso_1 %}REGISTRAR RETORNO A PLANTA{% elif paso.es_terramar_bodega_externa %}CONFIRMAR REGRESO DE BODEGA EXTERNA{% else %}REGISTRAR REGRESO DESDE BODEGA EXTERNA{% endif %}
                                                             </button>
                                                         </div>
                                                     </div>
                                                 {% elif paso.ciclo_bodega_externa.en_proceso %}
-                                                    <div class="alert alert-light border mb-0">Ciclo externo en curso. Guardia Porteria debe registrar el regreso del camion.</div>
+                                                    <div class="alert alert-light border mb-0">{% if paso.es_salida_temporal_prosesa_piso_2 %}Guardia Porteria debe validar la salida temporal y registrar el retorno del camion.{% elif paso.es_salida_temporal_prosesa_piso_1 %}Salida temporal en curso. Guardia Porteria debe registrar el retorno del camion.{% else %}Ciclo externo en curso. Guardia Porteria debe registrar el regreso del camion.{% endif %}</div>
                                                 {% else %}
-                                                    <div class="alert alert-light border mb-0">{% if paso.es_terramar_bodega_externa %}Solo Asistente Bodega puede iniciar la salida a Bodega Externa.{% else %}Solo Asistente_C_D puede autorizar la salida a Bodega Externa.{% endif %}</div>
+                                                    <div class="alert alert-light border mb-0">{% if paso.es_salida_temporal_prosesa_piso_2 %}Solo Asistente Recepcion puede iniciar el retiro del contenedor.{% elif paso.es_terramar_bodega_externa %}Solo Asistente Bodega puede iniciar la salida a Bodega Externa.{% else %}Solo Asistente_C_D puede autorizar la salida a Bodega Externa.{% endif %}</div>
                                                 {% endif %}
                                             </div>
                                         {% endif %}
@@ -3425,8 +3523,49 @@
                                     <div class="op-cycle-panel operacion-ciclo-descarga-box"
                                          data-paso="{{ paso.nombre }}"
                                          data-iniciada="{% if paso.ciclo_descarga.iniciada %}true{% else %}false{% endif %}"
-                                         data-finalizada="{% if paso.ciclo_descarga.finalizada %}true{% else %}false{% endif %}">
-                                        {% if paso.es_ciclo_carga_despacho %}
+                                         data-finalizada="{% if paso.ciclo_descarga.finalizada %}true{% else %}false{% endif %}"
+                                         {% if paso.es_new_jersey_p2 %}data-new-jersey-p2="true" data-sap-solicitud-creada="{% if solicitud_sap_new_jersey_p2.created %}true{% else %}false{% endif %}"{% endif %}>
+                                        {% if paso.es_new_jersey_p3 %}
+                                        <div class="op-cycle-header">
+                                            <div>
+                                                <div class="op-cycle-title">
+                                                    <span class="op-cycle-title-icon"><i class="fas fa-truck-loading"></i></span>
+                                                    Carga / Descarga
+                                                </div>
+                                                <div class="op-cycle-subtitle">
+                                                    Inicio automático después de Pesaje Entrada | Patente: {{ patente }}
+                                                </div>
+                                            </div>
+                                            <span class="op-cycle-state-badge {% if paso.ciclo_descarga.finalizada %}is-done{% elif paso.ciclo_descarga.en_proceso %}is-active{% endif %}">
+                                                <i class="fas {% if paso.ciclo_descarga.finalizada %}fa-check-circle{% elif paso.ciclo_descarga.en_proceso %}fa-hourglass-half{% else %}fa-circle{% endif %}"></i>
+                                                {% if paso.ciclo_descarga.finalizada %}Completada{% elif paso.ciclo_descarga.en_proceso %}EN PROCESO{% else %}Pendiente{% endif %}
+                                            </span>
+                                        </div>
+                                        {% if paso.ciclo_descarga.iniciada %}
+                                        <div class="op-cycle-runtime mt-3">
+                                            <div class="op-hourglass {% if paso.ciclo_descarga.finalizada %}descarga-finalizada{% else %}descarga-activa{% endif %}">
+                                                <div class="op-hourglass-inner">
+                                                    <span class="op-hourglass-neck"></span>
+                                                    <span class="op-hourglass-glass-shine"></span>
+                                                    <span class="op-hourglass-sand-layer"><span class="op-hourglass-sand-top"></span><span class="op-hourglass-flow"></span><span class="op-hourglass-sand-bottom"></span></span>
+                                                </div>
+                                            </div>
+                                            <div>
+                                                <div class="op-dashboard-card-title">Retiro de contenedor vacío</div>
+                                                <div class="op-wait-clock-time op-cycle-live-time" {% if paso.ciclo_descarga.en_proceso %}data-cycle-start="{{ paso.ciclo_descarga.inicio_descarga }}"{% endif %}>
+                                                    {{ paso.ciclo_descarga.duracion_legible|default:'00:00:00' }}
+                                                </div>
+                                                <div class="op-dashboard-muted">
+                                                    Inicio: {{ paso.ciclo_descarga.inicio_descarga_legible|default:'Sin inicio' }}
+                                                    {% if paso.ciclo_descarga.finalizada %}| Fin: {{ paso.ciclo_descarga.fin_descarga_legible }}{% endif %}
+                                                </div>
+                                            </div>
+                                        </div>
+                                        {% endif %}
+                                        {% if paso.ciclo_descarga.en_proceso %}
+                                        <div class="op-dashboard-muted mt-3">Esta etapa se completará automáticamente al obtener el ticket de salida.</div>
+                                        {% endif %}
+                                        {% elif paso.es_ciclo_carga_despacho %}
                                         <div class="op-cycle-header">
                                             <div>
                                                 <div class="op-cycle-title">
@@ -3568,7 +3707,7 @@
                                                     Ciclo Descarga
                                                 </div>
                                                 <div class="op-cycle-subtitle">
-                                                    Responsable: {% if paso.es_flujo_terramar %}{{ paso.responsable }}{% else %}Sala_Control{% endif %} | Patente: {{ patente }}
+                                                    Responsable: {% if paso.es_flujo_terramar or paso.es_new_jersey_p2 %}{{ paso.responsable }}{% else %}Sala_Control{% endif %} | {% if paso.es_new_jersey_p2 %}Contenedor: {{ snapshot_recepcion_sbh.Contenedor }}{% else %}Patente: {{ patente }}{% endif %}
                                                 </div>
                                             </div>
                                             <span class="op-cycle-state-badge {% if paso.ciclo_descarga.finalizada %}is-done{% elif paso.ciclo_descarga.en_proceso %}is-active{% endif %}">
@@ -3582,6 +3721,52 @@
                                                 {% endif %}
                                             </span>
                                         </div>
+
+                                        {% if paso.es_new_jersey_p2 %}
+                                        <div class="form-group mt-3 mb-3 operacion-tk-destino-new-jersey-p2">
+                                            <label for="new-jersey-p2-tk-destino"><strong>Estanque destino *</strong></label>
+                                            <select id="new-jersey-p2-tk-destino" class="form-control" data-destino-guardado="{{ new_jersey_p2_sap_destino|default:'' }}" {% if not paso.activo or not paso.puede_editar or solicitud_sap_new_jersey_p2.blocked %}disabled{% endif %}>
+                                                <option value="">Seleccione estanque</option>
+                                                {% for tk in new_jersey_p2_estanques %}
+                                                <option value="{{ tk }}" {% if tk == new_jersey_p2_sap_destino %}selected{% endif %}>{{ tk }}</option>
+                                                {% endfor %}
+                                            </select>
+                                            <small class="form-text text-muted">Destino heredado desde P1. Puede modificarlo antes de crear la solicitud SAP.</small>
+                                            {% if new_jersey_p2_tk_heredado != new_jersey_p2_sap_destino %}
+                                            <small class="form-text text-muted">TK heredado de P1: {{ new_jersey_p2_tk_heredado }}</small>
+                                            {% endif %}
+                                        </div>
+                                        <div class="card border-primary mt-3 mb-3 operacion-solicitud-sap-new-jersey-p2">
+                                            <div class="card-body">
+                                                <h5 class="mb-2">SOLICITUD SAP</h5>
+                                                <div><strong>Estado:</strong> {% if solicitud_sap_new_jersey_p2.created %}Creada{% else %}No creada{% endif %}</div>
+                                                <div><strong>Origen SAP:</strong> {{ solicitud_sap_new_jersey_p2.origen|default:new_jersey_p2_sap_origen }}</div>
+                                                <div><strong>Destino solicitado:</strong> {{ solicitud_sap_new_jersey_p2.destino|default:new_jersey_p2_sap_destino }}</div>
+                                                {% if solicitud_sap_new_jersey_p2.created %}
+                                                    <div><strong>DocEntry:</strong> {{ solicitud_sap_new_jersey_p2.docentry }}</div>
+                                                    <div><strong>DocNum:</strong> {{ solicitud_sap_new_jersey_p2.docnum|default:'Sin informar' }}</div>
+                                                    <div><strong>ItemCode:</strong> {{ solicitud_sap_new_jersey_p2.item_code }}</div>
+                                                    <div><strong>Cantidad:</strong> {{ solicitud_sap_new_jersey_p2.quantity_mt }} MT</div>
+                                                {% elif solicitud_sap_new_jersey_p2.blocked %}
+                                                    <div class="alert alert-warning mt-2 mb-0">Existe un envío SAP {{ solicitud_sap_new_jersey_p2.estado }}. Debe conciliarse antes de reintentar.</div>
+                                                {% else %}
+                                                    <div class="alert alert-info mt-2 mb-2">Debe crear la solicitud de traslado SAP antes de iniciar la descarga.</div>
+                                                    {% if paso.activo and paso.puede_editar %}
+                                                    <div class="op-discharge-actions">
+                                                        {% if sap_preview_new_jersey_p2_enabled %}
+                                                        <button type="button" class="op-glass-button is-secondary btn-preview-solicitud-sap-new-jersey-p2">
+                                                            <i class="op-glass-icon fas fa-file-code"></i> PREVISUALIZAR SOLICITUD SAP
+                                                        </button>
+                                                        {% endif %}
+                                                        <button type="button" class="op-glass-button is-success btn-crear-solicitud-sap-new-jersey-p2">
+                                                            <i class="op-glass-icon fas fa-paper-plane"></i> CREAR SOLICITUD DE TRASLADO SAP
+                                                        </button>
+                                                    </div>
+                                                    {% endif %}
+                                                {% endif %}
+                                            </div>
+                                        </div>
+                                        {% endif %}
 
                                         {% if not paso.es_flujo_terramar %}
                                         <div class="op-cycle-summary-grid">
@@ -3704,17 +3889,17 @@
                                             </div>
                                         {% endif %}
 
-                                        {% if paso.es_flujo_terramar and paso.ciclo_descarga.iniciada and not paso.ciclo_descarga.finalizada %}
+                                        {% if paso.es_flujo_terramar or paso.es_new_jersey_p2 %}{% if paso.ciclo_descarga.iniciada and not paso.ciclo_descarga.finalizada %}
                                             <div class="form-group mt-3">
                                                 <label>Observaciones</label>
                                                 <textarea class="form-control observacion-final-ciclo-descarga" rows="3" placeholder="Observación opcional de la descarga"></textarea>
                                             </div>
-                                        {% endif %}
+                                        {% endif %}{% endif %}
 
                                         {% if paso.activo and paso.puede_editar and not paso.ciclo_descarga.finalizada %}
                                             <div class="op-discharge-actions">
                                                 {% if not paso.ciclo_descarga.iniciada %}
-                                                    <button type="button" class="op-glass-button is-secondary btn-iniciar-ciclo-descarga" data-paso="{{ paso.nombre }}" {% if not paso.es_flujo_terramar %}disabled{% endif %}>
+                                                    <button type="button" class="op-glass-button is-secondary btn-iniciar-ciclo-descarga" data-paso="{{ paso.nombre }}" {% if not paso.es_flujo_terramar and not paso.es_new_jersey_p2 or paso.es_new_jersey_p2 and not solicitud_sap_new_jersey_p2.created %}disabled{% endif %}>
                                                         <i class="op-glass-icon fas fa-play"></i>
                                                         {% if paso.es_recepcion_terramar_principal %}Iniciar Descarga{% elif paso.es_flujo_terramar %}Iniciar proceso de descarga{% else %}Iniciar descarga{% endif %}
                                                     </button>
@@ -4030,7 +4215,156 @@
                                     </div>
                                     {% endif %}
 
-                                    {% if paso.requiere_autorizar_salida %}
+                                    {% if paso.requiere_autorizar_salida_prosesa_piso_2 %}
+                                    <div class="op-cycle-panel operacion-autorizar-salida-prosesa-piso2-box" data-paso="{{ paso.nombre }}" data-peso-ingresado-kg="{{ peso_real_prosesa.transferencia_sap.source_data.peso_ingresado_virtual_kg|default:"" }}">
+                                        <div class="op-cycle-header">
+                                            <div>
+                                                <div class="op-cycle-title"><i class="fas fa-calculator mr-2"></i>CALCULO PESO REAL PROSESA</div>
+                                                <div class="op-cycle-subtitle">Validacion previa a Autorizar Salida | Citacion #{{ citacion.id }}</div>
+                                            </div>
+                                        </div>
+                                        {% if peso_real_prosesa.qa_habilitado %}
+                                        <div class="alert alert-warning mt-3 mb-3">
+                                            <strong>MODO QA:</strong> los pesos pueden ajustarse manualmente para pruebas. Los tickets originales no seran modificados.
+                                        </div>
+                                        {% endif %}
+                                        {% if peso_real_prosesa.disponible %}
+                                        <div class="card border-0 bg-light mb-3">
+                                            <div class="card-body py-3">
+                                                <div class="row">
+                                                    <div class="col-md-3"><small class="text-muted d-block">Guia comun</small><strong>#{{ peso_real_prosesa.guia|default:'-' }}</strong></div>
+                                                    <div class="col-md-3"><small class="text-muted d-block">Citacion Piso 1</small><strong>#{{ peso_real_prosesa.citacion_piso1_id }}</strong></div>
+                                                    <div class="col-md-3"><small class="text-muted d-block">Citacion Piso 2</small><strong>#{{ peso_real_prosesa.citacion_piso2_id }}</strong></div>
+                                                    <div class="col-md-3"><small class="text-muted d-block">Contenedor</small><strong>{{ peso_real_prosesa.contenedor }}</strong></div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <div class="table-responsive">
+                                            <table class="table table-sm table-bordered mb-3 tabla-pesos-prosesa">
+                                                <thead class="thead-light">
+                                                    <tr>
+                                                        <th>Piso / pesaje</th><th>Ticket / folio</th><th>Peso original</th>
+                                                        {% if peso_real_prosesa.qa_habilitado and paso.activo and paso.puede_editar %}<th>Peso QA</th>{% endif %}
+                                                        <th>Peso usado</th><th>Fuente</th>
+                                                    </tr>
+                                                </thead>
+                                                <tbody>
+                                                    {% for pesaje in peso_real_prosesa.pesajes %}
+                                                    <tr data-clave="{{ pesaje.clave }}" data-peso-efectivo="{{ pesaje.peso_efectivo }}">
+                                                        <td><strong>{{ pesaje.grupo }}</strong><br>{{ pesaje.nombre }}</td>
+                                                        <td>{{ pesaje.folio|default:'Sin folio' }}<br><small class="text-muted">Dato #{{ pesaje.ticket_dato_id }}</small></td>
+                                                        <td>{{ pesaje.peso_original }} kg</td>
+                                                        {% if peso_real_prosesa.qa_habilitado and paso.activo and paso.puede_editar %}
+                                                        <td><input type="number" min="1" step="1" class="form-control form-control-sm peso-qa-prosesa" name="{{ pesaje.clave }}" value="{{ pesaje.peso_efectivo }}" aria-label="Peso QA {{ pesaje.nombre }}"></td>
+                                                        {% endif %}
+                                                        <td><strong class="peso-usado-prosesa">{{ pesaje.peso_efectivo }} kg</strong></td>
+                                                        <td><span class="badge {% if pesaje.origen == 'QA_OVERRIDE' %}badge-warning{% else %}badge-secondary{% endif %}">{{ pesaje.origen }}</span></td>
+                                                    </tr>
+                                                    {% endfor %}
+                                                </tbody>
+                                            </table>
+                                        </div>
+                                        <div class="row mb-3 calculo-peso-real-prosesa">
+                                            <div class="col-md-4">
+                                                <div class="border rounded p-3 h-100">
+                                                    <small class="text-muted d-block">Peso conjunto cargado</small>
+                                                    <strong class="valor-peso-cargado-prosesa">{{ peso_real_prosesa.peso_contenedor_cargado }}</strong> kg
+                                                    <div class="small text-muted mt-2"><span class="formula-p1-ent-prosesa">{{ peso_real_prosesa.pesajes_por_clave.p1_ent.peso_efectivo }}</span> - <span class="formula-p1-sal-prosesa">{{ peso_real_prosesa.pesajes_por_clave.p1_sal.peso_efectivo }}</span> = <span class="formula-peso-cargado-prosesa">{{ peso_real_prosesa.peso_contenedor_cargado }}</span> kg</div>
+                                                </div>
+                                            </div>
+                                            <div class="col-md-4">
+                                                <div class="border rounded p-3 h-100">
+                                                    <small class="text-muted d-block">Peso contenedor vacio</small>
+                                                    <strong class="valor-peso-vacio-prosesa">{{ peso_real_prosesa.peso_contenedor_vacio }}</strong> kg
+                                                    <div class="small text-muted mt-2"><span class="formula-p2-sal-prosesa">{{ peso_real_prosesa.pesajes_por_clave.p2_sal.peso_efectivo }}</span> - <span class="formula-p2-tara-prosesa">{{ peso_real_prosesa.pesajes_por_clave.p2_ent.peso_efectivo }}</span> = <span class="formula-peso-vacio-prosesa">{{ peso_real_prosesa.peso_contenedor_vacio }}</span> kg</div>
+                                                </div>
+                                            </div>
+                                            <div class="col-md-4">
+                                                <div class="border border-success rounded p-3 h-100">
+                                                    <small class="text-muted d-block">PESO REAL DEL PRODUCTO</small>
+                                                    <strong class="text-success valor-peso-real-prosesa">{{ peso_real_prosesa.peso_real_insumo }}</strong> kg
+                                                    <div class="small text-muted mt-2"><span class="formula-peso-cargado-prosesa">{{ peso_real_prosesa.peso_contenedor_cargado }}</span> - <span class="formula-peso-vacio-prosesa">{{ peso_real_prosesa.peso_contenedor_vacio }}</span> = <span class="formula-peso-real-prosesa">{{ peso_real_prosesa.peso_real_insumo }}</span> kg</div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <div class="row mb-3">
+    <div class="col-md-6 mb-2">
+        <div class="border rounded p-3 h-100">
+            <small class="text-muted d-block">PESO INGRESADO A BODEGA VIRTUAL</small>
+            {% if peso_real_prosesa.transferencia_sap.source_data.peso_ingresado_virtual_kg %}
+            <strong>{{ peso_real_prosesa.transferencia_sap.source_data.peso_ingresado_virtual_kg|floatformat:"0u" }}</strong> kg
+            <div class="small text-muted">Bodega {{ peso_real_prosesa.transferencia_sap.source_data.origen }} · Ingreso SAP DocEntry {{ peso_real_prosesa.transferencia_sap.source_data.ingreso_docentry }}</div>
+            {% else %}<strong>Sin ingreso SAP confirmado</strong>{% endif %}
+        </div>
+    </div>
+    <div class="col-md-6 mb-2">
+        <div class="border rounded p-3 h-100">
+            <small class="text-muted d-block">REMANENTE ESTIMADO EN BODEGA VIRTUAL</small>
+            {% if peso_real_prosesa.transferencia_sap.source_data.remanente_estimado_kg != None %}
+            <strong class="valor-remanente-virtual-prosesa">{{ peso_real_prosesa.transferencia_sap.source_data.remanente_estimado_kg|floatformat:"0u" }}</strong> kg
+            <div class="small text-muted"><span class="valor-remanente-virtual-mt-prosesa">{{ peso_real_prosesa.transferencia_sap.source_data.remanente_estimado_mt|floatformat:"3u" }}</span> MT · Informativo, sin regularización automática</div>
+            {% else %}<strong>Pendiente de peso validado</strong>{% endif %}
+        </div>
+    </div>
+</div>
+                                        <div class="small text-muted mb-3 formula-completa-prosesa">
+                                            Formula aplicada: (<span class="formula-p1-ent-prosesa">{{ peso_real_prosesa.pesajes_por_clave.p1_ent.peso_efectivo }}</span> - <span class="formula-p1-sal-prosesa">{{ peso_real_prosesa.pesajes_por_clave.p1_sal.peso_efectivo }}</span>) - (<span class="formula-p2-sal-prosesa">{{ peso_real_prosesa.pesajes_por_clave.p2_sal.peso_efectivo }}</span> - <span class="formula-p2-tara-prosesa">{{ peso_real_prosesa.pesajes_por_clave.p2_ent.peso_efectivo }}</span>) = <strong class="formula-peso-real-prosesa">{{ peso_real_prosesa.peso_real_insumo }}</strong> kg<br>
+                                            Transferencia SAP: {{ peso_real_prosesa.origen_sap|default:'Sin origen configurado' }} &rarr; {{ peso_real_prosesa.destino_sap|default:'Sin destino' }} | ItemCode {{ peso_real_prosesa.item_code|default:'-' }} | {% if peso_real_prosesa.transferencia_sap.source_data.quantity_mt %}Cantidad {{ peso_real_prosesa.transferencia_sap.source_data.quantity_mt|floatformat:'3u' }} MT{% else %}Cantidad pendiente{% endif %}.
+                                        </div>
+                                        {% if peso_real_prosesa.resultado_valido %}
+                                        <div class="alert alert-success"><i class="fas fa-check-circle mr-1"></i>Peso real validado y persistido: <strong>{{ peso_real_prosesa.peso_real_persistido }} kg</strong>.</div>
+                                        {% else %}
+                                        <div class="alert alert-warning">Debe calcular y validar el peso real del insumo antes de autorizar la salida.</div>
+                                        {% endif %}
+                                        {% if paso.activo and paso.puede_editar %}
+                                        <div class="op-discharge-actions mb-3">
+                                            <button type="button" class="op-glass-button is-primary btn-calcular-peso-real-prosesa">
+                                                <i class="op-glass-icon fas fa-calculator"></i> CALCULAR Y VALIDAR PESO REAL
+                                            </button>
+                                        </div>
+                                        {% endif %}
+                                        {% else %}
+                                        <div class="alert alert-danger mt-3">{{ peso_real_prosesa.error|default:'No fue posible resolver los cuatro pesajes PROSESA.' }}</div>
+                                        {% endif %}
+                                        {% with transferencia=peso_real_prosesa.transferencia_sap %}
+{% if transferencia.status.creada %}
+<div class="alert alert-success mt-3">
+    Transferencia SAP creada · DocEntry {{ transferencia.status.docentry }} · DocNum {{ transferencia.status.docnum }}.
+</div>
+{% elif transferencia.status.bloqueada %}
+<div class="alert alert-warning mt-3">El envío SAP está pendiente o incierto. Conciliar la referencia antes de reintentar.</div>
+{% endif %}
+{% if transferencia.errors and peso_real_prosesa.resultado_valido and not transferencia.status.creada %}
+<div class="alert alert-warning mt-3">{{ transferencia.errors|join:" " }}</div>
+{% endif %}
+{% if paso.activo and paso.puede_editar and peso_real_prosesa.resultado_valido and transferencia.source_data.peso_ingresado_virtual_kg and transferencia.source_data.batch_number and transferencia.source_data.origen and transferencia.source_data.destino and not transferencia.status.bloqueada %}
+<div class="op-discharge-actions mt-3 mb-3">
+    {% if prosesa_transferencia_preview_enabled %}
+    <button type="button" class="op-glass-button is-secondary btn-preview-transferencia-sap-prosesa">
+        <i class="op-glass-icon fas fa-file-code"></i> PREVISUALIZAR TRANSFERENCIA SAP
+    </button>
+    {% endif %}
+    {% if transferencia.ready_for_post %}
+    <button type="button" class="op-glass-button is-success btn-crear-transferencia-sap-prosesa">
+        <i class="op-glass-icon fas fa-paper-plane"></i> CREAR TRANSFERENCIA SAP
+    </button>
+    {% endif %}
+</div>
+{% endif %}
+{% endwith %}
+                                        <div class="alert alert-info mt-3 mb-0">El retorno del camion, Pesaje Salida y el peso real validado deben estar completos antes de autorizar la salida final.</div>
+                                        {% if paso.estado == 'COMPLETADO' %}
+                                            <div class="op-update-strip mt-3"><i class="fas fa-check-circle"></i> Salida autorizada por {{ paso.usuario|default:'Asistente Recepcion' }}.</div>
+                                        {% elif paso.activo and paso.puede_editar %}
+                                            <div class="op-discharge-actions mt-3">
+                                                <button type="button" class="op-glass-button is-success btn-autorizar-salida-prosesa-piso2" {% if not peso_real_prosesa.resultado_valido %}disabled{% endif %}>
+                                                    <i class="op-glass-icon fas fa-check-circle"></i> AUTORIZAR SALIDA FINAL
+                                                </button>
+                                            </div>
+                                        {% else %}
+                                            <div class="alert alert-light border mt-3 mb-0">{{ paso.solo_lectura_msg|default:'Pendiente de Pesaje Salida' }}</div>
+                                        {% endif %}
+                                    </div>                                    {% elif paso.requiere_autorizar_salida %}
                                     <div class="op-exit-panel operacion-autorizar-salida-box"
                                          data-paso="{{ paso.nombre }}"
                                          data-registrada="{% if paso.autorizar_salida.registrada %}true{% else %}false{% endif %}"
@@ -4056,6 +4390,89 @@
                                             </span>
                                         </div>
 
+                                        {% if paso.es_new_jersey_p3 %}
+                                        {% with nj=transferencia_sap_new_jersey_p3 transferencia=transferencia_sap_new_jersey_p3.transferencia_sap %}
+                                        <section class="op-sap-draft-panel mt-3 mb-3 operacion-transferencia-sap-new-jersey-p3-box">
+                                            <div class="op-cycle-header">
+                                                <div><div class="op-lab-title mb-1"><i class="fas fa-exchange-alt"></i> TRANSFERENCIA SAP FINAL</div><div class="op-dashboard-muted">New Jersey P3 | Peso real y traslado desde bodega virtual al TK final.</div></div>
+                                                <span class="op-sap-draft-status {% if transferencia.status.creada %}is-done{% elif transferencia.status.bloqueada %}is-error{% elif paso.activo %}is-active{% endif %}"><i class="fas {% if transferencia.status.creada %}fa-check-circle{% elif transferencia.status.bloqueada %}fa-exclamation-triangle{% else %}fa-clock{% endif %}"></i> {{ transferencia.status.estado|default:'NO_CREADA' }}</span>
+                                            </div>
+                                            {% if nj.qa_habilitado and not transferencia.status.bloqueada %}
+                                            <div class="alert alert-warning mt-3"><strong>MODO QA:</strong> ingrese solo los pesos que necesite corregir y pulse <strong>Aplicar pesos QA</strong>. Los tickets originales permanecen intactos.</div>
+                                            {% endif %}
+                                            {% if nj.pesajes %}
+                                            <div class="table-responsive mt-3">
+                                                <table class="table table-sm table-bordered tabla-pesos-new-jersey-p3 mb-2">
+                                                    <thead class="thead-light"><tr><th>Proceso / pesaje</th><th>Ticket</th><th>Peso original</th>{% if nj.qa_habilitado and not transferencia.status.bloqueada %}<th>Peso QA</th>{% endif %}<th>Peso usado</th><th>Fuente</th></tr></thead>
+                                                    <tbody>
+                                                        {% for pesaje in nj.pesajes %}
+                                                        <tr data-clave="{{ pesaje.clave }}" data-peso-efectivo="{{ pesaje.peso_efectivo }}">
+                                                            <td><strong>{{ pesaje.grupo }}</strong><br>{{ pesaje.nombre }}<br><small class="text-muted">Citacion #{{ pesaje.citacion_id }}</small></td>
+                                                            <td>{{ pesaje.folio|default:'Sin folio' }}<br><small class="text-muted">Dato #{{ pesaje.ticket_dato_id }} | {{ pesaje.patente|default:'Sin patente' }}</small></td>
+                                                            <td>{{ pesaje.peso_original }} kg</td>
+                                                            {% if nj.qa_habilitado and not transferencia.status.bloqueada %}
+                                                            <td><input type="number" min="1" step="1" class="form-control form-control-sm peso-qa-new-jersey-p3" name="{{ pesaje.clave }}" value="{{ pesaje.peso_qa }}" placeholder="{{ pesaje.peso_original }}" aria-label="Peso QA {{ pesaje.nombre }}" {% if not paso.activo or not paso.puede_editar %}disabled{% endif %}></td>
+                                                            {% endif %}
+                                                            <td><strong class="peso-usado-new-jersey-p3">{{ pesaje.peso_efectivo }} kg</strong></td>
+                                                            <td><span class="badge fuente-peso-new-jersey-p3 {% if pesaje.fuente == 'QA' %}badge-warning{% else %}badge-secondary{% endif %}">{{ pesaje.fuente }}</span></td>
+                                                        </tr>
+                                                        {% endfor %}
+                                                    </tbody>
+                                                </table>
+                                            </div>
+                                            {% if nj.qa_habilitado and not transferencia.status.bloqueada %}
+                                            <div class="mb-3">
+                                                <button type="button" class="btn btn-outline-warning btn-sm btn-aplicar-pesos-qa-new-jersey-p3" disabled aria-disabled="true"><i class="fas fa-check mr-1"></i> Aplicar pesos QA</button>
+                                                <small class="text-muted ml-2">Los campos vacios usan el peso original del ticket.</small>
+                                            </div>
+                                            <div class="alert alert-info py-2 d-none qa-pendiente-new-jersey-p3">Hay cambios QA sin aplicar. Aplique los pesos antes de calcular y validar.</div>
+                                            {% endif %}
+                                            {% endif %}
+                                            {% if nj.disponible %}
+                                            <div class="row mb-3 calculo-peso-real-new-jersey-p3">
+                                                <div class="col-md-4 mb-2"><div class="border rounded p-3 h-100">
+                                                    <small class="text-muted d-block">PESO CONJUNTO CARGADO P1</small>
+                                                    <strong class="valor-cargado-new-jersey-p3">{{ nj.peso_conjunto_cargado_kg }}</strong> kg
+                                                    <div class="small text-muted mt-2"><span class="formula-p1-ent-new-jersey-p3">{{ nj.pesajes_por_clave.p1_ent.peso_efectivo }}</span> - <span class="formula-p1-sal-new-jersey-p3">{{ nj.pesajes_por_clave.p1_sal.peso_efectivo }}</span> = <span class="formula-cargado-new-jersey-p3">{{ nj.peso_conjunto_cargado_kg }}</span> kg</div>
+                                                </div></div>
+                                                <div class="col-md-4 mb-2"><div class="border rounded p-3 h-100">
+                                                    <small class="text-muted d-block">PESO CONTENEDOR VACIO P3</small>
+                                                    <strong class="valor-vacio-new-jersey-p3">{{ nj.peso_contenedor_vacio_kg }}</strong> kg
+                                                    <div class="small text-muted mt-2"><span class="formula-p3-sal-new-jersey-p3">{{ nj.pesajes_por_clave.p3_sal.peso_efectivo }}</span> - <span class="formula-p3-ent-new-jersey-p3">{{ nj.pesajes_por_clave.p3_ent.peso_efectivo }}</span> = <span class="formula-vacio-new-jersey-p3">{{ nj.peso_contenedor_vacio_kg }}</span> kg</div>
+                                                </div></div>
+                                                <div class="col-md-4 mb-2"><div class="border {% if nj.calculo_valido %}border-success{% else %}border-danger{% endif %} rounded p-3 h-100">
+                                                    <small class="text-muted d-block">PESO REAL DEL PRODUCTO</small>
+                                                    <strong class="{% if nj.calculo_valido %}text-success{% else %}text-danger{% endif %} valor-real-new-jersey-p3">{{ nj.peso_real_kg }}</strong> kg
+                                                    <div><strong class="cantidad-mt-new-jersey-p3">{{ nj.peso_real_mt|floatformat:'3u' }}</strong> MT</div>
+                                                    <div class="small text-muted mt-2">(<span class="formula-p1-ent-new-jersey-p3">{{ nj.pesajes_por_clave.p1_ent.peso_efectivo }}</span> - <span class="formula-p1-sal-new-jersey-p3">{{ nj.pesajes_por_clave.p1_sal.peso_efectivo }}</span>) - (<span class="formula-p3-sal-new-jersey-p3">{{ nj.pesajes_por_clave.p3_sal.peso_efectivo }}</span> - <span class="formula-p3-ent-new-jersey-p3">{{ nj.pesajes_por_clave.p3_ent.peso_efectivo }}</span>) = <strong class="formula-real-new-jersey-p3">{{ nj.peso_real_kg }}</strong> kg</div>
+                                                </div></div>
+                                            </div>
+                                            <div class="small text-muted mb-3"><strong>Formula aplicada:</strong> (P1 Entrada - P1 Salida) - (P3 Salida - P3 Entrada).</div>
+                                            {% if nj.error %}<div class="alert alert-danger mt-3"><i class="fas fa-exclamation-triangle mr-1"></i>{{ nj.error }}</div>{% endif %}
+                                            {% elif nj.error %}<div class="alert alert-danger mt-3">{{ nj.error }}</div>{% endif %}
+                                            {% if nj.resultado_valido %}
+                                            <div class="alert alert-success"><i class="fas fa-check-circle mr-1"></i>Peso real validado y persistido: <strong>{{ nj.peso_real_persistido }} kg</strong> | <strong>{{ nj.peso_real_persistido_mt|floatformat:'3u' }} MT</strong>.</div>
+                                            {% else %}
+                                            <div class="alert alert-warning">{{ nj.resultado_persistido_error|default:'Debe calcular y validar el peso real antes de SAP.' }}</div>
+                                            {% endif %}
+                                            {% if paso.activo and paso.puede_editar and not transferencia.status.bloqueada %}
+                                            <button type="button" class="op-glass-button is-primary btn-calcular-peso-real-new-jersey-p3"><i class="fas fa-calculator mr-1"></i> Calcular y validar peso real</button>
+                                            {% endif %}
+                                            <hr>
+                                            <div class="row align-items-end"><div class="col-md-5 mb-2"><label for="tk-destino-final-new-jersey-p3"><strong>TK destino final *</strong></label><select id="tk-destino-final-new-jersey-p3" class="form-control tk-destino-final-new-jersey-p3" {% if transferencia.status.bloqueada or not paso.activo or not paso.puede_editar %}disabled{% endif %}>{% for tk in nj.opciones_tk %}<option value="{{ tk }}" {% if tk == nj.tk_destino %}selected{% endif %}>{{ tk }}</option>{% endfor %}</select><small class="form-text text-muted">Heredado desde P1/P2. Puede modificarlo antes de crear el StockTransfer.</small></div>{% if paso.activo and paso.puede_editar and not transferencia.status.bloqueada %}<div class="col-md-3 mb-2"><button type="button" class="btn btn-outline-primary btn-sm btn-guardar-tk-final-new-jersey-p3"><i class="fas fa-save mr-1"></i> Guardar TK final</button></div>{% endif %}</div>
+                                            <div class="op-field-summary-grid mt-3">
+                                                <div class="op-field-summary-card"><div class="op-field-summary-label">Origen</div><div class="op-field-summary-value">{{ transferencia.source_data.origen|default:'Pendiente' }}</div></div>
+                                                <div class="op-field-summary-card"><div class="op-field-summary-label">Destino</div><div class="op-field-summary-value">{{ transferencia.source_data.destino|default:nj.tk_destino|default:'-' }}</div></div>
+                                                <div class="op-field-summary-card"><div class="op-field-summary-label">ItemCode</div><div class="op-field-summary-value">{{ transferencia.source_data.item_code|default:'-' }}</div></div>
+                                                <div class="op-field-summary-card"><div class="op-field-summary-label">Lote</div><div class="op-field-summary-value">{{ transferencia.source_data.batch_number|default:'-' }}</div></div>
+                                                <div class="op-field-summary-card"><div class="op-field-summary-label">Cantidad SAP</div><div class="op-field-summary-value">{{ transferencia.source_data.quantity_mt|default:'-' }} MT</div></div>
+                                                <div class="op-field-summary-card"><div class="op-field-summary-label">Solicitud P2</div><div class="op-field-summary-value">DocEntry {{ transferencia.source_data.solicitud_p2_docentry|default:'-' }}</div></div>
+                                            </div>
+                                            {% if transferencia.status.creada %}<div class="alert alert-success mt-3">StockTransfer creada | DocEntry <strong>{{ transferencia.status.docentry }}</strong> | DocNum <strong>{{ transferencia.status.docnum|default:'-' }}</strong>. TK final bloqueado.</div>{% elif transferencia.status.bloqueada %}<div class="alert alert-warning mt-3">Envio SAP pendiente o incierto. Debe conciliar Reference2 antes de reintentar.</div>{% elif transferencia.errors and nj.resultado_valido %}<div class="alert alert-warning mt-3">{{ transferencia.errors|join:' ' }}</div>{% endif %}
+                                            {% if paso.activo and paso.puede_editar and nj.resultado_valido and not transferencia.status.bloqueada %}<div class="d-flex flex-wrap mt-3">{% if nj.preview_habilitado %}<button type="button" class="btn btn-outline-info btn-sm mr-2 mb-2 btn-preview-transferencia-sap-new-jersey-p3"><i class="fas fa-file-code mr-1"></i> Previsualizar Transferencia SAP</button>{% endif %}{% if transferencia.ready_for_post %}<button type="button" class="btn btn-success btn-sm mb-2 btn-crear-transferencia-sap-new-jersey-p3"><i class="fas fa-paper-plane mr-1"></i> Crear StockTransfer SAP</button>{% endif %}</div>{% endif %}
+                                        </section>
+                                        {% endwith %}
+                                        {% endif %}
                                         {% if paso.implementacion_pendiente %}
                                             <div class="alert alert-info mb-0">
                                                 Paso configurado para {{ paso.responsable }}. Su acción funcional se habilitará en la Etapa 2.
@@ -4181,9 +4598,16 @@
                                                     </div>
                                                 </div>
                                                 {% if paso.activo and paso.puede_operar_sap_recepcion and not paso.sap_update_recepcion.updated %}
-                                                    <button type="button" class="btn btn-primary btn-sm btn-actualizar-sap-recepcion">
-                                                        <i class="fas fa-sync-alt mr-1"></i> Actualizar Borrador SAP
-                                                    </button>
+                                                    <div class="d-flex flex-wrap align-items-center">
+                                                        {% if sap_recepcion_update_preview_enabled %}
+                                                        <button type="button" class="btn btn-outline-info btn-sm btn-preview-update-sap-recepcion mr-2 mb-2">
+                                                            <i class="fas fa-file-code mr-1"></i> Previsualizar JSON SAP
+                                                        </button>
+                                                        {% endif %}
+                                                        <button type="button" class="btn btn-primary btn-sm btn-actualizar-sap-recepcion mb-2">
+                                                            <i class="fas fa-sync-alt mr-1"></i> Actualizar Borrador SAP
+                                                        </button>
+                                                    </div>
                                                 {% elif paso.sap_update_recepcion.updated %}
                                                     <span class="badge badge-success">
                                                         <i class="fas fa-check-circle mr-1"></i> Borrador SAP actualizado
@@ -4424,12 +4848,16 @@
                                                 </div>
                                              </div>
                                             {% if paso.activo and paso.puede_editar %}
+                                            {% if not es_new_jersey_p1 and not paso.es_new_jersey_p3 %}
+                                            {% if not paso.es_sbh_recepcion or citacion.SC_NID.SE_CCODIGO != 'RECEPCION_BODEGA_EXTERNA' %}
                                             <div class="op-authorize-final-actions" {% if not paso.autorizar_salida.revision_conformidad.recepcion_conforme %}hidden{% endif %}>
                                                 <button type="button" class="op-glass-button is-success btn-autorizar-salida-operacion"
-                                                        {% if paso.drafts_sap_despacho_operacionales.aplicable and not paso.drafts_sap_despacho_operacionales.documentacion_completa or paso.drafts_sap_despacho_operacionales.aplicable and not paso.drafts_sap_despacho_operacionales.todos_actualizados or paso.drafts_sap_despacho_operacionales.aplicable and not paso.drafts_sap_despacho_operacionales.completos %}disabled{% endif %}>
+                                                        {% if paso.es_new_jersey_p3 and not transferencia_sap_new_jersey_p3.transferencia_sap_creada or paso.drafts_sap_despacho_operacionales.aplicable and not paso.drafts_sap_despacho_operacionales.documentacion_completa or paso.drafts_sap_despacho_operacionales.aplicable and not paso.drafts_sap_despacho_operacionales.todos_actualizados or paso.drafts_sap_despacho_operacionales.aplicable and not paso.drafts_sap_despacho_operacionales.completos %}disabled{% endif %}>
                                                     <i class="op-glass-icon fas fa-check-circle"></i> Autorizar salida
                                                 </button>
                                             </div>
+                                            {% endif %}
+                                            {% endif %}
                                             {% endif %}
                                          {% endif %}
                                         {% endif %}
@@ -4605,6 +5033,65 @@
                                     </div>
                                     {% endif %}
 
+                                    {% if paso.requiere_recepcion_conforme_servicio %}
+                                    <div class="op-lab-panel op-result-dashboard-panel recepcion-servicio-conforme">
+                                        <div class="op-lab-title"><i class="fas fa-clipboard-check"></i> Recepción Conforme</div>
+                                        <div class="op-lab-subtitle">Responsable: Asistente CD</div>
+                                        <div class="row mt-3">
+                                            <div class="col-md-4 mb-2"><strong>Servicio:</strong><br>{{ paso.recepcion_servicio.detalle.get_RSD_CTIPO_SERVICIO_display }}</div>
+                                            <div class="col-md-4 mb-2"><strong>Proveedor:</strong><br>{{ paso.recepcion_servicio.detalle.PRO_NID.SN_CRAZONSOCIAL }}</div>
+                                            <div class="col-md-4 mb-2"><strong>Patente:</strong><br>{{ paso.recepcion_servicio.detalle.RSD_CPATENTE }}</div>
+                                            <div class="col-md-4 mb-2"><strong>Chofer:</strong><br>{{ paso.recepcion_servicio.detalle.RSD_CNOMBRE_CHOFER }}</div>
+                                            <div class="col-md-8 mb-2"><strong>Observación planificada:</strong><br>{{ paso.recepcion_servicio.detalle.RSD_COBSERVACION|default:'Sin observación' }}</div>
+                                        </div>
+                                        {% if paso.recepcion_servicio.documentos %}
+                                        <hr><h6>Documentos adjuntos</h6>
+                                        <ul class="list-group mb-3">
+                                            {% for documento in paso.recepcion_servicio.documentos %}
+                                            <li class="list-group-item d-flex flex-wrap justify-content-between align-items-center">
+                                                <span>{{ documento.nombre }}{% if documento.usuario %} · {{ documento.usuario }}{% endif %}</span>
+                                                <a class="btn btn-sm btn-outline-primary" href="{{ documento.download_url }}">Descargar</a>
+                                            </li>
+                                            {% endfor %}
+                                        </ul>
+                                        {% endif %}
+                                        {% if paso.activo and paso.puede_editar %}
+                                        <form method="post" enctype="multipart/form-data" action="{% url 'operacion_planta_recepcion_servicio_conforme' citacion.id %}">
+                                            {% csrf_token %}
+                                            <input type="hidden" name="_empresa_id" value="{{ empresa_activa_id }}">
+                                            <div class="form-group">
+                                                <label class="d-block">¿Recepción conforme? *</label>
+                                                <div class="custom-control custom-radio custom-control-inline">
+                                                    <input type="radio" id="servicio-conforme-si" name="recepcion_conforme" value="SI" class="custom-control-input" required>
+                                                    <label class="custom-control-label" for="servicio-conforme-si">Sí</label>
+                                                </div>
+                                                <div class="custom-control custom-radio custom-control-inline">
+                                                    <input type="radio" id="servicio-conforme-no" name="recepcion_conforme" value="NO" class="custom-control-input" required>
+                                                    <label class="custom-control-label" for="servicio-conforme-no">No</label>
+                                                </div>
+                                            </div>
+                                            <div class="form-group">
+                                                <label for="servicio-conforme-observacion">Observación</label>
+                                                <textarea id="servicio-conforme-observacion" name="observacion" class="form-control" rows="3"></textarea>
+                                            </div>
+                                            <div class="form-group">
+                                                <label for="servicio-conforme-documentos">Documentos</label>
+                                                <input id="servicio-conforme-documentos" type="file" name="documentos" class="form-control-file" multiple accept=".pdf,.jpg,.jpeg,.png,application/pdf,image/jpeg,image/png">
+                                                <small class="form-text text-muted">PDF, JPG, JPEG o PNG. Puede adjuntar uno, varios o ningún archivo.</small>
+                                            </div>
+                                            <button type="submit" class="btn btn-primary"><i class="fas fa-check"></i> Registrar Recepción Conforme</button>
+                                        </form>
+                                        {% elif paso.estado == 'COMPLETADO' %}
+                                        <div class="alert alert-success mb-0">
+                                            Registrada por {{ paso.usuario }}{% if paso.fecha %} el {{ paso.fecha|date:'d/m/Y H:i:s' }}{% endif %}.
+                                            {% if paso.observacion %}<br>{{ paso.observacion }}{% endif %}
+                                        </div>
+                                        {% else %}
+                                        <div class="alert alert-light border mb-0">{{ paso.solo_lectura_msg }}</div>
+                                        {% endif %}
+                                    </div>
+                                    {% endif %}
+
                                     {% if paso.requiere_documentacion_despacho_terramar %}
                                     <div class="op-lab-panel op-result-dashboard-panel operacion-documentacion-despacho-terramar" data-paso="{{ paso.nombre }}">
                                         <div class="op-result-dashboard-section">
@@ -4638,7 +5125,7 @@
                                     </div>
                                     {% endif %}
                                     {% if paso.requiere_documentacion_terramar %}
-                                    <div class="operacion-documentacion-terramar" data-paso="{{ paso.nombre }}">
+                                    <div class="operacion-documentacion-terramar operacion-documentos-terramar" data-paso="{{ paso.nombre }}">
                                         <div class="op-lab-title"><i class="fas fa-folder-open"></i> Documentos de salida obligatorios - CITACION_DOCUMENTO</div>
                                         {% if paso.documentacion_terramar.originales %}
                                         <div class="table-responsive mb-3">
@@ -4677,6 +5164,13 @@
                                         </tbody></table></div>
                                         {% else %}<div class="alert alert-light border">No hay ticket de Pesaje Entrada como antecedente.</div>{% endif %}
 
+                                        {% if paso.es_recepcion_terramar_principal %}
+                                            {% include 'home/CITACION/documentos_timbrados_recepcion.html' %}
+                                        {% endif %}
+
+                                        {% if paso.es_recepcion_terramar_principal and paso.documentacion_terramar.obligatorios_pendientes %}
+                                        <div class="alert alert-warning">Debe timbrar todos los documentos obligatorios antes de validar la documentación.</div>
+                                        {% endif %}
                                         {% if paso.documentacion_terramar.validada %}
                                         <div class="alert alert-success">
                                             Documentación validada por {{ paso.documentacion_terramar.usuario_validacion }} el {{ paso.documentacion_terramar.fecha_validacion }}.
@@ -4684,11 +5178,11 @@
                                         </div>
                                         {% elif paso.activo and paso.puede_editar %}
                                         <div class="custom-control custom-checkbox mb-3">
-                                            <input type="checkbox" class="custom-control-input documentacion-terramar-validada" id="documentacion-validada-{{ forloop.counter }}">
+                                            <input type="checkbox" class="custom-control-input documentacion-terramar-validada" id="documentacion-validada-{{ forloop.counter }}" {% if paso.es_recepcion_terramar_principal and not paso.documentacion_terramar.puede_validar_timbraje %}disabled{% endif %}>
                                             <label class="custom-control-label" for="documentacion-validada-{{ forloop.counter }}">He validado la documentación</label>
                                         </div>
                                         <div class="form-group"><label>Observación</label><textarea class="form-control documentacion-terramar-observacion" rows="3"></textarea></div>
-                                        <button type="button" class="btn btn-primary btn-validar-documentacion-terramar"><i class="fas fa-check"></i> Pasar a siguiente etapa</button>
+                                        <button type="button" class="btn btn-primary btn-validar-documentacion-terramar" {% if paso.es_recepcion_terramar_principal and not paso.documentacion_terramar.puede_validar_timbraje %}disabled{% endif %}><i class="fas fa-check"></i> {% if paso.es_recepcion_terramar_principal %}AUTORIZAR SALIDA{% else %}Pasar a siguiente etapa{% endif %}</button>
                                         {% endif %}
                                     </div>
                                     {% endif %}
@@ -4712,7 +5206,7 @@
                                     </div>
                                     {% endif %}
                                     {% if paso.requiere_autorizar_salida_terramar %}
-                                    <div class="operacion-autorizar-terramar" data-paso="{{ paso.nombre }}">
+                                    <div class="operacion-autorizar-terramar operacion-documentos-terramar" data-paso="{{ paso.nombre }}">
                                         {% if paso.documentacion_terramar.validada %}
                                         <div class="alert alert-info">
                                             Documentación validada por <strong>{{ paso.documentacion_terramar.usuario_validacion|default:'Usuario no disponible' }}</strong>
@@ -4735,30 +5229,8 @@
                                         <ul class="list-group mb-3">{% for documento in paso.documentacion_terramar.antecedentes %}<li class="list-group-item d-flex justify-content-between align-items-center"><span>{{ documento.nombre }}</span><span class="badge badge-secondary">Pesaje Entrada - no se timbra ni se envía</span></li>{% endfor %}</ul>
                                         {% endif %}
 
-                                        <div class="op-lab-title"><i class="fas fa-stamp"></i> Documentos timbrados</div>
-                                        {% if paso.documentacion_terramar.timbrados %}
-                                        <ul class="list-group mb-3">{% for documento in paso.documentacion_terramar.timbrados %}<li class="list-group-item d-flex justify-content-between align-items-center"><span>{{ documento.stamped_name }}</span><a class="btn btn-sm btn-success" href="{{ documento.stamped_download_url }}">Descargar</a></li>{% endfor %}</ul>
-                                        {% else %}<div class="alert alert-warning">Aún no se han generado documentos timbrados.</div>{% endif %}
-                                        {% if paso.documentacion_terramar.obligatorios_pendientes %}<div class="alert alert-warning">Pendientes obligatorios: {{ paso.documentacion_terramar.obligatorios_pendientes|join:', ' }}</div>{% endif %}
-
+                                        {% include 'home/CITACION/documentos_timbrados_recepcion.html' %}
                                         {% if paso.activo and paso.puede_editar %}
-                                        <div class="d-flex flex-wrap mb-3" style="gap:8px;">
-                                            <button type="button" class="btn btn-dark btn-timbrar-documentos-terramar"><i class="fas fa-stamp"></i> Timbrar documentos</button>
-                                            <button type="button" class="btn btn-success btn-exportar-documentos-terramar" {% if not paso.documentacion_terramar.timbrado_completo %}disabled{% endif %}><i class="fas fa-download"></i> Descargar documentos firmados</button>
-                                            <button type="button" class="btn btn-outline-secondary btn-copiar-ruta-terramar" disabled><i class="fas fa-copy"></i> Copiar ruta</button>
-                                            <button type="button"
-                                                    class="btn btn-success btn-operacion-whatsapp btn-operacion-whatsapp-terramar"
-                                                    data-phone="{{ telefono_conductor|default:'' }}"
-                                                    data-citacion="{{ citacion.id }}"
-                                                    data-patente="{{ patente|default:'' }}">
-                                                <i class="fab fa-whatsapp"></i> Abrir WhatsApp
-                                            </button>
-                                        </div>
-                                        <div class="alert alert-light border mb-3">
-                                            Descargue los documentos firmados y luego adjúntelos manualmente desde WhatsApp.<br>
-                                            WhatsApp solo abrirá la conversación; no adjunta ni envía archivos automáticamente.
-                                        </div>
-                                        <div class="alert d-none exportar-documentos-terramar-resultado" role="status"></div>
                                         <div class="form-group"><label>Observación de autorización</label><textarea class="form-control autorizar-terramar-observacion" rows="3"></textarea></div>
                                         <button type="button" class="btn btn-primary btn-autorizar-salida-terramar" {% if not paso.documentacion_terramar.timbrado_completo %}disabled{% endif %}><i class="fas fa-check-circle"></i> Autorizar salida</button>
                                         {% endif %}
@@ -4774,7 +5246,7 @@
                                     </div>
                                     {% endif %}
 
-                                    {% if not paso.requiere_documentacion_terramar and not paso.requiere_autorizar_salida_terramar and not paso.implementacion_pendiente and not paso.requiere_resultado_calidad and not paso.requiere_preparacion_descarga and not paso.requiere_ciclo_descarga and not paso.requiere_cierre_carga_despacho and not paso.requiere_borrador_sap and not paso.requiere_autorizar_salida and not paso.requiere_confirmar_salida and not paso.requiere_autorizacion_salida_bodega_externa and not paso.requiere_ingreso_planta_bodega_externa %}
+                                    {% if not paso.requiere_recepcion_conforme_servicio and not paso.requiere_documentacion_terramar and not paso.requiere_autorizar_salida_terramar and not paso.implementacion_pendiente and not paso.requiere_resultado_calidad and not paso.requiere_preparacion_descarga and not paso.requiere_ciclo_descarga and not paso.requiere_cierre_carga_despacho and not paso.requiere_borrador_sap and not paso.requiere_autorizar_salida and not paso.requiere_confirmar_salida and not paso.requiere_descarga_contenedor_new_jersey and not paso.requiere_autorizacion_salida_bodega_externa and not paso.requiere_ingreso_planta_bodega_externa %}
                                     <div class="form-group">
                                         <label>Observacion</label>
                                         <textarea class="form-control operacion-observacion" data-paso="{{ paso.nombre }}" rows="4" {% if not paso.puede_guardar_observacion %}readonly{% endif %}>{{ paso.observacion }}</textarea>
@@ -4798,7 +5270,7 @@
                                     </div>
                                     {% endif %}
 
-                                    {% if paso.activo and paso.puede_editar and not paso.ciclo_carga_terramar.aplicable and not paso.requiere_documentacion_terramar and not paso.requiere_autorizar_salida_terramar and not paso.implementacion_pendiente and not paso.requiere_ticket_pesaje and not paso.requiere_accion_toma_muestra and not paso.requiere_resultado_calidad and not paso.requiere_preparacion_descarga and not paso.requiere_ciclo_descarga and not paso.requiere_cierre_carga_despacho and not paso.requiere_borrador_sap and not paso.requiere_autorizar_salida and not paso.requiere_confirmar_salida and not paso.requiere_autorizacion_salida_bodega_externa and not paso.requiere_ingreso_planta_bodega_externa %}
+                                    {% if paso.activo and paso.puede_editar and not paso.requiere_recepcion_conforme_servicio and not paso.ciclo_carga_terramar.aplicable and not paso.requiere_documentacion_terramar and not paso.requiere_autorizar_salida_terramar and not paso.implementacion_pendiente and not paso.requiere_ticket_pesaje and not paso.requiere_accion_toma_muestra and not paso.requiere_resultado_calidad and not paso.requiere_preparacion_descarga and not paso.requiere_ciclo_descarga and not paso.requiere_cierre_carga_despacho and not paso.requiere_borrador_sap and not paso.requiere_autorizar_salida and not paso.requiere_confirmar_salida and not paso.requiere_descarga_contenedor_new_jersey and not paso.requiere_autorizacion_salida_bodega_externa and not paso.requiere_ingreso_planta_bodega_externa %}
                                     <button type="button" class="btn btn-primary btn-guardar-operacion" data-paso="{{ paso.nombre }}">
                                         <i class="fas fa-save"></i> Guardar paso
                                     </button>
@@ -4813,12 +5285,131 @@
                 </div>
             </div>
         </div>
+        {% if es_new_jersey_p2 %}
+        <div class="card"><div class="card-body"><h5>Historial P2</h5>
+            <ul class="list-group">
+            {% for log in logs %}
+                <li class="list-group-item">{{ log.OPL_CPASO }} · {{ log.US_NID.username }} · {{ log.OPL_FFECHAREGISTRO|date:'d/m/Y H:i:s' }}{% if log.OPL_COBSERVACION %} · {{ log.OPL_COBSERVACION }}{% endif %}</li>
+            {% empty %}<li class="list-group-item">Sin acciones registradas.</li>{% endfor %}
+            </ul>
+        </div></div>
+        {% endif %}
     </div>
 </div>
 {% endblock content %}
 
 {% block javascripts %}
 <script>
+    {% if es_new_jersey_p2 %}
+    document.querySelectorAll('.nj-p2-accion').forEach(function(form) {
+        form.addEventListener('submit', async function(event) {
+            event.preventDefault();
+            const button = event.submitter;
+            const data = new FormData(form);
+            if (button && button.name) data.set(button.name, button.value);
+            if (button) button.disabled = true;
+            try {
+                const response = await fetch(form.action, {method: 'POST', body: data, credentials: 'same-origin'});
+                const result = await response.json();
+                if (!response.ok || !result.success) throw new Error(result.message || 'No fue posible registrar la acción.');
+                window.location.reload();
+            } catch (error) {
+                alert(error.message);
+                if (button) button.disabled = false;
+            }
+        });
+    });
+    const selectorTkNewJerseyP2 = document.querySelector('#new-jersey-p2-tk-destino');
+    if (selectorTkNewJerseyP2 && !selectorTkNewJerseyP2.disabled) {
+        selectorTkNewJerseyP2.addEventListener('change', async function() {
+            const anterior = selectorTkNewJerseyP2.dataset.destinoGuardado || '';
+            const nuevo = selectorTkNewJerseyP2.value;
+            if (nuevo === anterior) return;
+            selectorTkNewJerseyP2.disabled = true;
+            document.querySelectorAll('.btn-preview-solicitud-sap-new-jersey-p2, .btn-crear-solicitud-sap-new-jersey-p2').forEach(function(boton) { boton.disabled = true; });
+            try {
+                const form = new FormData();
+                form.set('_empresa_id', '{{ empresa_activa_id|default:""|escapejs }}');
+                form.set('tk_destino', nuevo);
+                const response = await fetch(
+                    '{% url "ajax_operacion_planta_guardar_tk_new_jersey_p2" citacion.id %}',
+                    {method: 'POST', body: form, credentials: 'same-origin', headers: {'X-CSRFToken': getCookie('csrftoken')}}
+                );
+                const data = await response.json();
+                if (!response.ok || !data.success) throw new Error(data.message || 'No fue posible guardar el estanque destino.');
+                window.location.reload();
+            } catch (error) {
+                selectorTkNewJerseyP2.value = anterior;
+                selectorTkNewJerseyP2.disabled = false;
+                document.querySelectorAll('.btn-preview-solicitud-sap-new-jersey-p2, .btn-crear-solicitud-sap-new-jersey-p2').forEach(function(boton) { boton.disabled = false; });
+                Swal.fire({icon: 'error', title: 'Estanque destino', text: error.message});
+            }
+        });
+    }
+    document.querySelectorAll('.btn-preview-solicitud-sap-new-jersey-p2').forEach(function(boton) {
+        boton.addEventListener('click', async function() {
+            boton.disabled = true;
+            try {
+                const form = new FormData();
+                form.set('_empresa_id', '{{ empresa_activa_id|default:""|escapejs }}');
+                const response = await fetch(
+                    '{% url "ajax_operacion_planta_preview_solicitud_sap_new_jersey_p2" citacion.id %}',
+                    {method: 'POST', body: form, credentials: 'same-origin', headers: {'X-CSRFToken': getCookie('csrftoken')}}
+                );
+                const data = await response.json();
+                if (!response.ok || !data.success) throw new Error((data.preview && data.preview.errors || []).join(' ') || data.message);
+                const preview = data.preview;
+                const source = preview.source_data || {};
+                Swal.fire({
+                    title: 'Solicitud de traslado SAP',
+                    html: '<div class="text-left">' +
+                        '<div><strong>Endpoint:</strong> ' + escapeHtml(preview.endpoint) + '</div>' +
+                        '<div><strong>Origen:</strong> ' + escapeHtml(source.origen) + '</div>' +
+                        '<div><strong>Destino:</strong> ' + escapeHtml(source.destino) + '</div>' +
+                        '<div><strong>ItemCode:</strong> ' + escapeHtml(source.item_code) + '</div>' +
+                        '<div><strong>Cantidad guía:</strong> ' + escapeHtml(source.peso_guia_kg) + ' kg</div>' +
+                        '<div><strong>Cantidad SAP:</strong> ' + escapeHtml(source.quantity_mt) + ' MT</div>' +
+                        '<div><strong>Guía:</strong> ' + escapeHtml(source.guia) + '</div>' +
+                        '<div><strong>Contenedor:</strong> ' + escapeHtml(source.contenedor) + '</div>' +
+                        '<div class="font-weight-bold mt-3">JSON SAP</div>' +
+                        '<pre class="op-sap-draft-pre" style="max-height:320px;overflow:auto;">' +
+                        escapeHtml(JSON.stringify(preview.payload || {}, null, 2)) + '</pre></div>',
+                    width: '900px', confirmButtonText: 'Cerrar'
+                });
+            } catch (error) {
+                Swal.fire({icon: 'error', title: 'No fue posible previsualizar', text: error.message});
+            } finally {
+                boton.disabled = false;
+            }
+        });
+    });
+    document.querySelectorAll('.btn-crear-solicitud-sap-new-jersey-p2').forEach(function(boton) {
+        boton.addEventListener('click', async function() {
+            const confirmado = await Swal.fire({
+                icon: 'question', title: 'Crear solicitud de traslado SAP',
+                text: 'Se creará una solicitud abierta desde la bodega virtual al TK destino.',
+                showCancelButton: true, confirmButtonText: 'Crear solicitud', cancelButtonText: 'Cancelar'
+            });
+            if (!confirmado.isConfirmed) return;
+            boton.disabled = true;
+            try {
+                const form = new FormData();
+                form.set('_empresa_id', '{{ empresa_activa_id|default:""|escapejs }}');
+                const response = await fetch(
+                    '{% url "ajax_operacion_planta_crear_solicitud_sap_new_jersey_p2" citacion.id %}',
+                    {method: 'POST', body: form, credentials: 'same-origin', headers: {'X-CSRFToken': getCookie('csrftoken')}}
+                );
+                const data = await response.json();
+                if (!response.ok || !data.success) throw new Error(data.message || 'SAP no confirmó la solicitud.');
+                await Swal.fire({icon: 'success', title: 'Solicitud SAP creada', text: 'DocEntry: ' + data.docentry});
+                window.location.reload();
+            } catch (error) {
+                Swal.fire({icon: 'error', title: 'No fue posible crear la solicitud', text: error.message});
+                boton.disabled = false;
+            }
+        });
+    });
+    {% endif %}
     const OPERACION_PLANTA_EMPRESA_ID = "{{ empresa_activa_id|default:'' }}";
     const TICKET_PESAJE_REQUIRED_MESSAGE = "Debe obtener y guardar el ticket de pesaje antes de continuar.";
     const TOMA_MUESTRA_ACCION_REQUIRED_MESSAGE = "Debe registrar la accion principal antes de finalizar Toma de muestra.";
@@ -4912,6 +5503,7 @@
     const SAP_DESPACHO_PREVIEW_URL = "{% url 'ajax_operacion_planta_preview_sap_despacho' citacion.id %}";
     const SAP_DESPACHO_UPDATE_URL = "{% url 'ajax_operacion_planta_actualizar_sap_despacho' citacion.id %}";
     const REABRIR_CIERRE_CARGA_URL = "{% url 'ajax_operacion_planta_reabrir_cierre_carga_despacho_sbh' citacion.id %}";
+    const SAP_RECEPCION_PREVIEW_UPDATE_URL = "{% url 'ajax_operacion_planta_preview_update_sap_recepcion' citacion.id %}";
     const SAP_RECEPCION_UPDATE_URL = "{% url 'ajax_operacion_planta_actualizar_sap_recepcion' citacion.id %}";
     let borradorSapPreviewActual = null;
 
@@ -4938,10 +5530,15 @@
 
     function renderSapRecepcionPreview(response) {
         const preview = (response || {}).preview || {};
+        const presentation = (response || {}).presentation || {};
         const payload = preview.payload || {};
         const source = preview.source_data || {};
         const selectedLine = preview.selected_line || {};
         const documentLine = (payload.DocumentLines || [])[0] || {};
+        const baseType = documentLine.BaseType;
+        const documentoBaseSap = {
+            '22': 'Orden de Compra'
+        }[String(baseType)] || '-';
         const existing = preview.existing_draft || {};
         const warnings = (preview.warnings || []).concat(preview.errors || []);
         const value = function (candidate, fallback) {
@@ -4975,8 +5572,11 @@
             row('CardCode', payload.CardCode || source.card_code) +
             row('Proveedor', source.card_name) +
             row('Documento', [source.folio_prefix, source.folio_number].filter(Boolean).join(' ')) +
+            row('Tipo recepción', presentation.tipo_recepcion_label || presentation.tipo_recepcion) +
+            row('Documento base SAP', documentoBaseSap) +
             row('ItemCode', documentLine.ItemCode || selectedLine.ItemCode || source.item_code) +
             row('Quantity', documentLine.Quantity ?? source.quantity) +
+            row('BaseType', baseType) +
             row('BaseEntry', documentLine.BaseEntry ?? source.doc_entry) +
             row('BaseLine', documentLine.BaseLine ?? selectedLine.LineNum ?? source.base_line) +
             row('WarehouseCode', documentLine.WarehouseCode || source.warehouse_code) +
@@ -5439,6 +6039,7 @@
     $(document).on('click', '.btn-iniciar-ciclo-bodega-externa', function () {
         const boton = $(this);
         const box = boton.closest('.operacion-ciclo-bodega-externa-box');
+        const esSalidaTemporalProsesa = String(box.data('salida-temporal-prosesa')) === 'true';
         const observacionInicio = box.find('.observacion-inicio-bodega-externa').val() || '';
         const textoOriginal = boton.html();
         $.ajax({
@@ -5459,7 +6060,7 @@
                     Swal.fire({ icon: 'error', title: 'No fue posible autorizar', text: response.message || 'No fue posible autorizar la salida.' });
                     return;
                 }
-                Swal.fire({ icon: 'success', title: 'Salida autorizada', text: response.message || 'Camion autorizado para salir a Bodega Externa.' }).then(function () { location.reload(); });
+                Swal.fire({ icon: 'success', title: 'Salida autorizada', text: response.message || (esSalidaTemporalProsesa ? 'Salida temporal autorizada.' : 'Camion autorizado para salir a Bodega Externa.') }).then(function () { location.reload(); });
             },
             error: function (xhr) {
                 boton.prop('disabled', false).html(textoOriginal);
@@ -5469,9 +6070,28 @@
         });
     });
 
+    $(document).on('click', '.btn-validar-salida-temporal-prosesa-piso2', function () {
+        const boton = $(this);
+        boton.prop('disabled', true);
+        $.ajax({
+            url: "{% url 'ajax_operacion_planta_validar_salida_temporal_prosesa_piso_2' citacion.id %}",
+            type: 'POST',
+            data: {_empresa_id: OPERACION_PLANTA_EMPRESA_ID, empresa_id: OPERACION_PLANTA_EMPRESA_ID},
+            headers: {'X-CSRFToken': getCookie('csrftoken')},
+            success: function (response) {
+                Swal.fire({icon: 'success', title: 'Salida temporal validada', text: response.message}).then(function () { location.reload(); });
+            },
+            error: function (xhr) {
+                boton.prop('disabled', false);
+                Swal.fire({icon: 'error', title: 'No fue posible validar', text: (xhr.responseJSON || {}).message || 'Revise el estado del camion.'});
+            }
+        });
+    });
+
     $(document).on('click', '.btn-finalizar-ciclo-bodega-externa', function () {
         const boton = $(this);
         const box = boton.closest('.operacion-ciclo-bodega-externa-box');
+        const esSalidaTemporalProsesa = String(box.data('salida-temporal-prosesa')) === 'true';
         const salida = box.find('.op-dashboard-muted').last().text().trim();
         const tiempo = box.find('.op-bodega-externa-live-time').text().trim() || '00:00:00';
         const observacion = box.find('.observacion-regreso-bodega-externa').val() || '';
@@ -5479,7 +6099,7 @@
         Swal.fire({
             icon: 'question',
             title: 'Confirmar regreso',
-            html: '<div class="text-left"><p>Confirma el regreso del camion desde Bodega Externa?</p><p><strong>Patente:</strong> ' + $('<div>').text('{{ patente }}').html() + '</p><p><strong>' + $('<div>').text(salida).html() + '</strong></p><p><strong>Tiempo transcurrido:</strong> ' + $('<div>').text(tiempo).html() + '</p><p>Esta accion cerrara el ciclo externo y enviara el proceso a Pesaje Salida.</p></div>',
+            html: '<div class="text-left"><p>' + (esSalidaTemporalProsesa ? 'Confirma el retorno del camion a planta?' : 'Confirma el regreso del camion desde Bodega Externa?') + '</p><p><strong>Patente:</strong> ' + $('<div>').text('{{ patente }}').html() + '</p><p><strong>' + $('<div>').text(salida).html() + '</strong></p><p><strong>Tiempo transcurrido:</strong> ' + $('<div>').text(tiempo).html() + '</p><p>' + (esSalidaTemporalProsesa ? 'Esta accion cerrara la salida temporal y habilitara la siguiente etapa.' : 'Esta accion cerrara el ciclo externo y enviara el proceso a Pesaje Salida.') + '</p></div>',
             showCancelButton: true,
             confirmButtonText: 'Registrar regreso',
             cancelButtonText: 'Cancelar'
@@ -5503,7 +6123,7 @@
                         Swal.fire({ icon: 'error', title: 'No fue posible registrar', text: response.message || 'No fue posible registrar el regreso.' });
                         return;
                     }
-                    Swal.fire({ icon: 'success', title: 'Regreso registrado', text: response.message || 'Camion regreso desde Bodega Externa.' }).then(function () { location.reload(); });
+                    Swal.fire({ icon: 'success', title: esSalidaTemporalProsesa ? 'Retorno registrado' : 'Regreso registrado', text: response.message || (esSalidaTemporalProsesa ? 'Camion retorno a planta.' : 'Camion regreso desde Bodega Externa.') }).then(function () { location.reload(); });
                 },
                 error: function (xhr) {
                     boton.prop('disabled', false).html(textoOriginal);
@@ -5523,7 +6143,9 @@
         }
         box.find('.op-cycle-option').removeClass('is-selected');
         boton.addClass('is-selected');
-        box.find('.btn-iniciar-ciclo-descarga').prop('disabled', false);
+        if (box.attr('data-new-jersey-p2') !== 'true' || box.attr('data-sap-solicitud-creada') === 'true') {
+            box.find('.btn-iniciar-ciclo-descarga').prop('disabled', false);
+        }
     });
 
     $(document).on('click', '.btn-iniciar-ciclo-descarga', function () {
@@ -5533,6 +6155,10 @@
         const seleccion = box.find('.op-cycle-option.is-selected').data('tipo-descarga') || '';
         const textoOriginal = boton.html();
 
+        if (box.attr('data-new-jersey-p2') === 'true' && box.attr('data-sap-solicitud-creada') !== 'true') {
+            Swal.fire({ icon: 'warning', title: 'Solicitud SAP requerida', text: 'Debe crear la solicitud de traslado SAP antes de iniciar la descarga.' });
+            return;
+        }
         if (!seleccion) {
             Swal.fire({ icon: 'warning', title: 'Tipo requerido', text: 'Debe seleccionar un tipo de descarga.' });
             return;
@@ -5670,7 +6296,7 @@
             type: 'POST',
             headers: { 'X-CSRFToken': getCookie('csrftoken') },
             data: { documentacion_validada: '1', observacion: box.find('.documentacion-terramar-observacion').val() || '', _empresa_id: OPERACION_PLANTA_EMPRESA_ID, empresa_id: OPERACION_PLANTA_EMPRESA_ID },
-            success: response => Swal.fire({ icon: 'success', title: 'Documentación validada', text: response.message }).then(() => location.reload()),
+            success: response => Swal.fire({ icon: 'success', title: response.salida_autorizada ? 'Salida autorizada' : 'Documentación validada', text: response.message }).then(() => location.reload()),
             error: xhr => { const r=xhr.responseJSON||{}; Swal.fire({ icon:'error', title:'No fue posible validar', text:r.message||'Error de validación.' }); boton.prop('disabled', false); }
         });
     });
@@ -5692,7 +6318,7 @@
 
     $(document).on('click', '.btn-exportar-documentos-terramar', function () {
         const boton = $(this);
-        const box = boton.closest('.operacion-autorizar-terramar');
+        const box = boton.closest('.operacion-documentos-terramar');
         const resultadoBox = box.find('.exportar-documentos-terramar-resultado');
         const textoOriginal = boton.html();
         boton.prop('disabled', true).html('<i class="fas fa-spinner fa-spin"></i> Procesando...');
@@ -5727,7 +6353,7 @@
     });
 
     $(document).on('click', '.btn-copiar-ruta-terramar', function () {
-        const box = $(this).closest('.operacion-autorizar-terramar');
+        const box = $(this).closest('.operacion-documentos-terramar');
         const carpeta = TERRAMAR_EXPORT_FOLDERS.get(box.get(0));
         if (!carpeta) {
             Swal.fire({ icon: 'warning', title: 'Ruta no disponible', text: 'Primero descargue los documentos firmados.' });
@@ -6001,8 +6627,12 @@
         const motivos = (response.motivos || []).map(function (motivo) {
             return '<li>' + escapeHtml(motivo) + '</li>';
         }).join('');
+        const advertencias = (response.warnings || []).map(function (warning) {
+            return '<li>' + escapeHtml(warning) + '</li>';
+        }).join('');
         return '<div class="text-left"><h5>Validación estructural</h5><ul>' + validacionHtml + '</ul>' +
-            (motivos ? '<div class="alert alert-warning"><strong>Motivos:</strong><ul class="mb-0">' + motivos + '</ul></div>' : '') +
+            (advertencias ? '<div class="alert alert-warning"><strong>Advertencias no bloqueantes:</strong><ul class="mb-0">' + advertencias + '</ul></div>' : '') +
+            (motivos ? '<div class="alert alert-danger"><strong>Motivos:</strong><ul class="mb-0">' + motivos + '</ul></div>' : '') +
             documentosHtml + '</div>';
     }
 
@@ -6118,6 +6748,86 @@
                     Swal.fire('No fue posible reabrir', response.message || 'Revise el estado de la citacion.', 'warning');
                 }
             });
+        });
+    });
+
+    function htmlPreviewUpdateSapRecepcion(response) {
+        const preview = response.preview || {};
+        const source = preview.source_data || {};
+        const payload = preview.payload || {};
+        const errores = (preview.errors || []).map(function (error) {
+            return '<li>' + escapeHtml(error) + '</li>';
+        }).join('');
+        const validaciones = (preview.validations || []).map(function (item) {
+            return '<li>' + escapeHtml(item) + '</li>';
+        }).join('');
+        return '<div class="text-left">' +
+            '<div class="alert alert-info">' +
+                '<strong>PREVISUALIZACI&Oacute;N - NO ENVIADO A SAP</strong><br>' +
+                'Esta acci&oacute;n no modifica el Borrador SAP.' +
+            '</div>' +
+            '<div class="row mb-3">' +
+                '<div class="col-6"><strong>Draft DocEntry:</strong> ' + escapeHtml(source.draft_docentry || '-') + '</div>' +
+                '<div class="col-6"><strong>Draft DocNum:</strong> ' + escapeHtml(source.draft_docnum || '-') + '</div>' +
+                '<div class="col-6"><strong>ItemCode:</strong> ' + escapeHtml(source.item_code || '-') + '</div>' +
+                '<div class="col-6"><strong>WarehouseCode:</strong> ' + escapeHtml(source.warehouse_code || '-') + '</div>' +
+                '<div class="col-6"><strong>Peso salida:</strong> ' + escapeHtml(source.peso_salida_kg || '-') + ' kg</div>' +
+                '<div class="col-6"><strong>Cantidad SAP:</strong> ' + escapeHtml(source.cantidad_sap || '-') + ' ' + escapeHtml(source.unidad_sap || 'MT') + '</div>' +
+                '<div class="col-12"><strong>Endpoint:</strong> ' + escapeHtml(source.endpoint || '-') + '</div>' +
+            '</div>' +
+            (validaciones ? '<div class="alert alert-light border"><strong>Validaciones</strong><ul class="mb-0">' + validaciones + '</ul></div>' : '') +
+            (errores ? '<div class="alert alert-danger"><strong>Errores</strong><ul class="mb-0">' + errores + '</ul></div>' : '') +
+            '<div class="op-field-summary-label">JSON PATCH que se enviar&iacute;a a SAP</div>' +
+            '<pre class="op-sap-draft-pre mb-0">' + escapeHtml(JSON.stringify(payload, null, 2)) + '</pre>' +
+        '</div>';
+    }
+
+    $(document).on('click', '.btn-preview-update-sap-recepcion', function () {
+        const button = $(this);
+        const textoOriginal = button.html();
+        $.ajax({
+            url: SAP_RECEPCION_PREVIEW_UPDATE_URL,
+            type: 'POST',
+            data: {
+                _empresa_id: OPERACION_PLANTA_EMPRESA_ID,
+                empresa_id: OPERACION_PLANTA_EMPRESA_ID
+            },
+            headers: {
+                'X-CSRFToken': getCookie('csrftoken')
+            },
+            beforeSend: function () {
+                button.prop('disabled', true).html('<i class="fas fa-spinner fa-spin mr-1"></i> Previsualizando...');
+            },
+            complete: function () {
+                button.prop('disabled', false).html(textoOriginal);
+            },
+            success: function (response) {
+                Swal.fire({
+                    icon: response.success ? 'info' : 'warning',
+                    title: 'Previsualizaci&oacute;n SAP',
+                    html: htmlPreviewUpdateSapRecepcion(response),
+                    width: '900px',
+                    confirmButtonText: 'Cerrar'
+                });
+            },
+            error: function (xhr) {
+                const response = xhr.responseJSON || {};
+                if (response.preview) {
+                    Swal.fire({
+                        icon: 'warning',
+                        title: 'Previsualizaci&oacute;n SAP',
+                        html: htmlPreviewUpdateSapRecepcion(response),
+                        width: '900px',
+                        confirmButtonText: 'Cerrar'
+                    });
+                    return;
+                }
+                Swal.fire({
+                    icon: 'error',
+                    title: 'No fue posible previsualizar',
+                    text: response.message || ('Error HTTP ' + xhr.status + '.')
+                });
+            }
         });
     });
 
@@ -6302,6 +7012,290 @@
         });
     });
 
+    $(document).on('input', '.peso-qa-new-jersey-p3', function () {
+        const box = $(this).closest('.operacion-transferencia-sap-new-jersey-p3-box');
+        box.find('.qa-pendiente-new-jersey-p3').removeClass('d-none');
+        box.find('.btn-aplicar-pesos-qa-new-jersey-p3').prop('disabled', false).attr('aria-disabled', 'false');
+        box.find('.btn-calcular-peso-real-new-jersey-p3, .btn-preview-transferencia-sap-new-jersey-p3, .btn-crear-transferencia-sap-new-jersey-p3').prop('disabled', true);
+    });
+
+    $(document).on('click', '.btn-aplicar-pesos-qa-new-jersey-p3', function () {
+        const boton = $(this);
+        const box = boton.closest('.operacion-transferencia-sap-new-jersey-p3-box');
+        const data = {_empresa_id: OPERACION_PLANTA_EMPRESA_ID};
+        box.find('.peso-qa-new-jersey-p3').each(function () {
+            data[$(this).attr('name')] = $(this).val();
+        });
+        const textoOriginal = boton.html();
+        $.ajax({
+            url: "{% url 'ajax_operacion_planta_aplicar_pesos_qa_new_jersey_p3' citacion.id %}",
+            type: 'POST', data: data,
+            headers: {'X-CSRFToken': getCookie('csrftoken')},
+            beforeSend: function () {
+                boton.prop('disabled', true).html('<i class="fas fa-spinner fa-spin mr-1"></i> Aplicando...');
+            },
+            success: function (respuesta) {
+                const detalle = respuesta.error_calculo
+                    ? '<br><span class="text-danger">' + escapeHtml(respuesta.error_calculo) + '</span>'
+                    : '<br>Peso real preliminar: <strong>' + escapeHtml(String(respuesta.peso_real_kg)) + ' kg</strong>';
+                Swal.fire({
+                    icon: respuesta.calculo_valido ? 'success' : 'warning',
+                    title: 'Pesos QA aplicados',
+                    html: escapeHtml(respuesta.message) + detalle,
+                }).then(function () { location.reload(); });
+            },
+            error: function (xhr) {
+                boton.prop('disabled', false).html(textoOriginal);
+                Swal.fire('No fue posible aplicar los pesos QA', (xhr.responseJSON || {}).message || 'Revise los valores ingresados.', 'warning');
+            }
+        });
+    });
+
+    $(document).on('click', '.btn-calcular-peso-real-new-jersey-p3', function () {
+        const boton = $(this);
+        const textoOriginal = boton.html();
+        $.ajax({
+            url: "{% url 'ajax_operacion_planta_calcular_peso_real_new_jersey_p3' citacion.id %}",
+            type: 'POST', data: {_empresa_id: OPERACION_PLANTA_EMPRESA_ID},
+            headers: {'X-CSRFToken': getCookie('csrftoken')},
+            beforeSend: function () {
+                boton.prop('disabled', true).html('<i class="fas fa-spinner fa-spin mr-1"></i> Calculando...');
+            },
+            success: function (respuesta) {
+                Swal.fire({
+                    icon: 'success', title: 'Peso real validado',
+                    html: '<strong>' + escapeHtml(String(respuesta.peso_real_kg)) + ' kg</strong><br>' + escapeHtml(String(respuesta.peso_real_mt)) + ' MT'
+                }).then(function () { location.reload(); });
+            },
+            error: function (xhr) {
+                boton.prop('disabled', false).html(textoOriginal);
+                Swal.fire('No fue posible calcular', (xhr.responseJSON || {}).message || 'Revise los pesajes P1 y P3.', 'warning');
+            }
+        });
+    });
+    $(document).on('click', '.btn-guardar-tk-final-new-jersey-p3', function () {
+        const boton = $(this), box = boton.closest('.operacion-transferencia-sap-new-jersey-p3-box');
+        $.ajax({
+            url: "{% url 'ajax_operacion_planta_guardar_tk_final_new_jersey_p3' citacion.id %}", type: 'POST',
+            data: {_empresa_id: OPERACION_PLANTA_EMPRESA_ID, tk_destino: box.find('.tk-destino-final-new-jersey-p3').val()},
+            headers: {'X-CSRFToken': getCookie('csrftoken')}, beforeSend: () => boton.prop('disabled', true),
+            success: respuesta => Swal.fire('TK final guardado', respuesta.message, 'success').then(() => location.reload()),
+            error: xhr => { boton.prop('disabled', false); Swal.fire('No fue posible guardar', (xhr.responseJSON || {}).message || 'Revise el TK seleccionado.', 'warning'); }
+        });
+    });
+
+    function mostrarPreviewTransferenciaSapNewJerseyP3(respuesta) {
+        const preview = respuesta.preview || {}, source = preview.source_data || {};
+        const valor = dato => escapeHtml(dato === null || dato === undefined || dato === '' ? '-' : String(dato));
+        const filas = [
+            ['Endpoint', 'POST /StockTransfers'], ['Ingreso P1', source.ingreso_p1_docentry],
+            ['Solicitud P2', source.solicitud_p2_docentry], ['Origen', source.origen], ['Destino final', source.destino],
+            ['ItemCode', source.item_code], ['Lote', source.batch_number], ['Peso real', source.peso_real_kg == null ? '-' : source.peso_real_kg + ' kg'],
+            ['Cantidad SAP', source.quantity_mt == null ? '-' : source.quantity_mt + ' MT']
+        ].map(fila => '<tr><th class="text-left pr-3">' + valor(fila[0]) + '</th><td class="text-left">' + valor(fila[1]) + '</td></tr>').join('');
+        const errores = (preview.errors || []).map(error => '<li>' + valor(error) + '</li>').join('');
+        Swal.fire({
+            icon: respuesta.success ? 'info' : 'warning', title: 'TRANSFERENCIA SAP NEW JERSEY P3', width: '900px',
+            html: '<div class="text-left"><strong>PREVISUALIZACION - NO ENVIADA A SAP</strong><table class="table table-sm mt-3"><tbody>' + filas + '</tbody></table>' +
+                (errores ? '<div class="alert alert-warning"><ul class="mb-0">' + errores + '</ul></div>' : '') +
+                '<div class="font-weight-bold mt-3">JSON SAP</div><pre class="op-sap-draft-pre" style="max-height:320px;overflow:auto;">' + escapeHtml(JSON.stringify(preview.payload || {}, null, 2)) + '</pre></div>',
+            confirmButtonText: 'Cerrar'
+        });
+    }
+
+    $(document).on('click', '.btn-preview-transferencia-sap-new-jersey-p3', function () {
+        const boton = $(this); boton.prop('disabled', true);
+        $.ajax({
+            url: "{% url 'ajax_operacion_planta_preview_transferencia_sap_new_jersey_p3' citacion.id %}", type: 'POST',
+            data: {_empresa_id: OPERACION_PLANTA_EMPRESA_ID}, headers: {'X-CSRFToken': getCookie('csrftoken')},
+            success: mostrarPreviewTransferenciaSapNewJerseyP3,
+            error: xhr => { const r = xhr.responseJSON || {}; if (r.preview) mostrarPreviewTransferenciaSapNewJerseyP3(r); else Swal.fire('No fue posible previsualizar', r.message || 'Revise los datos.', 'warning'); },
+            complete: () => boton.prop('disabled', false)
+        });
+    });
+
+    $(document).on('click', '.btn-crear-transferencia-sap-new-jersey-p3', function () {
+        const boton = $(this);
+        Swal.fire({icon: 'question', title: 'Crear StockTransfer SAP', text: 'Se movera el peso real validado desde la bodega virtual al TK final.', showCancelButton: true, confirmButtonText: 'Crear transferencia', cancelButtonText: 'Cancelar'}).then(confirmacion => {
+            if (!confirmacion.isConfirmed) return;
+            boton.prop('disabled', true);
+            $.ajax({
+                url: "{% url 'ajax_operacion_planta_crear_transferencia_sap_new_jersey_p3' citacion.id %}", type: 'POST',
+                data: {_empresa_id: OPERACION_PLANTA_EMPRESA_ID}, headers: {'X-CSRFToken': getCookie('csrftoken')},
+                success: respuesta => Swal.fire({icon: 'success', title: 'StockTransfer creada', html: 'DocEntry: <strong>' + escapeHtml(String(respuesta.docentry)) + '</strong><br>DocNum: <strong>' + escapeHtml(String(respuesta.docnum || '-')) + '</strong><br>Destino: ' + escapeHtml(respuesta.destino) + '<br>Cantidad: ' + escapeHtml(String(respuesta.quantity_mt)) + ' MT'}).then(() => location.reload()),
+                error: xhr => { boton.prop('disabled', false); Swal.fire('No fue posible crear la transferencia', (xhr.responseJSON || {}).message || 'Revise el estado SAP.', 'warning'); }
+            });
+        });
+    });
+    function recalcularVistaPesoRealProsesa(box) {
+        const valores = {};
+        box.find('.tabla-pesos-prosesa tbody tr').each(function () {
+            const fila = $(this);
+            const input = fila.find('.peso-qa-prosesa');
+            const peso = Number(input.length ? input.val() : fila.data('peso-efectivo'));
+            valores[String(fila.data('clave'))] = peso;
+            fila.attr('data-peso-efectivo', peso);
+            fila.find('.peso-usado-prosesa').text(peso + ' kg');
+        });
+        if (Object.keys(valores).length !== 4 || Object.values(valores).some(function (valor) { return !Number.isFinite(valor); })) {
+            return;
+        }
+        const cargado = valores.p1_ent - valores.p1_sal;
+        const vacio = valores.p2_sal - valores.p2_ent;
+        const real = cargado - vacio;
+        box.find('.valor-peso-cargado-prosesa, .formula-peso-cargado-prosesa').text(cargado);
+        box.find('.valor-peso-vacio-prosesa, .formula-peso-vacio-prosesa').text(vacio);
+        box.find('.valor-peso-real-prosesa, .formula-peso-real-prosesa').text(real);
+        const ingresoVirtual = Number(box.attr('data-peso-ingresado-kg'));
+        if (Number.isFinite(ingresoVirtual) && ingresoVirtual > 0) {
+            const remanente = ingresoVirtual - real;
+            box.find('.valor-remanente-virtual-prosesa').text(remanente);
+            box.find('.valor-remanente-virtual-mt-prosesa').text((remanente / 1000).toFixed(3));
+        }
+        box.find('.btn-preview-transferencia-sap-prosesa, .btn-crear-transferencia-sap-prosesa').prop('disabled', true);
+        box.find('.formula-p1-ent-prosesa').text(valores.p1_ent);
+        box.find('.formula-p1-sal-prosesa').text(valores.p1_sal);
+        box.find('.formula-p2-tara-prosesa').text(valores.p2_ent);
+        box.find('.formula-p2-sal-prosesa').text(valores.p2_sal);
+    }
+
+    $(document).on('input', '.peso-qa-prosesa', function () {
+        recalcularVistaPesoRealProsesa($(this).closest('.operacion-autorizar-salida-prosesa-piso2-box'));
+    });
+
+    $(document).on('click', '.btn-calcular-peso-real-prosesa', function () {
+        const boton = $(this);
+        const box = boton.closest('.operacion-autorizar-salida-prosesa-piso2-box');
+        const data = {_empresa_id: OPERACION_PLANTA_EMPRESA_ID};
+        box.find('.peso-qa-prosesa').each(function () {
+            data[$(this).attr('name')] = $(this).val();
+        });
+        const textoOriginal = boton.html();
+        $.ajax({
+            url: "{% url 'ajax_operacion_planta_calcular_peso_real_prosesa' citacion.id %}",
+            type: 'POST',
+            data: data,
+            headers: {'X-CSRFToken': getCookie('csrftoken')},
+            beforeSend: function () {
+                boton.prop('disabled', true).html('<i class="fas fa-spinner fa-spin mr-1"></i> Calculando...');
+            },
+            success: function (respuesta) {
+                Swal.fire({
+                    icon: 'success',
+                    title: 'Peso real validado',
+                    html: '<strong>' + escapeHtml(respuesta.peso_real_insumo) + ' kg</strong><br>' + escapeHtml(respuesta.message)
+                }).then(function () { location.reload(); });
+            },
+            error: function (xhr) {
+                boton.prop('disabled', false).html(textoOriginal);
+                Swal.fire({icon: 'error', title: 'No fue posible calcular', text: (xhr.responseJSON || {}).message || 'Revise los cuatro pesajes.'});
+            }
+        });
+    });
+
+    function mostrarPreviewTransferenciaSapProsesa(respuesta) {
+        const preview = respuesta.preview || {};
+        const source = preview.source_data || {};
+        const valor = function (dato) {
+            return escapeHtml(dato === null || dato === undefined || dato === '' ? '-' : String(dato));
+        };
+        const filas = [
+            ['Endpoint', 'POST /StockTransfers'],
+            ['Peso ingresado virtual', source.peso_ingresado_virtual_kg == null ? '-' : source.peso_ingresado_virtual_kg + ' kg'],
+            ['Peso real', source.peso_real_kg == null ? '-' : source.peso_real_kg + ' kg'],
+            ['Cantidad SAP', source.quantity_mt == null ? '-' : source.quantity_mt + ' MT'],
+            ['Origen', source.origen], ['Destino', source.destino],
+            ['ItemCode', source.item_code], ['Lote', source.batch_number],
+            ['Stock lote origen', source.stock_lote_disponible_mt == null ? '-' : source.stock_lote_disponible_mt + ' MT'],
+            ['Remanente lote', source.remanente_lote_mt == null ? '-' : source.remanente_lote_mt + ' MT']
+        ].map(function (fila) {
+            return '<tr><th class="text-left pr-3">' + valor(fila[0]) + '</th><td class="text-left">' + valor(fila[1]) + '</td></tr>';
+        }).join('');
+        const errores = (preview.errors || []).map(function (error) {
+            return '<li>' + valor(error) + '</li>';
+        }).join('');
+        Swal.fire({
+            icon: respuesta.success ? 'info' : 'warning',
+            title: 'TRANSFERENCIA SAP PROSESA',
+            html: '<div class="text-left"><strong>PREVISUALIZACIÓN · NO ENVIADA A SAP</strong>' +
+                '<table class="table table-sm mt-3"><tbody>' + filas + '</tbody></table>' +
+                (errores ? '<div class="alert alert-warning"><ul class="mb-0">' + errores + '</ul></div>' : '') +
+                '<div class="font-weight-bold mt-3">JSON SAP</div>' +
+                '<pre class="op-sap-draft-pre" style="max-height:320px;overflow:auto;">' +
+                escapeHtml(JSON.stringify(preview.payload || {}, null, 2)) + '</pre></div>',
+            width: '900px',
+            confirmButtonText: 'Cerrar'
+        });
+    }
+
+    $(document).on('click', '.btn-preview-transferencia-sap-prosesa', function () {
+        const boton = $(this);
+        boton.prop('disabled', true);
+        $.ajax({
+            url: "{% url 'ajax_operacion_planta_preview_transferencia_sap_prosesa' citacion.id %}",
+            type: 'POST',
+            data: {_empresa_id: OPERACION_PLANTA_EMPRESA_ID},
+            headers: {'X-CSRFToken': getCookie('csrftoken')},
+            success: mostrarPreviewTransferenciaSapProsesa,
+            error: function (xhr) {
+                const respuesta = xhr.responseJSON || {};
+                if (respuesta.preview) mostrarPreviewTransferenciaSapProsesa(respuesta);
+                else Swal.fire('No fue posible previsualizar', respuesta.message || 'Revise los datos de la transferencia.', 'warning');
+            },
+            complete: function () { boton.prop('disabled', false); }
+        });
+    });
+
+    $(document).on('click', '.btn-crear-transferencia-sap-prosesa', function () {
+        const boton = $(this);
+        Swal.fire({
+            icon: 'question', title: 'Crear transferencia SAP',
+            text: 'Se transferirá el lote validado desde bodega virtual al TK PROSESA.',
+            showCancelButton: true, confirmButtonText: 'Crear transferencia', cancelButtonText: 'Cancelar'
+        }).then(function (confirmacion) {
+            if (!confirmacion.isConfirmed) return;
+            boton.prop('disabled', true);
+            $.ajax({
+                url: "{% url 'ajax_operacion_planta_crear_transferencia_sap_prosesa' citacion.id %}",
+                type: 'POST',
+                data: {_empresa_id: OPERACION_PLANTA_EMPRESA_ID},
+                headers: {'X-CSRFToken': getCookie('csrftoken')},
+                success: function (respuesta) {
+                    Swal.fire({
+                        icon: 'success', title: 'Transferencia SAP creada',
+                        html: 'DocEntry: <strong>' + escapeHtml(String(respuesta.docentry)) +
+                            '</strong><br>DocNum: <strong>' + escapeHtml(String(respuesta.docnum || '-')) +
+                            '</strong><br>Origen: ' + escapeHtml(respuesta.origen) +
+                            '<br>Destino: ' + escapeHtml(respuesta.destino) +
+                            '<br>Cantidad: ' + escapeHtml(String(respuesta.quantity_mt)) + ' MT' +
+                            '<br>Lote: ' + escapeHtml(respuesta.batch_number)
+                    }).then(function () { location.reload(); });
+                },
+                error: function (xhr) {
+                    boton.prop('disabled', false);
+                    Swal.fire('No fue posible crear la transferencia', (xhr.responseJSON || {}).message || 'Revise el estado SAP.', 'warning');
+                }
+            });
+        });
+    });
+    $(document).on('click', '.btn-autorizar-salida-prosesa-piso2', function () {
+        const boton = $(this);
+        boton.prop('disabled', true);
+        $.ajax({
+            url: "{% url 'ajax_operacion_planta_autorizar_salida' citacion.id %}",
+            type: 'POST',
+            data: {_empresa_id: OPERACION_PLANTA_EMPRESA_ID},
+            headers: {'X-CSRFToken': getCookie('csrftoken')},
+            success: function (respuesta) {
+                Swal.fire({icon: 'success', title: 'Salida autorizada', text: respuesta.message}).then(function () { location.reload(); });
+            },
+            error: function (xhr) {
+                boton.prop('disabled', false);
+                Swal.fire({icon: 'error', title: 'No fue posible autorizar', text: (xhr.responseJSON || {}).message || 'Intente nuevamente.'});
+            }
+        });
+    });
+
     $(document).on('click', '.btn-autorizar-salida-operacion', function () {
         const button = $(this);
         const box = button.closest('.operacion-autorizar-salida-box');
@@ -6362,7 +7356,7 @@
 
         const confirmar = decision === 'APROBADO'
             ? 'Aprobar manualmente este resultado de calidad'
-            : 'Confirmar el rechazo definitivo y autorizar la salida';
+            : {% if es_new_jersey_p2 %}'Confirmar el rechazo definitivo de Calidad'{% else %}'Confirmar el rechazo definitivo y autorizar la salida'{% endif %};
         Swal.fire({
             icon: decision === 'APROBADO' ? 'question' : 'warning',
             title: confirmar,
@@ -6787,6 +7781,10 @@
                     }
                 } else {
                     boton.replaceWith('<div class="operacion-ticket-frozen-pill"><i class="fas fa-check-circle"></i> Ticket ya congelado</div>');
+                }
+
+                if (response.recargar_operacion) {
+                    window.setTimeout(function () { window.location.reload(); }, 700);
                 }
 
                 if (response.mop_requerido && !response.mop_ok) {

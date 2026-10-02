@@ -276,8 +276,17 @@ class OperacionPlantaTerramarEtapa2Tests(TestCase):
             {'documentacion_validada': '1', 'observacion': 'Documentos revisados y conformes.'},
         )
 
-    def timbrar(self):
-        return self.post(self.despacho, 'ajax_operacion_planta_timbrar_documentos_terramar')
+    def timbrar(self, user=None):
+        paso_activo = views.obtener_paso_activo_operacion(self.citacion)[0]
+        responsable = user or (
+            self.recepcion
+            if (
+                self.secuencia.SE_CCODIGO == 'RECEPCION_TERRAMAR'
+                and paso_activo == views.PASO_DOCUMENTACION_TERRAMAR
+            )
+            else self.despacho
+        )
+        return self.post(responsable, 'ajax_operacion_planta_timbrar_documentos_terramar')
     def exportar(self, user=None):
         return self.post(
             user or self.despacho,
@@ -331,19 +340,51 @@ class OperacionPlantaTerramarEtapa2Tests(TestCase):
                 )
                 self.assertEqual(response.status_code, 403, response.content)
 
+        pendiente = self.validar_documentacion()
+        self.assertEqual(pendiente.status_code, 409, pendiente.content)
+        self.assertIn('timbrar', pendiente.json()['message'].lower())
+        self.assertEqual(self.timbrar().status_code, 200)
+
         response = self.validar_documentacion()
         self.assertEqual(response.status_code, 200, response.content)
         log = OPERACION_PLANTA_LOG.objects.get(CI_NID=self.citacion, OPL_CPASO='Documentación')
         self.assertEqual(log.US_NID, self.recepcion)
         self.assertEqual(log.OPL_CPERFIL_RESPONSABLE, 'ASISTENTE RECEPCION')
         self.assertEqual(log.OPL_COBSERVACION, 'Documentos revisados y conformes.')
-        self.assertEqual(views.obtener_paso_activo_operacion(self.citacion)[0], 'Autorizar Salida')
-        self.assertTrue(SYSLOGGER.objects.filter(LOG_COPERACION='DOC_VALIDA_TER', LOG_CADD1=str(self.citacion.id)).exists())
+        self.assertTrue(response.json()['salida_autorizada'])
+        self.assertEqual(views.obtener_paso_activo_operacion(self.citacion)[0], 'Confirmar Salida')
+        metadata = views._leer_metadata_terramar(
+            self.citacion,
+            views.CAMPO_DOCUMENTACION_TERRAMAR,
+        )
+        self.assertTrue(metadata['validada'])
+        self.assertTrue(metadata['salida_autorizada'])
+        self.assertEqual(metadata['accion'], 'AUTORIZA_SALIDA')
+        self.assertEqual(metadata['usuario_autorizacion_id'], self.recepcion.id)
+        self.assertEqual(
+            OPERACION_PLANTA_LOG.objects.filter(
+                CI_NID=self.citacion,
+                OPL_CPASO='Documentación',
+                OPL_CESTADO=OPERACION_PLANTA_LOG.ESTADO_COMPLETADO,
+            ).count(),
+            1,
+        )
+        self.assertFalse(OPERACION_PLANTA_LOG.objects.filter(
+            CI_NID=self.citacion,
+            OPL_CPASO='Autorizar Salida',
+        ).exists())
+        self.assertTrue(SYSLOGGER.objects.filter(
+            LOG_COPERACION='AUT_SALIDA_TER',
+            LOG_CADD1=str(self.citacion.id),
+        ).exists())
+        self.assertFalse(SYSLOGGER.objects.filter(
+            LOG_COPERACION='DOC_VALIDA_TER',
+            LOG_CADD1=str(self.citacion.id),
+        ).exists())
         repeated = self.validar_documentacion()
         self.assertEqual(repeated.status_code, 409, repeated.content)
 
     def test_timbrado_pdf_imagen_conserva_originales_contenido_e_idempotencia(self):
-        self.assertEqual(self.validar_documentacion().status_code, 200)
         response = self.timbrar()
         self.assertEqual(response.status_code, 200, response.content)
         self.assertEqual(response.json()['generados'], 3)
@@ -360,7 +401,7 @@ class OperacionPlantaTerramarEtapa2Tests(TestCase):
             text = ''.join(page.get_text() for page in document)
         self.assertIn('ÁREA DE RECEPCIÓN', text)
         self.assertIn('Oficina de Operaciones', text)
-        self.assertIn('Terramar SPA', text)
+        self.assertIn('Terramar Chile SpA', text)
         self.assertIn('77.620.020-4', text)
         codigos = [item['codigo_validacion'] for item in metadata['documentos']]
         self.assertEqual(len(codigos), len(set(codigos)))
@@ -374,9 +415,9 @@ class OperacionPlantaTerramarEtapa2Tests(TestCase):
         )
         self.assertTrue(all(item['citacion_id'] == self.citacion.id for item in validaciones_eli))
         self.assertTrue(all(item['empresa_id'] == self.empresa.id for item in validaciones_eli))
-        self.assertTrue(all(item['usuario_id'] == self.despacho.id for item in validaciones_eli))
+        self.assertTrue(all(item['usuario_id'] == self.recepcion.id for item in validaciones_eli))
         self.assertTrue(all(item['hash_original'] and item['hash_timbrado'] for item in validaciones_eli))
-        self.assertIn(self.despacho.username, text)
+        self.assertIn(self.recepcion.username, text)
         self.assertIn(pdf_stamped['fecha_timbrado'].split(' ')[0], text)
         with Image.open(image_stamped['stamped_path']) as image:
             image.verify()
@@ -386,8 +427,7 @@ class OperacionPlantaTerramarEtapa2Tests(TestCase):
         self.assertEqual(repeated.json()['reutilizados'], 3)
 
     def test_timbrado_restringe_perfiles_y_rechaza_documento_manipulado(self):
-        self.assertEqual(self.validar_documentacion().status_code, 200)
-        for user in (self.recepcion, self.bodega, self.guardia, self.operador, self.ajeno):
+        for user in (self.despacho, self.bodega, self.guardia, self.operador, self.ajeno):
             with self.subTest(user=user.username):
                 response = self.post(user, 'ajax_operacion_planta_timbrar_documentos_terramar')
                 self.assertEqual(response.status_code, 403, response.content)
@@ -396,8 +436,8 @@ class OperacionPlantaTerramarEtapa2Tests(TestCase):
         self.assertEqual(manipulated.status_code, 404, manipulated.content)
 
     def test_descarga_original_y_timbrado_quedan_protegidas_por_citacion(self):
-        self.assertEqual(self.validar_documentacion().status_code, 200)
         self.assertEqual(self.timbrar().status_code, 200)
+        self.assertEqual(self.validar_documentacion().status_code, 200)
         source = views._documentos_fuente_terramar(self.citacion)[0]
         self.client.force_login(self.despacho)
         original = self.client.get(self.endpoint('ajax_operacion_planta_documento_terramar', source['key']))
@@ -422,10 +462,9 @@ class OperacionPlantaTerramarEtapa2Tests(TestCase):
         self.assertEqual(forbidden.status_code, 403, forbidden.content)
 
     def test_exportacion_incluye_citacion_documento_com_sal_excluye_com_ent_y_es_idempotente(self):
-        self.assertEqual(self.validar_documentacion().status_code, 200)
         self.assertEqual(self.timbrar().status_code, 200)
 
-        response = self.exportar()
+        response = self.exportar(self.recepcion)
         self.assertEqual(response.status_code, 200, response.content)
         payload = response.json()
         self.assertTrue(payload['success'])
@@ -440,7 +479,7 @@ class OperacionPlantaTerramarEtapa2Tests(TestCase):
         self.assertTrue(any(nombre.startswith('guia_original_') for nombre in archivos))
         self.assertTrue(any(nombre.startswith('sernapesca_original_') for nombre in archivos))
 
-        repeated = self.exportar()
+        repeated = self.exportar(self.recepcion)
         self.assertEqual(repeated.status_code, 200, repeated.content)
         self.assertEqual(repeated.json()['cantidad_copiada'], 0)
         self.assertEqual(repeated.json()['cantidad_reutilizada'], 3)
@@ -450,11 +489,17 @@ class OperacionPlantaTerramarEtapa2Tests(TestCase):
             LOG_COPERACION='EXPORTA_DOC_TER',
             LOG_CADD1=str(self.citacion.id),
         ).exists())
+        self.assertEqual(self.validar_documentacion().status_code, 200)
 
     def test_exportacion_admite_bodega_externa_y_restringe_perfil(self):
         self.secuencia.SE_CCODIGO = 'RECEPCION_TERRAMAR_BODEGA_EXTERNA'
         self.secuencia.save(update_fields=['SE_CCODIGO'])
         self.assertEqual(self.validar_documentacion().status_code, 200)
+        _, pasos = views.obtener_pasos_operacion_citacion(self.citacion)
+        self.assertEqual(dict(pasos)['Autorizar Salida'], ['ASISTENTE DESPACHO'])
+        self.client.force_login(self.despacho)
+        panel = self.client.get(self.endpoint('operacion_planta_citacion'))
+        self.assertContains(panel, 'Paquete documental de salida')
         self.assertEqual(self.timbrar().status_code, 200)
         forbidden = self.exportar(self.recepcion)
         self.assertEqual(forbidden.status_code, 403, forbidden.content)
@@ -465,18 +510,19 @@ class OperacionPlantaTerramarEtapa2Tests(TestCase):
         self.secuencia.SE_CCODIGO = 'RECEPCION_ESTANQUE_SBH'
         self.secuencia.save(update_fields=['SE_CCODIGO'])
         response = self.exportar()
-        self.assertEqual(response.status_code, 404, response.content)
+        self.assertEqual(response.status_code, 409, response.content)
         self.assertFalse(os.path.exists(os.path.join(self.export_dir, 'ABCD12')))
         self.assertFalse(SYSLOGGER.objects.filter(
             LOG_COPERACION='EXPORTA_DOC_TER',
             LOG_CADD1=str(self.citacion.id),
         ).exists())
 
-    def test_autorizar_salida_exige_documentacion_ticket_timbrado_y_no_invoca_sap(self):
-        before_documentation = self.post(self.despacho, 'ajax_operacion_planta_autorizar_salida')
-        self.assertEqual(before_documentation.status_code, 409, before_documentation.content)
-        self.assertEqual(self.validar_documentacion().status_code, 200)
-        before_stamp = self.post(self.despacho, 'ajax_operacion_planta_autorizar_salida')
+    def test_documentacion_autoriza_salida_directa_sin_invocar_sap(self):
+        endpoint_anterior = self.post(self.recepcion, 'ajax_operacion_planta_autorizar_salida')
+        self.assertEqual(endpoint_anterior.status_code, 409, endpoint_anterior.content)
+        self.assertIn('documentacion', endpoint_anterior.json()['message'].lower())
+
+        before_stamp = self.validar_documentacion()
         self.assertEqual(before_stamp.status_code, 409, before_stamp.content)
         self.assertEqual(self.timbrar().status_code, 200)
 
@@ -484,51 +530,160 @@ class OperacionPlantaTerramarEtapa2Tests(TestCase):
             patch('apps.home.views.get_goods_receipt_draft_update_status', side_effect=AssertionError('SAP no debe consultarse')),
             patch('apps.home.views.send_goods_receipt_draft_update_to_sap', side_effect=AssertionError('SAP no debe actualizarse')),
         ):
-            response = self.post(
-                self.despacho,
-                'ajax_operacion_planta_autorizar_salida',
-                {'observacion': 'Salida documental conforme.'},
-            )
+            response = self.validar_documentacion()
+
         self.assertEqual(response.status_code, 200, response.content)
-        log = OPERACION_PLANTA_LOG.objects.get(CI_NID=self.citacion, OPL_CPASO='Autorizar Salida')
-        self.assertEqual(log.US_NID, self.despacho)
-        self.assertEqual(log.OPL_CPERFIL_RESPONSABLE, 'ASISTENTE DESPACHO')
+        self.assertTrue(response.json()['salida_autorizada'])
         self.assertEqual(views.obtener_paso_activo_operacion(self.citacion)[0], 'Confirmar Salida')
-        self.assertTrue(SYSLOGGER.objects.filter(LOG_COPERACION='AUT_SALIDA_TER', LOG_CADD1=str(self.citacion.id)).exists())
-        repeated = self.post(self.despacho, 'ajax_operacion_planta_autorizar_salida')
+        self.assertFalse(OPERACION_PLANTA_LOG.objects.filter(
+            CI_NID=self.citacion,
+            OPL_CPASO='Autorizar Salida',
+        ).exists())
+        self.assertTrue(SYSLOGGER.objects.filter(
+            LOG_COPERACION='AUT_SALIDA_TER',
+            LOG_CADD1=str(self.citacion.id),
+        ).exists())
+        repeated = self.post(self.recepcion, 'ajax_operacion_planta_autorizar_salida')
         self.assertEqual(repeated.status_code, 409, repeated.content)
 
-    def test_autorizar_salida_restringe_perfiles_y_exige_ticket_salida_vigente(self):
-        self.assertEqual(self.validar_documentacion().status_code, 200)
+    def test_autorizar_desde_documentacion_restringe_perfiles_y_exige_ticket_salida(self):
         self.assertEqual(self.timbrar().status_code, 200)
-        for user in (self.recepcion, self.bodega, self.operador, self.guardia, self.ajeno):
+        for user in (self.despacho, self.bodega, self.operador, self.guardia, self.ajeno):
             with self.subTest(user=user.username):
-                response = self.post(user, 'ajax_operacion_planta_autorizar_salida')
+                response = self.post(
+                    user,
+                    'ajax_operacion_planta_validar_documentacion_terramar',
+                    {'documentacion_validada': '1'},
+                )
                 self.assertEqual(response.status_code, 403, response.content)
         DATO_OPERACION.objects.filter(
             CI_NID=self.citacion,
             CAMP_NID__CA_CCODIGO=views._codigo_campo_ticket_pesaje('SAL'),
         ).delete()
-        missing_ticket = self.post(self.despacho, 'ajax_operacion_planta_autorizar_salida')
+        missing_ticket = self.validar_documentacion()
         self.assertEqual(missing_ticket.status_code, 409, missing_ticket.content)
         self.assertIn('ticket', missing_ticket.json()['message'].lower())
+        self.assertFalse(OPERACION_PLANTA_LOG.objects.filter(
+            CI_NID=self.citacion,
+            OPL_CPASO='Documentación',
+        ).exists())
 
-    def test_panel_documentacion_renderiza_controles_sin_exponer_rutas(self):
+    def test_documentacion_sin_originales_exige_timbrar_com_sal(self):
+        CITACION_DOCUMENTO.objects.filter(CI_NID=self.citacion).delete()
+        payload = views._payload_documentacion_terramar(self.citacion)
+        self.assertEqual(payload['originales'], [])
+        self.assertEqual([item['tipo'] for item in payload['tickets']], ['Ticket Pesaje Salida'])
+
+        pendiente = self.validar_documentacion()
+        self.assertEqual(pendiente.status_code, 409, pendiente.content)
+        stamp = self.timbrar()
+        self.assertEqual(stamp.status_code, 200, stamp.content)
+        self.assertEqual(stamp.json()['generados'], 1)
+        self.assertEqual(self.validar_documentacion().status_code, 200)
+
+    def test_documentacion_sin_ticket_salida_bloquea_autorizacion(self):
+        CITACION_DOCUMENTO.objects.filter(CI_NID=self.citacion).delete()
+        DATO_OPERACION.objects.filter(
+            CI_NID=self.citacion,
+            CAMP_NID__CA_CCODIGO__in={
+                views._codigo_campo_ticket_pesaje('ENT'),
+                views._codigo_campo_ticket_pesaje('SAL'),
+            },
+        ).delete()
+
+        payload = views._payload_documentacion_terramar(self.citacion)
+        self.assertEqual(payload['total_documentos'], 0)
+        response = self.validar_documentacion()
+        self.assertEqual(response.status_code, 409, response.content)
+        self.assertIn('ticket', response.json()['message'].lower())
+
+    def test_timbraje_en_documentacion_no_se_renderiza_en_bodega_externa(self):
+        self.secuencia.SE_CCODIGO = 'RECEPCION_TERRAMAR_BODEGA_EXTERNA'
+        self.secuencia.save(update_fields=['SE_CCODIGO'])
+        self.client.force_login(self.recepcion)
+        response = self.client.get(self.endpoint('operacion_planta_citacion'))
+        self.assertEqual(response.status_code, 200, response.content)
+        self.assertNotContains(response, 'class="btn btn-dark btn-timbrar-documentos-terramar"')
+        self.assertEqual(self.validar_documentacion().status_code, 200)
+        self.assertEqual(self.timbrar().status_code, 200)
+
+    def test_panel_documentacion_renderiza_autorizacion_final_y_cinco_etapas(self):
+        _, pasos = views.obtener_pasos_operacion_citacion(self.citacion)
+        self.assertEqual(
+            [nombre for nombre, _ in pasos],
+            [
+                'Pesaje Entrada',
+                'Ciclo Descarga',
+                'Pesaje Salida',
+                'Documentación',
+                'Confirmar Salida',
+            ],
+        )
+        self.assertNotIn('Autorizar Salida', dict(pasos))
+        self.assertEqual(dict(pasos)['Confirmar Salida'], ['GUARDIA PORTERIA'])
+
         self.client.force_login(self.recepcion)
         response = self.client.get(self.endpoint('operacion_planta_citacion'))
         self.assertEqual(response.status_code, 200, response.content)
         self.assertContains(response, 'He validado la documentación')
+        self.assertContains(response, 'AUTORIZAR SALIDA')
+        self.assertNotContains(response, 'operacion-autorizar-terramar-simple')
         self.assertContains(response, 'guia_original.pdf')
         self.assertContains(response, 'Ticket Pesaje Salida')
         self.assertContains(response, 'Antecedentes no incluidos en salida')
+        self.assertContains(response, 'Documentos timbrados')
+        self.assertContains(response, 'Timbrar documentos')
+        self.assertContains(
+            response,
+            reverse('ajax_operacion_planta_timbrar_documentos_terramar', args=[self.citacion.id]),
+        )
         self.assertNotContains(response, self.tempdir.name)
+
+        self.assertEqual(self.timbrar().status_code, 200)
+        stamped_panel = self.client.get(self.endpoint('operacion_planta_citacion'))
+        self.assertContains(stamped_panel, '_timbrado')
         self.assertEqual(self.validar_documentacion().status_code, 200)
-        self.client.force_login(self.despacho)
-        authorization_panel = self.client.get(self.endpoint('operacion_planta_citacion'))
-        self.assertContains(authorization_panel, 'Descargar documentos firmados')
-        self.assertContains(authorization_panel, 'Copiar ruta')
-        self.assertContains(authorization_panel, 'Abrir WhatsApp')
-        self.assertContains(authorization_panel, 'adjúntelos manualmente desde WhatsApp')
+        self.assertEqual(views.obtener_paso_activo_operacion(self.citacion)[0], 'Confirmar Salida')
+
+        timbrado_fuera_de_etapa = self.post(
+            self.recepcion,
+            'ajax_operacion_planta_timbrar_documentos_terramar',
+        )
+        self.assertEqual(timbrado_fuera_de_etapa.status_code, 409, timbrado_fuera_de_etapa.content)
+        exportacion_fuera_de_etapa = self.exportar(self.recepcion)
+        self.assertEqual(exportacion_fuera_de_etapa.status_code, 409, exportacion_fuera_de_etapa.content)
+
+    def test_documentacion_historica_completada_resuelve_confirmar_sin_etapa_intermedia(self):
+        views._guardar_metadata_terramar(
+            self.citacion,
+            self.recepcion,
+            views.CAMPO_DOCUMENTACION_TERRAMAR,
+            'Validacion documental Terramar',
+            {
+                'validada': True,
+                'usuario_id': self.recepcion.id,
+                'usuario': self.recepcion.username,
+                'citacion_id': self.citacion.id,
+                'paso_operacion': 'Documentación',
+            },
+        )
+        OPERACION_PLANTA_LOG.objects.create(
+            US_NID=self.recepcion,
+            EP_NID=self.empresa,
+            PL_NID=self.planificacion,
+            CI_NID=self.citacion,
+            OPL_CPASO='Documentación',
+            OPL_CPERFIL_RESPONSABLE='ASISTENTE RECEPCION',
+            OPL_CESTADO=OPERACION_PLANTA_LOG.ESTADO_COMPLETADO,
+        )
+
+        self.assertEqual(views.obtener_paso_activo_operacion(self.citacion)[0], 'Confirmar Salida')
+        self.assertFalse(OPERACION_PLANTA_LOG.objects.filter(
+            CI_NID=self.citacion,
+            OPL_CPASO='Autorizar Salida',
+        ).exists())
+        repeated_documentation = self.validar_documentacion()
+        self.assertEqual(repeated_documentation.status_code, 409, repeated_documentation.content)
 
     def test_confirmar_salida_solo_guardia_despues_de_autorizacion(self):
         early = self.post(
@@ -537,9 +692,9 @@ class OperacionPlantaTerramarEtapa2Tests(TestCase):
             {'paso': 'Confirmar Salida', 'observacion': 'Salida física.'},
         )
         self.assertEqual(early.status_code, 409, early.content)
-        self.assertEqual(self.validar_documentacion().status_code, 200)
         self.assertEqual(self.timbrar().status_code, 200)
-        self.assertEqual(self.post(self.despacho, 'ajax_operacion_planta_autorizar_salida').status_code, 200)
+        self.assertEqual(self.validar_documentacion().status_code, 200)
+        self.assertEqual(views.obtener_paso_activo_operacion(self.citacion)[0], 'Confirmar Salida')
         wrong_user = self.post(
             self.despacho,
             'operacion_planta_guardar_paso',
@@ -677,12 +832,8 @@ class OperacionPlantaTerramarEtapa2Tests(TestCase):
         )
 
     def test_error_al_cerrar_camion_revierte_confirmacion_de_salida(self):
-        self.assertEqual(self.validar_documentacion().status_code, 200)
         self.assertEqual(self.timbrar().status_code, 200)
-        self.assertEqual(
-            self.post(self.despacho, 'ajax_operacion_planta_autorizar_salida').status_code,
-            200,
-        )
+        self.assertEqual(self.validar_documentacion().status_code, 200)
         with patch.object(
             views, '_cerrar_ciclo_camion_patio',
             side_effect=RuntimeError('fallo controlado'),
@@ -718,18 +869,20 @@ class OperacionPlantaTerramarEtapa2Tests(TestCase):
             CD_CNOMBRE_ARCHIVO='documento_obligatorio.txt',
             US_SUBE_NID=self.recepcion,
         )
-        self.assertEqual(self.validar_documentacion().status_code, 200)
         stamp = self.timbrar()
         self.assertEqual(stamp.status_code, 200, stamp.content)
         self.assertEqual(self._hash(unsupported), original_hash)
         metadata = views._leer_metadata_terramar(self.citacion, views.CAMPO_TIMBRADO_TERRAMAR)
         record = next(item for item in metadata['documentos'] if item['source_name'].endswith('.txt'))
         self.assertEqual(record['estado'], 'NO_COMPATIBLE')
-        authorization = self.post(self.despacho, 'ajax_operacion_planta_autorizar_salida')
-        self.assertEqual(authorization.status_code, 409, authorization.content)
+        validation = self.validar_documentacion()
+        self.assertEqual(validation.status_code, 409, validation.content)
+        self.assertFalse(OPERACION_PLANTA_LOG.objects.filter(
+            CI_NID=self.citacion,
+            OPL_CPASO='Documentación',
+        ).exists())
 
     def test_stamp_version_1_se_regenera_y_version_2_se_reutiliza(self):
-        self.assertEqual(self.validar_documentacion().status_code, 200)
         self.assertEqual(self.timbrar().status_code, 200)
         metadata = views._leer_metadata_terramar(
             self.citacion,
@@ -740,7 +893,7 @@ class OperacionPlantaTerramarEtapa2Tests(TestCase):
             documento['stamp_version'] = 1
         views._guardar_metadata_terramar(
             self.citacion,
-            self.despacho,
+            self.recepcion,
             views.CAMPO_TIMBRADO_TERRAMAR,
             'Documentos timbrados Terramar',
             metadata,
@@ -755,7 +908,6 @@ class OperacionPlantaTerramarEtapa2Tests(TestCase):
         self.assertEqual(repeated.json()['reutilizados'], 3)
 
     def test_com_ent_no_se_timbra_ni_es_requisito_para_autorizar(self):
-        self.assertEqual(self.validar_documentacion().status_code, 200)
         DATO_OPERACION.objects.filter(
             CI_NID=self.citacion,
             CAMP_NID__CA_CCODIGO=views._codigo_campo_ticket_pesaje('ENT'),
@@ -768,8 +920,10 @@ class OperacionPlantaTerramarEtapa2Tests(TestCase):
         )
         self.assertFalse(any('COM_ENT' in item['source_name'] for item in metadata['documentos']))
         self.assertTrue(any('COM_SAL' in item['source_name'] for item in metadata['documentos']))
-        authorization = self.post(self.despacho, 'ajax_operacion_planta_autorizar_salida')
+        authorization = self.validar_documentacion()
         self.assertEqual(authorization.status_code, 200, authorization.content)
+        self.assertTrue(authorization.json()['salida_autorizada'])
+        self.assertEqual(views.obtener_paso_activo_operacion(self.citacion)[0], 'Confirmar Salida')
 
     def test_paquete_salida_excluye_otra_citacion_y_otra_empresa(self):
         otra_citacion = CITACION.objects.create(

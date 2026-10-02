@@ -33,9 +33,9 @@ class RecepcionSbhBlContenedorTests(SimpleTestCase):
             'Booking': 'BOOK1',
         }
 
-    @patch('apps.home.sap_di_api._first_row')
-    def test_consultar_pedido_separa_bl_y_contenedor(self, first_row):
-        first_row.return_value = self.sap_row
+    @patch('apps.home.sap_di_api._rows')
+    def test_consultar_pedido_separa_bl_y_contenedor(self, rows):
+        rows.return_value = [self.sap_row]
 
         resultado = sap_di_api.consultar_pedido_sap('456', 'ITEM01', 'P001')
 
@@ -43,7 +43,7 @@ class RecepcionSbhBlContenedorTests(SimpleTestCase):
         self.assertEqual(resultado['contenedor'], 'CONT123')
         self.assertEqual(resultado['bl'], 'BL9988')
         self.assertEqual(resultado['bl_contenedor'], 'CONT123')
-        sql, params = first_row.call_args.args
+        sql, params = rows.call_args.args
         self.assertIn('T1."U_NXContenedor" AS "Contenedor"', sql)
         self.assertIn('T1."U_BL" AS "BL"', sql)
         self.assertIn('AND T0."CardCode" = ?', sql)

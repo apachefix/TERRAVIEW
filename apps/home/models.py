@@ -4,10 +4,12 @@ Copyright (c) 2019 - present AppSeed.us
 """
 
 from django.db import models
+from django.core.exceptions import ValidationError
 from django.contrib.auth.models import User
 from django import template
 from django.utils import timezone
 from datetime import date
+import uuid
 
 from datetime import timedelta, datetime
 
@@ -311,7 +313,12 @@ class PLANIFICACION(models.Model):
 
     @property
     def TOTAL_CITACIONES(self):
-        return CITACION.objects.filter(PL_NID_id = self.pk, CI_BHABILITADO = True).count()
+        return CITACION.objects.filter(
+            PL_NID_id=self.pk, CI_BHABILITADO=True,
+        ).exclude(
+            EP_NID_id=2,
+            SC_NID__SE_CCODIGO='RECEPCION_NEW_JERSEY_P2_OPERACION_INTERNA',
+        ).count()
 
     @property
     def TOTAL_SOBRECUPO(self):
@@ -1133,6 +1140,127 @@ class CITACION_PROSESA_RELACION(models.Model):
         ]
 
 
+class OPERACION_NEW_JERSEY(models.Model):
+    class Modalidad(models.TextChoices):
+        CON_CALIDAD = 'CON_CALIDAD', 'Contenedor a Piso con Calidad'
+        SIN_CALIDAD = 'SIN_CALIDAD', 'Contenedor a Piso sin Calidad'
+
+    class Estado(models.TextChoices):
+        PENDIENTE_PROCESO_1 = 'PENDIENTE_PROCESO_1', 'Pendiente Proceso 1'
+        CONTENEDOR_EN_NEW_JERSEY = 'CONTENEDOR_EN_NEW_JERSEY', 'Contenedor en New Jersey'
+        PENDIENTE_PROCESO_2 = 'PENDIENTE_PROCESO_2', 'Pendiente Proceso 2'
+        TRASLADO_PREPARADO = 'TRASLADO_PREPARADO', 'Traslado preparado'
+        PENDIENTE_PROCESO_3 = 'PENDIENTE_PROCESO_3', 'Pendiente Proceso 3'
+        PENDIENTE_PESO_FINAL = 'PENDIENTE_PESO_FINAL', 'Pendiente peso final'
+        LISTA_TRANSFERENCIA_SAP = 'LISTA_TRANSFERENCIA_SAP', 'Lista transferencia SAP'
+        COMPLETADA = 'COMPLETADA', 'Completada'
+        CANCELADA = 'CANCELADA', 'Cancelada'
+
+    EP_NID = models.ForeignKey(EMPRESA, verbose_name='Id empresa', on_delete=models.PROTECT)
+    PRO_NID = models.ForeignKey(
+        SOCIONEGOCIO,
+        verbose_name='Proveedor',
+        on_delete=models.PROTECT,
+        null=True,
+        blank=True,
+        related_name='operaciones_new_jersey',
+    )
+    US_NID = models.ForeignKey(User, verbose_name='Usuario creacion', on_delete=models.PROTECT)
+    ONJ_CMODALIDAD = models.CharField('Modalidad', max_length=32, choices=Modalidad.choices)
+    ONJ_CESTADO = models.CharField(
+        'Estado',
+        max_length=40,
+        choices=Estado.choices,
+        default=Estado.PENDIENTE_PROCESO_1,
+    )
+    ONJ_CITEM_CODE = models.CharField('ItemCode', max_length=128, null=True, blank=True)
+    ONJ_CPRODUCTO = models.CharField('Producto', max_length=256, null=True, blank=True)
+    ONJ_CPURCHASE_ORDER = models.CharField('Purchase Order', max_length=128, null=True, blank=True)
+    ONJ_CBASE_ENTRY = models.CharField('BaseEntry', max_length=128, null=True, blank=True)
+    ONJ_CBASE_LINE = models.CharField('BaseLine', max_length=128, null=True, blank=True)
+    ONJ_CBODEGA_VIRTUAL = models.CharField('Bodega virtual', max_length=128)
+    ONJ_CTK_DESTINO = models.CharField('TK destino', max_length=128, null=True, blank=True)
+    ONJ_FFECHA_OPERACION = models.DateTimeField('Fecha operacion', null=True, blank=True)
+    ONJ_FFECHACREACION = models.DateTimeField('Fecha creacion', auto_now_add=True)
+    ONJ_FFECHAMODIFICACION = models.DateTimeField('Fecha modificacion', auto_now=True)
+    ONJ_BHABILITADO = models.BooleanField('Habilitado', default=True)
+
+    class Meta:
+        db_table = 'OPERACION_NEW_JERSEY'
+        indexes = [
+            models.Index(fields=['EP_NID', 'ONJ_CESTADO'], name='NJ_OPER_EP_EST_IDX'),
+            models.Index(fields=['ONJ_CITEM_CODE'], name='NJ_OPER_ITEM_IDX'),
+        ]
+
+    def __str__(self):
+        return f'OPERACION NEW JERSEY #{self.pk or nueva} - {self.ONJ_CMODALIDAD} - {self.ONJ_CESTADO}'
+
+
+class OPERACION_NEW_JERSEY_PROCESO(models.Model):
+    class TipoProceso(models.TextChoices):
+        PROCESO_1 = 'PROCESO_1', 'Proceso 1'
+        PROCESO_2 = 'PROCESO_2', 'Proceso 2'
+        PROCESO_3 = 'PROCESO_3', 'Proceso 3'
+
+    class Estado(models.TextChoices):
+        PENDIENTE = 'PENDIENTE', 'Pendiente'
+        EN_PROCESO = 'EN_PROCESO', 'En proceso'
+        COMPLETADO = 'COMPLETADO', 'Completado'
+        CANCELADO = 'CANCELADO', 'Cancelado'
+
+    ONJ_NID = models.ForeignKey(
+        OPERACION_NEW_JERSEY,
+        verbose_name='Operacion New Jersey',
+        on_delete=models.PROTECT,
+        related_name='procesos',
+    )
+    CI_NID = models.OneToOneField(
+        CITACION,
+        verbose_name='Citacion',
+        on_delete=models.PROTECT,
+        related_name='proceso_new_jersey',
+    )
+    EP_NID = models.ForeignKey(EMPRESA, verbose_name='Id empresa', on_delete=models.PROTECT)
+    US_NID = models.ForeignKey(User, verbose_name='Usuario creacion', on_delete=models.PROTECT)
+    ONJP_CTIPO = models.CharField('Tipo proceso', max_length=20, choices=TipoProceso.choices)
+    ONJP_CESTADO = models.CharField(
+        'Estado',
+        max_length=20,
+        choices=Estado.choices,
+        default=Estado.PENDIENTE,
+    )
+    ONJP_FFECHACREACION = models.DateTimeField('Fecha creacion', auto_now_add=True)
+    ONJP_FFECHAMODIFICACION = models.DateTimeField('Fecha modificacion', auto_now=True)
+
+    class Meta:
+        db_table = 'OPERACION_NEW_JERSEY_PROCESO'
+        constraints = [
+            models.UniqueConstraint(
+                fields=['ONJ_NID', 'ONJP_CTIPO'],
+                name='NJ_PROC_OPER_TIPO_UNQ',
+            ),
+        ]
+        indexes = [
+            models.Index(fields=['EP_NID', 'ONJP_CTIPO'], name='NJ_PROC_EP_TIPO_IDX'),
+        ]
+
+    def clean(self):
+        super().clean()
+        operacion_empresa_id = getattr(self.ONJ_NID, 'EP_NID_id', None)
+        citacion_empresa_id = getattr(self.CI_NID, 'EP_NID_id', None)
+        if self.EP_NID_id and operacion_empresa_id and self.EP_NID_id != operacion_empresa_id:
+            raise ValidationError('La relacion New Jersey debe pertenecer a la empresa de la operacion.')
+        if self.EP_NID_id and citacion_empresa_id and self.EP_NID_id != citacion_empresa_id:
+            raise ValidationError('La relacion New Jersey debe pertenecer a la empresa de la citacion.')
+
+    def save(self, *args, **kwargs):
+        self.full_clean()
+        return super().save(*args, **kwargs)
+
+    def __str__(self):
+        return f'{self.ONJ_NID} - {self.ONJP_CTIPO} - Citacion #{self.CI_NID_id}'
+
+
 class CITACION_DESPACHO_DETALLE(models.Model):
     CI_NID = models.OneToOneField(CITACION, verbose_name='Id citacion', on_delete=models.CASCADE, related_name='detalle_despacho')
     EP_NID = models.ForeignKey(EMPRESA, verbose_name='Id empresa', on_delete=models.PROTECT)
@@ -1148,6 +1276,7 @@ class CITACION_DESPACHO_DETALLE(models.Model):
     CDD_CPATENTE = models.CharField('Patente', max_length=32, null=True, blank=True)
     CDD_CORDEN_CARGA = models.CharField('Orden de carga', max_length=128, null=True, blank=True)
     CDD_FFECHA_DESPACHO = models.DateField('Fecha despacho', null=True, blank=True)
+    CDD_FFECHA_LLEGADA_DESTINO = models.DateField('Fecha llegada a destino', null=True, blank=True)
     CDD_FHORA_LLEGADA_PLANTA = models.TimeField('Hora llegada a planta', null=True, blank=True)
     CDD_FHORA_LLEGADA_DESTINO = models.TimeField('Hora llegada a destino', null=True, blank=True)
     CDD_CVENTANA_HORARIA_DESPACHO = models.CharField('Ventana horaria despacho', max_length=128, null=True, blank=True)
@@ -1157,6 +1286,12 @@ class CITACION_DESPACHO_DETALLE(models.Model):
     CDD_CSECUENCIA_OPERACIONAL_NOMBRE = models.CharField('Nombre secuencia operacional', max_length=256, null=True, blank=True)
     # Datos propios del modal de planificacion de Despacho Terramar. Son opcionales para preservar los registros SBH existentes.
     CDD_CCONTENEDOR_CRT = models.CharField('Contenedor / CRT despacho Terramar', max_length=128, null=True, blank=True)
+    CDD_NPESO_1 = models.DecimalField('Peso 1 despacho Terramar', max_digits=18, decimal_places=5, null=True, blank=True)
+    CDD_NMAXIS_1 = models.PositiveIntegerField('Numero Maxis 1 despacho Terramar', null=True, blank=True)
+    CDD_CPATENTE_RAMPLA = models.CharField('Patente rampla despacho Terramar', max_length=32, null=True, blank=True)
+    CDD_CCONTENEDOR_2_CRT = models.CharField('Contenedor 2 / CRT despacho Terramar', max_length=128, null=True, blank=True)
+    CDD_NPESO_2 = models.DecimalField('Peso 2 despacho Terramar', max_digits=18, decimal_places=5, null=True, blank=True)
+    CDD_NMAXIS_2 = models.PositiveIntegerField('Numero Maxis 2 despacho Terramar', null=True, blank=True)
     CDD_CTIPO_CAMION = models.CharField('Tipo camion despacho Terramar', max_length=32, null=True, blank=True)
     CDD_BPALLET = models.BooleanField('Carga con pallet despacho Terramar', null=True, blank=True)
     CDD_BRELLENO = models.BooleanField('Carga con relleno despacho Terramar', null=True, blank=True)
@@ -1641,12 +1776,14 @@ class CITACION_DOCUMENTO(models.Model):
     TIPO_TICKET_ORIGEN = 'TICKET_ORIGEN'
     TIPO_SERNAPESCA = 'SERNAPESCA'
     TIPO_IMAGEN_SELLO_DESPACHO = 'IMAGEN_SELLO_DESPACHO'
+    TIPO_RECEPCION_SERVICIO = 'RECEPCION_SERVICIO'
 
     TIPOS_INICIALES = (
         (TIPO_GUIA, 'Guia'),
         (TIPO_TICKET_ORIGEN, 'Ticket origen'),
         (TIPO_SERNAPESCA, 'Sernapesca'),
         (TIPO_IMAGEN_SELLO_DESPACHO, 'Imagen sello despacho'),
+        (TIPO_RECEPCION_SERVICIO, 'Recepcion Servicio'),
     )
 
     CI_NID = models.ForeignKey(
@@ -1695,6 +1832,78 @@ class CITACION_DOCUMENTO(models.Model):
             models.Index(fields=['CD_CTIPO'], name='CIT_DOC_TIPO_idx'),
             models.Index(fields=['CD_FFECHASUBIDA'], name='CIT_DOC_FECHA_idx'),
         ]
+
+
+class RECEPCION_SERVICIO_DETALLE(models.Model):
+    class TipoServicio(models.TextChoices):
+        GAS = 'GAS', 'Gas'
+        PALLET = 'PALLET', 'Pallet'
+        MAXIS = 'MAXIS', 'Maxis'
+        PETROLEO = 'PETROLEO', 'Petróleo'
+        NITROGENO = 'NITROGENO', 'Nitrógeno'
+
+    EP_NID = models.ForeignKey(
+        EMPRESA,
+        verbose_name='Empresa',
+        on_delete=models.PROTECT,
+        related_name='recepciones_servicio',
+    )
+    CI_NID = models.OneToOneField(
+        CITACION,
+        verbose_name='Citación',
+        on_delete=models.CASCADE,
+        related_name='detalle_recepcion_servicio',
+    )
+    PRO_NID = models.ForeignKey(
+        SOCIONEGOCIO,
+        verbose_name='Proveedor',
+        on_delete=models.PROTECT,
+        related_name='recepciones_servicio',
+    )
+    RSD_CTIPO_SERVICIO = models.CharField(
+        'Tipo de servicio',
+        max_length=20,
+        choices=TipoServicio.choices,
+    )
+    RSD_CPATENTE = models.CharField('Patente', max_length=32, db_index=True)
+    RSD_CNOMBRE_CHOFER = models.CharField('Nombre chofer', max_length=256)
+    RSD_COBSERVACION = models.TextField('Observación', blank=True)
+    US_NID = models.ForeignKey(
+        User,
+        verbose_name='Usuario creación',
+        on_delete=models.PROTECT,
+        related_name='recepciones_servicio_creadas',
+    )
+    RSD_FFECHACREACION = models.DateTimeField('Fecha creación', auto_now_add=True)
+    RSD_CIDEMPOTENCIA = models.UUIDField(
+        'Clave idempotencia',
+        default=uuid.uuid4,
+        unique=True,
+        editable=False,
+    )
+
+    class Meta:
+        db_table = 'RECEPCION_SERVICIO_DETALLE'
+        indexes = [
+            models.Index(fields=['EP_NID', 'RSD_CPATENTE'], name='RS_DET_EP_PAT_IDX'),
+            models.Index(fields=['EP_NID', 'RSD_CTIPO_SERVICIO'], name='RS_DET_EP_TIPO_IDX'),
+        ]
+
+    def clean(self):
+        super().clean()
+        citacion_empresa_id = getattr(self.CI_NID, 'EP_NID_id', None)
+        proveedor_empresa_id = getattr(self.PRO_NID, 'EP_NID_id', None)
+        if self.EP_NID_id and citacion_empresa_id and self.EP_NID_id != citacion_empresa_id:
+            raise ValidationError('El detalle de servicio debe pertenecer a la empresa de la citación.')
+        if self.EP_NID_id and proveedor_empresa_id and self.EP_NID_id != proveedor_empresa_id:
+            raise ValidationError('El proveedor del servicio debe pertenecer a la empresa seleccionada.')
+
+    def save(self, *args, **kwargs):
+        self.full_clean()
+        return super().save(*args, **kwargs)
+
+    def __str__(self):
+        return f'{self.get_RSD_CTIPO_SERVICIO_display()} - {self.RSD_CPATENTE} - Citación #{self.CI_NID_id}'
 
 
 class ESTANQUE_RESERVA(models.Model):
@@ -2184,6 +2393,7 @@ class CAMION_PATIO(models.Model):
     ESTADO_PENDIENTE_ASOCIACION = 'PENDIENTE_ASOCIACION'
     ESTADO_EN_REVISION_RECEPCION = 'EN_REVISION_RECEPCION'
     ESTADO_ASOCIADO_CITACION = 'ASOCIADO_CITACION'
+    ESTADO_FUERA_TEMPORAL = 'FUERA_TEMPORAL'
     ESTADO_SALIDA_CONFIRMADA = 'SALIDA_CONFIRMADA'
     ESTADO_RECHAZADO = 'RECHAZADO'
     ESTADO_CANCELADO = 'CANCELADO'
@@ -2191,12 +2401,14 @@ class CAMION_PATIO(models.Model):
     ESTADOS_ACTIVOS = (
         ESTADO_PENDIENTE_ASOCIACION,
         ESTADO_ASOCIADO_CITACION,
+        ESTADO_FUERA_TEMPORAL,
     )
 
     ESTADOS = (
         (ESTADO_PENDIENTE_ASOCIACION, 'Pendiente asociacion'),
         (ESTADO_EN_REVISION_RECEPCION, 'En revision recepcion'),
         (ESTADO_ASOCIADO_CITACION, 'Asociado a citacion'),
+        (ESTADO_FUERA_TEMPORAL, 'Fuera temporalmente de planta'),
         (ESTADO_SALIDA_CONFIRMADA, 'Salida confirmada'),
         (ESTADO_RECHAZADO, 'Rechazado'),
         (ESTADO_CANCELADO, 'Cancelado'),

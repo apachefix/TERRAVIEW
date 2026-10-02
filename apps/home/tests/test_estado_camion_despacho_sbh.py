@@ -1,16 +1,17 @@
 import json
 from contextlib import nullcontext
-from datetime import timedelta
+from datetime import datetime, time, timedelta
 from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
 from django.contrib.auth import get_user_model
-from django.test import RequestFactory, SimpleTestCase, TestCase
+from django.test import RequestFactory, SimpleTestCase, TestCase, TransactionTestCase
 from django.utils import timezone
 
 from apps.home import views
 from apps.home.models import (
-    CAMION_PATIO, EMPRESA, NOTIFICACION, PERFIL, PERFIL_USUARIO, SYSLOGGER, USERS_EMPRESA,
+    CAMION_PATIO, CAMION_PATIO_TRAZABILIDAD_PLANIFICACION, EMPRESA, NOTIFICACION,
+    PERFIL, PERFIL_USUARIO, SYSLOGGER, USERS_EMPRESA,
 )
 
 
@@ -190,6 +191,59 @@ class DerivacionIngresoCamionPatioTests(TestCase):
             LOG_CADD2=str(camion.id),
         ).exists())
 
+class DerivacionSbhSinTransaccionExternaTests(TransactionTestCase):
+    def test_derivacion_real_envuelve_bloqueo_notificacion_y_log(self):
+        from django.contrib.sessions.backends.db import SessionStore
+
+        empresa, _ = EMPRESA.objects.get_or_create(
+            id=2, defaults={
+                'EP_CRAZONSOCIAL': 'ACEITES SBH', 'EP_CRUT': '82.000.000-2',
+                'EP_CBASEDATOS': 'sbh_test', 'EP_CUSUARIOSBD': 'test', 'EP_CPORT': '5432',
+            },
+        )
+        guardia = get_user_model().objects.create_user('guardia_derivacion_sbh_tx')
+        asistente = get_user_model().objects.create_user('asistente_despacho_sbh_tx')
+        for usuario, codigo in ((guardia, 'GUARDIA'), (asistente, 'ASISTENTE_DESPACHO')):
+            USERS_EMPRESA.objects.create(US_NID=usuario, EP_NID=empresa)
+            perfil = PERFIL.objects.create(US_NID=usuario, PR_CCODIGO=codigo, PR_CNOMBRE=codigo)
+            PERFIL_USUARIO.objects.create(US_NID=usuario, PR_NID=perfil)
+        camion = CAMION_PATIO.objects.create(
+            EP_NID=empresa, CPA_CPATENTE='RVTZ28', CPA_CNOMBRE_CONDUCTOR='Conductor',
+            CPA_CTIPO_DOCUMENTO=CAMION_PATIO.TIPO_DOCUMENTO_GUIA_DESPACHO,
+            CPA_CESTADO=CAMION_PATIO.ESTADO_PENDIENTE_ASOCIACION, US_GUARDIA_ID=guardia,
+        )
+        CAMION_PATIO_TRAZABILIDAD_PLANIFICACION.objects.create(
+            CPA_NID=camion, EP_NID=empresa, US_NID=guardia,
+            CPTR_CPATENTE_CONSULTADA='RVTZ28', CPTR_CPATENTE_LLEGADA='RVTZ28',
+            CPTR_CRESULTADO_BUSQUEDA='GUARDIA_MATCH',
+        )
+        request = RequestFactory().post(
+            f'/camiones-patio/{camion.id}/derivar/', {'_empresa_id': 2},
+        )
+        request.user = guardia
+        request.session = SessionStore()
+
+        primera = views.CAMION_PATIO_DERIVAR(request, camion.id)
+        self.assertEqual(primera.status_code, 200, primera.content)
+        self.assertEqual(json.loads(primera.content)['responsable'], 'ASISTENTE_DESPACHO')
+        self.assertEqual(NOTIFICACION.objects.filter(
+            EP_NID=empresa, USER_RECEIVER_ID=asistente,
+            NOT_CURL__contains=f'camion_patio={camion.id}',
+        ).count(), 1)
+        self.assertEqual(SYSLOGGER.objects.filter(
+            LOG_COPERACION=views.CAMION_PATIO_LOG_DERIVACION,
+            LOG_CADD2=str(camion.id),
+        ).count(), 1)
+        segunda = views.CAMION_PATIO_DERIVAR(request, camion.id)
+        self.assertEqual(segunda.status_code, 409)
+        self.assertEqual(NOTIFICACION.objects.filter(
+            EP_NID=empresa, NOT_CURL__contains=f'camion_patio={camion.id}',
+        ).count(), 1)
+        camion.refresh_from_db()
+        self.assertEqual(camion.CPA_CESTADO, CAMION_PATIO.ESTADO_PENDIENTE_ASOCIACION)
+        self.assertIsNone(camion.CI_NID_id)
+
+
 class EstadoCamionDespachoSbhBusquedaTests(SimpleTestCase):
     def setUp(self):
         self.factory = RequestFactory()
@@ -225,6 +279,18 @@ class EstadoCamionDespachoSbhBusquedaTests(SimpleTestCase):
         hoy = self.citacion(horas=2, pk=1)
         futuro = self.citacion(horas=26, pk=2)
         self.assertEqual(self.buscar([futuro, hoy]), [hoy, futuro])
+
+    def test_planificacion_ayer_a_medianoche_sigue_disponible_hoy(self):
+        citacion = self.citacion(pk=38745)
+        ayer = timezone.localdate() - timedelta(days=1)
+        citacion.CI_FFECHACITACION = timezone.make_aware(datetime.combine(ayer, time.min))
+        self.assertEqual(self.buscar([citacion]), [citacion])
+
+    def test_planificacion_anteayer_no_reaparece(self):
+        citacion = self.citacion(pk=38705)
+        anteayer = timezone.localdate() - timedelta(days=2)
+        citacion.CI_FFECHACITACION = timezone.make_aware(datetime.combine(anteayer, time.min))
+        self.assertEqual(self.buscar([citacion]), [])
 
     def test_no_devuelve_terminadas(self):
         self.assertEqual(self.buscar([self.citacion(horas=2, estado=views.CIT_TERMINADO)]), [])

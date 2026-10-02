@@ -1414,7 +1414,7 @@
                                                 {% for object in recepciones %}
                                                     <tr id="citacion-row-{{ object.0 }}" data-citacion-id="{{ object.0 }}" class="{% if object.37 %}fila-devuelta-guardia{% elif object.34 %}fila-pendiente-envio{% elif object.31 %}citacion-enviada-siguiente{% elif object.28 %}citacion-enviada-siguiente{% elif object.24 %}citacion-enviada-siguiente{% elif object.21 %}citacion-estanque-asignado{% elif object.18 %}citacion-aprobada-asistente{% elif object.15 %}citacion-enviada-asistente{% endif %}{% if object.47.mostrar_alerta_sugerida %} citacion-sugerida-activa citacion-sugerida-pulse{% endif %}">
                                                         <td>
-                                                            <div class="pulse-button-container {% if object.46 and request.user.is_superuser and object.18 %}acciones-sap{% elif object.46 and request.user|es_asistente_cd and not object.24 %}acciones-sap{% elif request.user|es_guardia and object.37 %}acciones-enviada acciones-devolucion-guardia{% elif request.user|es_guardia and object.34 %}acciones-enviada acciones-pendiente-envio{% elif request.user|es_guardia and object.28 %}acciones-enviada{% elif request.user|es_guardia and object.15 %}acciones-enviada{% elif request.user.is_superuser and object.18 %}acciones-enviada{% elif request.user.is_superuser and object.15 %}acciones-enviada{% elif request.user|es_asistente_cd and object.24 %}acciones-enviada{% elif request.user|es_asistente_cd %}acciones-enviada{% endif %}">
+                                                            <div class="pulse-button-container {% if object.46 and request.user.is_superuser and object.18 %}acciones-sap{% elif object.46 and request.user|es_asistente_cd and not object.24 %}acciones-sap{% elif request.user|es_guardia and object.37 %}acciones-enviada acciones-devolucion-guardia{% elif request.user|es_guardia and object.34 %}acciones-enviada acciones-pendiente-envio{% elif request.user|es_guardia and object.28 %}acciones-enviada{% elif request.user|es_guardia and object.15 %}acciones-enviada{% elif request.user.is_superuser and object.18 %}acciones-enviada{% elif request.user.is_superuser and object.15 %}acciones-enviada{% elif request.user|es_asistente_cd and object.24 and not object.47.es_new_jersey_p3 %}acciones-enviada{% elif request.user|es_asistente_cd and not object.47.es_new_jersey_p3 %}acciones-enviada{% endif %}">
                                                                 {% if object.47.mostrar_alerta_sugerida %}
                                                                     <span class="badge badge-warning citacion-sugerida-row-badge">Citacion sugerida seleccionada</span>
                                                                     <div class="small text-muted">Seleccione esta citacion para asociar el camion.</div>
@@ -1537,7 +1537,7 @@
                                                                                 class="btn btn-success btn-sm js-avanzar-asistente"
                                                                                 data-citacion="{{ object.0 }}"
                                                                                 onclick="openRevisionAsistenteModal({{ object.0 }})"
-                                                                                title="Validar y enviar a Asistente_C_D">
+                                                                                title="{% if object.47.es_new_jersey_p3 %}Aprobar y enviar a Guardia{% else %}Validar y enviar a Asistente_C_D{% endif %}">
                                                                             <i class="fas fa-arrow-right"></i>
                                                                         </button>
                                                                     </div>
@@ -1546,7 +1546,7 @@
                                                                         {% if object.42 %}<div>Patente patio: {{ object.43|default:'No registrada' }}</div>{% endif %}
                                                                         <div>Fecha: {% if object.45 %}{{ object.45|date:'d/m/Y H:i' }}{% elif object.17 %}{{ object.17|date:'d/m/Y H:i' }}{% else %}No registrada{% endif %}</div>
                                                                         <div>Usuario: {% if object.44 %}{{ object.44 }}{% else %}{{ object.16|default:'No registrado' }}{% endif %}</div>
-                                                                        <div>Validar y enviar a Asistente_C_D</div>
+                                                                        <div>{% if object.47.es_new_jersey_p3 %}Aprobar y enviar a Guardia{% else %}Validar y enviar a Asistente_C_D{% endif %}</div>
                                                                     </div>
                                                                     </div>
                                                                 {% elif request.user.is_superuser and object.15 %}
@@ -1554,7 +1554,7 @@
                                                                         <button type="button" class="btn btn-success btn-sm js-avanzar-asistente"
                                                                                 data-citacion="{{ object.0 }}"
                                                                                 onclick="openRevisionAsistenteModal({{ object.0 }})"
-                                                                                title="Validar y enviar a Asistente_C_D">
+                                                                                title="{% if object.47.es_new_jersey_p3 %}Aprobar y enviar a Guardia{% else %}Validar y enviar a Asistente_C_D{% endif %}">
                                                                             <i class="fas fa-arrow-right"></i>
                                                                         </button>
                                                                     </div>
@@ -1563,9 +1563,9 @@
                                                                         {% if object.42 %}<div>Patente patio: {{ object.43|default:'No registrada' }}</div>{% endif %}
                                                                         <div>Fecha: {% if object.45 %}{{ object.45|date:'d/m/Y H:i' }}{% elif object.17 %}{{ object.17|date:'d/m/Y H:i' }}{% else %}No registrada{% endif %}</div>
                                                                         <div>Usuario: {% if object.44 %}{{ object.44 }}{% else %}{{ object.16|default:'No registrado' }}{% endif %}</div>
-                                                                        <div>Validar y enviar a Asistente_C_D</div>
+                                                                        <div>{% if object.47.es_new_jersey_p3 %}Aprobar y enviar a Guardia{% else %}Validar y enviar a Asistente_C_D{% endif %}</div>
                                                                     </div>
-                                                                {% elif request.user|es_asistente_cd and object.24 %}
+                                                                {% elif request.user|es_asistente_cd and object.24 and not object.47.es_new_jersey_p3 %}
                                                                     <button type="button" class="btn btn-outline-primary btn-sm" onclick="openEstanqueCamionModal({{ object.0 }})" title="Ver proceso enviado">
                                                                         <i class="fas fa-eye"></i>
                                                                     </button>
@@ -1575,7 +1575,7 @@
                                                                         <div>Usuario: {{ object.25|default:'No registrado' }}</div>
                                                                         <div>{% if object.21 %}Estanque: {{ object.21 }}{% endif %}</div>
                                                                     </div>
-                                                                {% elif request.user|es_asistente_cd %}
+                                                                {% elif request.user|es_asistente_cd and not object.47.es_new_jersey_p3 %}
                                                                     {% if object.46 %}
                                                                     <div class="action-button-group">
                                                                         <button type="button" class="btn btn-outline-primary btn-sm" onclick="openEstanqueCamionModal({{ object.0 }})" title="Ver citación">
@@ -2283,7 +2283,99 @@
     .edit-despacho-asignacion.is-confirmed { border-left: 4px solid #28a745; }
     .edit-despacho-asignacion-header { display: flex; justify-content: space-between; align-items: center; gap: 1rem; margin-bottom: 1rem; }
     #edit_despacho_fields .edit-section-title { font-weight: 700; text-transform: uppercase; margin: 1.25rem 0 .75rem; color: #495057; }
+
+    #editProsesaPiso2Modal .modal-dialog {
+        max-height: calc(100vh - 2rem);
+        max-height: calc(100dvh - 2rem);
+        margin: 1rem auto;
+    }
+    #editProsesaPiso2Modal .modal-content {
+        max-height: calc(100vh - 2rem);
+        max-height: calc(100dvh - 2rem);
+        display: flex;
+        flex-direction: column;
+    }
+    #editProsesaPiso2Modal #editProsesaPiso2Form {
+        display: flex;
+        flex: 1 1 auto;
+        flex-direction: column;
+        min-height: 0;
+    }
+    #editProsesaPiso2Modal .modal-body {
+        flex: 1 1 auto;
+        min-height: 0;
+        overflow-x: hidden;
+        overflow-y: auto;
+        padding-bottom: 1.5rem;
+        -webkit-overflow-scrolling: touch;
+    }
+    #editProsesaPiso2Modal .modal-header,
+    #editProsesaPiso2Modal .modal-footer {
+        flex: 0 0 auto;
+    }
+    @media (max-width: 576px) {
+        #editProsesaPiso2Modal .modal-dialog {
+            max-height: calc(100vh - 1rem);
+            max-height: calc(100dvh - 1rem);
+            margin: .5rem;
+        }
+        #editProsesaPiso2Modal .modal-content {
+            max-height: calc(100vh - 1rem);
+            max-height: calc(100dvh - 1rem);
+        }
+    }
 </style>
+<div class="modal fade" id="editProsesaPiso2Modal" tabindex="-1" role="dialog" aria-labelledby="editProsesaPiso2ModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-scrollable" role="document">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="editProsesaPiso2ModalLabel">Editar planificaci&oacute;n &ndash; Retiro de contenedor</h5>
+                <button type="button" class="close" data-dismiss="modal" aria-label="Cerrar"><span aria-hidden="true">&times;</span></button>
+            </div>
+            <form id="editProsesaPiso2Form">
+                {% csrf_token %}
+                <input type="hidden" id="epp2_citacion_id">
+                <input type="hidden" name="_empresa_id" value="2">
+                <div class="modal-body">
+                    <h6>Datos heredados de Piso 1 (solo lectura)</h6>
+                    <dl class="row" id="epp2_snapshot">
+                        <dt class="col-sm-4">Citaci&oacute;n Piso 2</dt><dd class="col-sm-8" data-campo="citacion_id"></dd>
+                        <dt class="col-sm-4">Citaci&oacute;n Piso 1 origen</dt><dd class="col-sm-8" data-campo="origen_id"></dd>
+                        <dt class="col-sm-4">Gu&iacute;a</dt><dd class="col-sm-8" data-campo="guia"></dd>
+                        <dt class="col-sm-4">C&oacute;digo SAP</dt><dd class="col-sm-8" data-campo="item_code"></dd>
+                        <dt class="col-sm-4">Producto</dt><dd class="col-sm-8" data-campo="producto"></dd>
+                        <dt class="col-sm-4">Proveedor</dt><dd class="col-sm-8" data-campo="proveedor"></dd>
+                        <dt class="col-sm-4">Pedido SAP</dt><dd class="col-sm-8" data-campo="pedido_sap"></dd>
+                        <dt class="col-sm-4">BaseEntry</dt><dd class="col-sm-8" data-campo="base_entry"></dd>
+                        <dt class="col-sm-4">BaseLine</dt><dd class="col-sm-8" data-campo="base_line"></dd>
+                        <dt class="col-sm-4">BL</dt><dd class="col-sm-8" data-campo="bl"></dd>
+                        <dt class="col-sm-4">Contenedor</dt><dd class="col-sm-8" data-campo="contenedor"></dd>
+                        <dt class="col-sm-4">Cantidad disponible</dt><dd class="col-sm-8" data-campo="cantidad_disponible"></dd>
+                        <dt class="col-sm-4">Almac&eacute;n</dt><dd class="col-sm-8" data-campo="almacen"></dd>
+                        <dt class="col-sm-4">Estanque</dt><dd class="col-sm-8" data-campo="estanque"></dd>
+                        <dt class="col-sm-4">Tipo recepci&oacute;n</dt><dd class="col-sm-8" data-campo="tipo_recepcion"></dd>
+                    </dl>
+                    <hr>
+                    <div class="form-group">
+                        <label for="epp2_patente">Patente cami&oacute;n de retiro</label>
+                        <input id="epp2_patente" name="patente_retiro_prosesa" type="text" class="form-control text-uppercase" maxlength="32" autocomplete="off">
+                    </div>
+                    <div class="form-group">
+                        <label for="epp2_transporte">Empresa de transporte</label>
+                        <select id="epp2_transporte" class="form-control"><option value=""></option></select>
+                        <input id="epp2_transportista_id" name="empresa_transporte_retiro_prosesa_id" type="hidden">
+                        <input id="epp2_transporte_nombre" name="empresa_transporte_retiro_prosesa" type="hidden">
+                        <small class="form-text text-muted">Seleccione una empresa de Empresa 2 o escriba su nombre. Puede dejar este campo vac&iacute;o.</small>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-dismiss="modal">Cerrar</button>
+                    <button type="submit" class="btn btn-primary">Guardar planificaci&oacute;n</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
 <div class="modal fade" id="editCitationModal" tabindex="-1" role="dialog" aria-labelledby="editCitationModalLabel" aria-hidden="true">
     <div class="modal-dialog modal-xl modal-dialog-scrollable" role="document">
         <div class="modal-content">
@@ -2328,6 +2420,10 @@
                             <div class="form-group col-md-4">
                                 <label for="edit_despacho_destino" class="required-label">Destino</label>
                                 <input type="text" class="form-control edit-despacho-field" id="edit_despacho_destino" name="destino" required>
+                            </div>
+                            <div class="form-group col-md-4" id="edit_despacho_fecha_llegada_destino_group">
+                                <label for="edit_despacho_fecha_llegada_destino" class="required-label">Fecha llegada al destino</label>
+                                <input type="date" class="form-control edit-despacho-field" id="edit_despacho_fecha_llegada_destino" name="fecha_llegada_destino" required>
                             </div>
                             <div class="form-group col-md-4">
                                 <label for="edit_despacho_hora_destino" class="required-label">Hora llegada a destino</label>
@@ -2669,6 +2765,10 @@
             <div class="modal-footer">
                 <button type="button" class="btn btn-secondary" data-dismiss="modal">Cerrar</button>
                 <button type="button" class="btn btn-primary" id="btn_guardar_estanque" onclick="guardarEstanqueCamion()">Guardar estanque</button>
+                <button type="button" class="btn btn-outline-info" id="btn_preview_borrador_sap_despacho_carga" onclick="cargaSbh.preview()" style="display:none;">Previsualizar Borrador SAP</button>
+                <button type="button" class="btn btn-outline-primary" id="btn_generar_lote_sap_prosesa_piso1" onclick="generarLoteSapProsesaPiso1()" style="display:none;">Generar lote SAP</button>
+                <button type="button" class="btn btn-outline-primary" id="btn_generar_lote_sap_new_jersey_p1" onclick="generarLoteSapNewJerseyP1()" style="display:none;">Generar lote SAP</button>
+                <button type="button" class="btn btn-outline-info" id="btn_preview_borrador_sap_recepcion" onclick="previsualizarBorradorSapRecepcion()" style="display:none;">Previsualizar Borrador SAP</button>
                 <button type="button" class="btn btn-outline-success btn-sm" id="btn_crear_borrador_sap_recepcion" onclick="crearBorradorSapRecepcion()" style="display:none;">Crear Borrador SAP</button>
                 <button type="button" class="btn btn-outline-success" id="btn_crear_borrador_sap_despacho" onclick="crearBorradorSapDespacho()" style="display:none;">Crear Borrador SAP</button>
                 <button type="button" class="btn btn-success" id="btn_enviar_estanque" onclick="enviarEstanqueSiguienteEtapa()">Enviar siguiente etapa</button>
@@ -2787,6 +2887,11 @@
     let estanqueCamionEsRecepcionTerramar = false;
     let estanqueCamionEsRecepcionEstanqueSbh = false;
     let estanqueCamionEsDespachoSbh = false;
+    let estanqueCamionEsRecepcionProsesaCamion = false;
+    let estanqueCamionEsRecepcionProsesaPiso1 = false;
+    let estanqueCamionEsRecepcionNewJerseyP1 = false;
+    let estanqueCamionPreviewRecepcionHabilitado = false;
+    let estanqueCamionPesoInformadoGuardado = false;
     let borradorSapGuiaCitacionId = null;
     let revisionRutasTransportista = [];
     let revisionGuardiaAutorizaPlanta = false;
@@ -2928,6 +3033,10 @@
         const alerta = difiere
             ? '<div class="alert alert-warning"><strong>Advertencia:</strong> el insumo declarado por guia es distinto al insumo planificado.</div>'
             : '';
+        const datosDestinoRecepcion = Object.prototype.hasOwnProperty.call(cit, 'almacen_destino')
+            ? '<dt class=col-5>Almac\u00e9n destino</dt><dd class=col-7>' + escapeHtml(cit.almacen_destino || 'Sin informaci\u00f3n') + '</dd>' +
+              '<dt class=col-5>Estanque destino</dt><dd class=col-7>' + escapeHtml(cit.estanque_destino || 'Sin informaci\u00f3n') + '</dd>'
+            : '';
         const datosRecepcionSbh = cit.es_recepcion_sbh
             ? '<dt class="col-5">BL</dt><dd class="col-7">' + escapeHtml(cit.bl || 'Sin informaci\u00f3n') + '</dd>'
             : '';
@@ -2946,6 +3055,7 @@
             '<dt class="col-5">Cliente</dt><dd class="col-7">' + escapeHtml(cit.cliente || '-') + '</dd>' +
             '<dt class="col-5">Pedido SAP</dt><dd class="col-7">' + escapeHtml(cit.pedido_sap || '-') + '</dd>' +
             '<dt class="col-5">Contrato SAP</dt><dd class="col-7">' + escapeHtml(cit.contrato_sap || '-') + '</dd>' +
+            datosDestinoRecepcion +
             datosRecepcionSbh +
             datosDespachoSbh +
             '</dl></div><div class="asociar-patio-summary-card"><h6>Datos del camion seleccionado</h6>' +
@@ -4678,8 +4788,82 @@
         });
 
     function openEditModal(citacionId) {
-        $.ajax({url: `/editar-citacion-recepcion-terramar/${citacionId}/`, type: 'GET', success: function(data) { abrirEdicionRecepcionTerramar(citacionId, data); }, error: function(xhr) { if (xhr.status === 404 && xhr.responseJSON && xhr.responseJSON.not_terramar) { openEditModalLegacy(citacionId); return; } Swal.fire('No editable', (xhr.responseJSON && xhr.responseJSON.error) || 'No fue posible cargar la citación para edición.', 'warning'); }});
+        $.ajax({
+            url: '/editar-citacion-prosesa-piso-2/' + citacionId + '/',
+            type: 'GET',
+            data: {_empresa_id: empresaIdActiva()},
+            success: data => abrirEdicionProsesaPiso2(citacionId, data),
+            error: xhr => {
+                if (xhr.status === 404 && xhr.responseJSON && xhr.responseJSON.not_prosesa_piso2) {
+                    openEditModalNoProsesa(citacionId);
+                    return;
+                }
+                Swal.fire('No editable', (xhr.responseJSON && xhr.responseJSON.error) || 'No fue posible cargar la citacion para edicion.', 'warning');
+            }
+        });
     }
+    function openEditModalNoProsesa(citacionId) {
+        $.ajax({url: '/editar-citacion-recepcion-terramar/' + citacionId + '/', type: 'GET', success: function(data) { abrirEdicionRecepcionTerramar(citacionId, data); }, error: function(xhr) { if (xhr.status === 404 && xhr.responseJSON && xhr.responseJSON.not_terramar) { openEditModalLegacy(citacionId); return; } Swal.fire('No editable', (xhr.responseJSON && xhr.responseJSON.error) || 'No fue posible cargar la citacion para edicion.', 'warning'); }});
+    }
+    function abrirEdicionProsesaPiso2(citacionId, respuesta) {
+        const datos = respuesta.datos || {};
+        const modal = $('#editProsesaPiso2Modal');
+        $('#epp2_citacion_id').val(citacionId);
+        $('#epp2_snapshot [data-campo]').each(function () {
+            const valor = datos[this.dataset.campo];
+            this.textContent = valor === null || valor === undefined || valor === '' ? '-' : String(valor);
+        });
+        $('#epp2_patente').val(datos.patente_planificada || '');
+        const transporte = $('#epp2_transporte');
+        if (transporte.data('select2')) transporte.select2('destroy');
+        transporte.empty().append(new Option('', '', false, false));
+        transporte.select2({
+            placeholder: 'Seleccione o escriba empresa de transporte',
+            allowClear: true, tags: true, width: '100%', dropdownParent: modal,
+            ajax: {
+                url: '{% url "ajax_transportistas_ingreso_camion" %}',
+                dataType: 'json', delay: 250,
+                data: params => ({q: params.term || '', empresa_id: 2, estricto_empresa: '1'}),
+                processResults: respuesta => ({results: respuesta.results || []})
+            },
+            createTag: params => {
+                const nombre = String(params.term || '').replace(/\s+/g, ' ').trim();
+                return nombre ? {id: nombre, text: nombre, nuevo: true} : null;
+            }
+        });
+        if (datos.empresa_transporte) {
+            const valor = datos.transportista_id || datos.empresa_transporte;
+            transporte.append(new Option(datos.empresa_transporte, valor, true, true)).trigger('change');
+        }
+        $('#epp2_transportista_id').val(datos.transportista_id || '');
+        $('#epp2_transporte_nombre').val(datos.empresa_transporte || '');
+        transporte.off('.epp2').on('select2:select.epp2', event => {
+            const item = event.params.data || {};
+            $('#epp2_transportista_id').val(item.socionegocio_id || '');
+            $('#epp2_transporte_nombre').val(item.text || '');
+        }).on('select2:clear.epp2', () => {
+            $('#epp2_transportista_id,#epp2_transporte_nombre').val('');
+        });
+        modal.modal('show');
+    }
+    $('#epp2_patente').on('blur', function () {
+        this.value = String(this.value || '').trim().toUpperCase();
+    });
+    $('#editProsesaPiso2Form').on('submit', function (event) {
+        event.preventDefault();
+        $('#epp2_patente').trigger('blur');
+        const seleccion = $('#epp2_transporte').select2('data')[0];
+        $('#epp2_transporte_nombre').val(seleccion ? seleccion.text : '');
+        if (!seleccion) $('#epp2_transportista_id').val('');
+        const citacionId = $('#epp2_citacion_id').val();
+        $.post('/editar-citacion-prosesa-piso-2/' + citacionId + '/', $(this).serialize())
+            .done(respuesta => {
+                $('#editProsesaPiso2Modal').modal('hide');
+                Swal.fire('Actualizada', respuesta.message, 'success').then(() => window.location.reload());
+            })
+            .fail(xhr => Swal.fire('No fue posible actualizar',
+                (xhr.responseJSON && xhr.responseJSON.error) || 'Revise los datos ingresados.', 'warning'));
+    });
     function limpiarRutasEdicionTerramar(mensaje) {
         document.getElementById('ert_ruta_id').value = '';
         document.getElementById('ert_tarifa_id').value = '';
@@ -4837,6 +5021,11 @@
                 const detalleDespacho = data.detalle_despacho || {};
                 const esDespacho = String(data.tipo_operacion || data.tipo_citacion || '').toUpperCase() === 'DESPACHO';
                 configurarModalEdicionPorTipo(esDespacho ? 'DESPACHO' : 'RECEPCION');
+                const esDespachoSbh = esDespacho && Number(data.empresa_id) === 2;
+                $('#edit_despacho_fecha_llegada_destino_group').toggleClass('d-none', !esDespachoSbh);
+                $('#edit_despacho_fecha_llegada_destino')
+                    .prop('disabled', !esDespachoSbh)
+                    .prop('required', esDespachoSbh);
                 $('#tipo_documento').html(data.tipos_documento || '');
                 $('#id_secuencia').html(data.secuencias || '');
                 $('#citation_id').val(citacionId);
@@ -4855,6 +5044,9 @@
                 if (esDespacho) {
                     $('#edit_despacho_fecha').val(detalleDespacho.fecha_despacho || '');
                     $('#edit_despacho_destino').val(detalleDespacho.destino || '');
+                    $('#edit_despacho_fecha_llegada_destino')
+                        .val(detalleDespacho.fecha_llegada_destino || '')
+                        .attr('min', detalleDespacho.fecha_despacho || '');
                     $('#edit_despacho_hora_destino').val(detalleDespacho.hora_llegada_destino || '');
                     $('#edit_despacho_formato').val(data.tipo_carga || detalleDespacho.sap_unidad_medida || '');
                     $('#edit_despacho_orden_carga').val(detalleDespacho.orden_carga || '');
@@ -4923,6 +5115,19 @@
         const form = document.getElementById('updateCitationForm');
         if (form && !form.checkValidity()) {
             form.reportValidity();
+            return;
+        }
+
+        if (
+            editEsDespacho()
+            && !$('#edit_despacho_fecha_llegada_destino').prop('disabled')
+            && $('#edit_despacho_fecha_llegada_destino').val() < $('#edit_despacho_fecha').val()
+        ) {
+            Swal.fire(
+                'Fecha de llegada inválida',
+                'La fecha de llegada al destino no puede ser anterior a la fecha de despacho.',
+                'warning'
+            );
             return;
         }
 
@@ -5773,7 +5978,7 @@ $(document).on('click', '#btn_revision_guardar_datos', guardarDatosRevisionAsist
                     </div>
                     ${data.requiere_peso_informado_guia ? `
                     <div class="form-group col-md-6">
-                        <label for="revision_peso_informado_guia">Peso informado en guía (kg) <span class="text-danger">*</span></label>
+                        <label for="revision_peso_informado_guia">${data.peso_informado_guia_unidad === 'MT' ? 'Cantidad informada de guía (MT)' : 'Peso informado de guía (kg)'} <span class="text-danger">*</span></label>
                         <input type="text" inputmode="decimal" class="form-control" id="revision_peso_informado_guia" value="${escapeHtml(data.peso_informado_guia || '')}" required>
                     </div>
                     ` : ''}
@@ -5814,6 +6019,7 @@ $(document).on('click', '#btn_revision_guardar_datos', guardarDatosRevisionAsist
                 }
 
                 const puedeEditarRevision = !!response.puede_editar_revision_asistente;
+                $('#btn_revision_aprobar').text(response.es_prosesa_piso_2 ? 'ENVIAR CAMIÓN A INGRESO DE PLANTA' : 'Aprobar');
                 revisionPaisesTelefono = (response.datos_edicion_asistente && response.datos_edicion_asistente.paises_telefono) || [];
                 revisionEsSbh = !!(response.datos_edicion_asistente && response.datos_edicion_asistente.es_sbh);
                 revisionPuedeEditar = puedeEditarRevision;
@@ -5837,7 +6043,7 @@ $(document).on('click', '#btn_revision_guardar_datos', guardarDatosRevisionAsist
                     ),
                     esDespachoRevision ? '' : renderRevisionSection('Datos operacionales', response.datos_operacionales),
                     response.es_flujo_terramar ? renderRevisionSection('Ruta del transportista', { Ruta: (response.ruta_transportista || {}).Ruta || '' }) : '',
-                    renderRevisionSection('Asistente C_D', response.asistente_cd),
+                    response.es_prosesa_piso_2 ? '' : renderRevisionSection('Asistente C_D', response.asistente_cd),
                     renderRevisionSection('Guardia Portería', response.guardia_porteria),
                     renderRevisionDocuments(response.documentos, !!response.es_flujo_terramar),
                     response.requiere_confirmacion_datos ? renderRevisionConfirmacionDatos() : '',
@@ -6867,6 +7073,26 @@ function inicializarConductoresIngresoCamion(limpiarActual) {
         const almacenCodigo = datos.almacen_codigo || '';
         const almacenTexto = datos.almacen || almacenCodigo || 'No registrado';
         const unidadPeso = datos.peso_unidad || 'kg';
+        const esProsesaCamion = !!datos.es_recepcion_prosesa_descarga_camion;
+        const esProsesaPiso1 = !!datos.es_recepcion_prosesa_contenedor_piso_1;
+        const esNewJerseyP1 = !!datos.es_recepcion_new_jersey_p1;
+        const loteSap = datos.lote_sap || {};
+        const loteSapNewJersey = datos.lote_sap_new_jersey || {};
+        const etiquetaCantidad = esProsesaCamion
+            ? 'Cantidad informada en gu&iacute;a (MT)'
+            : 'Peso informado de gu&iacute;a (' + escapeHtml(unidadPeso) + ')';
+        const placeholderCantidad = esProsesaCamion ? 'Ej: 27.920' : 'Ej: 25, 25.5 o 28650';
+        const ayudaCantidad = datos.peso_capturado_en_revision
+            ? (datos.peso_informado_guia
+                ? 'Dato validado por Asistente Recepción. No es editable en esta etapa.'
+                : 'Falta el peso informado de guía. Asistente Recepción debe registrarlo antes de continuar.')
+            : esProsesaCamion
+            ? 'Ingrese la cantidad indicada en la gu&iacute;a expresada en toneladas m&eacute;tricas (MT).'
+            : (esProsesaPiso1
+                ? 'Ingrese el peso en kg. Para el Ingreso SAP se convierte a toneladas m&eacute;tricas (kg / 1000).'
+                : datos.es_flujo_recepcion_estanque_sbh
+                ? 'Dato registrado previamente por Asistente_Recepci&oacute;n. No es editable en esta etapa.'
+                : 'Revise los documentos adjuntos para confirmar el peso informado. No se realiza conversion automatica de unidad.');
         const estanquePlanificadoSbh = !!datos.es_recepcion_sbh && !!datos.estanque_destino;
         const opcionesAlmacen = renderOpcionesAlmacenRecepcion(datos.opciones_almacen || [], almacenCodigo);
         return `
@@ -6885,10 +7111,29 @@ function inicializarConductoresIngresoCamion(limpiarActual) {
                 <select class="form-control" id="estanque_operacional" ${disabled}></select>
                 <button type="button" class="btn btn-outline-secondary btn-sm mt-2" id="btn_editar_estanque_planificacion" onclick="editarEstanquePlanificacionSbh()" ${disabled} ${estanquePlanificadoSbh ? '' : 'style="display:none;"'}>EDITAR ESTANQUE</button>
             </div>
+            ${esProsesaPiso1 || esNewJerseyP1 ? `
             <div class="form-group">
-                <label for="recepcion_peso_informado">${datos.es_flujo_recepcion_estanque_sbh ? 'Peso informado en guía' : 'Peso informado (' + escapeHtml(unidadPeso) + ')'} ${datos.es_flujo_recepcion_estanque_sbh ? '' : '<span class="text-danger">*</span>'}</label>
-                <input type="text" inputmode="decimal" class="form-control" id="recepcion_peso_informado" value="${escapeHtml(datos.peso_informado_guia || '')}" ${datos.es_flujo_recepcion_estanque_sbh ? 'readonly' : disabled} ${datos.es_flujo_recepcion_estanque_sbh ? '' : 'required'} placeholder="Ej: 25, 25.5 o 28650">
-                <small class="form-text text-muted">${datos.es_flujo_recepcion_estanque_sbh ? 'Dato registrado previamente por Asistente_Recepción. No es editable en esta etapa.' : 'Revise los documentos adjuntos para confirmar el peso informado. No se realiza conversion automatica de unidad.'}</small>
+                <label for="destino_sap_inicial">Destino SAP inicial</label>
+                <input type="text" class="form-control" id="destino_sap_inicial" value="${escapeHtml(datos.destino_sap_inicial || 'Sin información')}" readonly>
+                <small class="form-text text-muted">Bodega virtual usada exclusivamente para crear el ingreso inicial en SAP.</small>
+            </div>
+            ${esProsesaPiso1 ? `<div class="form-group">
+                <label for="lote_sap_prosesa_piso1">Lote SAP</label>
+                <input type="text" class="form-control" id="lote_sap_prosesa_piso1" value="${escapeHtml(loteSap.batch_number || '')}" placeholder="Genere el lote SAP" readonly>
+                <small class="form-text text-muted" id="lote_sap_prosesa_piso1_ayuda">${loteSap.batch_number
+                    ? 'Lote calculado segun correlativo SAP para ItemCode ' + escapeHtml(loteSap.item_code || '') + '.'
+                    : 'Use Generar lote SAP para consultar el correlativo vigente.'}</small>
+            </div>` : ''}` : ''}
+            ${esNewJerseyP1 ? `
+            <div class="form-group">
+                <label for="lote_sap_new_jersey_p1">Lote SAP</label>
+                <input type="text" class="form-control" id="lote_sap_new_jersey_p1" value="${escapeHtml(loteSapNewJersey.batch_number || '')}" readonly>
+                <small class="form-text text-muted">Genere y guarde el lote antes de previsualizar el Ingreso SAP.</small>
+            </div>` : ''}
+            <div class="form-group">
+                <label for="recepcion_peso_informado">${etiquetaCantidad} ${datos.peso_capturado_en_revision ? '' : '<span class="text-danger">*</span>'}</label>
+                <input type="text" inputmode="decimal" class="form-control" id="recepcion_peso_informado" value="${escapeHtml(datos.peso_informado_guia || '')}" data-capturado-revision="${datos.peso_capturado_en_revision ? 'true' : 'false'}" ${datos.peso_capturado_en_revision ? 'readonly' : disabled} ${datos.peso_capturado_en_revision ? '' : 'required'} placeholder="${escapeHtml(placeholderCantidad)}">
+                <small class="form-text text-muted">${ayudaCantidad}</small>
             </div>
             <div class="form-group">
                 <button type="button" class="btn btn-outline-primary btn-sm" id="btn_acd_ver_documentos">
@@ -6917,7 +7162,13 @@ function inicializarConductoresIngresoCamion(limpiarActual) {
         }
         const selectorBloqueado = $('#estanque_operacional').prop('disabled');
         const puedeEditar = estanqueCamionPuedeEditar
-            && (estanqueCamionEsRecepcionEstanqueSbh || !selectorBloqueado);
+            && (
+                estanqueCamionEsRecepcionEstanqueSbh
+                || estanqueCamionEsRecepcionProsesaCamion
+                || estanqueCamionEsRecepcionProsesaPiso1
+                || estanqueCamionEsRecepcionNewJerseyP1
+                || !selectorBloqueado
+            );
         const almacen = normalizarTexto($('#estanque_almacen_selector').is(':visible') ? $('#estanque_almacen_selector').val() : estanqueCamionAlmacenOriginal);
         const estanque = normalizarTexto($('#estanque_operacional').val());
         const peso = normalizarTexto($('#recepcion_peso_informado').val());
@@ -6935,7 +7186,7 @@ function inicializarConductoresIngresoCamion(limpiarActual) {
         $('#estanque_almacen_selector').show().prop('disabled', false);
         $('#btn_editar_datos_recepcion').prop('disabled', true).text('EDITANDO DATOS DE RECEPCION');
         $('#estanque_operacional, #recepcion_documentos_revisados').prop('disabled', false);
-        if (!estanqueCamionEsRecepcionEstanqueSbh) {
+        if ($('#recepcion_peso_informado').attr('data-capturado-revision') !== 'true') {
             $('#recepcion_peso_informado').prop('disabled', false).prop('readonly', false);
         }
         actualizarEstadoGuardarRecepcion();
@@ -7061,6 +7312,7 @@ function inicializarConductoresIngresoCamion(limpiarActual) {
         const responseJson = respuesta.response_json || respuesta.response || estado.response_json || estado.response || respuesta.sap_error || estado.sap_error || {};
         const requestJson = respuesta.request_json || estado.request_json || ((respuesta.preview || {}).payload) || {};
         const source = ((respuesta.preview || {}).source_data) || {};
+        const esIngresoSap = !!(estanqueCamionEsRecepcionProsesaPiso1 || estanqueCamionEsRecepcionNewJerseyP1);
         const line = (requestJson.DocumentLines || [])[0] || {};
         const creado = !!estado.sent || !!(respuesta.success && (responseJson.DocEntry || responseJson.docentry));
         const docEntry = estado.docentry || responseJson.DocEntry || responseJson.docentry || '';
@@ -7070,9 +7322,13 @@ function inicializarConductoresIngresoCamion(limpiarActual) {
             .concat(respuesta.sap_message ? [respuesta.sap_message] : [])
             .concat(estado.is_error && estado.error_message ? [estado.error_message] : []);
         const statusClass = creado ? 'success' : (errores.length ? 'danger' : 'warning');
-        const statusText = creado ? 'Borrador SAP creado' : (errores.length ? 'Error al crear Borrador SAP' : (estado.local_status || estado.label || 'Pendiente de crear'));
+        const statusText = creado
+            ? (esIngresoSap ? 'Ingreso SAP creado' : 'Borrador SAP creado')
+            : (errores.length
+                ? (esIngresoSap ? 'Error al crear Ingreso SAP' : 'Error al crear Borrador SAP')
+                : (estado.local_status || estado.label || 'Pendiente de crear'));
         const statusCode = respuesta.status_code || estado.status_code || '-';
-        const endpoint = respuesta.endpoint || estado.endpoint || '/Drafts';
+        const endpoint = respuesta.endpoint || estado.endpoint || (esIngresoSap ? '/PurchaseDeliveryNotes' : '/Drafts');
         const fechaIntento = respuesta.fecha_hora || estado.fecha_hora || '-';
         const usuarioIntento = respuesta.usuario || estado.usuario || '-';
         const sapErrorMessage = respuesta.sap_error_message || estado.sap_error_message || '';
@@ -7106,14 +7362,14 @@ function inicializarConductoresIngresoCamion(limpiarActual) {
             ['Usuario', usuarioIntento],
             ['Proveedor SAP', estado.card_code || requestJson.CardCode || source.card_code || '-'],
             ['Producto SAP', estado.item_code || line.ItemCode || source.item_code || '-'],
-            ['Peso informado usado', estado.quantity || line.Quantity || source.peso_informado_guia || source.quantity || '-'],
+            [source.quantity_unit === 'MT' ? 'Cantidad informada en guia (MT)' : 'Peso informado usado', estado.quantity || line.Quantity || source.peso_informado_guia_kg || source.peso_informado_guia || source.quantity || '-'],
             ['BaseEntry', estado.base_entry || line.BaseEntry || source.doc_entry || '-'],
             ['BaseLine', estado.base_line || (line.BaseLine ?? source.base_line ?? '-')]
         ];
 
         return `
             <div class="revision-section mb-0">
-                <h6>Borrador SAP Recepci&oacute;n</h6>
+                <h6>${esIngresoSap ? 'Ingreso SAP Recepci&oacute;n' : 'Borrador SAP Recepci&oacute;n'}</h6>
                 <div class="alert alert-${statusClass} py-2 mb-3">
                     <strong>Estado:</strong> ${escapeHtml(statusText)}
                     ${docEntry ? `<span class="ml-2"><strong>DocEntry:</strong> ${escapeHtml(docEntry)}</span>` : ''}
@@ -7128,11 +7384,11 @@ function inicializarConductoresIngresoCamion(limpiarActual) {
                 ${sapErrorMessage ? `<div class="alert alert-warning py-2"><strong>Mensaje SAP:</strong> ${escapeHtml(sapErrorMessage)}</div>` : ''}
                 <div class="row">
                     <div class="col-lg-6 mb-3">
-                        <div class="font-weight-bold mb-1">Request JSON Borrador SAP Recepci&oacute;n</div>
+                        <div class="font-weight-bold mb-1">Request JSON ${esIngresoSap ? 'Ingreso SAP' : 'Borrador SAP Recepci&oacute;n'}</div>
                         <pre style="${consolaStyle}">${escapeHtml(formatearDetalleSap(requestJson, 'Sin request disponible.'))}</pre>
                     </div>
                     <div class="col-lg-6 mb-3">
-                        <div class="font-weight-bold mb-1">Response JSON Borrador SAP Recepci&oacute;n</div>
+                        <div class="font-weight-bold mb-1">Response JSON ${esIngresoSap ? 'Ingreso SAP' : 'Borrador SAP Recepci&oacute;n'}</div>
                         <pre style="${consolaStyle}">${escapeHtml(formatearDetalleSap(responseJson, 'SAP respondio sin cuerpo.'))}</pre>
                     </div>
                 </div>
@@ -7162,6 +7418,26 @@ function inicializarConductoresIngresoCamion(limpiarActual) {
             $('#btn_crear_borrador_sap_recepcion').hide().prop('disabled', true);
             $('#sap_recepcion_draft_panel').empty().hide();
             $('#btn_enviar_estanque').prop('disabled', !puedeEditar || !estanqueGuardado || !pesoGuardado);
+            return;
+        }
+        if (estanqueCamionEsRecepcionProsesaPiso1) {
+            $('#btn_crear_borrador_sap_recepcion')
+                .show()
+                .prop('disabled', !puedeEditar || !estanqueGuardado || creado)
+                .text(creado ? 'Ingreso SAP creado' : 'Crear Ingreso SAP');
+            $('#btn_enviar_estanque').prop('disabled', !puedeEditar || !estanqueGuardado || !creado);
+            $('#sap_recepcion_draft_panel').html(renderSapRecepcionDraftPanel(estado, resultado)).show();
+            return;
+        }
+        if (estanqueCamionEsRecepcionNewJerseyP1) {
+            $('#btn_generar_lote_sap_new_jersey_p1')
+                .prop('disabled', !puedeEditar || !estanqueGuardado || creado || !!estado.outcome_unknown);
+            $('#btn_crear_borrador_sap_recepcion')
+                .show()
+                .prop('disabled', !puedeEditar || !estanqueGuardado || creado || !!estado.outcome_unknown)
+                .text(creado ? 'Ingreso SAP creado' : 'Crear Ingreso SAP');
+            $('#btn_enviar_estanque').prop('disabled', !puedeEditar || !estanqueGuardado || !creado);
+            $('#sap_recepcion_draft_panel').html(renderSapRecepcionDraftPanel(estado, resultado)).show();
             return;
         }
         $('#btn_crear_borrador_sap_recepcion')
@@ -7477,6 +7753,11 @@ function inicializarConductoresIngresoCamion(limpiarActual) {
         estanqueCamionEsRecepcionTerramar = false;
         estanqueCamionEsRecepcionEstanqueSbh = false;
         estanqueCamionEsDespachoSbh = false;
+        estanqueCamionEsRecepcionProsesaCamion = false;
+        estanqueCamionEsRecepcionProsesaPiso1 = false;
+        estanqueCamionEsRecepcionNewJerseyP1 = false;
+        estanqueCamionPreviewRecepcionHabilitado = false;
+        estanqueCamionPesoInformadoGuardado = false;
         estanqueCamionTipo = '';
         estanqueCamionAlmacenOriginal = '';
         estanqueCamionAlmacenOriginalTexto = '';
@@ -7497,7 +7778,11 @@ function inicializarConductoresIngresoCamion(limpiarActual) {
         $('#btn_guardar_estanque').text('Guardar estanque');
         $('#btn_enviar_estanque').text('Enviar siguiente etapa');
         $('#btn_crear_borrador_sap_despacho').hide().prop('disabled', true).text('Crear Borrador SAP');
+        $('#btn_preview_borrador_sap_despacho_carga').hide().prop('disabled', true);
         $('#btn_crear_borrador_sap_recepcion').hide().prop('disabled', true).text('Crear Borrador SAP');
+        $('#btn_generar_lote_sap_prosesa_piso1').hide().prop('disabled', true).text('Generar lote SAP');
+        $('#btn_generar_lote_sap_new_jersey_p1').hide().prop('disabled', true).text('Generar lote SAP');
+        $('#btn_preview_borrador_sap_recepcion').hide().prop('disabled', true).text('Previsualizar Borrador SAP');
         $('#sap_recepcion_draft_panel').empty().hide();
         $('#btn_guardar_estanque, #btn_enviar_estanque').prop('disabled', true);
         $('#ModalEstanqueCamion').modal('show');
@@ -7522,6 +7807,25 @@ function inicializarConductoresIngresoCamion(limpiarActual) {
                 estanqueCamionOriginalPlanificacion = response.es_recepcion_sbh ? (response.estanque_destino || '') : '';
                 estanqueCamionEsRecepcionEstanqueSbh = !!response.es_flujo_recepcion_estanque_sbh;
                 estanqueCamionEsDespachoSbh = !!response.es_despacho_sbh;
+                estanqueCamionEsRecepcionProsesaCamion = !!response.es_recepcion_prosesa_descarga_camion;
+                estanqueCamionEsRecepcionProsesaPiso1 = !!response.es_recepcion_prosesa_contenedor_piso_1;
+                estanqueCamionEsRecepcionNewJerseyP1 = !!response.es_recepcion_new_jersey_p1;
+                $('#btn_generar_lote_sap_new_jersey_p1')
+                    .toggle(estanqueCamionEsRecepcionNewJerseyP1)
+                    .prop('disabled', !puedeEditar || !response.estanque_guardado_operacional || !!((response.sap_recepcion_draft || {}).sent));
+                const ingresoProsesaPiso1Creado = !!((response.sap_recepcion_draft || {}).sent);
+                $('#btn_generar_lote_sap_prosesa_piso1')
+                    .toggle(estanqueCamionEsRecepcionProsesaPiso1)
+                    .prop('disabled', !puedeEditar || ingresoProsesaPiso1Creado);
+                const previewProsesaCamionHabilitado = !!response.sap_recepcion_preview_enabled && !!response.es_recepcion_prosesa_descarga_camion;
+                const previewProsesaPiso1Habilitado = !!response.sap_recepcion_preview_enabled && !!response.es_recepcion_prosesa_contenedor_piso_1;
+                const previewNewJerseyP1Habilitado = !!response.sap_recepcion_preview_enabled && estanqueCamionEsRecepcionNewJerseyP1;
+                estanqueCamionPreviewRecepcionHabilitado = previewProsesaCamionHabilitado || previewProsesaPiso1Habilitado || previewNewJerseyP1Habilitado;
+                estanqueCamionPesoInformadoGuardado = !!normalizarTexto(response.peso_informado_guia);
+                $('#btn_preview_borrador_sap_recepcion')
+                    .toggle(estanqueCamionPreviewRecepcionHabilitado)
+                    .prop('disabled', false)
+                    .text((estanqueCamionEsRecepcionProsesaPiso1 || estanqueCamionEsRecepcionNewJerseyP1) ? 'Previsualizar Ingreso SAP' : 'Previsualizar Borrador SAP');
                 estanqueCamionConfirmado = estanqueCamionEsRecepcionEstanqueSbh && !!response.estanque_confirmado;
                 const tipoCitacion = String(response.tipo_citacion || '').toUpperCase();
                 const esDespacho = tipoCitacion === 'DESPACHO';
@@ -7693,7 +7997,7 @@ function inicializarConductoresIngresoCamion(limpiarActual) {
                 }
 
                 if (esRecepcion) {
-                    actualizarEstadoSapRecepcionDraft(response.sap_recepcion_draft || {}, !!response.estanque_actual, puedeEditar, response);
+                    actualizarEstadoSapRecepcionDraft(response.sap_recepcion_draft || {}, estanqueCamionEsRecepcionNewJerseyP1 ? !!response.estanque_guardado_operacional : !!response.estanque_actual, puedeEditar, response);
                 } else {
                     $('#btn_enviar_estanque').prop('disabled', !puedeEditar || !response.estanque_actual);
                     $('#btn_crear_borrador_sap_recepcion').hide().prop('disabled', true);
@@ -7998,28 +8302,226 @@ function inicializarConductoresIngresoCamion(limpiarActual) {
         });
     }
 
+    function mostrarPreviewBorradorSapRecepcion(response) {
+        const preview = response.preview || {};
+        const validaciones = preview.validations || [];
+        const warnings = preview.warnings || [];
+        const errores = preview.errors || [];
+        const lista = function (items, vacio) {
+            if (!items.length) {
+                return '<li class="text-muted">' + escapeHtml(vacio) + '</li>';
+            }
+            return items.map(function (item) {
+                return '<li>' + escapeHtml(item) + '</li>';
+            }).join('');
+        };
+        const esPreparacionPiso1 = !!response.draft_definition_pending
+            || !!preview.draft_definition_pending;
+        const detallePreview = esPreparacionPiso1 ? {
+            source_data: preview.source_data || {},
+            purchase_order: preview.purchase_order || {},
+            selected_line: preview.selected_line || {},
+            draft_boundary: preview.draft_boundary || {}
+        } : (preview.payload || {});
+        const jsonPayload = JSON.stringify(detallePreview, null, 2);
+        const icono = errores.length ? 'warning' : 'info';
+        Swal.fire({
+            icon: icono,
+            title: (estanqueCamionEsRecepcionProsesaPiso1 || estanqueCamionEsRecepcionNewJerseyP1)
+                ? 'PREVISUALIZACION INGRESO SAP - NO ENVIADO'
+                : esPreparacionPiso1
+                ? 'PREPARACION SAP PISO 1 - SOLO LECTURA'
+                : 'PREVISUALIZACION - NO ENVIADO A SAP',
+            width: '1000px',
+            html:
+                '<div class="text-left">' +
+                    '<p><strong>Esta accion no crea ni modifica documentos en SAP.</strong></p>' +
+                    '<div class="row">' +
+                        '<div class="col-md-4"><strong>Validaciones</strong><ul>' + lista(validaciones, 'Sin validaciones.') + '</ul></div>' +
+                        '<div class="col-md-4"><strong>Warnings</strong><ul>' + lista(warnings, 'Sin warnings.') + '</ul></div>' +
+                        '<div class="col-md-4"><strong>Errores</strong><ul>' + lista(errores, 'Sin errores.') + '</ul></div>' +
+                    '</div>' +
+                    '<strong>' + (esPreparacionPiso1 ? 'Datos preparados' : 'JSON SAP') + '</strong>' +
+                    '<pre class="bg-dark text-light p-3 mt-2" style="max-height:420px;overflow:auto;white-space:pre-wrap;">' +
+                        escapeHtml(jsonPayload) +
+                    '</pre>' +
+                '</div>',
+            confirmButtonText: 'Cerrar'
+        });
+    }
+
+    function actualizarLoteSapProsesaPiso1(loteSap) {
+        const lote = loteSap || {};
+        if (!lote.batch_number || !$('#lote_sap_prosesa_piso1').length) {
+            return;
+        }
+        $('#lote_sap_prosesa_piso1').val(lote.batch_number);
+        $('#lote_sap_prosesa_piso1_ayuda').text(
+            'Lote calculado segun correlativo SAP para ItemCode ' + (lote.item_code || '') + '.'
+        );
+    }
+
+    function generarLoteSapProsesaPiso1() {
+        if (!estanqueCamionCitacionId || !estanqueCamionEsRecepcionProsesaPiso1) {
+            return;
+        }
+        const boton = $('#btn_generar_lote_sap_prosesa_piso1');
+        boton.prop('disabled', true).html('<i class="fas fa-spinner fa-spin mr-1"></i> Generando...');
+        $.ajax({
+            url: '/pla-citacion/' + estanqueCamionCitacionId + '/generar-lote-sap/',
+            type: 'POST',
+            headers: {'X-CSRFToken': '{{ csrf_token }}'},
+            data: {
+                _empresa_id: '{{ empresa_id }}',
+                empresa_id: '{{ empresa_id }}'
+            },
+            success: function (response) {
+                actualizarLoteSapProsesaPiso1(response.lote_sap || response);
+                Swal.fire({
+                    icon: 'success',
+                    title: 'Lote SAP generado',
+                    text: response.batch_number || 'Lote SAP generado correctamente.'
+                });
+            },
+            error: function (xhr) {
+                const response = xhr.responseJSON || {};
+                Swal.fire({
+                    icon: 'warning',
+                    title: 'No fue posible generar el lote SAP',
+                    text: response.message || 'No fue posible consultar el correlativo SAP.'
+                });
+            },
+            complete: function () {
+                const creado = ($('#btn_crear_borrador_sap_recepcion').text() || '').indexOf('creado') >= 0;
+                boton.prop('disabled', creado || !estanqueCamionPuedeEditar).text('Generar lote SAP');
+            }
+        });
+    }
+
+    function actualizarLoteSapNewJerseyP1(loteSap) {
+        const lote = loteSap || {};
+        $('#lote_sap_new_jersey_p1').val(lote.batch_number || '');
+    }
+
+    function generarLoteSapNewJerseyP1() {
+        if (!estanqueCamionCitacionId || !estanqueCamionEsRecepcionNewJerseyP1) {
+            return;
+        }
+        const boton = $('#btn_generar_lote_sap_new_jersey_p1');
+        boton.prop('disabled', true).html('<i class="fas fa-spinner fa-spin mr-1"></i> Generando...');
+        $.ajax({
+            url: '/pla-citacion/' + estanqueCamionCitacionId + '/generar-lote-sap-new-jersey/',
+            type: 'POST',
+            headers: {'X-CSRFToken': '{{ csrf_token }}'},
+            data: {
+                _empresa_id: '{{ empresa_id }}',
+                empresa_id: '{{ empresa_id }}'
+            },
+            success: function (response) {
+                actualizarLoteSapNewJerseyP1(response.lote_sap || {});
+                Swal.fire({
+                    icon: 'success',
+                    title: 'Lote SAP generado',
+                    text: response.batch_number || 'Lote SAP New Jersey generado correctamente.'
+                });
+            },
+            error: function (xhr) {
+                const response = xhr.responseJSON || {};
+                Swal.fire({
+                    icon: 'warning',
+                    title: 'No fue posible generar el lote SAP',
+                    text: response.message || 'No fue posible consultar o guardar el lote SAP.'
+                });
+            },
+            complete: function () {
+                const creado = ($('#btn_crear_borrador_sap_recepcion').text() || '').indexOf('creado') >= 0;
+                boton.prop('disabled', creado || !estanqueCamionPuedeEditar).text('Generar lote SAP');
+            }
+        });
+    }
+
+    function previsualizarBorradorSapRecepcion() {
+        if (!estanqueCamionCitacionId || !estanqueCamionPreviewRecepcionHabilitado) {
+            return;
+        }
+        if (!estanqueCamionEsRecepcionProsesaPiso1 && !estanqueCamionEsRecepcionNewJerseyP1 && !estanqueCamionPesoInformadoGuardado) {
+            Swal.fire({
+                icon: 'warning',
+                title: estanqueCamionEsRecepcionProsesaCamion ? 'Cantidad informada requerida' : 'Peso informado requerido',
+                text: estanqueCamionEsRecepcionProsesaCamion
+                    ? 'Debe guardar la cantidad informada en guia (MT) antes de previsualizar el Borrador SAP.'
+                    : 'Debe guardar el peso informado antes de previsualizar el Borrador SAP.'
+            });
+            return;
+        }
+
+        const boton = $('#btn_preview_borrador_sap_recepcion');
+        boton.prop('disabled', true).html('<i class="fas fa-spinner fa-spin mr-1"></i> Previsualizando...');
+        $.ajax({
+            url: '/pla-citacion-estanque/' + estanqueCamionCitacionId + '/',
+            data: {preview_sap: '1'},
+            type: 'POST',
+            headers: {'X-CSRFToken': '{{ csrf_token }}'},
+            success: function (response) {
+                actualizarLoteSapProsesaPiso1((((response.preview || {}).source_data || {}).lote_sap) || {});
+                if (estanqueCamionEsRecepcionNewJerseyP1) {
+                    actualizarLoteSapNewJerseyP1((((response.preview || {}).source_data || {}).lote_sap) || {});
+                }
+                mostrarPreviewBorradorSapRecepcion(response);
+            },
+            error: function (xhr) {
+                const response = xhr.responseJSON || {};
+                if (response.preview) {
+                    mostrarPreviewBorradorSapRecepcion(response);
+                    return;
+                }
+                Swal.fire({
+                    icon: 'warning',
+                    title: 'No fue posible previsualizar',
+                    text: response.message || ((estanqueCamionEsRecepcionProsesaPiso1 || estanqueCamionEsRecepcionNewJerseyP1)
+                        ? 'No fue posible generar la previsualizacion del Ingreso SAP.'
+                        : 'No fue posible generar la previsualizacion del Borrador SAP.')
+                });
+            },
+            complete: function () {
+                boton.prop('disabled', false).text(
+                    (estanqueCamionEsRecepcionProsesaPiso1 || estanqueCamionEsRecepcionNewJerseyP1)
+                        ? 'Previsualizar Ingreso SAP'
+                        : 'Previsualizar Borrador SAP'
+                );
+            }
+        });
+    }
     function crearBorradorSapRecepcion() {
         if (!estanqueCamionCitacionId || estanqueCamionTipo !== 'RECEPCION') {
             return;
         }
-
         const boton = $('#btn_crear_borrador_sap_recepcion');
         const pesoRecepcion = normalizarTexto($('#recepcion_peso_informado').val());
         const pesoRecepcionNumero = Number(String(pesoRecepcion).replace(',', '.'));
-        if (!pesoRecepcion || !Number.isFinite(pesoRecepcionNumero) || pesoRecepcionNumero <= 0) {
+        if (
+            !estanqueCamionEsRecepcionProsesaPiso1
+            && !estanqueCamionEsRecepcionNewJerseyP1
+            && (!pesoRecepcion || !Number.isFinite(pesoRecepcionNumero) || pesoRecepcionNumero <= 0)
+        ) {
             Swal.fire({
                 icon: 'warning',
-                title: 'Peso informado requerido',
-                text: 'No se puede crear Borrador SAP: falta peso informado.'
+                title: estanqueCamionEsRecepcionProsesaCamion ? 'Cantidad informada requerida' : 'Peso informado requerido',
+                text: estanqueCamionEsRecepcionProsesaCamion
+                    ? 'No se puede crear Borrador SAP: falta cantidad informada en guia (MT).'
+                    : 'No se puede crear Borrador SAP: falta peso informado.'
             });
             return;
         }
+        const esIngresoSap = !!(estanqueCamionEsRecepcionProsesaPiso1 || estanqueCamionEsRecepcionNewJerseyP1);
         Swal.fire({
             icon: 'question',
-            title: 'Crear Borrador SAP',
-            html: 'Se creara el Borrador SAP de recepcion usando los datos guardados de la citacion.<br><small>POST /Drafts en la base SAP QA configurada.</small>',
+            title: esIngresoSap ? 'Crear Ingreso SAP' : 'Crear Borrador SAP',
+            html: esIngresoSap
+                ? 'Se creara el Ingreso SAP usando los datos guardados de la citacion.<br><small>POST /PurchaseDeliveryNotes en la base SAP configurada.</small>'
+                : 'Se creara el Borrador SAP de recepcion usando los datos guardados de la citacion.<br><small>POST /Drafts en la base SAP QA configurada.</small>',
             showCancelButton: true,
-            confirmButtonText: 'Crear Borrador SAP',
+            confirmButtonText: esIngresoSap ? 'Crear Ingreso SAP' : 'Crear Borrador SAP',
             cancelButtonText: 'Cancelar'
         }).then(function (result) {
             if (!result.isConfirmed) {
@@ -8038,11 +8540,16 @@ function inicializarConductoresIngresoCamion(limpiarActual) {
                 },
                 success: function (response) {
                     const status = response.status || {};
+                    actualizarLoteSapProsesaPiso1((((response.preview || {}).source_data || {}).lote_sap) || {});
+                    $('#btn_generar_lote_sap_prosesa_piso1').prop('disabled', true);
+                    $('#btn_generar_lote_sap_new_jersey_p1').prop('disabled', true);
                     actualizarEstadoSapRecepcionDraft(status, true, true, response);
                     Swal.fire({
                         icon: 'success',
-                        title: 'Borrador SAP creado',
-                        text: response.message || 'Borrador SAP de recepcion creado correctamente.'
+                        title: esIngresoSap ? 'Ingreso SAP creado' : 'Borrador SAP creado',
+                        text: response.message || (esIngresoSap
+                            ? 'Ingreso SAP creado correctamente.'
+                            : 'Borrador SAP de recepcion creado correctamente.')
                     });
                 },
                 error: function (xhr) {
@@ -8052,14 +8559,18 @@ function inicializarConductoresIngresoCamion(limpiarActual) {
                     Swal.fire({
                         icon: 'warning',
                         title: 'No se pudo crear',
-                        html: '<div class="text-left">' + escapeHtml(response.message || 'No fue posible crear el Borrador SAP.') + '</div>',
+                        html: '<div class="text-left">' + escapeHtml(response.message || (esIngresoSap
+                            ? 'No fue posible crear el Ingreso SAP.'
+                            : 'No fue posible crear el Borrador SAP.')) + '</div>',
                         width: '720px'
                     });
                 },
                 complete: function () {
                     const creado = ($('#btn_crear_borrador_sap_recepcion').text() || '').indexOf('creado') >= 0;
                     if (!creado) {
-                        boton.prop('disabled', false).text('Crear Borrador SAP');
+                        boton.prop('disabled', false).text(
+                            esIngresoSap ? 'Crear Ingreso SAP' : 'Crear Borrador SAP'
+                        );
                     }
                 }
             });
@@ -8106,7 +8617,11 @@ function inicializarConductoresIngresoCamion(limpiarActual) {
                     .removeClass('alert-success')
                     .addClass('alert-warning')
                     .show()
-                    .text('Guarde estanque, peso informado y confirmacion documental antes de crear el Borrador SAP.');
+                    .text(estanqueCamionEsRecepcionProsesaPiso1
+                        ? 'Guarde estanque, peso informado y confirmacion documental antes de crear el Ingreso SAP.'
+                        : (estanqueCamionEsRecepcionProsesaCamion
+                            ? 'Guarde estanque, cantidad informada en guia (MT) y confirmacion documental antes de crear el Borrador SAP.'
+                            : 'Guarde estanque, peso informado y confirmacion documental antes de crear el Borrador SAP.'));
             }
         });
 
@@ -8479,8 +8994,10 @@ function inicializarConductoresIngresoCamion(limpiarActual) {
         if (!pesoRecepcion) {
             Swal.fire({
                 icon: 'warning',
-                title: 'Peso informado requerido',
-                text: 'No se puede crear Borrador SAP: falta peso informado.'
+                title: estanqueCamionEsRecepcionProsesaCamion ? 'Cantidad informada requerida' : 'Peso informado requerido',
+                text: estanqueCamionEsRecepcionProsesaCamion
+                    ? 'No se puede crear Borrador SAP: falta cantidad informada en guia (MT).'
+                    : 'No se puede crear Borrador SAP: falta peso informado.'
             });
             return;
         }
@@ -8488,8 +9005,10 @@ function inicializarConductoresIngresoCamion(limpiarActual) {
         if (!Number.isFinite(pesoRecepcionNumero) || pesoRecepcionNumero <= 0) {
             Swal.fire({
                 icon: 'warning',
-                title: 'Peso informado invalido',
-                text: 'Debe ingresar un peso informado numerico y mayor a 0.'
+                title: estanqueCamionEsRecepcionProsesaCamion ? 'Cantidad informada invalida' : 'Peso informado invalido',
+                text: estanqueCamionEsRecepcionProsesaCamion
+                    ? 'Debe ingresar la cantidad informada en guia (MT), numerica y mayor a 0.'
+                    : 'Debe ingresar un peso informado numerico y mayor a 0.'
             });
             return;
         }
@@ -8497,8 +9016,10 @@ function inicializarConductoresIngresoCamion(limpiarActual) {
         if (pesoRecepcionNumero > 1000000) {
             Swal.fire({
                 icon: 'warning',
-                title: 'Peso informado invalido',
-                text: 'Peso informado supera el limite razonable permitido.'
+                title: estanqueCamionEsRecepcionProsesaCamion ? 'Cantidad informada invalida' : 'Peso informado invalido',
+                text: estanqueCamionEsRecepcionProsesaCamion
+                    ? 'La cantidad informada en guia (MT) supera el limite razonable permitido.'
+                    : 'Peso informado supera el limite razonable permitido.'
             });
             return;
         }
@@ -8523,7 +9044,7 @@ function inicializarConductoresIngresoCamion(limpiarActual) {
                 data: {
                     almacen: almacenRecepcion,
                     estanque: estanque,
-                    peso_informado: pesoRecepcion,
+                    peso_informado: $('#recepcion_peso_informado').attr('data-capturado-revision') === 'true' ? '' : pesoRecepcion,
                     documentos_revisados: documentosRevisados ? '1' : ''
                 },
                 headers: {
@@ -8540,6 +9061,9 @@ function inicializarConductoresIngresoCamion(limpiarActual) {
                     }
 
                     if (estanqueCamionTipo === 'RECEPCION') {
+                        if (normalizarTexto(response.peso_informado_guia)) {
+                            estanqueCamionPesoInformadoGuardado = true;
+                        }
                         if (estanqueCamionEsRecepcionEstanqueSbh && response.estanque_confirmado) {
                             estanqueCamionConfirmado = true;
                             $('#recepcion_documentos_revisados').prop('checked', true).prop('disabled', true);
@@ -8551,7 +9075,11 @@ function inicializarConductoresIngresoCamion(limpiarActual) {
                             .removeClass('alert-warning')
                             .addClass('alert-success')
                             .show()
-                            .text(estanqueCamionEsRecepcionEstanqueSbh ? 'Estanque confirmado correctamente.' : 'Datos guardados. Borrador SAP pendiente.');
+                            .text(estanqueCamionEsRecepcionEstanqueSbh
+                                ? 'Estanque confirmado correctamente.'
+                                : estanqueCamionEsRecepcionNewJerseyP1
+                                ? 'Datos guardados. Genere el lote SAP para continuar.'
+                                : 'Datos guardados. Borrador SAP pendiente.');
                     } else {
                         $('#btn_enviar_estanque').prop('disabled', false);
                     }

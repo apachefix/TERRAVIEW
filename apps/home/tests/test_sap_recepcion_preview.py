@@ -28,6 +28,7 @@ class RecepcionSbhPreviewEndpointTests(SimpleTestCase):
             CI_CTIPO='RECEPCION',
             PL_NID=SimpleNamespace(PL_CTIPOCUPO='RECEPCION'),
             SC_NID=SimpleNamespace(SE_CCODIGO='RECEPCION_ESTANQUE_SBH'),
+            detalle_operacional=SimpleNamespace(CDO_CTIPO_RECEPCION='NACIONAL'),
             save=MagicMock(),
         )
         self.preview = {
@@ -36,6 +37,7 @@ class RecepcionSbhPreviewEndpointTests(SimpleTestCase):
                 'DocumentLines': [{
                     'ItemCode': '950128',
                     'Quantity': 6,
+                    'BaseType': 22,
                     'BaseEntry': 5713,
                     'BaseLine': 0,
                     'WarehouseCode': 'TK14',
@@ -83,6 +85,7 @@ class RecepcionSbhPreviewEndpointTests(SimpleTestCase):
 
     @override_settings(SAP_RECEPCION_PREVIEW_ENABLED=True)
     def test_preview_usa_peso_guia_sin_exigir_pesaje_salida(self):
+        payload_builder = json.loads(json.dumps(self.preview['payload']))
         with self._endpoint_dependencies(), patch.object(
             views,
             'build_goods_receipt_draft_preview_from_peso_guia',
@@ -95,7 +98,10 @@ class RecepcionSbhPreviewEndpointTests(SimpleTestCase):
         self.assertTrue(payload['success'])
         self.assertTrue(payload['read_only'])
         self.assertEqual(payload['preview']['payload']['DocumentLines'][0]['Quantity'], 6)
+        self.assertEqual(payload['preview']['payload'], payload_builder)
         self.assertEqual(payload['preview']['source_data']['origen_cantidad'], 'peso_guia')
+        self.assertEqual(payload['presentation']['tipo_recepcion'], 'NACIONAL')
+        self.assertEqual(payload['presentation']['tipo_recepcion_label'], 'Nacional')
         builder.assert_called_once_with(self.citacion)
         validar_pesaje.assert_not_called()
 
@@ -162,6 +168,19 @@ class RecepcionSbhPreviewEndpointTests(SimpleTestCase):
         source = template_path.read_text(encoding='utf-8')
         self.assertIn('{% if sap_recepcion_preview_enabled %}', source)
         self.assertIn('btn-preview-sap-recepcion', source)
+
+    def test_modal_muestra_tipo_recepcion_y_documento_base_desde_payload(self):
+        template_path = (
+            Path(views.__file__).resolve().parents[1]
+            / 'templates' / 'home' / 'CITACION' / 'operacion_planta.html'
+        )
+        source = template_path.read_text(encoding='utf-8')
+
+        self.assertIn("row('Tipo recepción', presentation.tipo_recepcion_label", source)
+        self.assertIn("row('Documento base SAP', documentoBaseSap)", source)
+        self.assertIn("'22': 'Orden de Compra'", source)
+        self.assertIn("row('BaseType', baseType)", source)
+        self.assertIn("const baseType = documentLine.BaseType", source)
 
     def test_flags_recepcion_y_despacho_permanecen_independientes(self):
         source = getsource(views)
@@ -236,6 +255,7 @@ class RecepcionSbhPreviewBuilderTests(SimpleTestCase):
         line = preview['payload']['DocumentLines'][0]
         self.assertEqual(preview['source_data']['origen_cantidad'], 'peso_guia')
         self.assertEqual(line['Quantity'], 6)
+        self.assertEqual(line['BaseType'], 22)
         self.assertEqual(line['BaseEntry'], 5713)
         self.assertEqual(line['BaseLine'], 0)
         client.get_json.assert_called_once_with('PurchaseOrders(5713)', 'PurchaseOrders(5713)')

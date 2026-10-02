@@ -11,7 +11,7 @@ import os
 import re
 import unicodedata
 from copy import deepcopy
-from datetime import date
+from datetime import date, datetime
 from decimal import Decimal, InvalidOperation
 
 from django.conf import settings
@@ -31,6 +31,7 @@ from .models import (
     CITACION_DESPACHO_DRAFT_SAP,
     CITACION_DESPACHO_ASIGNACION_SAP,
     CITACION_DESPACHO_DETALLE,
+    CITACION_DESPACHO_ACUERDO_LOTE,
     DATO_OPERACION,
     OPERACION_PLANTA_LOG,
 )
@@ -109,6 +110,18 @@ def fecha_iso(valor):
     if hasattr(valor, "isoformat"):
         return valor.isoformat()
     return str(valor).strip()
+
+
+def fecha_ddmmyyyy(valor):
+    if not valor:
+        return ""
+    if hasattr(valor, "strftime"):
+        return valor.strftime("%d/%m/%Y")
+    texto = str(valor).strip()
+    try:
+        return datetime.strptime(texto[:10], "%Y-%m-%d").strftime("%d/%m/%Y")
+    except ValueError:
+        return texto
 
 
 def hora_hhmm(valor):
@@ -326,6 +339,7 @@ def obtener_pesaje_real_despacho(citacion):
     entrada_ticket, error_entrada = _datos_semanticos_ticket_despacho(citacion, "ENT")
     salida_ticket, error_salida = _datos_semanticos_ticket_despacho(citacion, "SAL")
     errores = [error for error in (error_entrada, error_salida) if error]
+    warnings = []
 
     entrada_registrada = decimal_or_none(entrada_ticket.get("peso_entrada_kg"))
     entrada_en_salida = decimal_or_none(salida_ticket.get("peso_entrada_kg"))
@@ -335,8 +349,9 @@ def obtener_pesaje_real_despacho(citacion):
     fuente = texto_o_primero(salida_ticket.get("fuente_peso_neto"))
 
     if entrada_registrada is not None and entrada_en_salida is not None and entrada_registrada != entrada_en_salida:
-        errores.append(
-            "El peso de entrada del ticket ENT no coincide con la primera pesada del ticket SAL."
+        warnings.append(
+            "Advertencia: las pesadas de los tickets ENT/SAL no coinciden entre si, "
+            "pero el peso neto despachado fue calculado correctamente."
         )
     if entrada is None:
         errores.append("No se pudo determinar el peso de entrada con evidencia del ticket.")
@@ -367,6 +382,7 @@ def obtener_pesaje_real_despacho(citacion):
         "calculado_desde_pesadas": "Calculado desde pesadas del ticket",
     }
     return {
+        'warnings': warnings,
         "peso_entrada_kg": entrada,
         "peso_entrada_ticket_ent_kg": entrada_registrada,
         "peso_entrada_ticket_sal_kg": entrada_en_salida,
@@ -560,8 +576,46 @@ def _auditoria_update_operacional(draft):
     return auditoria if isinstance(auditoria, dict) else {}
 
 
+def _validar_disponibilidad_lotes_guardada(citacion, documentos):
+    """Bloquea si la cantidad final supera el stock snapshot de los lotes elegidos."""
+    lotes = list(
+        CITACION_DESPACHO_ACUERDO_LOTE.objects
+        .select_related("estanque__acuerdo")
+        .filter(estanque__acuerdo__carga__CI_NID=citacion)
+    )
+    stock_por_clave = {}
+    for lote in lotes:
+        clave = (
+            str(lote.estanque.item_code),
+            str(lote.estanque.warehouse_code),
+            str(lote.batch_number),
+        )
+        stock_por_clave[clave] = max(
+            stock_por_clave.get(clave, Decimal("0")),
+            decimal_or_none(lote.stock_snapshot) or Decimal("0"),
+        )
+    solicitadas = {}
+    for documento in documentos or []:
+        for linea in (documento.get('payload') or {}).get('DocumentLines') or []:
+            for lote in linea.get('BatchNumbers') or []:
+                clave = (
+                    str(linea.get("ItemCode") or ""),
+                    str(linea.get("WarehouseCode") or ""),
+                    str(lote.get("BatchNumber") or ""),
+                )
+                solicitadas[clave] = solicitadas.get(clave, Decimal("0")) + (
+                    decimal_or_none(lote.get("Quantity")) or Decimal("0")
+                )
+    for clave, cantidad in solicitadas.items():
+        if cantidad > stock_por_clave.get(clave, Decimal("0")):
+            raise ValueError(
+                "No existe disponibilidad suficiente en los lotes SAP para cubrir la cantidad real despachada."
+            )
+
+
 def construir_preview_update_drafts_operacionales(citacion):
     pesaje = obtener_pesaje_real_despacho(citacion)
+    warnings = list(pesaje.get('warnings') or [])
     errors = list(pesaje["errors"])
     entrada = pesaje["peso_entrada_kg"]
     salida = pesaje["peso_salida_bruto_kg"]
@@ -632,7 +686,13 @@ def construir_preview_update_drafts_operacionales(citacion):
         total_final = sum((decimal_or_none(item["cantidad_final"]) for item in documentos), Decimal("0"))
         if total_final != neto_mt:
             errors.append("La suma final de documentos SAP no coincide con el peso real despachado.")
+        else:
+            try:
+                _validar_disponibilidad_lotes_guardada(citacion, documentos)
+            except ValueError as exc:
+                errors.append(str(exc))
     return {
+        "warnings": warnings,
         "aplicable": bool(carga),
         "errors": errors,
         "source_data": {
@@ -697,6 +757,7 @@ def _sanitizar_datos_preview(valor):
 def construir_diagnostico_preview_update_drafts_operacionales(citacion):
     """Construye el diagnostico del PATCH operacional sin abrir sesion ni escribir en SAP/DB."""
     preview_real = construir_preview_update_drafts_operacionales(citacion)
+    warnings = list(preview_real.get("warnings") or [])
     source = preview_real.get("source_data") or {}
     carga = (
         CITACION_DESPACHO_CARGA.objects
@@ -813,8 +874,13 @@ def construir_diagnostico_preview_update_drafts_operacionales(citacion):
         if not correcto:
             motivos.append(f"Validacion fallida: {clave.replace('_', ' ')}.")
     return json_safe({
+        "warnings": warnings,
         "success": not motivos,
-        "resultado": "PREVIEW V\u00c1LIDO" if not motivos else "PREVIEW INV\u00c1LIDO",
+        "resultado": (
+            "PREVIEW V\u00c1LIDO CON ADVERTENCIAS"
+            if not motivos and warnings
+            else ("PREVIEW V\u00c1LIDO" if not motivos else "PREVIEW INV\u00c1LIDO")
+        ),
         "citacion": citacion.pk,
         "documentos": documentos,
         "validacion_estructural": validacion,
@@ -871,7 +937,13 @@ def _get_sap_despacho_update_status_operacional(citacion):
     }
 
 
-def actualizar_borradores_sap_despacho_operacionales(citacion, usuario, allow_retry=False, client_factory=SapServiceLayerClient):
+def actualizar_borradores_sap_despacho_operacionales(
+    citacion,
+    usuario,
+    allow_retry=False,
+    client_factory=SapServiceLayerClient,
+    revalidar_disponibilidad=False,
+):
     preview = construir_preview_update_drafts_operacionales(citacion)
     if preview.get("errors") or not preview.get("documentos"):
         return {
@@ -898,6 +970,25 @@ def actualizar_borradores_sap_despacho_operacionales(citacion, usuario, allow_re
             "preview": preview,
             "status": _get_sap_despacho_update_status_operacional(citacion),
         }
+    if revalidar_disponibilidad:
+        from .despacho_carga import CargaInvalida
+        from .sap_despacho_envio import validar_disponibilidad_final_despacho
+
+        carga = CITACION_DESPACHO_CARGA.objects.filter(CI_NID=citacion).first()
+        try:
+            preview["disponibilidad_lotes"] = validar_disponibilidad_final_despacho(
+                citacion,
+                carga,
+                preview["documentos"],
+            )
+        except CargaInvalida as exc:
+            preview["errors"].append(str(exc))
+            return {
+                "success": False,
+                "message": str(exc),
+                "preview": preview,
+                "status": _get_sap_despacho_update_status_operacional(citacion),
+            }
 
     client = client_factory(load_config(citacion.EP_NID_id, for_write=True))
     resultados = []
@@ -942,7 +1033,10 @@ def actualizar_borradores_sap_despacho_operacionales(citacion, usuario, allow_re
                         "status": _get_sap_despacho_update_status_operacional(citacion)}
     finally:
         client.logout()
-    return {"success": True, "message": "Documentos SAP actualizados con el peso real despachado.",
+    mensaje = "Documentos SAP actualizados con el peso real despachado."
+    if preview.get("warnings"):
+        mensaje = f"{mensaje} {' '.join(preview['warnings'])}"
+    return {"success": True, "message": mensaje, "warnings": preview.get("warnings") or [],
             "preview": preview, "resultados": resultados,
             "status": _get_sap_despacho_update_status_operacional(citacion)}
 
@@ -1799,9 +1893,19 @@ def crear_borrador_sap_despacho(citacion, usuario, allow_duplicate=False):
         ),
     }
 
-def actualizar_borrador_sap_despacho(citacion, usuario, allow_retry=False):
+def actualizar_borrador_sap_despacho(
+    citacion,
+    usuario,
+    allow_retry=False,
+    revalidar_disponibilidad=False,
+):
     if CITACION_DESPACHO_CARGA.objects.filter(CI_NID=citacion).exists():
-        return actualizar_borradores_sap_despacho_operacionales(citacion, usuario, allow_retry=allow_retry)
+        return actualizar_borradores_sap_despacho_operacionales(
+            citacion,
+            usuario,
+            allow_retry=allow_retry,
+            revalidar_disponibilidad=revalidar_disponibilidad,
+        )
     existing_status = get_sap_despacho_update_status(citacion)
 
     if existing_status.get("updated") and not allow_retry:
@@ -2557,6 +2661,7 @@ def guardar_detalle_despacho_citacion(citacion, data, usuario=None):
             "CDD_CPATENTE": texto_o_primero(data.get("patente"), observacion_legacy.get("patente")),
             "CDD_CORDEN_CARGA": texto_o_primero(data.get("orden_carga"), observacion_legacy.get("orden_carga")),
             "CDD_FFECHA_DESPACHO": data.get("fecha_despacho") or None,
+            "CDD_FFECHA_LLEGADA_DESTINO": data.get("fecha_llegada_destino") or None,
             "CDD_FHORA_LLEGADA_PLANTA": data.get("hora_llegada_planta") or None,
             "CDD_FHORA_LLEGADA_DESTINO": data.get("hora_llegada_destino") or None,
             "CDD_CVENTANA_HORARIA_DESPACHO": texto_o_primero(data.get("ventana_horaria_despacho"), data.get("hora_llegada_planta"), observacion_legacy.get("ventana_horaria")),
@@ -2649,6 +2754,8 @@ def detalle_despacho_resumen_dict(citacion, detalle_operacional=None):
         "patente": campo("CDD_CPATENTE", legacy_key="patente", operacional_key="bl"),
         "orden_carga": campo("CDD_CORDEN_CARGA", legacy_key="orden_carga"),
         "fecha_despacho": fecha_iso(getattr(detalle, "CDD_FFECHA_DESPACHO", None) if detalle else None),
+        "fecha_llegada_destino": fecha_iso(getattr(detalle, "CDD_FFECHA_LLEGADA_DESTINO", None) if detalle else None),
+        "fecha_llegada_destino_display": fecha_ddmmyyyy(getattr(detalle, "CDD_FFECHA_LLEGADA_DESTINO", None) if detalle else None),
         "hora_llegada_planta": hora_hhmm(getattr(detalle, "CDD_FHORA_LLEGADA_PLANTA", None) if detalle else None) or campo("CDD_CVENTANA_HORARIA_DESPACHO", legacy_key="ventana_horaria"),
         "hora_llegada_destino": hora_hhmm(getattr(detalle, "CDD_FHORA_LLEGADA_DESTINO", None) if detalle else None),
         "ventana_horaria_despacho": campo("CDD_CVENTANA_HORARIA_DESPACHO", legacy_key="ventana_horaria"),

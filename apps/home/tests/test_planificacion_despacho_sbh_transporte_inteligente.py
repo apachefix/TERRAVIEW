@@ -48,6 +48,9 @@ class TransporteInteligenteDespachoSbhTests(TestCase):
         cls.calbuco = COMUNA.objects.create(
             PV_NID=provincia, COM_CNOMBRE='Calbuco', COM_CCODIGO='CAL'
         )
+        cls.castro = COMUNA.objects.create(
+            PV_NID=provincia, COM_CNOMBRE='Castro', COM_CCODIGO='CAS'
+        )
         cls.llanquihue = COMUNA.objects.create(
             PV_NID=provincia, COM_CNOMBRE='Llanquihue', COM_CCODIGO='LLA'
         )
@@ -69,7 +72,11 @@ class TransporteInteligenteDespachoSbhTests(TestCase):
         cls.ruta_71 = ruta(71, 'CORONEL -> CALBUCO (PARGUA)', cls.coronel, cls.calbuco)
         cls.ruta_99 = ruta(99, 'CORONEL -> PARGUA (ACEITES)', cls.coronel, cls.calbuco)
         cls.ruta_calbuco = ruta(100, 'CORONEL -> CALBUCO', cls.coronel, cls.calbuco)
-        cls.ruta_coronel = ruta(101, 'CORONEL LOCAL', cls.coronel, cls.coronel)
+        cls.ruta_72 = ruta(72, 'CORONEL -> CASTRO', cls.coronel, cls.castro)
+        cls.ruta_101 = ruta(
+            101, 'CORONEL -> CASTRO (ACEITES)', cls.coronel, cls.castro
+        )
+        cls.ruta_coronel = ruta(104, 'CORONEL LOCAL', cls.coronel, cls.coronel)
         cls.ruta_deshabilitada = ruta(
             102, 'CORONEL -> OSORNO INACTIVA', cls.coronel, cls.osorno, habilitada=False
         )
@@ -115,6 +122,15 @@ class TransporteInteligenteDespachoSbhTests(TestCase):
         tarifa(909, cls.ruta_calbuco, cls.transportista_1, 100000)
         tarifa(910, cls.ruta_coronel, cls.transportista_1, 150000)
         tarifa(911, cls.ruta_empresa_1, cls.transportista_empresa_1, 1, empresa=cls.terramar)
+        cls.tarifa_castro_300 = tarifa(
+            912, cls.ruta_72, cls.transportista_1, 300000
+        )
+        cls.tarifa_castro_100 = tarifa(
+            913, cls.ruta_101, cls.transportista_2, 100000
+        )
+        cls.tarifa_castro_200 = tarifa(
+            914, cls.ruta_72, cls.transportista_2, 200000
+        )
         tarifa(1080, cls.ruta_81, cls.transportista_1, 26880)
         tarifa(1112, cls.ruta_81, cls.transportista_1, 27015)
         tarifa(1134, cls.ruta_81, cls.transportista_1, 25000)
@@ -126,11 +142,39 @@ class TransporteInteligenteDespachoSbhTests(TestCase):
         )
 
     @staticmethod
-    def direccion(codigo, ciudad=''):
+    def direccion(codigo, ciudad='', comuna_sap=''):
         return {
             'cliente_codigo': 'C001', 'direccion_codigo': codigo,
             'tipo_direccion': 'S', 'calle': '', 'ciudad': ciudad,
+            'comuna_sap': comuna_sap,
         }
+
+    def test_castro_resuelve_county_antes_que_city(self):
+        destino = resolver_destino_despacho_sap(
+            self.direccion('DESTINO CASTRO', ciudad='CHILOE', comuna_sap='CASTRO')
+        )
+        self.assertEqual(destino['comuna_id'], self.castro.id)
+        self.assertEqual(destino['comuna_nombre'], 'Castro')
+
+    def test_county_valido_tiene_prioridad_sobre_city(self):
+        destino = resolver_destino_despacho_sap(
+            self.direccion('DESTINO DESCONOCIDO', ciudad='Osorno', comuna_sap='Castro')
+        )
+        self.assertEqual(destino['comuna_id'], self.castro.id)
+
+    def test_county_vacio_intenta_address_sin_prefijo(self):
+        destino = resolver_destino_despacho_sap(
+            self.direccion('  destino   cástro  ', ciudad='CHILOE')
+        )
+        self.assertEqual(destino['comuna_id'], self.castro.id)
+
+    def test_county_y_address_fallidos_intentan_city(self):
+        destino = resolver_destino_despacho_sap(
+            self.direccion(
+                'DESTINO DESCONOCIDO', ciudad='Osorno', comuna_sap='DESCONOCIDA'
+            )
+        )
+        self.assertEqual(destino['comuna_id'], self.osorno.id)
 
     def test_osorno_solo_considera_origen_coronel_y_ordena_sin_deduplicar(self):
         destino = resolver_destino_despacho_sap(self.direccion('OSORNO'))
@@ -140,7 +184,9 @@ class TransporteInteligenteDespachoSbhTests(TestCase):
         self.assertNotIn(73, {item['ruta_id'] for item in alternativas})
 
     def test_pargua_resuelve_calbuco_y_restringe_rutas_al_alias(self):
-        destino = resolver_destino_despacho_sap(self.direccion('PARGUA'))
+        destino = resolver_destino_despacho_sap(
+            self.direccion('PARGUA', ciudad='Osorno', comuna_sap='Osorno')
+        )
         self.assertEqual(destino['comuna_id'], self.calbuco.id)
         self.assertEqual(destino['alias_ruta'], 'PARGUA')
         alternativas = obtener_alternativas_transporte_sbh(destino)
@@ -150,7 +196,43 @@ class TransporteInteligenteDespachoSbhTests(TestCase):
     def test_coronel_usa_inicio_y_termino_coronel(self):
         destino = resolver_destino_despacho_sap(self.direccion('CORONEL'))
         alternativas = obtener_alternativas_transporte_sbh(destino)
-        self.assertEqual([item['ruta_id'] for item in alternativas], [101])
+        self.assertEqual([item['ruta_id'] for item in alternativas], [104])
+
+    def test_castro_encuentra_rutas_72_y_101_ordenadas_por_valor(self):
+        destino = resolver_destino_despacho_sap(
+            self.direccion('DESTINO CASTRO', ciudad='CHILOE', comuna_sap='CASTRO')
+        )
+        alternativas = obtener_alternativas_transporte_sbh(destino)
+        self.assertEqual({item['ruta_id'] for item in alternativas}, {72, 101})
+        self.assertEqual(
+            [item['tarifa_id'] for item in alternativas], [913, 914, 912]
+        )
+        self.assertEqual(
+            [Decimal(item['tarifa_valor']) for item in alternativas],
+            sorted(Decimal(item['tarifa_valor']) for item in alternativas),
+        )
+
+    def test_endpoint_castro_devuelve_alternativas_no_vacias(self):
+        direccion = self.direccion(
+            'DESTINO CASTRO', ciudad='CHILOE', comuna_sap='CASTRO'
+        )
+        direccion['cliente_codigo'] = 'C96677260'
+        request = RequestFactory().get('/api/despacho-sbh/alternativas-transporte/', {
+            'cliente_codigo': 'C96677260', 'direccion_codigo': 'DESTINO CASTRO',
+        })
+        request.user = self.usuario
+        with patch('apps.home.views.Verificar_empresa', return_value=2), patch(
+            'apps.home.views._usuario_puede_consultar_transporte_despacho_sbh', return_value=True,
+        ), patch(
+            'apps.home.views.consultar_direcciones_despacho_sap', return_value=[direccion],
+        ):
+            response = views.API_DESPACHO_SBH_ALTERNATIVAS_TRANSPORTE(request)
+        payload = json.loads(response.content)
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(payload['alternativas'])
+        self.assertEqual(
+            {item['ruta_id'] for item in payload['alternativas']}, {72, 101}
+        )
 
     def test_excluye_anomalias_inactivos_y_empresa_uno(self):
         destino = resolver_destino_despacho_sap(self.direccion('OSORNO'))

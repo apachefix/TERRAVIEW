@@ -116,6 +116,7 @@ class PersistenciaPlanificacionDespachoSbhTests(TestCase):
                 'transportado_por': 'Cliente',
                 'fecha_llegada': '2026-09-10',
                 'fecha_despacho': '2026-09-10',
+                'fecha_llegada_destino': '2026-09-11',
                 'hora_llegada_planta': '10:00',
                 'hora_llegada_destino': '12:00',
                 'orden_carga': '1',
@@ -232,11 +233,40 @@ class PersistenciaPlanificacionDespachoSbhTests(TestCase):
             ['BRETTI', 'PASCAL', 'OCEAN TRUCK', ''],
         )
         self.assertEqual([detalle.CDD_CCONDICION_ENTREGA for detalle in detalles], ['Terramar', 'Terramar', 'Terramar', 'Cliente'])
+        self.assertEqual(
+            [detalle.CDD_FFECHA_LLEGADA_DESTINO.isoformat() for detalle in detalles],
+            ['2026-09-11'] * 4,
+        )
+        self.assertEqual(
+            [detalle.CDD_FHORA_LLEGADA_DESTINO.strftime('%H:%M') for detalle in detalles],
+            ['12:00'] * 4,
+        )
         self.assertEqual([detalle.CDD_CCONDUCTOR for detalle in detalles], ['', 'Conductor Dos', '', ''])
         self.assertEqual([detalle.CDD_CPATENTE for detalle in detalles], ['', '', 'ABCD12', ''])
         self.assertEqual(CITACION_DESPACHO_ASIGNACION_SAP.objects.filter(CDD_NID__CI_NID__PL_NID=planificacion).count(), 4)
         self.assertEqual(CONDUCTOR.objects.count(), conductores_antes)
         self.assertEqual(CAMION.objects.count(), camiones_antes)
+
+    def test_nueva_planificacion_sin_fecha_llegada_destino_se_rechaza(self):
+        borradores = self.borradores()
+        for borrador in borradores:
+            borrador.pop('fecha_llegada_destino')
+        planes_antes = PLANIFICACION.objects.count()
+        citaciones_antes = CITACION.objects.count()
+        parches = self.parches_comunes()
+
+        with parches[0], parches[1], parches[2], parches[3], parches[4]:
+            response = views.CREAR_PLANIFICACION_CITACION(
+                self.request(borradores)
+            )
+
+        self.assertEqual(response.status_code, 400)
+        self.assertIn(
+            'fecha llegada a destino',
+            json.loads(response.content)['message'],
+        )
+        self.assertEqual(PLANIFICACION.objects.count(), planes_antes)
+        self.assertEqual(CITACION.objects.count(), citaciones_antes)
 
     def test_fallo_en_tercera_citacion_revierte_lote_completo(self):
         planes_antes = PLANIFICACION.objects.count()

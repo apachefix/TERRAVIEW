@@ -15,6 +15,7 @@ from apps.home.models import (
     ETAPA,
     OPERACION_PLANTA_LOG,
     PLANIFICACION,
+    RESULTADO_CALIDAD_HISTORIAL,
     RESULTADO_CALIDAD_OPERACION,
     SECUENCIA,
     SYSLOGGER,
@@ -25,7 +26,9 @@ from apps.home.views import (
     EVENTO_RECEPCION_BODEGA_EXTERNA_REGRESO,
     EVENTO_RECEPCION_BODEGA_EXTERNA_SALIDA,
     PASO_CICLO_DESCARGA,
+    _calidad_inicia_al_finalizar_toma_muestra,
     _finalizar_ciclo_recepcion_bodega_externa,
+    _finalizar_tiempo_toma_muestra,
     _iniciar_ciclo_recepcion_bodega_externa,
     _payload_ciclo_recepcion_bodega_externa,
     _registrar_toma_muestra_accion,
@@ -43,6 +46,7 @@ class CicloRecepcionBodegaExternaTestCase(TestCase):
         cls.asistente_cd = User.objects.create_user('Asistente_C_D', password='test')
         cls.guardia = User.objects.create_user('Guardia_Porteria', password='test')
         cls.empresa = EMPRESA.objects.create(
+            id=2,
             EP_CRAZONSOCIAL='ACEITES SBH',
             EP_CRUT='99-9',
             EP_CBASEDATOS='TEST',
@@ -326,18 +330,154 @@ class CicloRecepcionBodegaExternaTestCase(TestCase):
         self.citacion.save(update_fields=['CI_CESTADO', 'CI_FFECHATERMINO'])
         return fecha_termino
 
-    def test_muestra_enviada_inicia_calidad_idempotente(self):
-        _registrar_toma_muestra_accion(
-            self.citacion, self.sala_control, 'RECEPCION BODEGA EXTERNA'
-        )
-        _registrar_toma_muestra_accion(
-            self.citacion, self.sala_control, 'RECEPCION BODEGA EXTERNA'
+    def _preparar_toma_muestra_activa(self):
+        OPERACION_PLANTA_LOG.objects.filter(
+            CI_NID=self.citacion,
+            OPL_CPASO='Toma de muestra',
+        ).delete()
+        self.habilitar_operacion_planta()
+        self.client.force_login(self.asistente_cd)
+
+    def _url_accion_toma_muestra(self):
+        return '{}?_empresa_id={}'.format(
+            reverse(
+                'ajax_operacion_planta_registrar_accion_toma_muestra',
+                args=[self.citacion.id],
+            ),
+            self.empresa.id,
         )
 
+    def _url_finalizar_toma_muestra(self):
+        return '{}?_empresa_id={}'.format(
+            reverse('operacion_planta_guardar_paso', args=[self.citacion.id]),
+            self.empresa.id,
+        )
+
+    def test_muestra_enviada_no_inicia_calidad_antes_de_finalizar(self):
+        self._preparar_toma_muestra_activa()
+
+        response = self.client.post(self._url_accion_toma_muestra())
+        response_repetido = self.client.post(self._url_accion_toma_muestra())
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response_repetido.status_code, 200)
+        self.assertFalse(
+            RESULTADO_CALIDAD_OPERACION.objects.filter(CI_NID=self.citacion).exists()
+        )
+        self.assertFalse(
+            RESULTADO_CALIDAD_HISTORIAL.objects.filter(
+                CI_NID=self.citacion,
+                RCH_CEVENTO='CALIDAD_INICIO',
+            ).exists()
+        )
+        self.assertFalse(
+            DATO_OPERACION.objects.filter(
+                CI_NID=self.citacion,
+                CAMP_NID__CA_CCODIGO='OP_RESULTADO_CALIDAD',
+            ).exists()
+        )
+
+        recarga = self.client.get(
+            reverse('operacion_planta_citacion', args=[self.citacion.id]),
+            {'_empresa_id': self.empresa.id},
+        )
+        self.assertEqual(recarga.status_code, 200)
+        self.assertFalse(
+            RESULTADO_CALIDAD_OPERACION.objects.filter(CI_NID=self.citacion).exists()
+        )
+        self.assertFalse(
+            RESULTADO_CALIDAD_HISTORIAL.objects.filter(
+                CI_NID=self.citacion,
+                RCH_CEVENTO='CALIDAD_INICIO',
+            ).exists()
+        )
+        pasos = {paso['nombre']: paso for paso in recarga.context['pasos']}
+        self.assertFalse(pasos['Toma de muestra']['calidad_paralela'])
+        self.assertFalse(pasos['Toma de muestra']['requiere_resultado_calidad'])
+
+    def test_finalizar_toma_inicia_calidad_con_mismo_timestamp_y_es_idempotente(self):
+        self._preparar_toma_muestra_activa()
+        inicio = timezone.now() - timedelta(minutes=3)
+        fin = inicio + timedelta(minutes=3)
+
+        with patch('apps.home.views.timezone.now', return_value=inicio):
+            response_inicio = self.client.post(self._url_accion_toma_muestra())
+        self.assertEqual(response_inicio.status_code, 200)
+        self.assertFalse(
+            RESULTADO_CALIDAD_OPERACION.objects.filter(CI_NID=self.citacion).exists()
+        )
+
+        with patch('apps.home.views.timezone.now', return_value=fin):
+            response_fin = self.client.post(
+                self._url_finalizar_toma_muestra(),
+                {'paso': 'Toma de muestra'},
+            )
+
+        self.assertEqual(response_fin.status_code, 200)
         calidad = RESULTADO_CALIDAD_OPERACION.objects.get(CI_NID=self.citacion)
-        self.assertEqual(calidad.RCO_CESTADO, RESULTADO_CALIDAD_OPERACION.Estado.PENDIENTE)
-        self.assertEqual(RESULTADO_CALIDAD_OPERACION.objects.filter(CI_NID=self.citacion).count(), 1)
+        self.assertEqual(
+            calidad.RCO_CESTADO,
+            RESULTADO_CALIDAD_OPERACION.Estado.PENDIENTE,
+        )
+        self.assertEqual(
+            calidad.RCO_CORIGEN,
+            RESULTADO_CALIDAD_OPERACION.Origen.OPERACION_PLANTA,
+        )
+        self.assertEqual(calidad.RCO_FINICIO, fin)
+        self.assertEqual(calidad.US_NID, self.asistente_cd)
+        self.assertEqual(
+            calidad.RCO_COBSERVACION,
+            'En espera de resultados de análisis',
+        )
+        historial_inicio = calidad.historial.get(RCH_CEVENTO='CALIDAD_INICIO')
+        self.assertEqual(historial_inicio.RCH_FFECHAREGISTRO, fin)
+
+        response_repetido = self.client.post(
+            self._url_finalizar_toma_muestra(),
+            {'paso': 'Toma de muestra'},
+        )
+        self.assertEqual(response_repetido.status_code, 409)
+        calidad.refresh_from_db()
+        self.assertEqual(calidad.RCO_FINICIO, fin)
+        self.assertEqual(
+            RESULTADO_CALIDAD_OPERACION.objects.filter(CI_NID=self.citacion).count(),
+            1,
+        )
         self.assertEqual(calidad.historial.filter(RCH_CEVENTO='CALIDAD_INICIO').count(), 1)
+
+        recarga = self.client.get(
+            reverse('operacion_planta_citacion', args=[self.citacion.id]),
+            {'_empresa_id': self.empresa.id},
+        )
+        self.assertEqual(recarga.status_code, 200)
+        calidad.refresh_from_db()
+        self.assertEqual(calidad.RCO_FINICIO, fin)
+        self.assertEqual(calidad.historial.filter(RCH_CEVENTO='CALIDAD_INICIO').count(), 1)
+        pasos = {paso['nombre']: paso for paso in recarga.context['pasos']}
+        self.assertTrue(pasos['Toma de muestra']['calidad_paralela'])
+        self.assertTrue(pasos['Toma de muestra']['requiere_resultado_calidad'])
+
+    def test_diferimiento_calidad_esta_aislado_a_empresa_2_y_flujo_exacto(self):
+        self.assertTrue(_calidad_inicia_al_finalizar_toma_muestra(self.citacion))
+
+        for codigo, tipo in (
+            ('RECEPCION_ESTANQUE_SBH', 'RECEPCION'),
+            ('RECEPCION_PROSESA_PISO_1', 'RECEPCION'),
+            ('RECEPCION_PROSESA_PISO_2', 'RECEPCION'),
+            ('RECEPCION_TRASVASIJE', 'RECEPCION'),
+            ('RECEPCION_BODEGA_EXTERNA', 'DESPACHO'),
+        ):
+            with self.subTest(codigo=codigo, tipo=tipo):
+                self.citacion.SC_NID.SE_CCODIGO = codigo
+                self.citacion.CI_CTIPO = tipo
+                self.assertFalse(
+                    _calidad_inicia_al_finalizar_toma_muestra(self.citacion)
+                )
+
+        self.citacion.SC_NID.SE_CCODIGO = 'RECEPCION_BODEGA_EXTERNA'
+        self.citacion.CI_CTIPO = 'RECEPCION'
+        self.citacion.EP_NID_id = 1
+        self.assertFalse(_calidad_inicia_al_finalizar_toma_muestra(self.citacion))
 
     def test_a_calidad_aprobada_antes_del_retorno_no_bloquea(self):
         calidad, _ = asegurar_calidad_iniciada(self.citacion, self.sala_control)
@@ -495,13 +635,28 @@ class CicloRecepcionBodegaExternaTestCase(TestCase):
         self.assertNotIn('Analisis y calidad', nombres_especiales)
         self.assertNotIn('Resultado Calidad', nombres_especiales)
         self.assertIn(PASO_CICLO_DESCARGA, nombres_especiales)
-    def test_panel_toma_muestra_muestra_calidad_paralela_y_viaje_sin_ciclo_visible(self):
+    def test_panel_toma_muestra_muestra_calidad_paralela_y_relojes_compartidos(self):
         _registrar_toma_muestra_accion(
             self.citacion,
             self.sala_control,
             'RECEPCION BODEGA EXTERNA',
         )
-        RESULTADO_CALIDAD_OPERACION.objects.filter(CI_NID=self.citacion).delete()
+        fin_toma = timezone.now()
+        with patch('apps.home.views.timezone.now', return_value=fin_toma):
+            _finalizar_tiempo_toma_muestra(
+                self.citacion,
+                self.sala_control,
+                'RECEPCION BODEGA EXTERNA',
+            )
+        asegurar_calidad_iniciada(
+            self.citacion,
+            self.sala_control,
+            fecha_inicio=fin_toma,
+        )
+        _iniciar_ciclo_recepcion_bodega_externa(
+            self.citacion,
+            self.asistente_cd,
+        )
         SYSLOGGER.objects.create(
             US_NID=self.guardia,
             EP_NID=self.empresa,
@@ -535,7 +690,10 @@ class CicloRecepcionBodegaExternaTestCase(TestCase):
             response,
             'Responsable inicio: Asistente_C_D | Responsable cierre: Guardia Porteria',
         )
-        self.assertContains(response, 'AUTORIZAR SALIDA A BODEGA EXTERNA')
+        self.assertContains(response, 'Camion en Bodega Externa')
+        self.assertContains(response, '<svg class="op-vapor-hourglass', count=3)
+        self.assertContains(response, 'op-vapor-hourglass is-finished', count=1)
+        self.assertContains(response, 'op-vapor-hourglass is-active', count=2)
         self.assertTrue(pasos['Toma de muestra']['puede_iniciar_ciclo_bodega_externa'])
 
         self.client.force_login(self.sala_control)

@@ -469,6 +469,70 @@ class CargaOperacionalTests(TestCase):
         )
         self.assertEqual(len(config['acuerdos']), 2)
 
+    def test_preview_modal_un_acuerdo_27_5_reutiliza_builder_sin_post(self):
+        self.detalle.asignaciones_sap.filter(CDAS_CSAP_ABS_ID='3584').delete()
+        data = self.data()
+        data['acuerdos'] = data['acuerdos'][:1]
+        data['cantidad_total'] = data['acuerdos'][0]['cantidad'] = '27.5'
+        data['acuerdos'][0]['estanques'] = [
+            self.bloque(cantidad='27.5', lotes=[('A', '20'), ('B', '7.5')])
+        ]
+        service.guardar_carga(self.citacion, data, self.user)
+        self.preparar_etapa()
+        draft = CITACION_DESPACHO_DRAFT_SAP.objects.get(acuerdo__carga__CI_NID=self.citacion)
+        estado_antes = (draft.estado, draft.docentry, draft.intentos)
+        version_antes = CITACION_DESPACHO_CARGA.objects.get(CI_NID=self.citacion).version
+        lotes_antes = list(CITACION_DESPACHO_ACUERDO_LOTE.objects.filter(
+            estanque__acuerdo__carga__CI_NID=self.citacion
+        ).values_list('batch_number', 'cantidad'))
+        with self.settings(SAP_DESPACHO_PREVIEW_ENABLED=True), patch.object(
+            envio, 'SapServiceLayerClient'
+        ) as sap, patch(
+            'apps.home.sap_despacho_payload._datos_operacion',
+            return_value={'REV_TIPO_DESPACHO': '1', 'REV_TIPO_TRASLADO': '2'},
+        ), patch.object(
+            envio, 'construir_payload_despacho', wraps=envio.construir_payload_despacho
+        ) as builder:
+            response = self.request_modal('post', {'preview_despacho_sap': '1'})
+        self.assertEqual(response.status_code, 200, response.content)
+        preview = json.loads(response.content)
+        self.assertTrue(preview['read_only'])
+        self.assertEqual(preview['cantidad_borradores'], 1)
+        self.assertEqual(preview['endpoint_sap'], '/Drafts')
+        payload = preview['borradores'][0]['payload']
+        self.assertEqual(payload['DocumentLines'][0]['Quantity'], 27.5)
+        self.assertEqual(payload['DocumentLines'][0]['BatchNumbers'], [
+            {'BatchNumber': 'A', 'Quantity': 20.0},
+            {'BatchNumber': 'B', 'Quantity': 7.5},
+        ])
+        self.assertEqual(payload['DocumentLines'][0]['WarehouseCode'], 'TK01')
+        builder.assert_called_once()
+        sap.assert_not_called()
+        draft.refresh_from_db()
+        self.assertEqual((draft.estado, draft.docentry, draft.intentos), estado_antes)
+        self.assertEqual(CITACION_DESPACHO_CARGA.objects.get(CI_NID=self.citacion).version, version_antes)
+        self.assertEqual(list(CITACION_DESPACHO_ACUERDO_LOTE.objects.filter(
+            estanque__acuerdo__carga__CI_NID=self.citacion
+        ).values_list('batch_number', 'cantidad')), lotes_antes)
+
+    def test_preview_modal_flag_desactivada_no_construye_payload(self):
+        self.preparar_etapa()
+        with self.settings(SAP_DESPACHO_PREVIEW_ENABLED=False), patch.object(
+            envio, 'construir_payload_despacho'
+        ) as builder:
+            response = self.request_modal('post', {'preview_despacho_sap': '1'})
+        self.assertEqual(response.status_code, 404)
+        builder.assert_not_called()
+
+    def test_preview_modal_exige_carga_guardada(self):
+        self.preparar_etapa()
+        with self.settings(SAP_DESPACHO_PREVIEW_ENABLED=True), patch.object(
+            envio, 'SapServiceLayerClient'
+        ) as sap:
+            response = self.request_modal('post', {'preview_despacho_sap': '1'})
+        self.assertEqual(response.status_code, 409)
+        sap.assert_not_called()
+
     def test_pre_draft_permite_despues_de_volver_a_guardar(self):
         _, _, draft = self._reserva_externa(confirmada=False)
         self._guardar_para_envio()

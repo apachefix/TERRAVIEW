@@ -337,6 +337,10 @@
             </div>
             <div class="row mb-3">
                 <div class="col-md-4"><strong>Tiempo total en planta</strong><br>${escapeHtml(detalle.tiempo_planta)}</div>
+                ${detalle.tipo_citacion === 'DESPACHO' ? `
+                <div class="col-md-4"><strong>Llegada estimada al destino</strong><br>${escapeHtml(
+                    ((detalle.fecha_llegada_destino || '') + ' ' + (detalle.hora_llegada_destino || '')).trim() || 'No informado'
+                )}</div>` : ''}
             </div>
             <div class="mb-3">
                 <strong>Etapa actual</strong><br><span class="tracking-state">${escapeHtml(detalle.etapa_actual)}</span>

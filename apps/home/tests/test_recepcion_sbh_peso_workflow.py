@@ -37,6 +37,59 @@ class RecepcionSbhPesoWorkflowTests(SimpleTestCase):
             )
         )
 
+    def test_unidad_peso_guia_por_familia_de_recepcion(self):
+        codigos_kg = (
+            'RECEPCION_BODEGA_EXTERNA', 'RECEPCION_PROSESA_PISO_1',
+            'RECEPCION_PROSESA_PISO_2', 'RECEPCION_ESTANQUE_SBH',
+            'RECEPCION_TRASVASIJE',
+            'RECEPCION_NEW_JERSEY_P1_CON_CALIDAD',
+            'RECEPCION_NEW_JERSEY_P1_SIN_CALIDAD',
+            'RECEPCION_PATIO_LF_CON_CALIDAD',
+        )
+        with patch.object(views, 'es_recepcion_prosesa_descarga_camion', return_value=False):
+            for codigo in codigos_kg:
+                with self.subTest(codigo=codigo):
+                    self.assertEqual(
+                        views.unidad_peso_guia_revision_recepcion(
+                            self._citacion(secuencia=codigo),
+                        ), 'kg',
+                    )
+        with patch.object(views, 'es_recepcion_prosesa_descarga_camion', return_value=True):
+            self.assertEqual(
+                views.unidad_peso_guia_revision_recepcion(
+                    self._citacion(secuencia='RECEPCION_BODEGA_EXTERNA'),
+                ), 'MT',
+            )
+
+    def test_flujos_sin_peso_guia_no_se_obligan(self):
+        for codigo in (
+            'RECEPCION_TRANSFERENCIA_SBH',
+            'RECEPCION_NEW_JERSEY_P2_OPERACION_INTERNA',
+            'RECEPCION_NEW_JERSEY_P3_RETIRO_VACIO',
+        ):
+            with self.subTest(codigo=codigo):
+                self.assertEqual(
+                    views.unidad_peso_guia_revision_recepcion(
+                        self._citacion(secuencia=codigo),
+                    ), '',
+                )
+        self.assertEqual(
+            views.unidad_peso_guia_revision_recepcion(
+                self._citacion(empresa=1, secuencia='RECEPCION_TERRAMAR'),
+            ), '',
+        )
+        self.assertEqual(
+            views.unidad_peso_guia_revision_recepcion(
+                self._citacion(tipo='DESPACHO', secuencia='RECEPCION_ESTANQUE_SBH'),
+            ), '',
+        )
+
+    def test_peso_no_finito_se_rechaza(self):
+        for valor in ('NaN', 'Infinity', '-Infinity'):
+            with self.subTest(valor=valor):
+                peso, error = views._validar_peso_informado_guia(valor)
+                self.assertIsNone(peso)
+                self.assertIn('mayor a 0', error)
     def test_peso_es_obligatorio(self):
         peso, error = views._validar_peso_informado_guia('')
         self.assertIsNone(peso)
@@ -182,7 +235,7 @@ class RecepcionSbhPesoWorkflowTests(SimpleTestCase):
             'apps/templates/home/PLANIFICACION/pla_listone.html'
         ).read_text(encoding='utf-8')
         self.assertIn('id="revision_peso_informado_guia"', template)
-        self.assertIn("datos.es_flujo_recepcion_estanque_sbh ? 'readonly'", template)
+        self.assertIn("datos.peso_capturado_en_revision ? 'readonly'", template)
         self.assertIn("$('#btn_crear_borrador_sap_recepcion').hide()", template)
 
     def test_template_confirma_estanque_planificado_sin_exigir_edicion(self):
@@ -191,7 +244,11 @@ class RecepcionSbhPesoWorkflowTests(SimpleTestCase):
         ).read_text(encoding='utf-8')
         self.assertIn("estanqueCamionEsRecepcionEstanqueSbh ? 'Confirmar estanque'", template)
         self.assertIn(
-            'estanqueCamionEsRecepcionEstanqueSbh || !selectorBloqueado',
+            'estanqueCamionEsRecepcionEstanqueSbh',
+            template,
+        )
+        self.assertIn(
+            '|| !selectorBloqueado',
             template,
         )
         self.assertNotIn(
@@ -278,10 +335,10 @@ class RecepcionSbhPesoWorkflowTests(SimpleTestCase):
         source = Path('apps/home/views.py').read_text(encoding='utf-8')
         self.assertIn(
             "obtener_peso_informado_guia(citacion)\n"
-            "                if es_flujo_recepcion_sbh",
+            "                if peso_guia_unidad_revision",
             source,
         )
-        self.assertIn('if not es_flujo_recepcion_sbh:', source)
+        self.assertIn('if not peso_guia_unidad_revision:', source)
         self.assertIn(
             'es_flujo_recepcion_sbh and requiere_ruta_transportista_revision(citacion) and not ruta_transportista_asistente_guardada(citacion)',
             source,

@@ -4,6 +4,7 @@ from functools import partial
 
 from django.contrib.auth import get_user_model
 from django.db import transaction
+from django.db.models import Q
 from django.utils import timezone
 
 from apps.home.sap_recepcion import get_goods_receipt_draft_guide_status
@@ -18,6 +19,18 @@ from apps.home.models import (
 )
 
 logger = logging.getLogger(__name__)
+
+SECUENCIA_NEW_JERSEY_P2 = 'RECEPCION_NEW_JERSEY_P2_OPERACION_INTERNA'
+
+
+def es_new_jersey_p2_calidad(citacion):
+    return bool(
+        citacion.EP_NID_id == 2
+        and citacion.CI_CTIPO == 'RECEPCION'
+        and citacion.SC_NID
+        and citacion.SC_NID.SE_CCODIGO == SECUENCIA_NEW_JERSEY_P2
+    )
+
 
 PASO_ANALISIS_CALIDAD = 'Analisis y calidad'
 PASO_RESULTADO_CALIDAD = 'Resultado Calidad'
@@ -73,9 +86,16 @@ def buscar_resultado_calidad_por_guia(empresa_id, numero_guia):
             'PL_NID', 'ET_NID', 'CA_NID', 'US_NID',
         ).filter(
             EP_NID_id=empresa_id,
-            RCO_CNUMERO_GUIA__iexact=guia,
             CI_NID__CI_BHABILITADO=True,
-        ).order_by('-RCO_FINICIO', '-id')[:2]
+        ).filter(
+            Q(RCO_CNUMERO_GUIA__iexact=guia)
+            | Q(
+                CI_NID__EP_NID_id=2,
+                CI_NID__CI_CTIPO='RECEPCION',
+                CI_NID__SC_NID__SE_CCODIGO=SECUENCIA_NEW_JERSEY_P2,
+                CI_NID__CI_CNUMERODOCUMENTO__iexact=guia,
+            ) & (Q(RCO_CNUMERO_GUIA='') | Q(RCO_CNUMERO_GUIA__isnull=True))
+        ).order_by('-RCO_FINICIO', '-id')
     )
     if not coincidencias:
         citaciones = list(
@@ -97,10 +117,28 @@ def buscar_resultado_calidad_por_guia(empresa_id, numero_guia):
             'No existe un proceso de Calidad asociado a la empresa y guia informadas.'
         )
     if len(coincidencias) > 1:
-        raise ProcesoCalidadAmbiguo(
-            'Existe mas de un proceso de Calidad para la empresa y guia informadas.'
-        )
-    resultado = coincidencias[0]
+        # P1 y P2 comparten guia. Un P1 ya resuelto no debe impedir
+        # entregar al Bot el unico proceso P2 que sigue esperando resultado.
+        pendientes_p2 = [
+            registro for registro in coincidencias
+            if es_new_jersey_p2_calidad(registro.CI_NID)
+            and registro.RCO_CESTADO == RESULTADO_CALIDAD_OPERACION.Estado.PENDIENTE
+        ]
+        cerrados = {
+            RESULTADO_CALIDAD_OPERACION.Estado.APROBADO,
+            RESULTADO_CALIDAD_OPERACION.Estado.RECHAZADO,
+        }
+        if len(pendientes_p2) == 1 and all(
+            registro == pendientes_p2[0] or registro.RCO_CESTADO in cerrados
+            for registro in coincidencias
+        ):
+            resultado = pendientes_p2[0]
+        else:
+            raise ProcesoCalidadAmbiguo(
+                'Existe mas de un proceso de Calidad para la empresa y guia informadas.'
+            )
+    else:
+        resultado = coincidencias[0]
     if resultado.CI_NID.EP_NID_id != int(empresa_id):
         raise ProcesoCalidadNoEncontrado(
             'El proceso de Calidad no pertenece a la empresa informada.'
@@ -150,7 +188,7 @@ def es_flujo_recepcion_estanque_sbh_calidad(citacion):
 
 def es_rechazo_bot_revisable(citacion, evento_integracion):
     # Solo un evento externo persistido habilita el estado intermedio.
-    if not es_flujo_recepcion_estanque_sbh_calidad(citacion):
+    if not (es_flujo_recepcion_estanque_sbh_calidad(citacion) or es_new_jersey_p2_calidad(citacion)):
         return False
     if not evento_integracion or not getattr(evento_integracion, 'pk', None):
         return False
@@ -218,6 +256,8 @@ def crear_borrador_sap_recepcion_por_calidad_aprobada(citacion_id, usuario_id):
 
 
 def _agendar_borrador_sap_recepcion_aprobada(citacion, usuario):
+    if es_new_jersey_p2_calidad(citacion):
+        return
     if not es_flujo_recepcion_estanque_sbh_calidad(citacion):
         return False
     transaction.on_commit(partial(
@@ -349,6 +389,11 @@ def asegurar_calidad_iniciada(proceso_operacion, usuario=None, origen=RESULTADO_
         },
     )
     if not creado:
+        if es_new_jersey_p2_calidad(citacion) and not registro.RCO_CNUMERO_GUIA:
+            guia = _numero_guia(citacion)
+            if guia:
+                registro.RCO_CNUMERO_GUIA = guia
+                registro.save(update_fields=['RCO_CNUMERO_GUIA'])
         return registro, False
 
     detalle = _detalle_evento(
@@ -392,6 +437,7 @@ def procesar_resultado_calidad(
             'El estado pendiente de revision solo puede originarse desde un rechazo BOT validado.'
         )
 
+    es_p2 = es_new_jersey_p2_calidad(citacion)
     registro, _ = asegurar_calidad_iniciada(citacion, usuario, origen, responsable_sistema)
     registro = RESULTADO_CALIDAD_OPERACION.objects.select_for_update().get(pk=registro.pk)
     estado_nuevo = estado_solicitado_normalizado
@@ -405,7 +451,11 @@ def procesar_resultado_calidad(
         if estado_nuevo == RESULTADO_CALIDAD_OPERACION.Estado.APROBADO:
             _agendar_borrador_sap_recepcion_aprobada(citacion, usuario)
         return registro, False
-    if estado_nuevo not in TRANSICIONES_PERMITIDAS.get(estado_anterior, set()):
+    correccion_p2 = (
+        es_p2 and estado_anterior == RESULTADO_CALIDAD_OPERACION.Estado.RECHAZADO
+        and estado_nuevo == RESULTADO_CALIDAD_OPERACION.Estado.APROBADO
+    )
+    if not correccion_p2 and estado_nuevo not in TRANSICIONES_PERMITIDAS.get(estado_anterior, set()):
         raise ValueError(f'Transicion de calidad no permitida: {estado_anterior} -> {estado_nuevo}.')
 
     fecha = fecha_resultado or timezone.now()
@@ -416,7 +466,7 @@ def procesar_resultado_calidad(
     registro.RCO_FACTUALIZACION = fecha
     registro.US_NID = usuario
     registro.RCO_CRESPONSABLE_SISTEMA = responsable_sistema or ''
-    registro.RCO_FDETENCION_TEMPORIZADOR = registro.RCO_FDETENCION_TEMPORIZADOR or fecha
+    registro.RCO_FDETENCION_TEMPORIZADOR = (None if correccion_p2 else registro.RCO_FDETENCION_TEMPORIZADOR) or fecha
     registro.RCO_NDURACION_SEGUNDOS = max(registro.RCO_NDURACION_SEGUNDOS, duracion)
 
     if estado_nuevo == RESULTADO_CALIDAD_OPERACION.Estado.APRUEBA_CLIENTE:
@@ -432,7 +482,11 @@ def procesar_resultado_calidad(
         registro.RCO_FRESOLUCION_FINAL = fecha
         registro.RCO_FCIERRE = fecha
         registro.RCO_BCIERRE_AUTOMATICO = True
-        registro.RCO_BAUTORIZA_SALIDA = estado_nuevo == RESULTADO_CALIDAD_OPERACION.Estado.RECHAZADO
+        registro.RCO_BAUTORIZA_SALIDA = estado_nuevo == RESULTADO_CALIDAD_OPERACION.Estado.RECHAZADO and not es_p2
+        if es_p2 and estado_nuevo == RESULTADO_CALIDAD_OPERACION.Estado.RECHAZADO:
+            registro.RCO_FCIERRE = None
+            registro.RCO_BCIERRE_AUTOMATICO = False
+            registro.RCO_FDETENCION_TEMPORIZADOR = None
         if estado_anterior == RESULTADO_CALIDAD_OPERACION.Estado.APRUEBA_CLIENTE:
             evento = f'CALIDAD_RESPUESTA_CLIENTE_{"APROBADA" if estado_nuevo == RESULTADO_CALIDAD_OPERACION.Estado.APROBADO else "RECHAZADA"}'
         elif estado_anterior == RESULTADO_CALIDAD_OPERACION.Estado.RECHAZADO_PENDIENTE_REVISION:
@@ -453,7 +507,7 @@ def procesar_resultado_calidad(
         _crear_log(registro, usuario, 'CALIDAD_ESPERANDO_CLIENTE', detalle)
     elif estado_nuevo == RESULTADO_CALIDAD_OPERACION.Estado.RECHAZADO_PENDIENTE_REVISION:
         _crear_log(registro, usuario, 'CALIDAD_PENDIENTE_REVISION_MANUAL', detalle)
-    else:
+    elif not es_p2:
         OPERACION_PLANTA_LOG.objects.get_or_create(
             CI_NID=citacion,
             OPL_CPASO=PASO_ANALISIS_CALIDAD,
@@ -495,7 +549,10 @@ def serializar_resultado_calidad(registro, ahora=None):
     mensajes = {
         registro.Estado.PENDIENTE: 'En espera de resultados de análisis',
         registro.Estado.APROBADO: 'Resultado de calidad: APROBADO',
-        registro.Estado.RECHAZADO: MENSAJE_SALIDA_RECHAZO,
+        registro.Estado.RECHAZADO: (
+            'Resultado de calidad: RECHAZADO'
+            if es_new_jersey_p2_calidad(registro.CI_NID) else MENSAJE_SALIDA_RECHAZO
+        ),
         registro.Estado.RECHAZADO_PENDIENTE_REVISION: MENSAJE_RECHAZO_PENDIENTE_REVISION,
         registro.Estado.APRUEBA_CLIENTE: 'Análisis interno finalizado. En espera de aprobación del cliente.',
     }

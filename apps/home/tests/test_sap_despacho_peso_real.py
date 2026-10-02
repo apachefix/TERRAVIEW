@@ -10,7 +10,8 @@ from django.template import Context, Template
 from django.test import RequestFactory, SimpleTestCase, TestCase, override_settings
 from django.utils import timezone
 
-from apps.home import sap_despacho, views
+from apps.home import sap_despacho, sap_despacho_envio, views
+from apps.home.despacho_carga import CargaInvalida
 from apps.home.models import (
     CALENDARIO,
     CAMPO,
@@ -204,6 +205,61 @@ class DistribucionPesoRealTests(SimpleTestCase):
             self.assertEqual(sum(Decimal(str(batch["Quantity"])) for batch in line["BatchNumbers"]), Decimal(str(line["Quantity"])))
         self.assertEqual(sum(Decimal(str(line["Quantity"])) for line in final["DocumentLines"]), Decimal("26.8"))
 
+    def test_disponibilidad_final_usa_stock_sap_menos_reservas_locales(self):
+        documentos = [{
+            "payload": {
+                "DocumentLines": [{
+                    "ItemCode": "980057",
+                    "WarehouseCode": "TK04",
+                    "BatchNumbers": [{"BatchNumber": "LOTE-A", "Quantity": 27.95}],
+                }],
+            },
+        }]
+        catalogos = {
+            4092: {
+                "stocks": {
+                    "980057": [{
+                        "item_code": "980057",
+                        "warehouse_code": "TK04",
+                        "batch_number": "LOTE-A",
+                        "stock_sap": "30",
+                        "reservado": "2.05",
+                        "disponible": "27.95",
+                    }],
+                },
+            },
+        }
+        citacion = SimpleNamespace(pk=38707)
+
+        with patch.object(
+            sap_despacho_envio,
+            "_catalogos_y_stock_actual",
+            return_value=(catalogos, {}),
+        ), patch.object(sap_despacho_envio, "configuracion_persistida"):
+            resultado = sap_despacho_envio.validar_disponibilidad_final_despacho(
+                citacion,
+                object(),
+                documentos,
+            )
+
+        self.assertTrue(resultado["disponibilidad_lotes_suficiente"])
+        self.assertEqual(resultado["lotes"][0]["disponibilidad_actual"], "27.95")
+
+        catalogos[4092]["stocks"]["980057"][0]["disponible"] = "27.94"
+        with patch.object(
+            sap_despacho_envio,
+            "_catalogos_y_stock_actual",
+            return_value=(catalogos, {}),
+        ), patch.object(sap_despacho_envio, "configuracion_persistida"), self.assertRaisesMessage(
+            CargaInvalida,
+            "No existe disponibilidad suficiente en los lotes SAP para cubrir la cantidad real despachada.",
+        ):
+            sap_despacho_envio.validar_disponibilidad_final_despacho(
+                citacion,
+                object(),
+                documentos,
+            )
+
 
 class ActualizacionDraftPesoRealTests(TestCase):
     @classmethod
@@ -262,6 +318,7 @@ class ActualizacionDraftPesoRealTests(TestCase):
             "control_pesaje_ok": True,
             "cantidad_real_mt": neto,
             "errors": [],
+            "warnings": [],
         }
 
     def crear_acuerdo(self, orden, abs_id, numero, cantidad, lotes, item="980057", docentry=None):
@@ -276,6 +333,35 @@ class ActualizacionDraftPesoRealTests(TestCase):
             "Quantity": float(cantidad), "BatchNumbers": [{"BatchNumber": batch, "Quantity": float(qty)} for batch, qty in lotes]}]}
         return CITACION_DESPACHO_DRAFT_SAP.objects.create(acuerdo=acuerdo, clave_idempotencia=f"test-{self.citacion.pk}-{abs_id}",
             estado="CREADO", docentry=str(docentry or (3500 + orden)), docnum=str(16000 + orden), payload=payload, respuesta={"DocEntry": docentry})
+
+    def configurar_pesajes(self, entrada_ent=44250, entrada_sal=16300, salida_bruta=44250, neto=27950):
+        entrada = DATO_OPERACION.objects.get(
+            CI_NID=self.citacion,
+            CAMP_NID__CA_CCODIGO="OP_TICKET_PESAJE_ENT",
+        )
+        entrada.DO_CVALOR = json.dumps({
+            "peso_neto": entrada_ent,
+            "peso_entrada_kg": entrada_ent,
+        })
+        entrada.DO_NPESO = entrada_ent
+        entrada.save(update_fields=["DO_CVALOR", "DO_NPESO"])
+
+        salida = DATO_OPERACION.objects.get(
+            CI_NID=self.citacion,
+            CAMP_NID__CA_CCODIGO="OP_TICKET_PESAJE_SAL",
+        )
+        salida.DO_CVALOR = json.dumps({
+            "peso_neto": neto,
+            "peso_entrada_kg": entrada_sal,
+            "peso_salida_bruto_kg": salida_bruta,
+            "peso_neto_producto_kg": neto,
+            "fuente_peso_neto": "ticket_explicito",
+            "peso_neto_calculado_kg": salida_bruta - entrada_sal,
+            "diferencia_control_kg": salida_bruta - entrada_sal - neto,
+            "control_pesaje_ok": salida_bruta - entrada_sal == neto,
+        })
+        salida.DO_NPESO = neto
+        salida.save(update_fields=["DO_CVALOR", "DO_NPESO"])
 
     def test_registros_historicos_reconstruyen_semantica_con_el_mismo_parser(self):
         for tipo in ("ENT", "SAL"):
@@ -312,6 +398,100 @@ class ActualizacionDraftPesoRealTests(TestCase):
         self.assertEqual(pesaje["peso_neto_producto_kg"], Decimal("27700"))
         self.assertEqual(pesaje["cantidad_real_mt"], Decimal("27.7"))
         self.assertEqual(pesaje["errors"], [])
+
+    def test_ent_distinto_de_primera_pesada_sal_permite_preview_con_warning(self):
+        self.crear_acuerdo(1, 4092, "429", 27.5, [("A", 20), ("B", 7.5)], docentry=3534)
+        self.configurar_pesajes()
+
+        pesaje = sap_despacho.obtener_pesaje_real_despacho(self.citacion)
+        diagnostico = sap_despacho.construir_diagnostico_preview_update_drafts_operacionales(
+            self.citacion
+        )
+
+        self.assertEqual(pesaje["peso_entrada_ticket_ent_kg"], Decimal("44250"))
+        self.assertEqual(pesaje["peso_entrada_ticket_sal_kg"], Decimal("16300"))
+        self.assertEqual(pesaje["cantidad_real_mt"], Decimal("27.95"))
+        self.assertEqual(pesaje["errors"], [])
+        self.assertIn("Advertencia:", pesaje["warnings"][0])
+        self.assertTrue(diagnostico["success"])
+        self.assertEqual(diagnostico["resultado"], "PREVIEW VÁLIDO CON ADVERTENCIAS")
+        self.assertEqual(diagnostico["motivos"], [])
+        self.assertEqual(diagnostico["warnings"], pesaje["warnings"])
+
+    def test_ent_distinto_de_primera_pesada_sal_permite_update(self):
+        self.crear_acuerdo(1, 4092, "429", 27.5, [("A", 20), ("B", 7.5)], docentry=3534)
+        self.configurar_pesajes()
+        client = MagicMock()
+        client.patch_draft.return_value = {"status_code": 204, "data": {}}
+
+        with patch.object(sap_despacho, "load_config", return_value=object()):
+            resultado = sap_despacho.actualizar_borradores_sap_despacho_operacionales(
+                self.citacion,
+                self.user,
+                client_factory=lambda _config: client,
+            )
+
+        self.assertTrue(resultado["success"])
+        self.assertIn("Advertencia:", resultado["message"])
+        payload = client.patch_draft.call_args.args[1]
+        self.assertEqual(Decimal(str(payload["DocumentLines"][0]["Quantity"])), Decimal("27.95"))
+
+    def test_lotes_insuficientes_bloquean_preview_y_update(self):
+        self.crear_acuerdo(1, 4092, "429", 27.5, [("A", 20), ("B", 7.5)], docentry=3534)
+        CITACION_DESPACHO_ACUERDO_LOTE.objects.filter(batch_number="B").update(
+            stock_snapshot=Decimal("7.5")
+        )
+        self.configurar_pesajes()
+
+        preview = sap_despacho.construir_preview_update_drafts_operacionales(self.citacion)
+        client_factory = MagicMock()
+        resultado = sap_despacho.actualizar_borradores_sap_despacho_operacionales(
+            self.citacion,
+            self.user,
+            client_factory=client_factory,
+        )
+
+        mensaje = "No existe disponibilidad suficiente en los lotes SAP para cubrir la cantidad real despachada."
+        self.assertIn(mensaje, preview["errors"])
+        self.assertFalse(resultado["success"])
+        self.assertEqual(resultado["message"], mensaje)
+        client_factory.assert_not_called()
+
+    def test_disponibilidad_sap_actual_insuficiente_bloquea_antes_del_patch(self):
+        self.crear_acuerdo(1, 4092, "429", 27.5, [("A", 20), ("B", 7.5)], docentry=3534)
+        self.configurar_pesajes()
+        client_factory = MagicMock()
+        mensaje = "No existe disponibilidad suficiente en los lotes SAP para cubrir la cantidad real despachada."
+
+        with patch(
+            "apps.home.sap_despacho_envio.validar_disponibilidad_final_despacho",
+            side_effect=CargaInvalida(mensaje),
+        ):
+            resultado = sap_despacho.actualizar_borradores_sap_despacho_operacionales(
+                self.citacion,
+                self.user,
+                client_factory=client_factory,
+                revalidar_disponibilidad=True,
+            )
+
+        self.assertFalse(resultado["success"])
+        self.assertEqual(resultado["message"], mensaje)
+        client_factory.assert_not_called()
+
+    def test_peso_neto_cero_sigue_bloqueando(self):
+        self.crear_acuerdo(1, 4092, "429", 27.5, [("A", 20), ("B", 7.5)], docentry=3534)
+        self.configurar_pesajes(salida_bruta=16300, neto=0)
+        client_factory = MagicMock()
+
+        resultado = sap_despacho.actualizar_borradores_sap_despacho_operacionales(
+            self.citacion,
+            self.user,
+            client_factory=client_factory,
+        )
+
+        self.assertFalse(resultado["success"])
+        self.assertIn("mayor que cero", resultado["message"])
+        client_factory.assert_not_called()
 
     def test_salida_menor_o_igual_a_entrada_bloquea_sin_patch(self):
         self.crear_acuerdo(1, 4092, "429", 27.5, [("A", 20), ("B", 7.5)], docentry=3528)
@@ -534,6 +714,29 @@ class ActualizacionDraftPesoRealTests(TestCase):
 
     def test_diagnostico_multiwarehouse_conserva_lineas_y_valida_sumas(self):
         draft = self.crear_acuerdo(1, 4092, "429", 27.5, [("A", 27.5)], docentry=3528)
+        estanque_principal = draft.acuerdo.estanques.get(warehouse_code="TK04")
+        estanque_principal.cantidad = Decimal("15")
+        estanque_principal.save(update_fields=["cantidad"])
+        lote_principal = estanque_principal.lotes.get()
+        lote_principal.batch_number = "TK04-A"
+        lote_principal.cantidad = Decimal("15")
+        lote_principal.save(update_fields=["batch_number", "cantidad"])
+        estanque_secundario = CITACION_DESPACHO_ACUERDO_ESTANQUE.objects.create(
+            acuerdo=draft.acuerdo,
+            warehouse_code="TKMX01",
+            item_code="980057",
+            item_name="Producto",
+            linea_acuerdo="1",
+            unidad_medida="MT",
+            cantidad=Decimal("12.5"),
+            orden=2,
+        )
+        CITACION_DESPACHO_ACUERDO_LOTE.objects.create(
+            estanque=estanque_secundario,
+            batch_number="TKMX01-A",
+            stock_snapshot=Decimal("100"),
+            cantidad=Decimal("12.5"),
+        )
         draft.payload = {"DocumentLines": [
             {"ItemCode": "980057", "AgreementNo": 4092, "WarehouseCode": "TK04", "Quantity": 15,
              "BatchNumbers": [{"BatchNumber": "TK04-A", "Quantity": 15}]},
@@ -629,3 +832,14 @@ class PreviewSapDespachoViewTests(SimpleTestCase):
         bloque_actualizar = source[inicio_actualizar:fin_actualizar]
         self.assertIn('btn-actualizar-sap-despacho', bloque_actualizar)
         self.assertNotIn('sap_despacho_preview_enabled', bloque_actualizar)
+
+    def test_warning_ent_sal_tiene_render_separado_de_errores(self):
+        ruta = Path(__file__).resolve().parents[3] / 'apps' / 'templates' / 'home' / 'CITACION' / 'operacion_planta.html'
+        source = ruta.read_text(encoding='utf-8')
+        self.assertIn('response.warnings || []', source)
+        self.assertIn('Advertencias no bloqueantes:', source)
+
+    def test_endpoint_recepcion_no_usa_validacion_de_lotes_de_despacho(self):
+        source = inspect.getsource(views.ajax_operacion_planta_actualizar_sap_recepcion)
+        self.assertNotIn('validar_disponibilidad_final_despacho', source)
+        self.assertIn('send_goods_receipt_draft_update_to_sap', source)

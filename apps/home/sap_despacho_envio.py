@@ -48,6 +48,9 @@ MENSAJE_CONTEXTO_OBSOLETO = (
     "Se actualizaron documentos SAP relacionados con el stock seleccionado. "
     "Debe volver a seleccionar los lotes antes de continuar."
 )
+MENSAJE_DISPONIBILIDAD_FINAL_INSUFICIENTE = (
+    "No existe disponibilidad suficiente en los lotes SAP para cubrir la cantidad real despachada."
+)
 
 
 class ContextoCargaObsoleto(CargaInvalida):
@@ -140,6 +143,64 @@ def _indice_stock(catalogos):
                     'disponible': _decimal(fila.get('disponible', fila.get('stock'))),
                 }
     return indice
+
+
+def validar_disponibilidad_final_despacho(citacion, carga, documentos):
+    """Revalida en SAP/ reservas la distribución final calculada para el PATCH."""
+    catalogos, _ = _catalogos_y_stock_actual(citacion, carga)
+    configuracion_persistida(citacion, carga=carga, catalogos=catalogos)
+    stock_por_clave = _indice_stock(catalogos)
+    solicitado_por_clave = {}
+
+    for documento in documentos or []:
+        payload = documento.get("payload") or documento.get("payload_patch") or {}
+        for linea in payload.get("DocumentLines") or []:
+            item_code = str(linea.get("ItemCode") or "")
+            warehouse_code = str(linea.get("WarehouseCode") or "")
+            for lote in linea.get("BatchNumbers") or []:
+                clave = (
+                    item_code,
+                    warehouse_code,
+                    str(lote.get("BatchNumber") or ""),
+                )
+                solicitado_por_clave[clave] = solicitado_por_clave.get(
+                    clave, Decimal("0")
+                ) + _decimal(lote.get("Quantity"))
+
+    diagnosticos = []
+    for clave, cantidad in solicitado_por_clave.items():
+        stock = stock_por_clave.get(clave)
+        disponible = stock["disponible"] if stock else Decimal("0")
+        if cantidad <= 0 or cantidad > disponible:
+            diagnosticos.append({
+                "item_code": clave[0],
+                "warehouse_code": clave[1],
+                "lote": clave[2],
+                "cantidad_final": str(cantidad),
+                "disponibilidad_actual": str(disponible),
+            })
+
+    if diagnosticos:
+        LOGGER.warning(
+            "VALIDACION_DISPONIBILIDAD_FINAL_FALLIDA citacion=%s diagnosticos=%s",
+            citacion.pk,
+            json.dumps(diagnosticos, ensure_ascii=False, default=str),
+        )
+        raise CargaInvalida(MENSAJE_DISPONIBILIDAD_FINAL_INSUFICIENTE)
+
+    return {
+        "disponibilidad_lotes_suficiente": True,
+        "lotes": [
+            {
+                "item_code": clave[0],
+                "warehouse_code": clave[1],
+                "lote": clave[2],
+                "cantidad_final": str(cantidad),
+                "disponibilidad_actual": str(stock_por_clave[clave]["disponible"]),
+            }
+            for clave, cantidad in solicitado_por_clave.items()
+        ],
+    }
 
 
 def validar_contexto_pre_draft(citacion, carga):
@@ -270,6 +331,36 @@ def validar_contexto_pre_draft(citacion, carga):
 def borradores_creados(citacion):
     drafts = CITACION_DESPACHO_DRAFT_SAP.objects.filter(acuerdo__carga__CI_NID=citacion)
     return drafts.exists() and not drafts.exclude(estado="CREADO").exists() and not drafts.filter(docentry="").exists()
+
+
+
+def previsualizar_borradores_sap_despacho(citacion):
+    """Construye, sin persistir ni enviar, los mismos Drafts del avance SBH."""
+    carga = CITACION_DESPACHO_CARGA.objects.prefetch_related(
+        'acuerdos__estanques__lotes'
+    ).get(CI_NID=citacion)
+    configuracion = validar_contexto_pre_draft(citacion, carga)
+    payloads = construir_payload_despacho(citacion, configuracion)
+    acuerdos = {
+        int(acuerdo['sap_abs_id']): acuerdo
+        for acuerdo in configuracion['acuerdos']
+    }
+    return {
+        'success': True,
+        'read_only': True,
+        'citacion': citacion.pk,
+        'endpoint_sap': '/Drafts',
+        'cantidad_borradores': len(payloads),
+        'borradores': [
+            {
+                'sap_abs_id': abs_id,
+                'numero_acuerdo': acuerdos[abs_id]['numero_acuerdo'],
+                'payload': payload,
+            }
+            for abs_id, payload in payloads.items()
+        ],
+        'warnings': [],
+    }
 
 
 def _error_sap_legible(exc):

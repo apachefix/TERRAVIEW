@@ -161,6 +161,7 @@ class EditarCitacionDespachoTests(SimpleTestCase):
             user=SimpleNamespace(),
             POST={
                 'fecha_despacho': '2026-09-10',
+                'fecha_llegada_destino': '2026-09-11',
                 'hora_llegada_planta': '08:30',
                 'hora_llegada_destino': '13:45',
                 'orden_carga': '2°',
@@ -186,6 +187,7 @@ class EditarCitacionDespachoTests(SimpleTestCase):
         self.assertIs(citacion.SN_NID, cliente)
         defaults = bloquear_detalle.return_value.update_or_create.call_args.kwargs['defaults']
         self.assertEqual(defaults['CDD_FFECHA_DESPACHO'], '2026-09-10')
+        self.assertEqual(defaults['CDD_FFECHA_LLEGADA_DESTINO'], '2026-09-11')
         self.assertEqual(defaults['CDD_FHORA_LLEGADA_PLANTA'], '08:30')
         self.assertEqual(defaults['CDD_FHORA_LLEGADA_DESTINO'], '13:45')
         self.assertEqual(defaults['CDD_CORDEN_CARGA'], '2°')
@@ -216,7 +218,8 @@ class EditarCitacionDespachoTests(SimpleTestCase):
             SimpleNamespace(EP_NID=citacion.EP_NID, US_NID=None), False
         )
         post = {
-            'fecha_despacho': '2026-09-10', 'hora_llegada_planta': '08:30',
+            'fecha_despacho': '2026-09-10', 'fecha_llegada_destino': '2026-09-11',
+            'hora_llegada_planta': '08:30',
             'hora_llegada_destino': '13:45', 'orden_carga': '1°',
             'tipo_carga': 'Cisterna', 'destino': 'Destino',
             'id_cliente': 'C001', 'cliente_codigo': 'C001',
@@ -231,6 +234,7 @@ class EditarCitacionDespachoTests(SimpleTestCase):
     def test_modal_despacho_declara_campos_tipados_json_y_oc_por_tarjeta(self):
         template = Path('apps/templates/home/PLANIFICACION/pla_listone.html').read_text(encoding='utf-8')
         self.assertIn('id="edit_despacho_fecha" name="fecha_despacho"', template)
+        self.assertIn('id="edit_despacho_fecha_llegada_destino" name="fecha_llegada_destino"', template)
         self.assertIn('id="edit_despacho_hora_planta" name="hora_llegada_planta"', template)
         self.assertIn('id="edit_despacho_hora_destino" name="hora_llegada_destino"', template)
         self.assertIn('id="edit_despacho_orden_carga" name="orden_carga"', template)

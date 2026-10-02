@@ -18,6 +18,8 @@ DESTINOS_SAP_CONTROLADOS = {
     'PARGUA': {'comuna': 'Calbuco', 'alias_ruta': 'PARGUA'},
 }
 
+PREFIJOS_DIRECCION_SAP = ('DESTINO', 'DIRECCION', 'DIR')
+
 
 def normalizar_texto_geografico(valor):
     texto = unicodedata.normalize('NFKD', str(valor or '').strip())
@@ -28,41 +30,70 @@ def normalizar_texto_geografico(valor):
     )
 
 
+def normalizar_comuna_desde_direccion(direccion_codigo):
+    clave_direccion = normalizar_texto_geografico(direccion_codigo)
+    for prefijo in PREFIJOS_DIRECCION_SAP:
+        if clave_direccion == prefijo:
+            return ''
+        if clave_direccion.startswith(f'{prefijo} '):
+            return clave_direccion[len(prefijo):].strip()
+    return clave_direccion
+
+
 def resolver_destino_despacho_sap(direccion_sap):
     """Resuelve una dirección SAP validada hacia COMUNA y contexto de ruta."""
     direccion_codigo = str(direccion_sap.get('direccion_codigo') or '').strip()
+    comuna_sap = str(
+        direccion_sap.get('comuna_sap') or direccion_sap.get('County') or ''
+    ).strip()
     ciudad = str(direccion_sap.get('ciudad') or '').strip()
     clave_direccion = normalizar_texto_geografico(direccion_codigo)
     configuracion = DESTINOS_SAP_CONTROLADOS.get(clave_direccion)
+    comunas_por_clave = {}
+    for comuna in COMUNA.objects.all().order_by('id'):
+        comunas_por_clave.setdefault(
+            normalizar_texto_geografico(comuna.COM_CNOMBRE), []
+        ).append(comuna)
 
     if configuracion:
-        comuna_nombre = configuracion['comuna']
+        claves_candidatas = [
+            normalizar_texto_geografico(configuracion['comuna'])
+        ]
         alias_ruta = configuracion['alias_ruta']
     else:
-        # Fallback deliberadamente estricto: sólo se acepta una ciudad SAP que
-        # coincida exactamente con una comuna local. No se buscan rutas por texto.
-        comuna_nombre = ciudad
+        # County representa la comuna SAP. Address y City son fallbacks exactos;
+        # nunca se buscan rutas ni comunas mediante coincidencias parciales.
+        claves_candidatas = [
+            normalizar_texto_geografico(comuna_sap),
+            normalizar_comuna_desde_direccion(direccion_codigo),
+            normalizar_texto_geografico(ciudad),
+        ]
         alias_ruta = ''
 
-    clave_comuna = normalizar_texto_geografico(comuna_nombre)
-    if not clave_comuna:
+    claves_candidatas = list(dict.fromkeys(
+        clave for clave in claves_candidatas if clave
+    ))
+    if not claves_candidatas:
         raise ValueError(
             f'La dirección SAP {direccion_codigo or "seleccionada"} no tiene un destino TERRAVIEW configurado.'
         )
 
-    comunas = [
-        comuna for comuna in COMUNA.objects.all().order_by('id')
-        if normalizar_texto_geografico(comuna.COM_CNOMBRE) == clave_comuna
-    ]
-    if len(comunas) != 1:
+    comuna_resuelta = None
+    for clave_comuna in claves_candidatas:
+        comunas = comunas_por_clave.get(clave_comuna, [])
+        if len(comunas) == 1:
+            comuna_resuelta = comunas[0]
+            break
+
+    if comuna_resuelta is None:
         raise ValueError(
-            f'No fue posible resolver de forma unívoca la dirección SAP {direccion_codigo or comuna_nombre}.'
+            f'No fue posible resolver de forma unívoca la dirección SAP {direccion_codigo or ciudad}.'
         )
 
     return {
-        'comuna': comunas[0],
-        'comuna_id': comunas[0].id,
-        'comuna_nombre': comunas[0].COM_CNOMBRE,
+        'comuna': comuna_resuelta,
+        'comuna_id': comuna_resuelta.id,
+        'comuna_nombre': comuna_resuelta.COM_CNOMBRE,
         'direccion_codigo': direccion_codigo,
         'alias_ruta': alias_ruta,
     }

@@ -12,7 +12,8 @@ function harness(stockRows) {
             html(s) { this.markup = s; return this; },
             text(s) { this.message = s; return this; },
             prop(k, v) { this.properties[k] = v; return this; },
-            addClass() { return this; }, removeClass() { return this; }, hide() { return this; },
+            addClass() { return this; }, removeClass() { return this; }, hide() { this.hidden = true; return this; },
+            toggle(value) { this.hidden = !value; return this; },
             off() { this.handlers = {}; return this; },
             on(event, selector, handler) { this.handlers[event] = handler || selector; return this; }
         });
@@ -159,4 +160,19 @@ test('reintento SAP habilitado aunque la distribución quede bloqueada para edic
     await h.api.mount(h.response,false);
     assert.equal(h.node('#btn_guardar_estanque').properties.disabled,true);
     assert.equal(h.node('#btn_enviar_estanque').properties.disabled,false);
+});
+
+test('preview solo se muestra con flag y carga guardada sin cambios pendientes', async () => {
+    const h = harness([row('A',100,'2099-01-01')]);
+    h.response.sap_despacho_preview_enabled = false;
+    h.response.carga_operacional.guardado = true;
+    h.response.carga_operacional.puede_avanzar = true;
+    await h.api.mount(h.response,true);
+    assert.equal(h.node('#btn_preview_borrador_sap_despacho_carga').hidden,true);
+    h.response.sap_despacho_preview_enabled = true;
+    await h.api.mount(h.response,true);
+    assert.equal(h.node('#btn_preview_borrador_sap_despacho_carga').hidden,false);
+    assert.equal(h.node('#btn_preview_borrador_sap_despacho_carga').properties.disabled,false);
+    h.change('[data-total]', '61');
+    assert.equal(h.node('#btn_preview_borrador_sap_despacho_carga').properties.disabled,true);
 });

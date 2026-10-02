@@ -58,6 +58,9 @@
                                 <h5>Opciones de exportaci&oacute;n</h5>
                             </div>
                             <div class=" mb-2 mb-md-0" style="margin-right: 50px;margin-top: 20px;">
+                                {% if empresa_id == 2 and tipo_planificacion == 'RECEPCION' and not modo_ingreso_camion %}
+                                    <a href="{% url 'planificacion_new_jersey_p2' %}?_empresa_id=2" class="btn btn-info d-inline-flex align-items-center mr-2">New Jersey Proceso 2</a>
+                                {% endif %}
                                 {% if not archivados and not modo_ingreso_camion and not solicitud_no_planificado_id %}
                                     <a href="{% url 'pla_addone' %}{% if tipo_planificacion %}?tipo={{ tipo_planificacion }}{% if flujo_navegacion %}&flujo={{ flujo_navegacion }}{% endif %}{% if empresa_id %}&_empresa_id={{ empresa_id }}{% endif %}{% elif empresa_id %}?_empresa_id={{ empresa_id }}{% endif %}" class="btn  btn-primary d-inline-flex align-items-center mr-2"><i class="fas fa-user-plus"></i>
                                         &nbsp;&nbsp; Nuevo

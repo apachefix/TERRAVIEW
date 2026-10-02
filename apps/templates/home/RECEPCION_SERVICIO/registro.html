@@ -1,0 +1,421 @@
+{% extends "layouts/base.html" %}
+{% block title %}Recepción Servicio{% endblock %}
+
+{% block stylesheets %}
+<style>
+body .recepcion-servicio-header .page-block {
+    min-height: 138px;
+    padding: 26px 30px !important;
+    display: flex;
+    align-items: center;
+    background: linear-gradient(120deg, #0b2545 0%, #123d6b 64%, #d36b5c 100%) !important;
+}
+body .recepcion-servicio-header h4,
+body .recepcion-servicio-header .breadcrumb-item,
+body .recepcion-servicio-header .breadcrumb-item a {
+    color: #fff !important;
+}
+body .recepcion-servicio-header h4 {
+    margin: 0 0 8px;
+    font-size: 1.55rem;
+    font-weight: 700;
+}
+body .recepcion-servicio-header .servicio-subtitulo {
+    margin: 0 0 12px;
+    color: rgba(255, 255, 255, .82);
+}
+body .recepcion-servicio-header .breadcrumb {
+    margin: 0;
+    padding: 0;
+    background: transparent;
+}
+body .recepcion-servicio-header .breadcrumb-item + .breadcrumb-item::before {
+    color: rgba(255, 255, 255, .62);
+}
+.recepcion-servicio .servicio-band {
+    width: 100%;
+    max-width: 1160px;
+    margin: 0 auto;
+}
+.recepcion-servicio .servicio-card {
+    border: 1px solid rgba(11, 37, 69, .10) !important;
+    border-radius: 10px !important;
+    box-shadow: 0 12px 30px rgba(11, 37, 69, .09) !important;
+}
+.recepcion-servicio .servicio-card .card-header {
+    padding: 18px 22px;
+}
+.recepcion-servicio .servicio-card .card-header h5 {
+    margin: 0;
+    color: #0b2545;
+    font-weight: 700;
+}
+.recepcion-servicio .servicio-card .card-body {
+    padding: 22px;
+}
+.recepcion-servicio .servicio-search-row {
+    display: grid;
+    grid-template-columns: minmax(170px, 220px) minmax(280px, 1fr) 140px;
+    gap: 14px;
+    align-items: end;
+}
+.recepcion-servicio .servicio-search-row .form-group {
+    margin: 0;
+}
+.recepcion-servicio .servicio-search-row .form-control,
+.recepcion-servicio .servicio-search-row .btn {
+    min-height: 43px;
+}
+.recepcion-servicio .servicio-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+    gap: 12px 18px;
+}
+.recepcion-servicio .servicio-dato {
+    min-height: 68px;
+    padding: 11px 13px;
+    border: 1px solid #e1e6ec;
+    border-radius: 7px;
+    background: #f8fafc;
+}
+.recepcion-servicio .servicio-dato small {
+    display: block;
+    margin-bottom: 4px;
+    color: #5f6b76;
+}
+.recepcion-servicio .servicio-dato strong {
+    color: #0b2545;
+    overflow-wrap: anywhere;
+}
+.recepcion-servicio .servicio-flujo {
+    display: inline-flex;
+    align-items: center;
+    margin-bottom: 18px;
+    padding: 7px 12px;
+    border-radius: 999px;
+    color: #fff;
+    background: #0b6e69;
+    font-weight: 700;
+}
+.recepcion-servicio .servicio-help {
+    color: #5f6b76;
+    font-size: .85rem;
+}
+@media (max-width: 767.98px) {
+    body .recepcion-servicio-header .page-block {
+        min-height: 0;
+        padding: 20px !important;
+    }
+    .recepcion-servicio .servicio-search-row {
+        grid-template-columns: 1fr;
+    }
+    .recepcion-servicio .servicio-search-row .btn {
+        width: 100%;
+    }
+    .recepcion-servicio .servicio-card .card-header,
+    .recepcion-servicio .servicio-card .card-body {
+        padding: 17px;
+    }
+}
+</style>
+{% endblock stylesheets %}
+
+{% block content %}
+<section class="pcoded-main-container recepcion-servicio">
+<div class="pcoded-content">
+    <div class="page-header recepcion-servicio-header">
+        <div class="page-block">
+            <div>
+                <h4>Recepción Servicio</h4>
+                <p class="servicio-subtitulo">Registro de camiones asociados a servicios planificados.</p>
+                <ul class="breadcrumb">
+                    <li class="breadcrumb-item"><a href="{% url 'home' %}">Inicio</a></li>
+                    <li class="breadcrumb-item">Recepción Servicio</li>
+                    <li class="breadcrumb-item">{% if solo_planificacion %}Planificación{% else %}Registro de camión{% endif %}</li>
+                </ul>
+            </div>
+        </div>
+    </div>
+
+    <div class="servicio-band">
+        {% if solo_planificacion %}
+        {% if error %}<div class="alert alert-danger" role="alert">{{ error }}</div>{% endif %}
+        <div class="card servicio-card">
+            <div class="card-header d-flex flex-wrap justify-content-between align-items-center">
+                <div class="d-flex flex-wrap align-items-center">
+                    <h5 class="mb-0 mr-3">Recepciones de servicio</h5>
+                    {% if puede_planificar %}
+                    <button id="btn-nueva-planificacion-servicio" type="button" class="btn btn-primary btn-sm" data-toggle="modal" data-target="#modalNuevaPlanificacionServicio">
+                        <i class="fas fa-calendar-plus"></i> Nueva planificación de servicio
+                    </button>
+                    {% endif %}
+                </div>
+                <form method="get" class="form-inline" action="{% url 'recepcion_servicio_registro' %}">
+                    <input type="hidden" name="_empresa_id" value="{{ empresa_id }}">
+                    <input type="hidden" name="section" value="planificacion">
+                    <label class="mr-2" for="servicio-estado">Estado</label>
+                    <select id="servicio-estado" name="estado" class="form-control form-control-sm mr-2">
+                        <option value="PENDIENTES" {% if filtro_estado == 'PENDIENTES' %}selected{% endif %}>Pendientes</option>
+                        <option value="ACTIVOS" {% if filtro_estado == 'ACTIVOS' %}selected{% endif %}>Activos</option>
+                        <option value="COMPLETADOS" {% if filtro_estado == 'COMPLETADOS' %}selected{% endif %}>Completados</option>
+                        <option value="TODOS" {% if filtro_estado == 'TODOS' %}selected{% endif %}>Todos</option>
+                    </select>
+                    <button class="btn btn-sm btn-outline-primary" type="submit">Filtrar</button>
+                </form>
+            </div>
+            <div class="card-body table-responsive">
+                <table class="table table-striped table-hover mb-0">
+                    <thead><tr><th>Citación</th><th>Empresa</th><th>Fecha</th><th>Servicio</th><th>Proveedor</th><th>Patente</th><th>Chofer</th><th>Estado</th><th>Acción</th></tr></thead>
+                    <tbody>
+                    {% for servicio in servicios %}
+                    <tr>
+                        <td>#{{ servicio.detalle.CI_NID_id }}</td>
+                        <td>{{ servicio.detalle.CI_NID.EP_NID.EP_CRAZONSOCIAL }}</td>
+                        <td>{{ servicio.detalle.CI_NID.CI_FFECHACITACION|date:'d/m/Y H:i' }}</td>
+                        <td>{{ servicio.detalle.get_RSD_CTIPO_SERVICIO_display }}</td>
+                        <td>{{ servicio.detalle.PRO_NID.SN_CRAZONSOCIAL }}</td>
+                        <td>{{ servicio.detalle.RSD_CPATENTE }}</td>
+                        <td>{{ servicio.detalle.RSD_CNOMBRE_CHOFER }}</td>
+                        <td><span class="badge {% if servicio.estado == 'COMPLETADA' %}badge-success{% elif servicio.estado == 'ACTIVA' %}badge-primary{% else %}badge-warning{% endif %}">{{ servicio.estado }}</span></td>
+                        <td>{% if servicio.estado == 'ACTIVA' %}<a class="btn btn-sm btn-outline-primary" href="{% url 'operacion_planta_citacion' servicio.detalle.CI_NID_id %}?_empresa_id={{ empresa_id }}">Operación Planta</a>{% else %}-{% endif %}</td>
+                    </tr>
+                    {% empty %}<tr><td colspan="9" class="text-center text-muted py-4">No hay recepciones de servicio para el filtro seleccionado.</td></tr>{% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+        {% if puede_planificar %}
+        <div class="modal fade" id="modalNuevaPlanificacionServicio" tabindex="-1" role="dialog" aria-labelledby="modalNuevaPlanificacionServicioTitulo" aria-hidden="true">
+            <div class="modal-dialog modal-lg modal-dialog-scrollable" role="document">
+                <div class="modal-content">
+                    <form method="post" action="{% url 'recepcion_servicio_registro' %}">
+                        {% csrf_token %}
+                        <input type="hidden" name="_empresa_id" value="{{ empresa_id }}">
+                        <input type="hidden" name="section" value="planificacion">
+                        <input type="hidden" name="idempotencia" value="{{ idempotencia }}">
+                        <div class="modal-header">
+                            <h5 class="modal-title" id="modalNuevaPlanificacionServicioTitulo">Nueva planificación de servicio</h5>
+                            <button type="button" class="close" data-dismiss="modal" aria-label="Cerrar"><span aria-hidden="true">&times;</span></button>
+                        </div>
+                        <div class="modal-body">
+                            <div class="form-row">
+                                <div class="form-group col-md-4">
+                                    <label for="servicio-tipo">Tipo de servicio *</label>
+                                    <select id="servicio-tipo" name="tipo_servicio" class="form-control" required>
+                                        <option value="">Seleccione</option>
+                                        {% for codigo, nombre in tipos_servicio %}<option value="{{ codigo }}" {% if form_data.tipo_servicio == codigo %}selected{% endif %}>{{ nombre }}</option>{% endfor %}
+                                    </select>
+                                </div>
+                                <div class="form-group col-md-8">
+                                    <label for="servicio-proveedor">Proveedor *</label>
+                                    <select id="servicio-proveedor" name="proveedor_id" class="form-control" required>
+                                        <option value="">Seleccione</option>
+                                        {% for proveedor in proveedores_servicio %}<option value="{{ proveedor.id }}" {% if form_data.proveedor_id == proveedor.id|stringformat:'s' %}selected{% endif %}>{{ proveedor.SN_CRAZONSOCIAL }} · {{ proveedor.SN_CRUT }}</option>{% endfor %}
+                                    </select>
+                                </div>
+                                <div class="form-group col-md-4">
+                                    <label for="servicio-patente-plan">Patente camión *</label>
+                                    <input id="servicio-patente-plan" name="patente" class="form-control text-uppercase" maxlength="32" value="{{ form_data.patente }}" required>
+                                </div>
+                                <div class="form-group col-md-8">
+                                    <label for="servicio-chofer">Nombre chofer *</label>
+                                    <input id="servicio-chofer" name="nombre_chofer" class="form-control" maxlength="256" value="{{ form_data.nombre_chofer }}" required>
+                                </div>
+                                <div class="form-group col-md-6">
+                                    <label for="servicio-fecha">Fecha *</label>
+                                    <input id="servicio-fecha" type="date" name="fecha" class="form-control" value="{{ form_data.fecha|default:hoy }}" required>
+                                </div>
+                                <div class="form-group col-md-6">
+                                    <label for="servicio-hora">Hora citación *</label>
+                                    <input id="servicio-hora" type="time" name="hora" class="form-control" value="{{ form_data.hora }}" required>
+                                </div>
+                                <div class="form-group col-md-12 mb-0">
+                                    <label for="servicio-observacion">Observación</label>
+                                    <textarea id="servicio-observacion" name="observacion" class="form-control" rows="3">{{ form_data.observacion }}</textarea>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="modal-footer">
+                            <button type="button" class="btn btn-secondary" data-dismiss="modal">Cancelar</button>
+                            <button type="submit" class="btn btn-primary"><i class="fas fa-calendar-plus"></i> Crear planificación</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+        {% endif %}
+        {% elif not servicio_habilitado %}
+        <div class="card servicio-card">
+            <div class="card-header"><h5>Registro de camión</h5></div>
+            <div class="card-body"><p class="mb-0">No hay servicios operativos habilitados para esta empresa en esta fase.</p></div>
+        </div>
+        {% else %}
+        <div class="card servicio-card">
+            <div class="card-header"><h5>Registro de camión · Recepción Servicio</h5></div>
+            <div class="card-body">
+                <form method="get" action="{% url 'recepcion_servicio_registro' %}">
+                    <input type="hidden" name="_empresa_id" value="{{ empresa_id }}">
+                    <label for="servicio_busqueda">Buscar planificación pendiente por</label>
+                    <div class="servicio-search-row">
+                        <div class="form-group">
+                            <select id="servicio_tipo_busqueda" name="tipo_busqueda" class="form-control">
+                                <option value="patente" {% if tipo_busqueda != 'guia' %}selected{% endif %}>Patente</option>
+                                <option value="guia" {% if tipo_busqueda == 'guia' %}selected{% endif %}>Guía</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <input id="servicio_busqueda" name="busqueda" class="form-control" value="{{ busqueda }}" maxlength="128" placeholder="Patente o número de guía" required>
+                        </div>
+                        <div class="form-group"><button type="submit" class="btn btn-primary">Buscar</button></div>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        {% if error %}<div class="alert alert-warning" role="alert">{{ error }}</div>{% endif %}
+        {% if registrado %}
+        <div class="alert alert-success" role="status">
+            <strong>{{ registrado_flujo }}:</strong>
+            camión #{{ registrado.id }} registrado y asociado a la citación #{{ registrado.CI_NID_id }}.
+            {% if registrado_flujo == 'NEW JERSEY P3' %}
+            Quedó confirmado y preparado para la futura fase de Operación Planta P3.
+            {% else %}
+            Queda pendiente de validación de Guardia antes del ingreso a planta.
+            {% endif %}
+        </div>
+        {% endif %}
+
+        {% if datos %}
+        <div class="card servicio-card">
+            <div class="card-header"><h5>Planificación Recepción Servicio encontrada</h5></div>
+            <div class="card-body">
+                <div class="servicio-flujo">Flujo: {{ datos.flujo_nombre }}</div>
+                <div class="servicio-grid">
+                    <div class="servicio-dato"><small>Sector</small><strong>{{ datos.sector|default:"-" }}</strong></div>
+                    <div class="servicio-dato"><small>Proceso</small><strong>{{ datos.proceso|default:"-" }}</strong></div>
+                    {% if datos.flujo_codigo == 'NEW_JERSEY_P3' %}
+                    <div class="servicio-dato"><small>Operación New Jersey</small><strong>#{{ datos.operacion_id }}</strong></div>
+                    <div class="servicio-dato"><small>Citación P1</small><strong>#{{ datos.p1_id }}</strong></div>
+                    <div class="servicio-dato"><small>Citación P2</small><strong>#{{ datos.p2_id }}</strong></div>
+                    <div class="servicio-dato"><small>Citación P3</small><strong>#{{ datos.p3_id }}</strong></div>
+                    {% else %}
+                    <div class="servicio-dato"><small>Citación Piso 2</small><strong>#{{ datos.citacion_id }}</strong></div>
+                    <div class="servicio-dato"><small>Piso 1 origen</small><strong>#{{ datos.origen_id }}</strong></div>
+                    {% endif %}
+                    <div class="servicio-dato"><small>Guía</small><strong>{{ datos.guia|default:"-" }}</strong></div>
+                    <div class="servicio-dato"><small>Contenedor</small><strong>{{ datos.contenedor|default:"-" }}</strong></div>
+                    <div class="servicio-dato"><small>ItemCode</small><strong>{{ datos.item_code|default:"-" }}</strong></div>
+                    <div class="servicio-dato"><small>Producto</small><strong>{{ datos.producto|default:"-" }}</strong></div>
+                    <div class="servicio-dato"><small>TK / estanque</small><strong>{{ datos.tk_destino|default:datos.estanque|default:"-" }}</strong></div>
+                    <div class="servicio-dato"><small>Empresa transporte</small><strong>{{ datos.empresa_transporte|default:"-" }}</strong></div>
+                    <div class="servicio-dato"><small>Patente esperada</small><strong>{{ datos.patente_planificada|default:"-" }}</strong></div>
+                    <div class="servicio-dato"><small>Pedido SAP</small><strong>{{ datos.pedido_sap|default:"-" }}</strong></div>
+                    <div class="servicio-dato"><small>Proveedor</small><strong>{{ datos.proveedor|default:"-" }}</strong></div>
+                </div>
+            </div>
+        </div>
+
+        {% if not utilizada %}
+        <div class="card servicio-card">
+            <div class="card-header"><h5>Datos del camión que llegó a planta</h5></div>
+            <div class="card-body">
+                <form method="post" action="{% url 'recepcion_servicio_registro' %}">
+                    {% csrf_token %}
+                    <input type="hidden" name="_empresa_id" value="{{ empresa_id }}">
+                    <input type="hidden" name="tipo_busqueda" value="{{ tipo_busqueda }}">
+                    <input type="hidden" name="busqueda" value="{{ busqueda }}">
+                    <input type="hidden" name="citacion_id" value="{{ datos.citacion_id }}">
+                    {% if datos.flujo_codigo == 'NEW_JERSEY_P3' %}
+                    <input type="hidden" name="transportista_id" value="{{ datos.transportista_id }}">
+                    <input type="hidden" name="empresa_transporte" value="{{ datos.empresa_transporte }}">
+                    {% else %}
+                    <input type="hidden" name="transportista_id" id="servicio_transportista_id" value="{% if form_data %}{{ form_data.transportista_id }}{% else %}{{ datos.transportista_id }}{% endif %}">
+                    {% endif %}
+                    <div class="form-row">
+                        <div class="form-group col-md-6">
+                            <label for="servicio_empresa_transporte">Empresa de transporte *</label>
+                            {% if datos.flujo_codigo == 'NEW_JERSEY_P3' %}
+                            <input id="servicio_empresa_transporte" class="form-control" value="{{ datos.empresa_transporte }}" readonly>
+                            <small class="servicio-help">Transportista definido al iniciar P3.</small>
+                            {% else %}
+                            <select name="empresa_transporte" id="servicio_empresa_transporte" class="form-control" required>
+                                <option value="{% if form_data %}{{ form_data.empresa_transporte }}{% else %}{{ datos.empresa_transporte }}{% endif %}" selected>{% if form_data %}{{ form_data.empresa_transporte }}{% else %}{{ datos.empresa_transporte }}{% endif %}</option>
+                            </select>
+                            {% endif %}
+                        </div>
+                        <div class="form-group col-md-6">
+                            <label for="servicio_patente">Patente *</label>
+                            <input name="patente" id="servicio_patente" class="form-control text-uppercase" maxlength="32" required value="{% if form_data %}{{ form_data.patente }}{% else %}{{ datos.patente_planificada }}{% endif %}">
+                            {% if datos.flujo_codigo == 'NEW_JERSEY_P3' %}<small class="servicio-help">Debe coincidir con la patente planificada para P3.</small>{% endif %}
+                        </div>
+                        <div class="form-group col-md-6">
+                            <label for="servicio_nombre_conductor">Nombre conductor *</label>
+                            <input name="nombre_conductor" id="servicio_nombre_conductor" class="form-control" maxlength="256" value="{{ form_data.nombre_conductor }}" required>
+                        </div>
+                        <div class="form-group col-md-6">
+                            <label for="servicio_rut_conductor">RUT conductor *</label>
+                            <input name="rut_conductor" id="servicio_rut_conductor" class="form-control" maxlength="32" value="{{ form_data.rut_conductor }}" required>
+                        </div>
+                        <div class="form-group col-md-3">
+                            <label for="servicio_codigo_pais">Código país *</label>
+                            <input name="codigo_pais" id="servicio_codigo_pais" class="form-control" maxlength="5" value="{% if form_data.codigo_pais %}{{ form_data.codigo_pais }}{% else %}+56{% endif %}" required>
+                        </div>
+                        <div class="form-group col-md-9">
+                            <label for="servicio_telefono_conductor">Teléfono conductor *</label>
+                            <input name="telefono_conductor" id="servicio_telefono_conductor" class="form-control" maxlength="64" value="{{ form_data.telefono_conductor }}" required>
+                        </div>
+                    </div>
+                    <button type="submit" class="btn btn-success">
+                        {% if datos.flujo_codigo == 'NEW_JERSEY_P3' %}Confirmar camión New Jersey P3{% else %}Registrar camión y vincular a Piso 2{% endif %}
+                    </button>
+                </form>
+            </div>
+        </div>
+        {% endif %}
+        {% endif %}
+        {% endif %}
+    </div>
+</div>
+</section>
+{% endblock content %}
+
+{% block javascripts %}
+<script>
+(function () {
+    var patentePlanificacion = document.getElementById('servicio-patente-plan');
+    if (patentePlanificacion) patentePlanificacion.addEventListener('blur', function () {
+        this.value = String(this.value || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
+    });
+    {% if solo_planificacion and error and puede_planificar %}
+    if (window.jQuery) jQuery('#modalNuevaPlanificacionServicio').modal('show');
+    {% endif %}
+    var patente = document.getElementById('servicio_patente');
+    if (patente) patente.addEventListener('blur', function () {
+        this.value = String(this.value || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
+    });
+    if (!window.jQuery || !jQuery.fn.select2) return;
+    var transporte = jQuery('#servicio_empresa_transporte');
+    if (!transporte.is('select')) return;
+    transporte.select2({
+        width: '100%',
+        tags: true,
+        placeholder: 'Seleccione o escriba empresa de transporte',
+        ajax: {
+            url: '{% url "ajax_transportistas_ingreso_camion" %}',
+            dataType: 'json',
+            delay: 250,
+            data: function (params) { return {q: params.term || '', empresa_id: 2, estricto_empresa: '1'}; },
+            processResults: function (data) { return {results: data.results || []}; }
+        },
+        createTag: function (params) {
+            var nombre = String(params.term || '').replace(/\s+/g, ' ').trim();
+            return nombre ? {id: nombre, text: nombre, nuevo: true} : null;
+        }
+    }).on('select2:select', function (event) {
+        jQuery('#servicio_transportista_id').val(event.params.data.socionegocio_id || '');
+    }).on('select2:clear', function () {
+        jQuery('#servicio_transportista_id').val('');
+    });
+})();
+</script>
+{% endblock javascripts %}
