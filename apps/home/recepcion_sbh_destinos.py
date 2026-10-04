@@ -38,7 +38,7 @@ ALMACENES_DESTINO_RECEPCION_SBH = {
         'PTO SBH',
         'Z_PRIMAR',
     ],
-    'SBH': [f'TK{numero:02d}' for numero in range(1, 13)] + [
+    'SBH': [f'TK{numero:02d}' for numero in range(1, 19)] + [
         f'TKMX{numero:02d}' for numero in range(1, 5)
     ],
 }

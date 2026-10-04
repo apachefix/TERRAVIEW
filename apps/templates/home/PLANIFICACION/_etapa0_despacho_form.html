@@ -1,0 +1,308 @@
+<div class="modal fade modal-despacho-etapa0" id="ModalCrearDespacho" tabindex="-1" role="dialog" aria-labelledby="ModalCrearDespachoLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-scrollable modal-xl" role="document">
+        <div class="modal-content">
+
+            <div class="modal-header">
+                <div>
+                    <h5 class="modal-title" id="ModalCrearDespachoLabel">Crear despacho - Etapa 0</h5>
+                    <small class="modal-subtitle">
+                        Complete los datos base del despacho antes de agregarlo a la planificación.
+                    </small>
+                </div>
+
+                <button type="button" class="close" data-dismiss="modal" aria-label="Cerrar">
+                    <span aria-hidden="true">&times;</span>
+                </button>
+            </div>
+
+            <form id="form_crear_despacho" method="POST">
+                {% csrf_token %}
+
+                <div class="modal-body">
+                    <div class="form-section-title">Informaci&oacute;n SAP</div>
+
+                    <div class="row">
+                        <div class="col-lg-6 col-md-8">
+                            <div class="form-group">
+                                <label class="required-label">Cliente</label>
+                                <select class="form-control" id="despacho_cliente" name="cliente" required>
+                                    <option value="">Seleccione cliente</option>
+                                    {% for cliente in clientes_sap %}
+                                        <option value="{{ cliente.SOP_CARDCODE }}">{{ cliente.SOP_CARDNAME }}</option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div id="despacho_asignaciones_sap">
+                        <div class="despacho-asignacion-sap" data-asignacion-id="1">
+                            <div class="despacho-asignacion-sap-header">
+                                <strong>Contrato SAP 1</strong>
+                                <div>
+                                    <span class="badge badge-success d-none js-sap-confirmado">Contrato confirmado</span>
+                                    <button type="button" class="btn btn-outline-danger btn-sm ml-2" onclick="eliminarAsignacionSap(1)">Eliminar</button>
+                                </div>
+                            </div>
+                            <div class="form-group mb-0">
+                                <label>Buscar acuerdo SAP QA</label>
+                                <select class="form-control js-despacho-sap-busqueda" id="despacho_sap_busqueda" name="despacho_sap_busqueda" data-asignacion-id="1"></select>
+                                <small class="form-help-text">
+                                    Busque por OC cliente, descripci&oacute;n, cliente, c&oacute;digo cliente o n&uacute;mero de acuerdo SAP. Si no hay resultados, puede ingresar el despacho manualmente.
+                                </small>
+                            </div>
+                            <div class="despacho-asignacion-sap-detalle d-none">
+                                <div class="row">
+                                    <div class="col-lg-4 col-md-6"><small class="text-muted">Acuerdo SAP</small><strong class="d-block js-sap-acuerdo"></strong></div>
+                                    <div class="col-lg-4 col-md-6"><small class="text-muted">L&iacute;nea</small><strong class="d-block js-sap-linea"></strong></div>
+                                    <div class="col-lg-4 col-md-6"><small class="text-muted">Producto SAP</small><strong class="d-block js-sap-producto"></strong></div>
+                                    <div class="col-lg-4 col-md-6 mt-3"><small class="text-muted">OC Cliente</small><strong class="d-block js-sap-oc"></strong></div>
+                                    <div class="col-lg-4 col-md-6 mt-3"><small class="text-muted">Cantidad contrato</small><strong class="d-block js-sap-planificada"></strong></div>
+                                    <div class="col-lg-4 col-md-6 mt-3"><small class="text-muted">Cantidad consumida</small><strong class="d-block js-sap-consumida"></strong></div>
+                                    <div class="col-lg-4 col-md-6 mt-3"><small class="text-muted">Saldo disponible del contrato</small><strong class="d-block js-sap-saldo"></strong></div>
+                                    <div class="col-lg-4 col-md-6 mt-3"><small class="text-muted">Existencia f&iacute;sica en planta</small><strong class="d-block js-sap-stock-total">Seleccione un acuerdo SAP.</strong></div>
+                                    <div class="col-12 mt-3"><small class="text-muted">Estanque(s) con stock</small><div class="js-sap-stock-warehouses">Seleccione un acuerdo SAP.</div></div>
+                                    <div class="col-lg-4 col-md-6 mt-3">
+                                        <label class="required-label">Cantidad intentada a despachar</label>
+                                        <input type="text" class="form-control js-sap-cantidad-intentada" inputmode="decimal" autocomplete="off" placeholder="Ej: 2000">
+                                    </div>
+                                </div>
+                                <div class="alert alert-warning d-none mt-3 mb-0 js-sap-supera-saldo">
+                                    La cantidad intentada supera el saldo contractual calculado en SAP. Se permite continuar por el criterio comercial vigente.
+                                </div>
+                                <button type="button" class="btn btn-primary btn-sm mt-3 js-sap-confirmar" onclick="confirmarAsignacionSap(1)">Confirmar contrato</button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <button type="button" class="btn btn-outline-primary btn-sm" id="despacho_anexar_contrato" onclick="anexarContratoSapDespacho()" disabled>
+                        + Anexar contrato
+                    </button>
+
+                    <input type="hidden" id="despacho_codigo_sap" name="codigo_sap">
+                    <input type="hidden" id="despacho_nombre_producto_sap" name="nombre_producto_sap">
+                    <input type="hidden" id="despacho_numero_acuerdo_sap" name="numero_acuerdo_sap">
+                    <input type="hidden" id="despacho_abs_id_sap" name="sap_abs_id">
+                    <input type="hidden" id="despacho_linea_acuerdo_sap" name="linea_acuerdo_sap">
+                    <input type="hidden" id="despacho_cantidad_planificada_sap" name="cantidad_planificada_sap">
+                    <input type="hidden" id="despacho_cantidad_consumida_sap" name="cantidad_consumida_sap">
+                    <input type="hidden" id="despacho_saldo_contrato_sap" name="saldo_contrato_sap">
+                    <input type="hidden" id="despacho_cantidad_pendiente_sap" name="cantidad_pendiente_sap">
+                    <input type="hidden" id="despacho_estado_saldo_sap" name="estado_saldo_sap">
+                    <input type="hidden" id="despacho_insumo" name="insumo">
+                    <input type="hidden" id="despacho_oc" name="oc">
+                    <input type="hidden" id="despacho_cantidad_intentada" name="cantidad_intentada_despachar">
+
+                    <div class="form-section-title">Informaci&oacute;n para despacho</div>
+
+                    <div class="alert alert-warning d-none" id="despacho_sap_supera_saldo_alert">
+                        La cantidad asignada de uno o m&aacute;s contratos supera su saldo contractual calculado en SAP.
+                        <br>
+                        La planificaci&oacute;n podr&aacute; continuar debido a que pueden existir ampliaciones contractuales, recepciones futuras o ajustes comerciales a&uacute;n no reflejados en SAP.
+                    </div>
+
+                    <div class="row">
+                        <div class="col-lg-4 col-md-6">
+                            <div class="form-group">
+                                <label class="required-label">Fecha despacho</label>
+                                <input type="date" class="form-control" id="despacho_fecha" value="{{ fecha_planificacion_existente|default:'' }}" name="fecha_despacho" required>
+                            </div>
+                        </div>
+
+                        <div class="col-lg-4 col-md-6">
+                            <div class="form-group">
+                                {% if empresa_id == 2 and tipo_planificacion == 'DESPACHO' %}
+                                <label class="required-label">Direcci&oacute;n de despacho SAP</label>
+                                <select class="form-control" id="despacho_direccion_sap" name="direccion_despacho_sap_codigo" required disabled>
+                                    <option value="">Seleccione primero un acuerdo SAP</option>
+                                </select>
+                                <input type="hidden" id="despacho_destino" name="destino">
+                                <small class="form-help-text" id="despacho_direccion_sap_ayuda">
+                                    La direcci&oacute;n determina las rutas y tarifas disponibles desde Coronel.
+                                </small>
+                                {% else %}
+                                <label class="required-label">Destino</label>
+                                <input type="text" class="form-control" id="despacho_destino" name="destino" placeholder="Planta destino - Ubicaci&oacute;n" required>
+                                {% endif %}
+                            </div>
+                        </div>
+
+                        {% if empresa_id == 2 and tipo_planificacion == 'DESPACHO' %}
+                        <div class="col-lg-4 col-md-6">
+                            <div class="form-group">
+                                <label class="required-label">Fecha llegada al destino</label>
+                                <input type="date" class="form-control" id="despacho_fecha_llegada_destino" name="fecha_llegada_destino" required>
+                            </div>
+                        </div>
+                        {% endif %}
+
+                        <div class="col-lg-4 col-md-6">
+                            <div class="form-group">
+                                <label class="required-label">Hora llegada a destino</label>
+                                <input type="time" class="form-control" id="despacho_hora_llegada_destino" name="hora_llegada_destino" required>
+                            </div>
+                        </div>
+                    </div>
+
+                    {% if empresa_id == 2 and tipo_planificacion == 'DESPACHO' %}
+                    <div class="despacho-sbh-total" aria-live="polite">
+                        <small class="text-uppercase text-muted">Total planificado de despacho</small>
+                        <div class="value"><span id="despacho_total_planificado">0</span> t</div>
+                    </div>
+                    {% endif %}
+
+                    <div class="form-section-title">Programaci&oacute;n de carga en planta</div>
+
+                    <div class="row">
+                        <div class="col-lg-4 col-md-6">
+                            <div class="form-group">
+                                <label class="required-label">Formato</label>
+                                <select class="form-control" id="despacho_formato" name="formato" required{% if empresa_id == 2 and tipo_planificacion == 'DESPACHO' %} disabled{% endif %}>
+                                    <option value="">Seleccione formato</option>
+                                    <option value="Cisterna">Cisterna</option>
+                                    <option value="Contenedor">Contenedor</option>
+                                    <option value="Isotank">Isotank</option>
+                                    <option value="IBC">IBC</option>
+                                </select>
+                            </div>
+                        </div>
+
+
+                        <div class="col-lg-4 col-md-6">
+                            <div class="form-group">
+                                <label class="required-label">Orden de carga</label>
+                                <input type="text" class="form-control" id="despacho_orden_carga" name="orden_carga" placeholder="1°, 2°, 3°" required>
+                                <small class="form-help-text">Define la prioridad de carga del cami&oacute;n en planta.</small>
+                            </div>
+                        </div>
+
+                        <div class="col-lg-4 col-md-6">
+                            <div class="form-group">
+                                <label class="required-label">Hora llegada a planta</label>
+                                <input type="time" class="form-control" id="despacho_hora_llegada_planta" name="hora_llegada_planta" required>
+                            </div>
+                        </div>
+                        <div class="col-lg-4 col-md-6">
+                            <div class="form-group">
+                                <label class="required-label">Bodega de origen</label>
+                                <input type="text" class="form-control" id="despacho_bodega" name="bodega" placeholder="Ej: SBH, Terramar 6" required>
+                            </div>
+                        </div>
+
+                        {% if empresa_id != 2 or tipo_planificacion != 'DESPACHO' %}
+                        <div class="col-lg-4 col-md-6">
+                            <div class="form-group">
+                                <label class="required-label">Condici&oacute;n de entrega</label>
+                                <select class="form-control" id="despacho_transportado_por" name="condicion_entrega" required>
+                                    <option value="">Seleccione</option>
+                                    <option value="Terramar">Terramar</option>
+                                    <option value="Cliente">Cliente</option>
+                                </select>
+                                <small class="form-help-text" id="despacho_transporte_ayuda">
+                                    Seleccione la condici&oacute;n de entrega para definir c&oacute;mo se ingresar&aacute;n los datos de transporte.
+                                </small>
+                            </div>
+                        </div>
+
+                        <div class="col-lg-4 col-md-6">
+                            <div class="form-group">
+                                <label class="required-label" id="despacho_empresa_transporte_label">Empresa Transporte</label>
+                                <select class="form-control" id="despacho_empresa_transporte" name="empresa_transporte" required></select>
+                                <input type="hidden" id="despacho_empresa_transporte_id" name="empresa_transporte_id">
+                                <input type="text"
+                                       class="form-control d-none mt-2"
+                                       id="despacho_empresa_transporte_manual"
+                                       name="empresa_transporte_manual"
+                                       placeholder="Empresa Transporte">
+                            </div>
+                        </div>
+
+                        <div class="col-lg-4 col-md-6">
+                            <div class="form-group">
+                                <label class="required-label" id="despacho_conductor_label">Conductor</label>
+                                <select class="form-control" id="despacho_conductor" name="conductor" required></select>
+                                <input type="hidden" id="despacho_conductor_id" name="conductor_id">
+                                <input type="text"
+                                       class="form-control d-none mt-2"
+                                       id="despacho_conductor_manual"
+                                       name="conductor_manual"
+                                       placeholder="Conductor">
+                                <small class="form-help-text d-none" id="despacho_conductor_mensaje">
+                                    No hay conductores registrados para esta empresa transporte. Puede ingresarlo manualmente.
+                                </small>
+                            </div>
+                        </div>
+
+                        <div class="col-lg-4 col-md-6">
+                            <div class="form-group">
+                                <label class="required-label" id="despacho_patente_label">Patente</label>
+                                <input type="text" class="form-control text-uppercase" id="despacho_patente" name="patente" required>
+                                <input type="checkbox" class="d-none" id="despacho_ingreso_manual" value="1" tabindex="-1" aria-hidden="true">
+                            </div>
+                        </div>
+                        <div class="col-12"><div id="despacho_control_documental" class="alert alert-light py-2 d-none"></div></div>
+                        {% endif %}
+
+                        <div class="col-lg-4 col-md-6">
+                            <div class="form-group">
+                                <label class="required-label">Salida de documento</label>
+                                <select class="form-control" id="despacho_salida_documento" name="salida_documento" required>
+                                    <option value="">Seleccione</option>
+                                    {% if empresa_id == 2 and tipo_planificacion == 'DESPACHO' %}
+                                    <option value="FE">Factura de cliente</option>
+                                    <option value="GD">Gu&iacute;a de despacho</option>
+                                    <option value="FE_RESERVA">Factura reserva</option>
+                                    {% else %}
+                                    <option value="Factura de cliente">Factura de cliente</option>
+                                    <option value="Gu&iacute;a de despacho">Gu&iacute;a de despacho</option>
+                                    <option value="Factura anticipada">Factura anticipada</option>
+                                    {% endif %}
+                                </select>
+                            </div>
+                        </div>
+
+                        <div class="col-lg-8 col-md-6">
+                            <div class="form-group">
+                                <label class="required-label">Secuencia operacional</label>
+                                <select class="form-control" id="despacho_secuencia_id" name="secuencia_id" required>
+                                    <option value="">Seleccione secuencia</option>
+                                    {% for secuencia in secuencias %}
+                                        {% if secuencia.SE_CTIPO == 'DESPACHO' %}
+                                            <option value="{{ secuencia.id }}">{{ secuencia.SE_CNOMBRE }}</option>
+                                        {% endif %}
+                                    {% endfor %}
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+                    {% if empresa_id == 2 and tipo_planificacion == 'DESPACHO' %}
+                    <div id="despacho_resumen_capacidad" class="despacho-sbh-resumen d-none" aria-live="polite">
+                        <div class="despacho-sbh-resumen-grid">
+                            <div><small>Total planificado</small><strong><span id="despacho_resumen_total">0</span> t</strong></div>
+                            <div><small>Formato</small><strong id="despacho_resumen_formato">-</strong><small id="despacho_resumen_ibc" class="d-none">20 IBC por cami&oacute;n</small></div>
+                            <div><small>Capacidad de planificaci&oacute;n</small><strong><span id="despacho_resumen_capacidad_valor">0</span> t / cami&oacute;n</strong></div>
+                            <div><small>Camiones estimados</small><strong id="despacho_resumen_camiones">0</strong></div>
+                        </div>
+                    </div>
+                    <div id="despacho_camiones_planificados_seccion" class="mt-4 d-none">
+                        <div class="form-section-title d-flex justify-content-between align-items-center">
+                            <span>Camiones planificados</span>
+                            <button type="button" class="btn btn-sm btn-outline-primary" onclick="agregarCamionPlanificadoSbh()">
+                                <i class="fas fa-plus mr-1"></i>Agregar cami&oacute;n
+                            </button>
+                        </div>
+                        <div id="despacho_camiones_capacidad_advertencia" class="alert alert-warning d-none" role="alert"></div>
+                        <div id="despacho_camiones_planificados"></div>
+                    </div>
+                    {% endif %}
+                </div>
+
+                <div class="modal-footer modal-footer-custom">
+                    <button type="button" class="btn btn-secondary" data-dismiss="modal">Cancelar</button>
+                    <button type="button" class="btn btn-success" onclick="agregarDespachoTemporal()">Crear</button>
+                </div>
+            </form>
+
+        </div>
+    </div>
+</div>

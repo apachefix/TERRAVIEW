@@ -873,19 +873,19 @@
         }
     }
 
-    #ModalCrearDespacho .modal-dialog {
+    #ModalCrearDespachoNoPlanificado .modal-dialog {
         max-height: calc(100vh - 2rem);
         margin: 1rem auto;
     }
 
-    #ModalCrearDespacho .modal-content {
+    #ModalCrearDespachoNoPlanificado .modal-content {
         max-height: calc(100vh - 2rem);
         display: flex;
         flex-direction: column;
         overflow: hidden;
     }
 
-    #ModalCrearDespacho #form_crear_despacho {
+    #ModalCrearDespachoNoPlanificado #np_form_crear_despacho {
         display: flex;
         flex: 1 1 auto;
         flex-direction: column;
@@ -893,7 +893,7 @@
         overflow: hidden;
     }
 
-    #ModalCrearDespacho .modal-body {
+    #ModalCrearDespachoNoPlanificado .modal-body {
         flex: 1 1 auto;
         min-height: 0;
         overflow-x: hidden;
@@ -903,18 +903,18 @@
         padding-bottom: 1.5rem;
     }
 
-    #ModalCrearDespacho .modal-header,
-    #ModalCrearDespacho .modal-footer {
+    #ModalCrearDespachoNoPlanificado .modal-header,
+    #ModalCrearDespachoNoPlanificado .modal-footer {
         flex: 0 0 auto;
     }
 
     @media (max-width: 576px) {
-        #ModalCrearDespacho .modal-dialog {
+        #ModalCrearDespachoNoPlanificado .modal-dialog {
             max-height: calc(100vh - 1rem);
             margin: .5rem auto;
         }
 
-        #ModalCrearDespacho .modal-content {
+        #ModalCrearDespachoNoPlanificado .modal-content {
             max-height: calc(100vh - 1rem);
         }
 
@@ -929,6 +929,7 @@
         }
     }
 </style>
+<link rel="stylesheet" href="/static/assets/css/etapa0-recepcion-modal.css">
     {% load humanize %}
     {% load i18n %}
     {% load l10n %}
@@ -1045,52 +1046,11 @@
                             <div class="card-header table-card-header">
                                 <h3>Citaciones</h3>
                             </div>
-                            <div class="dropdown drp-user mr-4 mt-4">
-                                <button class="btn btn-primary dropdown-toggle" type="button" id="dropdownMenuButton" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false" style="color: #fff; background-color: #4099ff; border-color: #4099ff;">
-                                    <i class="fas fa-ellipsis-v"></i>&nbsp;&nbsp;&nbsp;
-                                    Opciones
-                                </button>
-                                <div class="dropdown-menu dropdown-menu-right profile-notification" aria-labelledby="dropdownMenuButton" style="max-height: 300px; overflow-y: auto;">
-                                    <div class="pro-body">
-                                        {% if request.user.is_superuser == 1 %}
-                                            {% if not planificacion.PL_BARCHIVADO %}
-                                            <form method="post" action="{% url 'pla_filedone' planificacion.pk %}">{% csrf_token %}<button type="submit" class="dropdown-item btn btn-warning"><i class="fas fa-folder-open"></i>&nbsp;&nbsp;&nbsp;Archivar</button></form>
-                                            {% endif %}
-                                        {% endif %}
-                                        {% if not planificacion.PL_BARCHIVADO %}
-                                            {% if planificacion.PL_CTIPOCUPO == 'DESPACHO' %}
-                                            <button class="dropdown-item btn btn-primary" type="button" data-toggle="modal" data-target="#ModalAgregarCitacionesVenta">
-                                                <i class="fas fa-map-marked-alt"></i>
-                                                &nbsp;&nbsp;&nbsp;Nuevo despacho
-                                            </button>
-                                            {% endif %}
-                                            {% if planificacion.PL_CTIPOCUPO == 'RECEPCION' %}
-                                            <button class="dropdown-item btn btn-primary" type="button" data-toggle="modal" data-target="#ModalAgregarCitacionesCompra">
-                                                <i class="fas fa-map-marked-alt"></i>
-                                                &nbsp;&nbsp;&nbsp;Nueva recepción
-                                            </button>
-                                            {% endif %}
-                                            <a class="dropdown-item btn btn-success" href="{% url 'cit_addmasive' planificacion.pk %}">
-                                                <i class="fas fa-file-excel"></i>
-                                                &nbsp;&nbsp;&nbsp;Importar citaciones
-                                            </a>
-                                            <a class="dropdown-item btn btn-secondary" href="{% url 'cupo_addmasive' planificacion.pk %}">
-                                                <i class="feather icon-grid"></i>
-                                                &nbsp;&nbsp;&nbsp;Asignar cupos masivo
-                                            </a>
-                                            <button class="dropdown-item btn btn-secondary" type="button" data-toggle="modal" data-target="#ModalAsignaciones">
-                                                <i class="fas fa-hand-pointer"></i>
-                                                &nbsp;&nbsp;&nbsp;Asignaciones
-                                            </button>
-                                            <a class=" dropdown-item btn btn-primary" href="{% url 'download_citaciones_data' planificacion.pk %}">
-                                                <i class="fas fa-file-excel"></i>
-                                                &nbsp;&nbsp;&nbsp;Descargar reporte
-                                            </a>
-
-                                        {% endif %}
-                                    </div>
-                                </div>                            
+                            {% if request.user.is_superuser and not planificacion.PL_BARCHIVADO %}
+                            <div class="mr-4 mt-3 mb-2">
+                                <form method="post" action="{% url 'pla_filedone' planificacion.pk %}" class="d-inline mb-0">{% csrf_token %}<button type="submit" class="btn btn-sm btn-outline-warning">Archivar</button></form>
                             </div>
+                            {% endif %}
                         </div>
                         <div class="card-body">
                             <ul class="nav nav-pills mb-3" id="pills-tab" role="tablist">
@@ -1102,6 +1062,11 @@
                                 {% if planificacion.PL_CTIPOCUPO == 'RECEPCION' %}
                                 <li class="nav-item">
 									<a class="nav-link active" id="pills-recepciones-tab" data-toggle="pill" href="#pills-recepciones" role="tab" aria-controls="pills-recepciones" aria-selected="true">Recepciones</a>
+                                </li>
+                                {% endif %}
+                                {% if puede_agregar_citaciones %}
+                                <li class="nav-item ml-2">
+                                    <button type="button" class="btn btn-primary" onclick="abrirModalEtapa0Planificacion()">Agregar citaciones</button>
                                 </li>
                                 {% endif %}
                                 {% if not planificacion.PL_BARCHIVADO %}
@@ -1139,13 +1104,13 @@
                                                 <tr>
                                                     <th>ACCIONES</th>
                                                     <th>NUMERO CITACIÓN</th>
+                                                    <th>PRODUCTO</th>
                                                     <th>FECHA CITACION</th>
                                                     <th>TIPO DOCUMENTO</th>
                                                     <th>NUMERO DOCUMENTO</th>
                                                     <th>TIPO FLETE</th>
                                                     <th>SECUENCIA</th>
                                                     <th>ETAPA</th>
-                                                    <th>PRODUCTO</th>
                                                     <th>CLIENTE</th>
                                                     <th>CONDUCTOR</th>
                                                     <th>CELULAR CONDUCTOR</th>
@@ -1359,13 +1324,13 @@
                                                             </div>
                                                         </td>
                                                         <td>{{ object.0 }}</td>
+                                                        <td>{{ object.15 }}</td>
                                                         <td>{{ object.1|date:'d/m/Y' }}</td>
                                                         <td>{{ object.13|default:"" }}</td>
                                                         <td>{{ object.14|default:"Sin documento" }}</td>
                                                         <td>{{ object.20|default:"" }}</td>
                                                         <td>{{ object.2 }}</td>
                                                         <td>{{ object.3 }}</td>
-                                                        <td>{{ object.15 }}</td>
                                                         <td>{{ object.4 }}</td>
                                                         <td>{{ object.5|default:"Sin información" }}</td>
                                                         <td>{{ object.16|default:"Sin información" }}</td>
@@ -1395,6 +1360,7 @@
                                                 <tr>
                                                     <th>ACCIONES</th>
                                                     <th>NUMERO CITACIÓN</th>
+                                                    <th>PRODUCTO</th>
                                                     <th>FECHA CITACION</th>
                                                     <th>TIPO DOCUMENTO</th>
                                                     <th>NUMERO DOCUMENTO</th>
@@ -1405,7 +1371,6 @@
                                                     <th>CELULAR CONDUCTOR</th>
                                                     <th>PATENTE</th>
                                                     <th>TRANSPORTISTA</th>
-                                                    <th>PRODUCTO</th>
                                                     {% if request.user.is_superuser == True %}<th>TARIFA</th>{% endif %}
                                                 </tr>
                                                 {% endif %}
@@ -1655,6 +1620,7 @@
                                                         <td>{{ object.0 }}</td><td>{{ object.1|date:'d/m/Y' }}</td><td>{{ object.4 }}</td><td>{{ object.5 }}</td><td>{{ object.48 }}</td><td>{{ object.49 }}</td><td>{{ object.50 }}</td><td>{{ object.3|default:"No informado" }}</td><td>{{ object.51 }}</td><td>{{ object.52 }}</td><td>{{ object.53 }}</td><td>{{ object.54 }}</td><td>{{ object.55 }}</td><td>{{ object.56 }}</td><td>{{ object.57 }}</td>
                                                         {% else %}
                                                         <td>{{ object.0 }}</td>
+                                                        <td>{{ object.6 }}</td>
                                                         <td>{{ object.1|date:'d/m/Y' }}</td>
                                                         <td>{{ object.2 }}</td>
                                                         <td>{{ object.3|default:"Sin documento" }}</td>
@@ -1665,7 +1631,6 @@
                                                         <td>{{ object.10|default:"Sin información" }}</td>
                                                         <td>{{ object.8|default:"Sin información" }}</td>
                                                         <td>{{ object.7|default:"Sin información" }}</td>
-                                                        <td>{{ object.6 }}</td>
                                                         {% if request.user.is_superuser == True %}<td>$ {{ object.11|custom_number_format}}</td>{% endif %}
                                                         {% endif %}
                                                     </tr>
@@ -1980,29 +1945,29 @@
     </div>
 
     {% if planificacion.PL_CTIPOCUPO == 'DESPACHO' and solicitud_camion_patio_no_planificado %}
-    <div class="modal fade modal-despacho-etapa0" id="ModalCrearDespacho" tabindex="-1" role="dialog" aria-labelledby="ModalCrearDespachoLabel" aria-hidden="true">
+    <div class="modal fade modal-despacho-etapa0" id="ModalCrearDespachoNoPlanificado" tabindex="-1" role="dialog" aria-labelledby="np_ModalCrearDespachoLabel" aria-hidden="true">
         <div class="modal-dialog modal-dialog-scrollable modal-xl" role="document">
             <div class="modal-content">
                 <div class="modal-header">
                     <div>
-                        <h5 class="modal-title" id="ModalCrearDespachoLabel">Crear despacho - Etapa 0</h5>
+                        <h5 class="modal-title" id="np_ModalCrearDespachoLabel">Crear despacho - Etapa 0</h5>
                         <small>Agregue el camión no planificado como sobrecupo de la planificación #{{ planificacion.id }}.</small>
                     </div>
                     <button type="button" class="close" data-dismiss="modal" aria-label="Cerrar"><span aria-hidden="true">&times;</span></button>
                 </div>
-                <form id="form_crear_despacho" method="POST">
+                <form id="np_form_crear_despacho" method="POST">
                     {% csrf_token %}
-                    <input type="hidden" name="solicitud_no_planificado_id" id="despacho_solicitud_no_planificado_id">
-                    <input type="hidden" name="camion_patio_id" id="despacho_camion_patio_id">
+                    <input type="hidden" name="solicitud_no_planificado_id" id="np_despacho_solicitud_no_planificado_id">
+                    <input type="hidden" name="camion_patio_id" id="np_despacho_camion_patio_id">
                     <input type="hidden" name="origen" value="camion_no_planificado">
-                    <input type="hidden" name="fecha_llegada" id="despacho_fecha_llegada" value="{{ planificacion.PL_FFECHAINICIO|date:'Y-m-d' }}">
-                    <input type="hidden" name="cliente_nombre" id="despacho_cliente_nombre">
-                    <input type="hidden" name="cliente_codigo" id="despacho_cliente_codigo">
+                    <input type="hidden" name="fecha_llegada" id="np_despacho_fecha_llegada" value="{{ planificacion.PL_FFECHAINICIO|date:'Y-m-d' }}">
+                    <input type="hidden" name="cliente_nombre" id="np_despacho_cliente_nombre">
+                    <input type="hidden" name="cliente_codigo" id="np_despacho_cliente_codigo">
 
                     <div class="modal-body">
                         <div class="alert alert-info">
                             <strong>Antecedentes declarados:</strong>
-                            <span id="despacho_np_antecedentes"></span>
+                            <span id="np_despacho_np_antecedentes"></span>
                         </div>
 
                         <h6 class="border-bottom pb-2 mb-3">Información SAP</h6>
@@ -2010,14 +1975,14 @@
                             <div class="col-12">
                                 <div class="form-group">
                                     <label>Buscar acuerdo SAP QA</label>
-                                    <select class="form-control" id="despacho_sap_busqueda"></select>
+                                    <select class="form-control" id="np_despacho_sap_busqueda"></select>
                                     <small class="form-help-text">Busque por OC cliente, descripción, cliente, código cliente o número de acuerdo SAP.</small>
                                 </div>
                             </div>
                             <div class="col-lg-4 col-md-6">
                                 <div class="form-group">
                                     <label>Cliente</label>
-                                    <select class="form-control" id="despacho_cliente" name="cliente" required>
+                                    <select class="form-control" id="np_despacho_cliente" name="cliente" required>
                                         <option value="">Seleccione cliente</option>
                                         {% for cliente in clientes_sap %}
                                         <option value="{{ cliente.SOP_CARDCODE }}">{{ cliente.SOP_CARDNAME }}</option>
@@ -2025,60 +1990,60 @@
                                     </select>
                                 </div>
                             </div>
-                            <div class="col-lg-4 col-md-6"><div class="form-group"><label>Producto SAP / Insumo</label><input type="text" class="form-control" id="despacho_insumo" name="insumo" required></div></div>
-                            <div class="col-lg-4 col-md-6"><div class="form-group"><label>OC Cliente</label><input type="text" class="form-control" id="despacho_oc" name="pedido" required></div></div>
-                            <div class="col-lg-4 col-md-6"><div class="form-group"><label>Código producto SAP</label><input type="text" class="form-control" id="despacho_codigo_sap" name="sap_codigo_producto" readonly></div></div>
-                            <div class="col-lg-4 col-md-6"><div class="form-group"><label>Nombre producto SAP</label><input type="text" class="form-control" id="despacho_nombre_producto_sap" name="sap_nombre_producto" readonly></div></div>
-                            <div class="col-lg-4 col-md-6"><div class="form-group"><label>Acuerdo SAP</label><input type="text" class="form-control" id="despacho_numero_acuerdo_sap" name="sap_numero_acuerdo" readonly><input type="hidden" id="despacho_abs_id_sap" name="sap_abs_id"></div></div>
-                            <div class="col-lg-4 col-md-6"><div class="form-group"><label>Línea acuerdo SAP</label><input type="text" class="form-control" id="despacho_linea_acuerdo_sap" name="sap_linea_acuerdo" readonly></div></div>
-                            <div class="col-lg-4 col-md-6"><div class="form-group"><label>Cantidad contrato SAP</label><input type="text" class="form-control" id="despacho_cantidad_planificada_sap" name="sap_cantidad_planificada" readonly></div></div>
-                            <div class="col-lg-4 col-md-6"><div class="form-group"><label>Cantidad consumida SAP</label><input type="text" class="form-control" id="despacho_cantidad_consumida_sap" name="sap_cantidad_consumida" readonly></div></div>
-                            <div class="col-lg-4 col-md-6"><div class="form-group"><label>Saldo contrato SAP</label><input type="text" class="form-control" id="despacho_saldo_contrato_sap" name="sap_saldo_contrato" readonly></div></div>
+                            <div class="col-lg-4 col-md-6"><div class="form-group"><label>Producto SAP / Insumo</label><input type="text" class="form-control" id="np_despacho_insumo" name="insumo" required></div></div>
+                            <div class="col-lg-4 col-md-6"><div class="form-group"><label>OC Cliente</label><input type="text" class="form-control" id="np_despacho_oc" name="pedido" required></div></div>
+                            <div class="col-lg-4 col-md-6"><div class="form-group"><label>Código producto SAP</label><input type="text" class="form-control" id="np_despacho_codigo_sap" name="sap_codigo_producto" readonly></div></div>
+                            <div class="col-lg-4 col-md-6"><div class="form-group"><label>Nombre producto SAP</label><input type="text" class="form-control" id="np_despacho_nombre_producto_sap" name="sap_nombre_producto" readonly></div></div>
+                            <div class="col-lg-4 col-md-6"><div class="form-group"><label>Acuerdo SAP</label><input type="text" class="form-control" id="np_despacho_numero_acuerdo_sap" name="sap_numero_acuerdo" readonly><input type="hidden" id="np_despacho_abs_id_sap" name="sap_abs_id"></div></div>
+                            <div class="col-lg-4 col-md-6"><div class="form-group"><label>Línea acuerdo SAP</label><input type="text" class="form-control" id="np_despacho_linea_acuerdo_sap" name="sap_linea_acuerdo" readonly></div></div>
+                            <div class="col-lg-4 col-md-6"><div class="form-group"><label>Cantidad contrato SAP</label><input type="text" class="form-control" id="np_despacho_cantidad_planificada_sap" name="sap_cantidad_planificada" readonly></div></div>
+                            <div class="col-lg-4 col-md-6"><div class="form-group"><label>Cantidad consumida SAP</label><input type="text" class="form-control" id="np_despacho_cantidad_consumida_sap" name="sap_cantidad_consumida" readonly></div></div>
+                            <div class="col-lg-4 col-md-6"><div class="form-group"><label>Saldo contrato SAP</label><input type="text" class="form-control" id="np_despacho_saldo_contrato_sap" name="sap_saldo_contrato" readonly></div></div>
                         </div>
 
                         <h6 class="border-bottom pb-2 mb-3 mt-2">Planificación despacho</h6>
-                        <div class="alert alert-warning d-none" id="despacho_sap_supera_saldo_alert">La cantidad intentada a despachar supera el saldo contractual calculado en SAP.</div>
+                        <div class="alert alert-warning d-none" id="np_despacho_sap_supera_saldo_alert">La cantidad intentada a despachar supera el saldo contractual calculado en SAP.</div>
                         <div class="row">
-                            <div class="col-lg-4 col-md-6"><div class="form-group"><label>Cantidad intentada a despachar</label><input type="text" class="form-control" id="despacho_cantidad_intentada" name="cantidad_intentada_despachar" inputmode="decimal" required></div></div>
-                            <div class="col-lg-4 col-md-6"><div class="form-group"><label>Fecha despacho</label><input type="date" class="form-control" id="despacho_fecha" value="{{ planificacion.PL_FFECHAINICIO|date:'Y-m-d' }}" readonly required></div></div>
-                            <div class="col-lg-4 col-md-6"><div class="form-group"><label>Destino</label><input type="text" class="form-control" id="despacho_destino" name="destino" required></div></div>
-                            <div class="col-lg-4 col-md-6"><div class="form-group"><label>Formato</label><select class="form-control" id="despacho_formato" name="tipo_carga" required><option value="">Seleccione formato</option><option value="Cisterna">Cisterna</option><option value="Contenedor">Contenedor</option><option value="Isotank">Isotank</option><option value="IBC">IBC</option></select></div></div>
-                            <div class="col-lg-4 col-md-6"><div class="form-group"><label>Orden de carga</label><input type="text" class="form-control" id="despacho_orden_carga" name="orden_carga" required></div></div>
-                            <div class="col-lg-4 col-md-6"><div class="form-group"><label>Ventana horaria</label><input type="text" class="form-control" id="despacho_ventana_horaria" name="ventana_horaria_despacho" required></div></div>
-                            <div class="col-lg-4 col-md-6"><div class="form-group"><label>Bodega de origen</label><input type="text" class="form-control" id="despacho_bodega" name="bodega" required></div></div>
+                            <div class="col-lg-4 col-md-6"><div class="form-group"><label>Cantidad intentada a despachar</label><input type="text" class="form-control" id="np_despacho_cantidad_intentada" name="cantidad_intentada_despachar" inputmode="decimal" required></div></div>
+                            <div class="col-lg-4 col-md-6"><div class="form-group"><label>Fecha despacho</label><input type="date" class="form-control" id="np_despacho_fecha" value="{{ planificacion.PL_FFECHAINICIO|date:'Y-m-d' }}" readonly required></div></div>
+                            <div class="col-lg-4 col-md-6"><div class="form-group"><label>Destino</label><input type="text" class="form-control" id="np_despacho_destino" name="destino" required></div></div>
+                            <div class="col-lg-4 col-md-6"><div class="form-group"><label>Formato</label><select class="form-control" id="np_despacho_formato" name="tipo_carga" required><option value="">Seleccione formato</option><option value="Cisterna">Cisterna</option><option value="Contenedor">Contenedor</option><option value="Isotank">Isotank</option><option value="IBC">IBC</option></select></div></div>
+                            <div class="col-lg-4 col-md-6"><div class="form-group"><label>Orden de carga</label><input type="text" class="form-control" id="np_despacho_orden_carga" name="orden_carga" required></div></div>
+                            <div class="col-lg-4 col-md-6"><div class="form-group"><label>Ventana horaria</label><input type="text" class="form-control" id="np_despacho_ventana_horaria" name="ventana_horaria_despacho" required></div></div>
+                            <div class="col-lg-4 col-md-6"><div class="form-group"><label>Bodega de origen</label><input type="text" class="form-control" id="np_despacho_bodega" name="bodega" required></div></div>
                             <div class="col-lg-4 col-md-6">
                                 <div class="form-group">
                                     <label>Empresa Transporte</label>
-                                    <select class="form-control" id="despacho_empresa_transporte" name="empresa_transporte" required></select>
-                                    <input type="hidden" id="despacho_empresa_transporte_id" name="empresa_transporte_id">
-                                    <input type="text" class="form-control d-none mt-2" id="despacho_empresa_transporte_manual" name="empresa_transporte_manual" placeholder="Ingrese empresa transporte">
+                                    <select class="form-control" id="np_despacho_empresa_transporte" name="empresa_transporte" required></select>
+                                    <input type="hidden" id="np_despacho_empresa_transporte_id" name="empresa_transporte_id">
+                                    <input type="text" class="form-control d-none mt-2" id="np_despacho_empresa_transporte_manual" name="empresa_transporte_manual" placeholder="Ingrese empresa transporte">
                                 </div>
                             </div>
                             <div class="col-lg-4 col-md-6">
                                 <div class="form-group">
                                     <label>Conductor</label>
-                                    <select class="form-control" id="despacho_conductor" name="conductor" required></select>
-                                    <input type="hidden" id="despacho_conductor_id" name="conductor_id">
-                                    <input type="text" class="form-control d-none mt-2" id="despacho_conductor_manual" name="conductor_manual" placeholder="Ingrese nombre conductor">
+                                    <select class="form-control" id="np_despacho_conductor" name="conductor" required></select>
+                                    <input type="hidden" id="np_despacho_conductor_id" name="conductor_id">
+                                    <input type="text" class="form-control d-none mt-2" id="np_despacho_conductor_manual" name="conductor_manual" placeholder="Ingrese nombre conductor">
                                 </div>
                             </div>
                             <div class="col-lg-4 col-md-6">
                                 <div class="form-group">
                                     <label>Patente del camión no planificado</label>
-                                    <input type="text" class="form-control text-uppercase" id="despacho_patente" readonly>
-                                    <input type="hidden" id="despacho_patente_real" name="patente">
-                                    <label class="d-inline-flex align-items-center mt-2 mb-0" style="gap:6px;font-size:12px;color:#6c757d;"><input type="checkbox" id="despacho_ingreso_manual" value="1"><span>Ingreso manual de transporte/conductor</span></label>
+                                    <input type="text" class="form-control text-uppercase" id="np_despacho_patente" readonly>
+                                    <input type="hidden" id="np_despacho_patente_real" name="patente">
+                                    <label class="d-inline-flex align-items-center mt-2 mb-0" style="gap:6px;font-size:12px;color:#6c757d;"><input type="checkbox" id="np_despacho_ingreso_manual" value="1"><span>Ingreso manual de transporte/conductor</span></label>
                                 </div>
                             </div>
-                            <div class="col-lg-4 col-md-6"><div class="form-group"><label>Condición de entrega</label><select class="form-control" id="despacho_transportado_por" name="condicion_entrega" required><option value="">Seleccione</option><option value="Terramar">Terramar</option><option value="Cliente">Cliente</option></select></div></div>
-                            <div class="col-lg-4 col-md-6"><div class="form-group"><label>Salida de documento</label><select class="form-control" id="despacho_salida_documento" name="salida_documento" required><option value="">Seleccione</option><option value="Factura de cliente">Factura de cliente</option><option value="Guía de despacho">Guía de despacho</option><option value="Factura anticipada">Factura anticipada</option></select></div></div>
-                            <div class="col-lg-8 col-md-6"><div class="form-group"><label>Secuencia operacional</label><select class="form-control" id="despacho_secuencia_id" name="secuencia_id" required><option value="">Seleccione secuencia</option>{% for secuencia in secuencias %}{% if secuencia.SE_CTIPO == 'DESPACHO' %}<option value="{{ secuencia.id }}">{{ secuencia.SE_CNOMBRE }}</option>{% endif %}{% endfor %}</select></div></div>
-                            <div class="col-12"><div class="form-group"><label>Observación</label><input type="text" class="form-control" id="despacho_observacion" name="observacion"></div></div>
+                            <div class="col-lg-4 col-md-6"><div class="form-group"><label>Condición de entrega</label><select class="form-control" id="np_despacho_transportado_por" name="condicion_entrega" required><option value="">Seleccione</option><option value="Terramar">Terramar</option><option value="Cliente">Cliente</option></select></div></div>
+                            <div class="col-lg-4 col-md-6"><div class="form-group"><label>Salida de documento</label><select class="form-control" id="np_despacho_salida_documento" name="salida_documento" required><option value="">Seleccione</option><option value="Factura de cliente">Factura de cliente</option><option value="Guía de despacho">Guía de despacho</option><option value="Factura anticipada">Factura anticipada</option></select></div></div>
+                            <div class="col-lg-8 col-md-6"><div class="form-group"><label>Secuencia operacional</label><select class="form-control" id="np_despacho_secuencia_id" name="secuencia_id" required><option value="">Seleccione secuencia</option>{% for secuencia in secuencias %}{% if secuencia.SE_CTIPO == 'DESPACHO' %}<option value="{{ secuencia.id }}">{{ secuencia.SE_CNOMBRE }}</option>{% endif %}{% endfor %}</select></div></div>
+                            <div class="col-12"><div class="form-group"><label>Observación</label><input type="text" class="form-control" id="np_despacho_observacion" name="observacion"></div></div>
                         </div>
                     </div>
                     <div class="modal-footer">
                         <button type="button" class="btn btn-secondary" data-dismiss="modal">Cancelar</button>
-                        <button type="button" class="btn btn-success" id="btn_crear_despacho_no_planificado" onclick="crearDespachoNoPlanificado()">Crear</button>
+                        <button type="button" class="btn btn-success" id="np_btn_crear_despacho_no_planificado" onclick="crearDespachoNoPlanificado()">Crear</button>
                     </div>
                 </form>
             </div>
@@ -2122,71 +2087,8 @@
         </div>
     </div>
 
-    <!-- Modal Content agregar Citaciones -->
-    <div class="modal fade " id="ModalAgregarCitacionesVenta" tabindex="-1" role="dialog" aria-labelledby="ModalAgregarCitacionesVentaLabel" aria-hidden="true" modal-backdrop-opacity=".9">
-        <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable" role="document">
-            <div class="modal-content">
-                <div class="modal-header">
-                    <h5 class="modal-title" id="ModalAgregarCitacionesVentaLabel">Agregar citación</h5>
-                    <button type="button" class="close" data-dismiss="modal" aria-label="Close">
-                        <span aria-hidden="true">&times;</span>
-                    </button>
-                </div>
-                <div class="modal-body"> 
-                    <form method="GET" enctype="multipart/form-data" action="{% url 'cit_addvariospre' %}">    
-                        {% csrf_token %}
-                        <div class="fieldWrapper">
-                            <input type="hidden" name="PL_NID" value="{{planificacion.id}}">
-                        </div>
-                        <div class="fieldWrapper">
-                            <input type="hidden" name="is-venta" id="is-venta" value="true">
-                        </div>
-                        <div class="fieldWrapper">
-                            <label class="my-1 me-2" >¿Cuántas citaciones desea crear?:</label>
-                            <input type="number" name="cantidad_citaciones" id="cantidad_citaciones" class="form-control" required>
-                        </div>
-                        <br>
-                        <div class="d-flex justify-content-end">
-                            <button type="submit" class="m-2 btn btn-primary" id="btn_guardar">Continuar</button>
-                            <button type="button" class="m-2 btn btn-danger" data-dismiss="modal">Cerrar</button>
-                        </div>
-                    </form>
-                </div>
-            </div>
-        </div>
-    </div>
-    <!-- End of Modal Content -->
-    <!-- Modal Content agregar Citaciones -->
-    <div class="modal fade " id="ModalAgregarCitacionesCompra" tabindex="-1" role="dialog" aria-labelledby="ModalAgregarCitacionesCompraLabel" aria-hidden="true" modal-backdrop-opacity=".9">
-        <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable" role="document">
-            <div class="modal-content">
-                <div class="modal-header">
-                    <h5 class="modal-title" id="ModalAgregarCitacionesVentaLabel">Agregar citación</h5>
-                    <button type="button" class="close" data-dismiss="modal" aria-label="Close">
-                        <span aria-hidden="true">&times;</span>
-                    </button>
-                </div>
-                <div class="modal-body"> 
-                    <form method="GET" enctype="multipart/form-data" action="{% url 'cit_addvariospre' %}">    
-                        {% csrf_token %}
-                        <div class="fieldWrapper">
-                            <input type="hidden" name="PL_NID" value="{{planificacion.id}}">
-                        </div>
-                        <div class="fieldWrapper">
-                            <label class="my-1 me-2" >¿Cuántas citaciones desea crea:</label>
-                            <input type="number" name="cantidad_citaciones" id="cantidad_citaciones" class="form-control" required>
-                        </div>
-                        <br>
-                        <div class="d-flex justify-content-end">
-                            <button type="submit" class="m-2 btn btn-primary" id="btn_guardar">Continuar</button>
-                            <button type="button" class="m-2 btn btn-danger" data-dismiss="modal">Cerrar</button>
-                        </div>
-                    </form>
-                </div>
-            </div>
-        </div>
-    </div>
-    <!-- End of Modal Content -->
+
+
      <!-- Modal Content agregar Citaciones -->
     <div class="modal fade " id="ModalCupoProveedor" tabindex="-1" role="dialog" aria-labelledby="ModalCupoProveedorLabel" aria-hidden="true" modal-backdrop-opacity=".9">
         <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable" role="document">
@@ -2856,12 +2758,55 @@
 </div>
 {% endif %}
 
+{% if puede_agregar_citaciones %}
+<div hidden>{% csrf_token %}</div>
+{% if formulario_etapa0 != 'recepcion_sbh' %}<input type="hidden" id="empresa_id" value="{{ empresa_id }}">{% endif %}
+{% if formulario_etapa0 == 'recepcion_sbh' %}
+{% include "home/PLANIFICACION/_etapa0_recepcion_form.html" with secuencias=secuencias_etapa0_recepcion proveedores_recepcion_sbh=proveedores_etapa0_recepcion es_recepcion_sbh=puede_agregar_citaciones %}
+{% elif formulario_etapa0 == 'transferencia_sbh' %}
+{% include "home/PLANIFICACION/_etapa0_transferencia_form.html" %}
+{% elif formulario_etapa0 == 'despacho_sbh' %}
+{% include "home/PLANIFICACION/_etapa0_despacho_form.html" with secuencias=secuencias_etapa0 tipo_planificacion=planificacion.PL_CTIPOCUPO %}
+{% elif formulario_etapa0 == 'recepcion_terramar' %}
+{% include "home/PLANIFICACION/_etapa0_recepcion_terramar_form.html" %}
+{% elif formulario_etapa0 == 'despacho_terramar' %}
+{% include "home/PLANIFICACION/_etapa0_despacho_terramar_form.html" %}
+{% endif %}
+{{ camion_patio_inicial|json_script:"camion-patio-inicial-data" }}
+<div class="modal fade" id="ModalResumenCitacionesEtapa0" tabindex="-1" role="dialog" aria-labelledby="ModalResumenCitacionesEtapa0Label" aria-hidden="true">
+    <div class="modal-dialog modal-xl" role="document" style="max-width: 96vw;">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="ModalResumenCitacionesEtapa0Label">Citaciones por agregar a la planificación #{{ planificacion.id }}</h5>
+                <button type="button" class="close" data-dismiss="modal" aria-label="Cerrar"><span aria-hidden="true">&times;</span></button>
+            </div>
+            <div class="modal-body">
+                <p class="text-muted">Revise las citaciones antes de guardarlas. Total: <strong id="contador_citaciones_temporales">0</strong></p>
+                <div class="table-responsive">
+                    <table class="table table-bordered table-sm" id="tabla_citaciones_temporales">
+                        {% include "home/PLANIFICACION/_etapa0_resumen_cabecera.html" with es_recepcion_transferencia_sbh=es_recepcion_transferencia_sbh_etapa0 es_recepcion_terramar=es_recepcion_terramar_etapa0 es_despacho_terramar=es_despacho_terramar_etapa0 tipo_planificacion=planificacion.PL_CTIPOCUPO %}
+                        <tbody id="tbody_citaciones_temporales"></tbody>
+                    </table>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-outline-primary mr-auto" onclick="reabrirModalEtapa0Planificacion()">Agregar otra</button>
+                <button type="button" class="btn btn-secondary" data-dismiss="modal">Cancelar</button>
+                <button type="button" class="btn btn-success" onclick="guardarPlanificacionConCitaciones()">Crear citaciones</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endif %}
 {% endblock content %}
 
 <!-- Specific Page JS goes HERE  -->
 {% block javascripts %}
     <!-- datatable Js -->
     <script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
+    {% if puede_agregar_citaciones %}
+    {% include "home/PLANIFICACION/_etapa0_recepcion_scripts.html" with tipo_planificacion=planificacion.PL_CTIPOCUPO flujo_navegacion=flujo_etapa0 estanques_por_almacen_json=estanques_etapa0_json es_recepcion_sbh=es_recepcion_sbh_etapa0 es_recepcion_transferencia_sbh=es_recepcion_transferencia_sbh_etapa0 es_recepcion_terramar=es_recepcion_terramar_etapa0 es_despacho_terramar=es_despacho_terramar_etapa0 %}
+    {% endif %}
     <script src="/static/assets/js/plugins/jquery.dataTables.min.js"></script>
     <script src="/static/assets/js/plugins/dataTables.bootstrap4.min.js"></script>
     <script src="/static/assets/js/plugins/buttons.colVis.min.js"></script>
@@ -3209,9 +3154,9 @@
     }
 
     function actualizarSaldoDespachoNoPlanificado() {
-        const cantidad = despachoNoPlanDecimal(despachoNoPlanValor('despacho_cantidad_intentada'));
-        const saldo = despachoNoPlanDecimal(despachoNoPlanValor('despacho_saldo_contrato_sap'));
-        $('#despacho_sap_supera_saldo_alert').toggleClass('d-none', cantidad === null || saldo === null || cantidad <= saldo);
+        const cantidad = despachoNoPlanDecimal(despachoNoPlanValor('np_despacho_cantidad_intentada'));
+        const saldo = despachoNoPlanDecimal(despachoNoPlanValor('np_despacho_saldo_contrato_sap'));
+        $('#np_despacho_sap_supera_saldo_alert').toggleClass('d-none', cantidad === null || saldo === null || cantidad <= saldo);
     }
 
     function cargarAcuerdoSapDespachoNoPlanificado(item) {
@@ -3219,56 +3164,56 @@
         const clienteCodigo = sap.cliente_codigo || '';
         const clienteNombre = sap.cliente_nombre || clienteCodigo;
         if (clienteCodigo) {
-            const select = $('#despacho_cliente');
+            const select = $('#np_despacho_cliente');
             if (!select.find('option[value="' + String(clienteCodigo).replace(/"/g, '\\"') + '"]').length) {
                 select.append(new Option(clienteNombre, clienteCodigo, true, true));
             }
             select.val(clienteCodigo).trigger('change');
         }
-        despachoNoPlanSet('despacho_oc', sap.oc_cliente || '');
-        despachoNoPlanSet('despacho_insumo', sap.nombre_insumo || '');
-        despachoNoPlanSet('despacho_codigo_sap', sap.codigo_insumo || '');
-        despachoNoPlanSet('despacho_nombre_producto_sap', sap.nombre_insumo || '');
-        despachoNoPlanSet('despacho_numero_acuerdo_sap', sap.sap_acuerdo_numero || '');
-        despachoNoPlanSet('despacho_abs_id_sap', sap.sap_abs_id || '');
-        despachoNoPlanSet('despacho_linea_acuerdo_sap', sap.linea_acuerdo || '');
-        despachoNoPlanSet('despacho_cantidad_planificada_sap', sap.cantidad_planificada || '');
-        despachoNoPlanSet('despacho_cantidad_consumida_sap', sap.cantidad_consumida || '');
+        despachoNoPlanSet('np_despacho_oc', sap.oc_cliente || '');
+        despachoNoPlanSet('np_despacho_insumo', sap.nombre_insumo || '');
+        despachoNoPlanSet('np_despacho_codigo_sap', sap.codigo_insumo || '');
+        despachoNoPlanSet('np_despacho_nombre_producto_sap', sap.nombre_insumo || '');
+        despachoNoPlanSet('np_despacho_numero_acuerdo_sap', sap.sap_acuerdo_numero || '');
+        despachoNoPlanSet('np_despacho_abs_id_sap', sap.sap_abs_id || '');
+        despachoNoPlanSet('np_despacho_linea_acuerdo_sap', sap.linea_acuerdo || '');
+        despachoNoPlanSet('np_despacho_cantidad_planificada_sap', sap.cantidad_planificada || '');
+        despachoNoPlanSet('np_despacho_cantidad_consumida_sap', sap.cantidad_consumida || '');
         const saldo = sap.saldo_contrato_sap !== null && sap.saldo_contrato_sap !== undefined
             ? sap.saldo_contrato_sap
             : ((Number(sap.cantidad_planificada) || 0) - (Number(sap.cantidad_consumida) || 0));
-        despachoNoPlanSet('despacho_saldo_contrato_sap', saldo);
+        despachoNoPlanSet('np_despacho_saldo_contrato_sap', saldo);
         actualizarSaldoDespachoNoPlanificado();
     }
 
     function despachoNoPlanIngresoManual() {
-        return $('#despacho_ingreso_manual').is(':checked');
+        return $('#np_despacho_ingreso_manual').is(':checked');
     }
 
     function actualizarModoTransporteDespachoNoPlanificado() {
         const manual = despachoNoPlanIngresoManual();
-        $('#despacho_empresa_transporte, #despacho_conductor').prop('disabled', manual).prop('required', !manual);
-        $('#despacho_empresa_transporte_manual, #despacho_conductor_manual')
+        $('#np_despacho_empresa_transporte, #np_despacho_conductor').prop('disabled', manual).prop('required', !manual);
+        $('#np_despacho_empresa_transporte_manual, #np_despacho_conductor_manual')
             .toggleClass('d-none', !manual)
             .prop('disabled', !manual)
             .prop('required', manual);
     }
 
     function inicializarModalDespachoNoPlanificado() {
-        const modal = $('#ModalCrearDespacho');
+        const modal = $('#ModalCrearDespachoNoPlanificado');
         if (!modal.length || !$.fn.select2) {
             return;
         }
 
-        ['#despacho_cliente', '#despacho_formato', '#despacho_transportado_por', '#despacho_salida_documento', '#despacho_secuencia_id'].forEach(function (selector) {
+        ['#np_despacho_cliente', '#np_despacho_formato', '#np_despacho_transportado_por', '#np_despacho_salida_documento', '#np_despacho_secuencia_id'].forEach(function (selector) {
             const select = $(selector);
             if (!select.hasClass('select2-hidden-accessible')) {
                 select.select2({ placeholder: 'Seleccione', allowClear: true, width: '100%', dropdownParent: modal });
             }
         });
-        cargarClientesSapSelect('#despacho_cliente', '#ModalCrearDespacho');
+        cargarClientesSapSelect('#np_despacho_cliente', '#ModalCrearDespachoNoPlanificado');
 
-        const acuerdoSelect = $('#despacho_sap_busqueda');
+        const acuerdoSelect = $('#np_despacho_sap_busqueda');
         if (!acuerdoSelect.hasClass('select2-hidden-accessible')) {
             acuerdoSelect.select2({
                 placeholder: 'Buscar acuerdo SAP QA...',
@@ -3299,7 +3244,7 @@
             cargarAcuerdoSapDespachoNoPlanificado((event.params.data || {}).sap || {});
         });
 
-        const transportista = $('#despacho_empresa_transporte');
+        const transportista = $('#np_despacho_empresa_transporte');
         if (!transportista.hasClass('select2-hidden-accessible')) {
             transportista.select2({
                 placeholder: 'Seleccione empresa transporte', allowClear: true, width: '100%', dropdownParent: modal,
@@ -3312,16 +3257,16 @@
         }
         transportista.off('select2:select.noPlanDespacho select2:clear.noPlanDespacho')
             .on('select2:select.noPlanDespacho', function (event) {
-                $('#despacho_empresa_transporte_id').val((event.params.data || {}).socionegocio_id || '');
-                $('#despacho_conductor').val(null).trigger('change');
-                $('#despacho_conductor_id').val('');
+                $('#np_despacho_empresa_transporte_id').val((event.params.data || {}).socionegocio_id || '');
+                $('#np_despacho_conductor').val(null).trigger('change');
+                $('#np_despacho_conductor_id').val('');
             })
             .on('select2:clear.noPlanDespacho', function () {
-                $('#despacho_empresa_transporte_id, #despacho_conductor_id').val('');
-                $('#despacho_conductor').val(null).trigger('change');
+                $('#np_despacho_empresa_transporte_id, #np_despacho_conductor_id').val('');
+                $('#np_despacho_conductor').val(null).trigger('change');
             });
 
-        const conductor = $('#despacho_conductor');
+        const conductor = $('#np_despacho_conductor');
         if (!conductor.hasClass('select2-hidden-accessible')) {
             conductor.select2({
                 placeholder: 'Seleccione conductor', allowClear: true, width: '100%', dropdownParent: modal,
@@ -3330,8 +3275,8 @@
                     data: function (params) {
                         return {
                             q: params.term || '', empresa_id: empresaIdActiva(),
-                            transportista_id: $('#despacho_empresa_transporte_id').val(),
-                            transportista: $('#despacho_empresa_transporte').val() || ''
+                            transportista_id: $('#np_despacho_empresa_transporte_id').val(),
+                            transportista: $('#np_despacho_empresa_transporte').val() || ''
                         };
                     },
                     processResults: function (data) { return { results: data.results || [] }; }
@@ -3340,12 +3285,12 @@
         }
         conductor.off('select2:select.noPlanDespacho select2:clear.noPlanDespacho')
             .on('select2:select.noPlanDespacho', function (event) {
-                $('#despacho_conductor_id').val((event.params.data || {}).conductor_id || '');
+                $('#np_despacho_conductor_id').val((event.params.data || {}).conductor_id || '');
             })
-            .on('select2:clear.noPlanDespacho', function () { $('#despacho_conductor_id').val(''); });
+            .on('select2:clear.noPlanDespacho', function () { $('#np_despacho_conductor_id').val(''); });
 
-        $('#despacho_ingreso_manual').off('change.noPlanDespacho').on('change.noPlanDespacho', actualizarModoTransporteDespachoNoPlanificado);
-        $('#despacho_cantidad_intentada').off('input.noPlanDespacho').on('input.noPlanDespacho', actualizarSaldoDespachoNoPlanificado);
+        $('#np_despacho_ingreso_manual').off('change.noPlanDespacho').on('change.noPlanDespacho', actualizarModoTransporteDespachoNoPlanificado);
+        $('#np_despacho_cantidad_intentada').off('input.noPlanDespacho').on('input.noPlanDespacho', actualizarSaldoDespachoNoPlanificado);
         actualizarModoTransporteDespachoNoPlanificado();
     }
 
@@ -3356,22 +3301,22 @@
             return;
         }
 
-        const form = document.getElementById('form_crear_despacho');
+        const form = document.getElementById('np_form_crear_despacho');
         if (!form) {
             Swal.fire('Error', 'No se encontró el formulario Crear despacho - Etapa 0.', 'error');
             return;
         }
         form.reset();
         inicializarModalDespachoNoPlanificado();
-        $('#despacho_cliente, #despacho_formato, #despacho_transportado_por, #despacho_salida_documento, #despacho_secuencia_id, #despacho_sap_busqueda, #despacho_empresa_transporte, #despacho_conductor').val(null).trigger('change');
-        despachoNoPlanSet('despacho_solicitud_no_planificado_id', solicitud.solicitud_no_planificado_id);
-        despachoNoPlanSet('despacho_camion_patio_id', solicitud.camion_patio_id);
-        despachoNoPlanSet('despacho_patente', solicitud.patente || '');
-        despachoNoPlanSet('despacho_patente_real', solicitud.patente || '');
-        despachoNoPlanSet('despacho_fecha', '{{ planificacion.PL_FFECHAINICIO|date:"Y-m-d" }}');
-        despachoNoPlanSet('despacho_fecha_llegada', '{{ planificacion.PL_FFECHAINICIO|date:"Y-m-d" }}');
-        despachoNoPlanSet('despacho_observacion', solicitud.observacion || '');
-        $('#despacho_np_antecedentes').text([
+        $('#np_despacho_cliente, #np_despacho_formato, #np_despacho_transportado_por, #np_despacho_salida_documento, #np_despacho_secuencia_id, #np_despacho_sap_busqueda, #np_despacho_empresa_transporte, #np_despacho_conductor').val(null).trigger('change');
+        despachoNoPlanSet('np_despacho_solicitud_no_planificado_id', solicitud.solicitud_no_planificado_id);
+        despachoNoPlanSet('np_despacho_camion_patio_id', solicitud.camion_patio_id);
+        despachoNoPlanSet('np_despacho_patente', solicitud.patente || '');
+        despachoNoPlanSet('np_despacho_patente_real', solicitud.patente || '');
+        despachoNoPlanSet('np_despacho_fecha', '{{ planificacion.PL_FFECHAINICIO|date:"Y-m-d" }}');
+        despachoNoPlanSet('np_despacho_fecha_llegada', '{{ planificacion.PL_FFECHAINICIO|date:"Y-m-d" }}');
+        despachoNoPlanSet('np_despacho_observacion', solicitud.observacion || '');
+        $('#np_despacho_np_antecedentes').text([
             'Patente: ' + (solicitud.patente || '-'),
             'Proveedor: ' + (solicitud.proveedor || '-'),
             'Cliente: ' + (solicitud.cliente_nombre || '-'),
@@ -3379,27 +3324,27 @@
             'Guía/documento: ' + (solicitud.numero_guia || '-'),
             'BL/contenedor: ' + (solicitud.bl_contenedor || '-')
         ].join(' · '));
-        $('#ModalCrearDespacho').modal('show');
+        $('#ModalCrearDespachoNoPlanificado').modal('show');
     }
 
     function crearDespachoNoPlanificado() {
-        const form = document.getElementById('form_crear_despacho');
+        const form = document.getElementById('np_form_crear_despacho');
         if (!form || !form.checkValidity()) {
             if (form) form.reportValidity();
             return;
         }
-        if (despachoNoPlanDecimal(despachoNoPlanValor('despacho_cantidad_intentada')) === null) {
+        if (despachoNoPlanDecimal(despachoNoPlanValor('np_despacho_cantidad_intentada')) === null) {
             Swal.fire('Atención', 'Debe ingresar una cantidad intentada a despachar válida.', 'warning');
             return;
         }
 
         const manual = despachoNoPlanIngresoManual();
         const empresaTransporte = manual
-            ? despachoNoPlanValor('despacho_empresa_transporte_manual').trim()
-            : String($('#despacho_empresa_transporte').val() || '').trim();
+            ? despachoNoPlanValor('np_despacho_empresa_transporte_manual').trim()
+            : String($('#np_despacho_empresa_transporte').val() || '').trim();
         const conductor = manual
-            ? despachoNoPlanValor('despacho_conductor_manual').trim()
-            : String($('#despacho_conductor').val() || '').trim();
+            ? despachoNoPlanValor('np_despacho_conductor_manual').trim()
+            : String($('#np_despacho_conductor').val() || '').trim();
         if (!empresaTransporte || !conductor) {
             Swal.fire('Atención', 'Debe seleccionar o ingresar empresa transporte y conductor.', 'warning');
             return;
@@ -3407,29 +3352,29 @@
 
         const formData = new FormData(form);
         formData.set('_empresa_id', empresaIdActiva());
-        formData.set('cliente_codigo', $('#despacho_cliente').val() || '');
-        formData.set('cliente_nombre', $('#despacho_cliente option:selected').text().trim());
+        formData.set('cliente_codigo', $('#np_despacho_cliente').val() || '');
+        formData.set('cliente_nombre', $('#np_despacho_cliente option:selected').text().trim());
         formData.set('empresa_transporte', empresaTransporte);
         formData.set('conductor', conductor);
-        formData.set('patente', despachoNoPlanValor('despacho_patente_real'));
-        formData.set('codigo', despachoNoPlanValor('despacho_codigo_sap'));
-        formData.set('docentry', despachoNoPlanValor('despacho_abs_id_sap'));
-        formData.set('sap_opor_id', despachoNoPlanValor('despacho_abs_id_sap'));
-        formData.set('contrato_sap', despachoNoPlanValor('despacho_numero_acuerdo_sap'));
-        formData.set('cantidad_disponible', despachoNoPlanValor('despacho_saldo_contrato_sap'));
-        formData.set('inf_24hrs', despachoNoPlanValor('despacho_transportado_por'));
+        formData.set('patente', despachoNoPlanValor('np_despacho_patente_real'));
+        formData.set('codigo', despachoNoPlanValor('np_despacho_codigo_sap'));
+        formData.set('docentry', despachoNoPlanValor('np_despacho_abs_id_sap'));
+        formData.set('sap_opor_id', despachoNoPlanValor('np_despacho_abs_id_sap'));
+        formData.set('contrato_sap', despachoNoPlanValor('np_despacho_numero_acuerdo_sap'));
+        formData.set('cantidad_disponible', despachoNoPlanValor('np_despacho_saldo_contrato_sap'));
+        formData.set('inf_24hrs', despachoNoPlanValor('np_despacho_transportado_por'));
 
-        const boton = $('#btn_crear_despacho_no_planificado').prop('disabled', true).text('Creando...');
+        const boton = $('#np_btn_crear_despacho_no_planificado').prop('disabled', true).text('Creando...');
         $.ajax({
             url: '{% url "crear_citacion_no_planificada" planificacion.id %}',
             type: 'POST', data: formData, processData: false, contentType: false,
-            headers: { 'X-CSRFToken': document.querySelector('#form_crear_despacho [name=csrfmiddlewaretoken]').value },
+            headers: { 'X-CSRFToken': document.querySelector('#np_form_crear_despacho [name=csrfmiddlewaretoken]').value },
             success: function (response) {
                 if (!response.success) {
                     Swal.fire('Error', response.message || 'No fue posible crear el despacho.', 'error');
                     return;
                 }
-                $('#ModalCrearDespacho').modal('hide');
+                $('#ModalCrearDespachoNoPlanificado').modal('hide');
                 Swal.fire('Despacho creado', response.message || 'El camión no planificado fue agregado como sobrecupo.', 'success').then(function () { location.reload(); });
             },
             error: function (xhr) {

@@ -1,107 +1,40 @@
 {% extends "layouts/base.html" %}
 {% load static %}
-
-{% block title %} Monitoreo {% endblock %} 
-
-<!-- Specific CSS goes HERE -->
-{% block stylesheets %}
-    <!-- data tables css -->
-    <link rel="stylesheet" href="/static/assets/css/plugins/dataTables.bootstrap4.min.css">
-    <!-- rangeslider css -->
-    <link rel="stylesheet" href="/static/assets/css/plugins/bootstrap-slider.min.css">
-    <!-- Feather Icons -->
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/feather-icons/dist/feather.min.css">
-    <!-- Custom CSS -->
-    <link rel="stylesheet" href="/static/assets/css/flat.css">
-    {% load humanize %}
-    {% load i18n %}
-    {% load l10n %}
-{% endblock stylesheets %}
-
-{% block content %}	
-    <!-- [ Main Content ] start -->
-    <section class="pcoded-main-container">
-        <div class="pcoded-content">
-            <!-- [ breadcrumb ] start -->
-            <div class="page-header">
-                <div class="page-block">
-                    <div class="row align-items-center">
-                        <div class="col-md-12">
-                            <div class="page-header-title">
-                                <h5 class="m-b-10">Monitor</h5>
-                            </div>
-                            <ul class="breadcrumb">
-                                <li class="breadcrumb-item"><a href="/"><i class="feather icon-home"></i></a></li>
-                                <li class="breadcrumb-item"><a href="/">Sitema Camiones</a></li>
-                                <li class="breadcrumb-item"><a href="{% url 'home' %}">Monitor</a></li>
-                            </ul>
-                        </div>
-                    </div>
-                </div>
-            </div>
-            <!-- [ breadcrumb ] end -->
-            <!-- [ Main Content ] start -->
-            <div class="row">
-                <!-- PRIMERO: El plano -->
-                <div class="col-sm-12 mb-4">
-                    <div class="card">                        
-                        <div class="card-body">
-                            <div id="container"></div>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- SEGUNDO: Información de las zonas -->
-                <div class="col-sm-12" style="margin-top: -40px;">
-                    <div class="row">
-                        <!-- Tabla de cupos -->
-                        <div class="col-md-8 mb-2">
-                            <div class="card">
-                                <h6 class="card-title mb-4 mt-4 ml-4">Cupos Disponibles Por Zona</h6>
-                                <div class="card-body">
-                                    <div class="dt-responsive table-responsive mb-4 ml-2">
-                                        <table class="table table-sm table-striped mb-0" id="cuposTable">
-                                            <thead>
-                                                <tr>
-                                                    <th class="py-1">Zona</th>
-                                                    <th class="py-1">Ocupados</th>
-                                                    <th class="py-1">Máximos</th>
-                                                </tr>
-                                            </thead>
-                                            <tbody>
-                                                <!-- Los datos se llenarán aquí -->
-                                            </tbody>
-                                        </table>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </section> 
-    <!-- [ Main Content ] end -->
-{% endblock content %}
-
-<!-- Specific Page JS goes HERE  -->
-{% block javascripts %}
-    <!-- range slider Js -->
-    <script src="/static/assets/js/plugins/bootstrap-slider.min.js"></script>
-    <!-- datatable Js -->
-    <script src="/static/assets/js/plugins/jquery.dataTables.min.js"></script>
-    <script src="/static/assets/js/plugins/dataTables.bootstrap4.min.js"></script>
-    <script src="/static/assets/js/plugins/buttons.colVis.min.js"></script>
-    <script src="/static/assets/js/plugins/buttons.print.min.js"></script>
-    <script src="/static/assets/js/plugins/pdfmake.min.js"></script>
-    <script src="/static/assets/js/plugins/jszip.min.js"></script>
-    <script src="/static/assets/js/plugins/dataTables.buttons.min.js"></script>
-    <script src="/static/assets/js/plugins/buttons.html5.min.js"></script>
-    <script src="/static/assets/js/plugins/buttons.bootstrap4.min.js"></script>
-    <script src="/static/assets/js/pages/data-export-custom.js"></script>
-    <!-- Feather Icons -->
-    <script src="https://cdn.jsdelivr.net/npm/feather-icons/dist/feather.min.js"></script>
-    <!--Konva JS-->
-    <script src="https://unpkg.com/konva@9.3.0/konva.min.js"></script>
-    <script src="/static/assets/js/flat.js"></script>
-{% endblock javascripts %}
+{% block title %} Mapa operacional de planta {% endblock %}
+{% block stylesheets %}<link rel="stylesheet" href="{% static 'assets/css/mapa-operacional.css' %}?v=20261004-ux">{% endblock %}
+{% block content %}
+<section class="pcoded-main-container"><div class="pcoded-content" id="mapa-operacional" data-empresa="{{ mapa_empresa_id }}" data-endpoint="{% url 'dashboard_grafico_estado' %}?_empresa_id={{ mapa_empresa_id }}">
+  <header class="mapa-cabecera">
+    <div><p class="mapa-contexto"><span id="mapa-empresa">Empresa {{ mapa_empresa_id }}</span> · Solo lectura</p><h1>Mapa Operacional de Planta</h1><p class="mapa-subtitulo">Vista de camiones dentro de la planta · Ubicación inferida, no GPS</p></div>
+    <div class="mapa-actualizacion"><span id="mapa-conexion">Consultando estado</span><p id="mapa-estado" role="status" aria-live="polite">Consultando estado operacional…</p></div>
+  </header>
+  <div id="mapa-kpis" class="mapa-kpis" aria-label="Indicadores de planta"></div>
+  <div class="mapa-herramientas" id="mapa-herramientas" role="group" aria-label="Herramientas del plano">
+    <button type="button" id="mapa-ampliar" aria-label="Ampliar plano">+</button><button type="button" id="mapa-reducir" aria-label="Reducir plano">−</button><output id="mapa-zoom" aria-label="Zoom relativo al plano completo">100%</output>
+    <button type="button" id="mapa-ajustar">⌖ <span>Restablecer vista</span></button>
+    <span id="mapa-atajos" class="mapa-atajos"></span>
+    <span class="mapa-acciones"><button type="button" id="mapa-refrescar">↻ <span>Actualizar</span></button><button type="button" id="mapa-completa" aria-pressed="false">⛶ <span>Pantalla completa</span></button></span>
+  </div>
+  <div class="mapa-distribucion">
+    <div class="mapa-principal">
+      <div class="mapa-visor" id="mapa-visor" tabindex="0" aria-label="Plano de planta. Usa los controles para ampliar y desplazar."><div class="mapa-lienzo" id="mapa-lienzo"><img src="{% static 'assets/plano/plantilla_planta.png' %}" width="1786" height="2526" alt="Plano técnico completo de planta" id="mapa-imagen"><div id="mapa-capa" class="mapa-capa"></div></div></div>
+      <p class="mapa-nota">Plano completo al abrir. Amplía para explorar las posiciones o selecciona una patente en la lista. Las posiciones dentro de cada zona son orientativas.</p>
+      <p id="mapa-sin-soporte" class="mapa-nota" hidden></p>
+    </div>
+    <aside class="mapa-lateral" aria-label="Información operacional">
+      <section class="mapa-panel"><h2>Leyenda</h2><ul class="mapa-leyenda">
+        <li><span class="mapa-simbolo mapa-recepcion" aria-hidden="true">▰</span>Recepción (verde)</li>
+        <li><span class="mapa-simbolo mapa-despacho" aria-hidden="true">▰</span>Despacho (azul)</li>
+        <li><span class="mapa-muestra mapa-muestra-carga" aria-hidden="true"></span>Zona carga / descarga</li>
+        <li><span class="mapa-muestra mapa-muestra-espera" aria-hidden="true"></span>Zona de espera</li>
+      </ul></section>
+      <section class="mapa-panel"><h2>Zonas operacionales</h2><div id="mapa-resumen-zonas" class="mapa-resumen-zonas"></div><details id="mapa-otras-zonas"><summary>Camiones en zonas sin posición</summary><div id="mapa-zonas" class="mapa-zonas"></div></details></section>
+      <section class="mapa-panel"><h2>Camiones en planta <span id="mapa-total-lista">(0)</span></h2><p id="mapa-vacio" hidden>No hay camiones activos dentro del alcance configurado.</p><div id="mapa-lista" class="mapa-lista" aria-label="Lista de camiones en planta"></div></section>
+      <section class="mapa-panel mapa-seleccion" id="mapa-seleccion"><span aria-hidden="true">⌖</span><div><h2>Selecciona un camión</h2><p>Haz clic en una patente del mapa o de la lista para ver su detalle.</p></div></section>
+      <section id="mapa-detalle" class="mapa-panel mapa-detalle" aria-label="Detalle del camión" hidden><button type="button" id="mapa-cerrar" aria-label="Cerrar detalle">×</button><h2 id="mapa-detalle-titulo" tabindex="-1"></h2><dl id="mapa-detalle-datos"></dl><h3>Últimos eventos operacionales</h3><ul id="mapa-eventos"></ul><a id="mapa-trazabilidad">Ver trazabilidad →</a></section>
+    </aside>
+  </div>
+  <details class="mapa-panel mapa-capacidades"><summary>Cupos disponibles por zona configurada</summary><p class="mapa-nota">Capacidades existentes y ocupación del mismo conjunto de camiones del mapa.</p><div class="table-responsive"><table class="table table-sm"><thead><tr><th>Zona</th><th>Ocupados</th><th>Máximos</th></tr></thead><tbody id="mapa-cupos"></tbody></table></div></details>
+</div></section>
+{% endblock %}
+{% block javascripts %}<script src="{% static 'assets/js/mapa-operacional.js' %}?v=20261004-ux" defer></script>{% endblock %}

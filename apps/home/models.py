@@ -1772,6 +1772,8 @@ class DATO_OPERACION(models.Model):
 
 
 class CITACION_DOCUMENTO(models.Model):
+    # Matches the existing 0077 migration and its deployed integer primary key.
+    id = models.AutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')
     TIPO_GUIA = 'GUIA'
     TIPO_TICKET_ORIGEN = 'TICKET_ORIGEN'
     TIPO_SERNAPESCA = 'SERNAPESCA'

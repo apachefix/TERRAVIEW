@@ -1,0 +1,122 @@
+﻿#mapa-operacional { --recepcion:#146c43; --despacho:#075aaa; --mapa-ink:#102b50; --mapa-border:#dfe7f1; color:var(--mapa-ink); background:#f7f9fc; padding:20px; }
+#mapa-operacional * { box-sizing:border-box; }
+#mapa-operacional [hidden] { display:none !important; }
+#mapa-operacional h1 { font-size:25px; font-weight:700; letter-spacing:-.6px; margin:0 0 5px; color:var(--mapa-ink); }
+#mapa-operacional h2 { font-size:14px; font-weight:700; margin:0 0 14px; color:var(--mapa-ink); }
+#mapa-operacional h3 { color:var(--mapa-ink); }
+.mapa-cabecera { display:flex; align-items:center; justify-content:space-between; gap:15px; margin-bottom:18px; }
+.mapa-contexto { font-size:10px; font-weight:600; letter-spacing:1px; text-transform:uppercase; margin:0 0 5px; color:#55718d; }
+.mapa-subtitulo { font-size:12px; margin:0; color:#536d88; }
+.mapa-actualizacion { text-align:right; max-width:360px; }
+#mapa-conexion { display:inline-block; border-radius:7px; padding:7px 11px; background:#e7f3ed; color:#146c43; font-size:12px; font-weight:600; }
+#mapa-estado { color:#536d88; font-size:10px; margin:6px 0 0; }
+.mapa-kpis { display:grid; grid-template-columns:repeat(7,minmax(0,1fr)); gap:9px; margin-bottom:16px; }
+.mapa-kpi { display:flex; align-items:center; gap:12px; padding:14px 12px; border:1px solid var(--mapa-border); border-radius:7px; background:linear-gradient(110deg,#fff,#f4f7fc); }
+.mapa-kpi strong { display:block; font-size:25px; line-height:1.1; color:var(--mapa-ink); }
+.mapa-kpi span { font-size:11px; }
+.mapa-kpi-icon { width:26px; height:26px; flex-shrink:0; color:var(--mapa-ink); }
+.mapa-kpi[data-kpi="recepciones"] .mapa-kpi-icon { color:var(--recepcion); }
+.mapa-kpi[data-kpi="despachos"] .mapa-kpi-icon { color:var(--despacho); }
+.mapa-herramientas { display:flex; align-items:center; gap:7px; padding:8px; margin-bottom:12px; border:1px solid var(--mapa-border); border-radius:8px; background:#eef3fa; flex-wrap:wrap; }
+.mapa-herramientas button,.mapa-herramientas output { border:1px solid #dbe4f0; border-radius:5px; color:var(--mapa-ink); background:#fff; padding:7px 11px; min-height:34px; font-size:12px; font-weight:600; box-shadow:0 1px 3px #17365e08; }
+.mapa-herramientas button { cursor:pointer; }
+.mapa-herramientas button:hover { background:#e1eafa; }
+.mapa-herramientas button:disabled { opacity:.45; cursor:default; }
+.mapa-herramientas #mapa-ampliar,.mapa-herramientas #mapa-reducir { font-size:21px; line-height:18px; min-width:34px; }
+.mapa-atajos,.mapa-acciones { display:flex; gap:7px; flex-wrap:wrap; }
+.mapa-acciones { margin-left:auto; }
+.mapa-distribucion { display:grid; grid-template-columns:minmax(0,1fr) 300px; gap:16px; align-items:start; }
+.mapa-principal,.mapa-lateral { min-width:0; }
+.mapa-lateral { display:flex; flex-direction:column; max-height:var(--mapa-view-height,780px); overflow-y:auto; scrollbar-width:thin; }
+.mapa-lateral > * { flex-shrink:0; }
+.mapa-lateral .mapa-detalle { order:-1; }
+.mapa-visor { width:100%; height:clamp(420px,calc(100vh - 300px),950px); min-height:400px; overflow:auto; border:1px solid var(--mapa-border); border-radius:8px; background:#edf2f7; box-shadow:0 2px 8px #12346008; }
+.mapa-lienzo { width:100%; max-width:100%; position:relative; margin:0 auto; }
+.mapa-lienzo > img { display:block; width:100%; height:auto; }
+.mapa-capa { position:absolute; inset:0; pointer-events:none; }
+.mapa-capa .mapa-zona { position:absolute; pointer-events:auto; display:flex; flex-direction:column; border:1px solid #5badec; background:#d9edffcf; border-radius:7px; padding:5px; }
+.mapa-capa .mapa-zona[data-zona="ZONA_ESPERA"] { border-color:#7dbb8a; background:#d9eddbcf; }
+.mapa-capa .mapa-zona h3 { font-size:12px; color:#fff !important; background:#075aaa; border-radius:4px; align-self:center; white-space:nowrap; padding:4px 8px; margin:-16px 0 4px; z-index:1; }
+.mapa-capa .mapa-zona[data-zona="ZONA_ESPERA"] h3 { background:#146c43; }
+.mapa-capa .mapa-vehiculos { flex:1; min-height:0; max-height:none; align-content:start; }
+.mapa-capa .mapa-camion { padding:4px; font-size:12px; }
+.mapa-capa .mapa-camion strong { overflow-wrap:anywhere; font-size:12px; }
+.mapa-capa .mapa-camion > span:not(.mapa-timer),.mapa-capa .mapa-camion > small { display:none; }
+.mapa-capa .mapa-timer { font-size:10px; overflow-wrap:anywhere; }
+.mapa-capa .mapa-carriles { display:grid; grid-template-rows:1fr 1fr; align-content:stretch; gap:5px; overflow:hidden; }
+.mapa-carril { min-height:0; display:flex; flex-direction:column; }
+.mapa-carril h4 { font-size:11px; margin:0; color:var(--mapa-ink); }
+.mapa-adicionales { font-size:10px; color:#536274; }
+.mapa-slots,.mapa-espera { display:grid; grid-template-columns:repeat(var(--columnas),minmax(0,1fr)); grid-auto-rows:max-content; gap:3px; overflow:auto; align-content:start; }
+.mapa-slots { min-height:0; }
+.mapa-slot { min-width:0; min-height:58px; border:1px dashed #9eb4c5; border-radius:3px; }
+.mapa-slot > small { display:block; font-size:9px; color:#536274; padding:0 3px; }
+.mapa-slot-libre { font-size:10px; padding:3px; color:#536274; }
+.mapa-lienzo[data-compacto="true"] .mapa-slots,.mapa-lienzo[data-compacto="true"] .mapa-espera { grid-template-columns:1fr; }
+.mapa-lienzo[data-compacto="true"] .mapa-adicionales,.mapa-lienzo[data-compacto="true"] .mapa-slot > small { display:none; }
+.mapa-lienzo[data-compacto="true"] .mapa-slot { min-height:18px; border:0; }
+.mapa-lienzo[data-compacto="true"] .mapa-zona h3 { font-size:10px; padding:3px 5px; }
+.mapa-panel { border:1px solid var(--mapa-border); border-radius:8px; background:#fff; padding:15px; margin-bottom:10px; box-shadow:0 2px 8px #12346005; }
+.mapa-leyenda { display:grid; gap:10px; list-style:none; padding:0; margin:0; font-size:12px; }
+.mapa-leyenda li { display:flex; gap:12px; align-items:center; }
+.mapa-simbolo { font-size:23px; line-height:24px; width:26px; text-align:center; }
+.mapa-simbolo .mapa-kpi-icon { color:inherit; vertical-align:middle; }
+.mapa-recepcion { color:var(--recepcion); }
+.mapa-despacho { color:var(--despacho); }
+.mapa-muestra { width:26px; height:23px; border:1px solid #83bff0; background:#d9edff; border-radius:4px; }
+.mapa-muestra-espera { border-color:#93c79c; background:#d9eddb; }
+.mapa-resumen-fila { display:flex; justify-content:space-between; align-items:baseline; gap:10px; font-size:12px; padding:7px 0; }
+.mapa-resumen-fila small { text-align:right; color:#5b7291; font-size:10px; }
+.mapa-resumen-fila button { border:0; background:transparent; color:#075aaa; text-align:left; padding:0; cursor:pointer; }
+#mapa-otras-zonas { margin-top:9px; font-size:11px; }
+.mapa-zonas { display:grid; gap:7px; margin-top:10px; }
+.mapa-zona { min-width:0; }
+.mapa-zonas h3 { font-size:12px; }
+.mapa-vehiculos { display:grid; gap:4px; max-height:190px; overflow:auto; }
+.mapa-camion { display:block; text-align:left; width:100%; border:0; border-radius:4px; padding:6px 8px; color:#fff; background:var(--recepcion); cursor:pointer; }
+.mapa-camion[data-tipo="DESPACHO"] { background:var(--despacho); }
+.mapa-camion strong,.mapa-camion span,.mapa-camion small { display:block; }
+.mapa-camion:hover { filter:brightness(1.1); }
+.mapa-icono-camion { display:none; }
+.mapa-lienzo[data-mini="true"] .mapa-slots,.mapa-lienzo[data-mini="true"] .mapa-espera { grid-template-columns:repeat(auto-fit,minmax(20px,1fr)); scrollbar-width:thin; gap:2px; }
+.mapa-lienzo[data-mini="true"] .mapa-camion { padding:2px; min-width:20px; min-height:23px; }
+.mapa-lienzo[data-mini="true"] .mapa-camion > strong,.mapa-lienzo[data-mini="true"] .mapa-camion > .mapa-timer { display:none; }
+.mapa-lienzo[data-mini="true"] .mapa-camion .mapa-icono-camion { display:block; width:18px; height:18px; color:white; margin:auto; }
+.mapa-lienzo[data-mini="true"] .mapa-carril h4 { font-size:0; white-space:nowrap; }
+.mapa-lienzo[data-mini="true"] .mapa-carril h4::after { content:attr(data-resumen); font-size:10px; }
+.mapa-lienzo[data-diminuto="true"] .mapa-carril h4 { display:none; }
+.mapa-capa .mapa-vehiculos { scrollbar-width:thin; }
+#mapa-operacional button:focus-visible,#mapa-operacional a:focus-visible { outline:3px solid #5497eb; outline-offset:2px; }
+.mapa-camion[aria-pressed="true"] { outline:2px solid #102b50; outline-offset:1px; }
+.mapa-lista { max-height:245px; overflow:auto; }
+.mapa-fila-camion { width:100%; background:transparent; border:0; border-bottom:1px solid #eef2f6; padding:10px 2px; text-align:left; cursor:pointer; display:grid; grid-template-columns:8px 1fr auto; gap:3px 9px; align-items:center; font-size:12px; color:var(--mapa-ink); }
+.mapa-fila-camion::before { content:''; width:8px; height:8px; border-radius:50%; background:var(--recepcion); }
+.mapa-fila-camion[data-tipo="DESPACHO"]::before { background:var(--despacho); }
+.mapa-fila-camion small { grid-column:2 / 4; font-size:10px; color:#5b7291; }
+.mapa-fila-camion:hover,.mapa-fila-camion[aria-pressed="true"] { background:#edf4ff; }
+.mapa-timer { font-variant-numeric:tabular-nums; }
+.mapa-nota,#mapa-vacio { font-size:11px; color:#5b7291; margin:8px 0; }
+.mapa-seleccion { display:flex; gap:15px; }
+.mapa-seleccion > span { font-size:32px; }
+.mapa-seleccion h2 { margin-bottom:5px !important; }
+.mapa-seleccion p { font-size:12px; color:#5b7291; margin:0; }
+.mapa-detalle { position:relative; }
+.mapa-detalle h2 { padding-right:20px; }
+#mapa-cerrar { position:absolute; right:12px; top:8px; border:0; background:transparent; font-size:23px; color:#526c87; cursor:pointer; }
+.mapa-detalle dl { display:grid; grid-template-columns:90px minmax(0,1fr); gap:6px 10px; font-size:11px; }
+.mapa-detalle dt { color:#5b7291; font-weight:500; }
+.mapa-detalle dd { margin:0; overflow-wrap:anywhere; }
+.mapa-detalle h3 { font-size:12px; }
+.mapa-detalle ul { padding-left:15px; font-size:11px; }
+.mapa-detalle a { font-size:12px; color:#075aaa; }
+.mapa-capacidades { margin-top:12px; font-size:12px; }
+#mapa-operacional summary { cursor:pointer; font-weight:600; }
+#mapa-operacional[data-obsoleto="true"] .mapa-camion { opacity:.6; }
+#mapa-operacional[data-obsoleto="true"] #mapa-conexion { background:#fff0d9; color:#8a5200; }
+#mapa-operacional:fullscreen { overflow:auto; padding:20px; }
+#mapa-operacional:fullscreen .mapa-visor { height:calc(100vh - 230px); }
+@media (max-width:1450px) { .mapa-kpi { gap:7px; padding:12px 8px; } .mapa-kpi-icon { width:20px; } .mapa-kpi strong { font-size:22px; } .mapa-distribucion { grid-template-columns:minmax(0,1fr) 270px; gap:12px; } }
+@media (max-width:1100px) { .mapa-kpis { grid-template-columns:repeat(4,minmax(0,1fr)); } .mapa-actualizacion { max-width:250px; } }
+@media (max-width:850px) { #mapa-operacional { padding:12px; } .mapa-distribucion { grid-template-columns:1fr; } .mapa-cabecera { align-items:flex-start; flex-direction:column; } .mapa-actualizacion { max-width:none; text-align:left; } .mapa-kpis { gap:6px; } .mapa-kpi { flex-direction:column; align-items:flex-start; gap:5px; } .mapa-kpi-icon { display:none; } .mapa-kpi span { font-size:10px; } .mapa-visor { height:540px; } .mapa-acciones { margin-left:0; } .mapa-panel { padding:14px; } }
+@media (max-width:850px) { .mapa-lateral { max-height:none; overflow:visible; } .mapa-simbolo .mapa-kpi-icon { display:inline-block; } }
+

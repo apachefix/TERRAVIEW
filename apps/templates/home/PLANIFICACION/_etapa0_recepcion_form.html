@@ -1,0 +1,491 @@
+<div class="modal fade" id="ModalCrearCitacion" tabindex="-1" role="dialog" aria-labelledby="ModalCrearCitacionLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-scrollable modal-xl" role="document">
+        <div class="modal-content">
+
+            <div class="modal-header">
+                <div>
+                    <h5 class="modal-title" id="ModalCrearCitacionLabel">Crear recepción - Etapa 0</h5>
+                    <small class="modal-subtitle">
+                        Complete los datos base de planificación. No corresponde ingresar guía ni patente en esta etapa.
+                    </small>
+                        {% if es_ingreso_mercaderia_sbh %}
+                        <span class="d-block">Para Contenedor a Piso 2 se solicitará la guía de la Citación 1.</span>
+                        {% endif %}
+                </div>
+
+                <button type="button" class="close" data-dismiss="modal" aria-label="Cerrar">
+                    <span aria-hidden="true">&times;</span>
+                </button>
+            </div>
+
+            <form id="form_crear_citacion" method="POST" enctype="multipart/form-data">
+                {% csrf_token %}
+
+                <input type="hidden" id="sap_opor_id" name="sap_opor_id">
+
+                <input type="hidden"
+                       id="empresa_id"
+                       name="empresa_id"
+                       value="{% if empresa_id %}{{ empresa_id }}{% elif empresa_activa %}{{ empresa_activa.id }}{% elif planificacion.EP_NID %}{{ planificacion.EP_NID.id }}{% endif %}">
+
+                <input type="hidden" id="modo_creacion" name="modo_creacion" value="simple">
+                <input type="hidden"
+                        id="planificacion_id_modal"
+                        name="planificacion_id"
+                        value="{% if planificacion_id %}{{ planificacion_id }}{% elif planificacion %}{{ planificacion.id }}{% endif %}">
+
+                <div class="modal-body">
+
+                    <div class="form-section-title">Datos generales</div>
+
+                    <div class="row">
+                        <div class="col-lg-4 col-md-6">
+                            <div class="form-group">
+                                <label>Empresa</label>
+                                <input type="text"
+                                    class="form-control"
+                                    id="empresa_nombre"
+                                    name="empresa_nombre"
+                                    value="{% if empresa_activa %}{{ empresa_activa.EP_CRAZONSOCIAL|upper }}{% elif planificacion.EP_NID %}{{ planificacion.EP_NID.EP_CRAZONSOCIAL|upper }}{% else %}SIN EMPRESA{% endif %}"
+                                    readonly>
+                            </div>
+                        </div>
+
+                        <div class="col-lg-4 col-md-6">
+                            <div class="form-group">
+                                <label class="required-label">Cliente</label>
+                                <select class="form-control" id="cliente" name="cliente" required>
+                                    <option value="">Seleccione cliente</option>
+                                </select>
+                                <input type="hidden" id="cliente_codigo" name="cliente_codigo">
+                            </div>
+                        </div>
+
+                        <div class="col-lg-4 col-md-6">
+                            <div class="form-group">
+                                <label class="required-label">Inf 24 hrs</label>
+                                <select class="form-control" id="inf_24hrs" name="inf_24hrs" required>
+                                    <option value="">Seleccione</option>
+                                    <option value="Si">Sí</option>
+                                    <option value="No">No</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <div class="col-lg-4 col-md-6">
+                            <div class="form-group">
+                                <label class="required-label">Fecha llegada</label>
+                                <input type="date"
+                                    class="form-control"
+                                    id="fecha_llegada" value="{{ fecha_planificacion_existente|default:'' }}"
+                                    name="fecha_llegada"
+                                    required>
+                            </div>
+                        </div>
+
+                        <div class="col-lg-4 col-md-6">
+                            <div class="form-group">
+                                <label class="required-label">Tipo de operación</label>
+                                <select class="form-control" id="tipo" name="tipo" required>
+                                    <option value="">Seleccione tipo</option>
+                                    <option value="RECEPCION">Recepción</option>
+                                    <option value="DESPACHO">Despacho</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <div class="col-lg-4 col-md-6">
+                            <div class="form-group">
+                                <label class="required-label">Tipo</label>
+                                <select class="form-control" id="tipo_carga" name="tipo_carga" required>
+                                    <option value="">Seleccione tipo</option>
+                                    <option value="Contenedor">Contenedor</option>
+                                    <option value="Cisterna">Cisterna</option>
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-lg-4 col-md-6">
+                        <div class="form-group">
+                            <label class="required-label">¿Es sobrecupo?</label>
+                            <select class="form-control"
+                                    id="es_sobrecupo"
+                                    name="es_sobrecupo"
+                                    required
+                                    onchange="controlarSobrecupo()">
+                                <option value="No">No</option>
+                                <option value="Si">Sí</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div class="form-section-title">Secuencia operacional</div>
+
+                    <div class="row">
+                        <div class="col-lg-6 col-md-8">
+                            <div class="form-group">
+                                <label class="required-label">Flujo operacional</label>
+                                {% if es_ingreso_mercaderia_sbh %}
+                                <select class="form-control" id="flujo_operacional_visual" required>
+                                    <option value="">Seleccione flujo operacional</option>
+                                </select>
+                                <select class="d-none" id="secuencia_id" name="secuencia_id" aria-hidden="true" tabindex="-1">
+                                {% else %}
+                                <select class="form-control" id="secuencia_id" name="secuencia_id" required>
+                                {% endif %}
+                                    <option value="">Seleccione secuencia</option>
+                                    {% for secuencia in secuencias %}
+                                        <option value="{{ secuencia.id }}" data-tipo="{{ secuencia.SE_CTIPO }}">
+                                            {{ secuencia.SE_CTIPO }} - {{ secuencia.SE_CNOMBRE }}
+                                        </option>
+                                    {% endfor %}
+                                </select>
+                                <small class="form-help-text">Seleccione la secuencia que ejecutara la citacion en planta</small>
+                            </div>
+                        </div>
+                    </div>
+                    {% if es_ingreso_mercaderia_sbh %}
+                    <div class="row d-none" id="prosesa_modalidad_bloque">
+                        <div class="col-lg-6 col-md-8">
+                            <div class="form-group">
+                                <label class="required-label" for="modalidad_prosesa">Modalidad Prosesa</label>
+                                <select class="form-control" id="modalidad_prosesa">
+                                    <option value="">Seleccione modalidad</option>
+                                </select>
+                                <small class="form-help-text">Seleccione el tipo de operaci&oacute;n Prosesa que desea ejecutar.</small>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="row d-none" id="new_jersey_modalidad_bloque">
+                        <div class="col-lg-6 col-md-8">
+                            <div class="form-group">
+                                <label class="required-label" for="modalidad_new_jersey">Modalidad New Jersey</label>
+                                <select class="form-control" id="modalidad_new_jersey">
+                                    <option value="">Seleccione modalidad</option>
+                                </select>
+                                <small class="form-help-text">Seleccione la modalidad del Proceso 1 que desea ejecutar.</small>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="row d-none" id="prosesa_piso2_busqueda">
+                        <div class="col-lg-6 col-md-8">
+                            <div class="form-group">
+                                <label class="required-label" for="guia_origen_prosesa">Número de guía de Contenedor a Piso 1</label>
+                                <input type="text" class="form-control" id="guia_origen_prosesa" autocomplete="off">
+                                <button type="button" class="btn btn-outline-primary mt-2" id="btn_cargar_origen_prosesa" onclick="cargarDatosProsesaPiso1()">Cargar datos desde Piso 1</button>
+                                <small class="form-help-text">
+                                    Se buscará una única Citación 1 pendiente; producto, proveedor y destino se heredarán desde ella.
+                                </small>
+                            </div>
+                        </div>
+                        <div class="col-12 d-none" id="prosesa_piso2_resultado" role="status" aria-live="polite"></div>
+                        <div class="col-12"><h6 class="mt-2">Datos del camion de retiro</h6></div>
+                        <div class="col-lg-4 col-md-6">
+                            <div class="form-group">
+                                <label for="prosesa_piso2_patente_retiro">Patente camion de retiro</label>
+                                <input type="text" class="form-control text-uppercase" id="prosesa_piso2_patente_retiro" maxlength="32" autocomplete="off">
+                            </div>
+                        </div>
+                        <div class="col-lg-6 col-md-6">
+                            <div class="form-group">
+                                <label for="prosesa_piso2_empresa_transporte">Empresa de transporte</label>
+                                <select class="form-control" id="prosesa_piso2_empresa_transporte">
+                                    <option value=""></option>
+                                </select>
+                                <input type="hidden" id="prosesa_piso2_empresa_transporte_id">
+                                <small class="form-help-text">Seleccione un transportista de Empresa 2 o escriba el nombre si aun no esta en el maestro.</small>
+                            </div>
+                        </div>
+                        <div class="col-12"><div class="alert alert-info py-2">La patente y empresa de transporte se planifican aqui; conductor y pesajes pertenecerán al nuevo camión y se registrarán durante su propio ciclo.</div></div>
+                    </div>
+                    {% endif %}
+
+
+                    <div class="form-section-title">Datos desde SAP / programación sincronizada</div>
+
+                    <div class="row">
+                        <div class="col-lg-4 col-md-6">
+                            <div class="form-group">
+                                <label class="required-label">Código SAP</label>
+                                <input type="text"
+                                       class="form-control"
+                                       id="codigo"
+                                       name="codigo"
+                                       autocomplete="off"
+                                       placeholder="Código SAP del producto"
+                                       readonly
+                                       required>
+                                <small class="form-help-text">Se completa al seleccionar producto</small>
+                            </div>
+                        </div>
+
+                        <div class="col-lg-4 col-md-6">
+                            <div class="form-group">
+                                <label class="required-label">Insumo / Producto</label>
+                                <select class="form-control" id="insumo" name="insumo" required>
+                                    <option value="">Seleccione producto</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <div class="col-lg-4 col-md-6">
+                            <div class="form-group">
+                                <label class="required-label">Pedido SAP</label>
+                                    <select class="form-control" id="pedido" name="pedido" required></select>
+                                    <small class="form-help-text">Seleccione o escriba Pedido SAP</small>
+                            </div>
+                        </div>
+
+                        <div class="col-lg-4 col-md-6">
+                            <div class="form-group">
+                                <label class="required-label">Status</label>
+                                <input type="text"
+                                       class="form-control"
+                                       id="status_display"
+                                       value="Insumo Programado"
+                                       readonly>
+                                <input type="hidden"
+                                       id="status"
+                                       name="status"
+                                       value="Insumo Programado">
+                            </div>
+                        </div>
+
+                        <div class="col-lg-4 col-md-6">
+                            <div class="form-group">
+                                <label class="required-label">Proveedor</label>
+                                <select class="form-control" id="proveedor" name="proveedor" required{% if not es_ingreso_mercaderia_sbh %} disabled{% endif %}>
+                                    <option value="">Proveedor desde Pedido SAP</option>
+                                </select>
+                                <input type="hidden" id="proveedor_codigo" name="proveedor_codigo">
+                                {% if es_ingreso_mercaderia_sbh %}
+                                <small class="form-help-text">Seleccione una sugerencia SAP o escriba el proveedor manualmente</small>
+                                {% endif %}
+                            </div>
+                        </div>
+
+                        {% if es_recepcion_sbh %}
+                        <div class="col-lg-4 col-md-6">
+                            <div class="form-group">
+                                <label>Gu&iacute;a</label>
+                                <input type="text" class="form-control" id="guia" name="guia" readonly>
+                            </div>
+                        </div>
+                        <div class="col-lg-4 col-md-6">
+                            <div class="form-group">
+                                <label>CDA</label>
+                                <input type="text" class="form-control" id="cda" name="cda" readonly>
+                            </div>
+                        </div>
+                        <div class="col-lg-4 col-md-6">
+                            <div class="form-group">
+                                <label>DI</label>
+                                <input type="text" class="form-control" id="di" name="di" readonly>
+                            </div>
+                        </div>
+                        <div class="col-lg-4 col-md-6">
+                            <div class="form-group">
+                                <label>BL</label>
+                                <input type="text" class="form-control" id="bl" name="bl">
+                            </div>
+                        </div>
+                        <div class="col-lg-4 col-md-6">
+                            <div class="form-group">
+                                <label>Nave / Naviera</label>
+                                <input type="text" class="form-control" id="nave_naviera" name="nave_naviera" readonly>
+                            </div>
+                        </div>
+                        <div class="col-lg-4 col-md-6">
+                            <div class="form-group">
+                                <label>Booking</label>
+                                <input type="text" class="form-control" id="booking" name="booking" readonly>
+                            </div>
+                        </div>
+                        <div class="col-lg-4 col-md-6">
+                            <div class="form-group">
+                                <label>Contenedor</label>
+                                <input type="text" class="form-control" id="contenedor" name="contenedor" readonly>
+                            </div>
+                        </div>
+                        <div class="col-lg-4 col-md-6">
+                            <div class="form-group">
+                                <label>Fecha producci&oacute;n</label>
+                                <input type="text" class="form-control" id="fecha_produccion" name="fecha_produccion" readonly>
+                            </div>
+                        </div>
+                        <div class="col-lg-4 col-md-6">
+                            <div class="form-group">
+                                <label>Fecha vencimiento</label>
+                                <input type="text" class="form-control" id="fecha_vencimiento" name="fecha_vencimiento" readonly>
+                            </div>
+                        </div>
+                        <div class="col-lg-4 col-md-6">
+                            <div class="form-group">
+                                <label>SUI</label>
+                                <input type="text" class="form-control" id="sui" name="sui" readonly>
+                            </div>
+                        </div>
+                        {% else %}
+                        <div class="col-lg-4 col-md-6">
+                            <div class="form-group">
+                                <label>BL / Contenedor</label>
+                                <input type="text"
+                                       class="form-control"
+                                       id="bl"
+                                       name="bl"
+                                       autocomplete="off"
+                                       placeholder="Ingrese BL / Contenedor manual">
+                                <small class="form-help-text">Campo manual, no calcula cantidad disponible</small>
+                            </div>
+                        </div>
+                        {% endif %}
+
+                        <div class="col-lg-4 col-md-6">
+                            <div class="form-group">
+                                <label>Cantidad disponible</label>
+                                <input type="text"
+                                       class="form-control"
+                                       id="cantidad_disponible"
+                                       name="cantidad_disponible"
+                                       readonly>
+                                <small id="saldo_sap_mensaje" class="text-danger d-none">Este pedido/línea SAP no tiene cantidad disponible para planificar.</small>
+                            </div>
+                        </div>
+
+                        <div class="col-lg-4 col-md-6">
+                            <div class="form-group">
+                                <label>DocEntry SAP</label>
+                                <input type="text"
+                                       class="form-control"
+                                       id="docentry"
+                                       name="docentry"
+                                       readonly>
+                                <input type="hidden" id="line_num" name="line_num">
+                            </div>
+                        </div>
+
+                        <div class="col-lg-4 col-md-6">
+                            <div class="form-group">
+                                <label>Contrato SAP</label>
+                                <input type="text"
+                                       class="form-control"
+                                       id="contrato_sap"
+                                       name="contrato_sap"
+                                       readonly
+                                       placeholder="Sin contrato">
+                            </div>
+                        </div>
+
+                        <div class="col-lg-4 col-md-6">
+                            <div class="form-group">
+                                <label>C&oacute;digo Proveedor SAP</label>
+                                <input type="text"
+                                       class="form-control"
+                                       id="codigo_proveedor_sap"
+                                       name="codigo_proveedor_sap"
+                                       readonly>
+                            </div>
+                        </div>
+
+                    </div>
+
+                    {% if es_recepcion_sbh %}
+                    <div class="row">
+                        <div class="col-lg-4 col-md-6">
+                            <div class="form-group">
+                                <label class="required-label">Tipo recepci&oacute;n</label>
+                                <select class="form-control"
+                                        id="tipo_origen_recepcion"
+                                        name="tipo_origen_recepcion"
+                                        required>
+                                    <option value="">Seleccione</option>
+                                    <option value="NACIONAL">Nacional</option>
+                                    {% if es_ingreso_mercaderia_sbh %}
+                                    <option value="IMPORTACION">Importaci&oacute;n</option>
+                                    {% else %}
+                                    <option value="EXTRANJERO">Extranjero</option>
+                                    {% endif %}
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+                    {% endif %}
+
+                    <div class="form-section-title">Datos de destino</div>
+
+                    <div class="row">
+                        {% if es_recepcion_sbh %}
+                        <div class="col-lg-4 col-md-6">
+                            <div class="form-group">
+                                <label class="required-label">Almacén destino</label>
+                                <select class="form-control" id="recepcion_sbh_almacen_destino" name="almacen_destino" required>
+                                    <option value="">Seleccione almacén</option>
+                                    {% for clave, etiqueta in almacenes_recepcion_operacional %}
+                                        <option value="{{ clave }}">{{ etiqueta }}</option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                        </div>
+                        <div class="col-lg-4 col-md-6">
+                            <div class="form-group">
+                                <label class="required-label">Estanque destino</label>
+                                <select class="form-control" id="recepcion_sbh_estanque_destino" name="estanque_destino" required disabled>
+                                    <option value="">Seleccione estanque</option>
+                                </select>
+                            </div>
+                        </div>
+                        {% else %}
+                        <div class="col-lg-4 col-md-6">
+                            <div class="form-group">
+                                <label class="required-label">Estanque destino</label>
+                                <select class="form-control" id="estanque_destino" name="estanque_destino" required>
+                                    <option value="">Seleccione destino</option>
+                                    <option value="PROSESA">PROSESA</option>
+                                    <option value="SBH">SBH</option>
+                                    <option value="Trasvasije">TRASVASIJE</option>
+                                </select>
+                            </div>
+                        </div>
+                        {% endif %}
+
+                        <div class="{% if es_recepcion_sbh %}col-lg-4 col-md-6{% else %}col-lg-8 col-md-6{% endif %}">
+                            <div class="form-group">
+                                <label>Observación planificación</label>
+                                <input type="text"
+                                       class="form-control"
+                                       id="observacion"
+                                       name="observacion"
+                                       placeholder="Observación opcional">
+                            </div>
+                        </div>
+                    </div>
+                    <div class="alert alert-info mt-3 mb-0">
+                        La cantidad define cuántas citaciones se crearán con los mismos datos base.
+                        Cada registro deberá tener su número interno de citación único.
+                    </div>
+
+                </div>
+
+                <div class="modal-footer modal-footer-custom">
+                    <div class="repeat-box">
+                        <label class="mb-0">Cantidad a crear:</label>
+                        <input type="number"
+                               class="form-control"
+                               id="cantidad_repetir"
+                               name="cantidad_repetir"
+                               min="1"
+                               max="50"
+                               value="1">
+                    </div>
+
+                    <div class="modal-actions">
+                        <button type="button" class="btn btn-secondary" data-dismiss="modal">Cancelar</button>
+                        <button type="button" class="btn btn-success" id="crear_citacion_temporal" onclick="agregarCitacionTemporal()">Crear</button>
+                    </div>
+                </div>
+
+            </form>
+
+        </div>
+    </div>
+</div>

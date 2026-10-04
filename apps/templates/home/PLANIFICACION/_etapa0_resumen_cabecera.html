@@ -1,0 +1,66 @@
+                                <thead>
+                                    {% if es_recepcion_transferencia_sbh %}
+                                    <tr>
+                                        <th class="col-acciones">Acciones</th>
+                                        <th>N° camión</th>
+                                        <th>Fecha</th>
+                                        <th>Movimientos</th>
+                                        <th>Total a mover</th>
+                                        <th>Almacén destino</th>
+                                        <th>Estanque destino</th>
+                                    </tr>
+                                    {% elif es_recepcion_terramar %}
+                                    <tr>
+                                        <th class="col-acciones">Acciones</th>
+                                        <th>Fecha llegada</th>
+                                        <th>Operación</th>
+                                        <th>Secuencia</th>
+                                        <th>Código SAP</th>
+                                        <th>Insumo</th>
+                                        <th>Bodega</th>
+                                        <th>N° guía despacho</th>
+                                        <th>Transporte a cargo de</th>
+                                        <th>Empresa transporte</th>
+                                        <th>Conductor</th>
+                                        <th>Código país</th>
+                                        <th>Celular conductor</th>
+                                        <th>Patente camión</th>
+                                        <th>Hora citación</th>
+                                        <th>Contenedor / CRT</th>
+                                    </tr>
+                                    {% elif es_despacho_terramar %}
+                                    <tr>
+                                        <th class="col-acciones">Acciones</th><th>Fecha llegada</th><th>Cliente</th><th>Destino</th><th>Contenedor 1 / CRT</th><th>Peso 1</th><th>N&deg; Maxis 1</th><th>Insumo</th><th>Bodega</th><th>Tipo cami&oacute;n</th><th>Pallet</th><th>Relleno</th><th>Patente Rampla</th><th>Contenedor 2 / CRT</th><th>Peso 2</th><th>N&deg; Maxis 2</th><th>Empresa transporte</th><th>Secuencia Tarifa</th><th>Conductor</th><th>Patente cami&oacute;n</th><th>Hora citaci&oacute;n</th><th>Flujo operacional</th>
+                                    </tr>
+                                    {% elif empresa_id == 2 and tipo_planificacion == 'DESPACHO' %}
+                                    <tr>
+                                        <th>Acciones</th>
+                                        <th>N&deg; borrador</th>
+                                        <th>Cantidad estimada</th>
+                                        <th>Formato</th>
+                                        <th>Condici&oacute;n</th>
+                                        <th>Empresa Transporte</th>
+                                        <th>Conductor</th>
+                                        <th>Patente</th>
+                                    </tr>
+                                    {% else %}
+                                    <tr>
+                                        <th>Acciones</th>
+                                        <th>Cliente</th>
+                                        <th>Inf 24 hrs</th>
+                                        <th>Fecha llegada</th>
+                                        <th>Operación</th>
+                                        <th>Secuencia</th>
+                                        <th>Tipo</th>
+                                        <th>Código SAP</th>
+                                        <th>Insumo</th>
+                                        <th>Pedido SAP</th>
+                                        <th>Proveedor</th>
+                                        {% if tipo_planificacion != 'DESPACHO' %}
+                                        <th>BL</th>
+                                        {% endif %}
+                                        <th>Cantidad disponible</th>
+                                        <th>Estanque destino</th>
+                                    </tr>
+                                    {% endif %}
+                                </thead>

@@ -374,7 +374,8 @@ class AccesoInicialPlanificacionEmpresaTestCase(TestCase):
 
         codigos = [secuencia.SE_CCODIGO for secuencia in response.context['secuencias']]
         self.assertEqual(codigos, [self.secuencia_transferencia.SE_CCODIGO])
-        self.assertContains(response, 'transferencia_secuencia_id')
+        self.assertContains(response, 'form_recepcion_transferencia')
+        self.assertNotContains(response, 'transferencia_secuencia_id')
 
     def test_backend_rechaza_secuencia_transferencia_en_ingreso_mercaderia(self):
         request = RequestFactory().post(
@@ -420,7 +421,7 @@ class AccesoInicialPlanificacionEmpresaTestCase(TestCase):
 
     def test_formulario_conserva_flujo_al_guardar_y_volver_al_listado(self):
         template = Path(
-            'apps/templates/home/PLANIFICACION/pla_addone.html'
+            'apps/templates/home/PLANIFICACION/_etapa0_recepcion_scripts.html'
         ).read_text(encoding='utf-8')
         self.assertIn("formData.append('flujo', FLUJO_NAVEGACION);", template)
         self.assertIn('&flujo={{ flujo_navegacion }}', template)

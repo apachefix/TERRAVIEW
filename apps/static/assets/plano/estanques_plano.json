@@ -1,0 +1,122 @@
+{
+  "TK-01": {
+    "codigo": "TK-01",
+    "nombre": "TK-01",
+    "tipo": "ESTANQUE",
+    "x_pct": 78.1983,
+    "y_pct": 21.1775,
+    "width_pct": 15,
+    "height_pct": 7,
+    "habilitado": true
+  },
+  "TK-02": {
+    "codigo": "TK-02",
+    "nombre": "TK-02",
+    "tipo": "ESTANQUE",
+    "x_pct": 78.1983,
+    "y_pct": 12.8671,
+    "width_pct": 15,
+    "height_pct": 7,
+    "habilitado": true
+  },
+  "TK-03": {
+    "codigo": "TK-03",
+    "nombre": "TK-03",
+    "tipo": "ESTANQUE",
+    "x_pct": 62.3324,
+    "y_pct": 10.009,
+    "width_pct": 15,
+    "height_pct": 7,
+    "habilitado": true
+  },
+  "TK-04": {
+    "codigo": "TK-04",
+    "nombre": "TK-04",
+    "tipo": "ESTANQUE",
+    "x_pct": 54.1173,
+    "y_pct": 10.009,
+    "width_pct": 15,
+    "height_pct": 7,
+    "habilitado": true
+  },
+  "TK-05": {
+    "codigo": "TK-05",
+    "nombre": "TK-05",
+    "tipo": "ESTANQUE",
+    "x_pct": 45.9022,
+    "y_pct": 10.009,
+    "width_pct": 15,
+    "height_pct": 7,
+    "habilitado": true
+  },
+  "TK-06": {
+    "codigo": "TK-06",
+    "nombre": "TK-06",
+    "tipo": "ESTANQUE",
+    "x_pct": 37.6871,
+    "y_pct": 10.009,
+    "width_pct": 15,
+    "height_pct": 7,
+    "habilitado": true
+  },
+  "TK-11": {
+    "codigo": "TK-11",
+    "nombre": "TK-11",
+    "tipo": "ESTANQUE",
+    "x_pct": 50.0148,
+    "y_pct": 16.6517,
+    "width_pct": 15,
+    "height_pct": 7,
+    "habilitado": true
+  },
+  "TK-09": {
+    "codigo": "TK-09",
+    "nombre": "TK-09",
+    "tipo": "ESTANQUE",
+    "x_pct": 56.7886,
+    "y_pct": 16.6517,
+    "width_pct": 15,
+    "height_pct": 7,
+    "habilitado": true
+  },
+  "TK-07": {
+    "codigo": "TK-07",
+    "nombre": "TK-07",
+    "tipo": "ESTANQUE",
+    "x_pct": 63.7537,
+    "y_pct": 16.502,
+    "width_pct": 15,
+    "height_pct": 7,
+    "habilitado": true
+  },
+  "TK-12": {
+    "codigo": "TK-12",
+    "nombre": "TK-12",
+    "tipo": "ESTANQUE",
+    "x_pct": 50.0148,
+    "y_pct": 24.3991,
+    "width_pct": 15,
+    "height_pct": 7,
+    "habilitado": true
+  },
+  "TK-10": {
+    "codigo": "TK-10",
+    "nombre": "TK-10",
+    "tipo": "ESTANQUE",
+    "x_pct": 56.7886,
+    "y_pct": 24.3991,
+    "width_pct": 15,
+    "height_pct": 7,
+    "habilitado": true
+  },
+  "TK-08": {
+    "codigo": "TK-08",
+    "nombre": "TK-08",
+    "tipo": "ESTANQUE",
+    "x_pct": 63.7135,
+    "y_pct": 24.563,
+    "width_pct": 15,
+    "height_pct": 7,
+    "habilitado": true
+  }
+}

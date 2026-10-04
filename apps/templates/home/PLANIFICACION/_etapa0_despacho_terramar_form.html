@@ -1,0 +1,55 @@
+<div class="modal fade" id="ModalCrearDespachoTerramar" tabindex="-1" role="dialog" aria-labelledby="ModalCrearDespachoTerramarLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-scrollable modal-xl" role="document"><div class="modal-content">
+        <div class="modal-header"><div><h5 class="modal-title" id="ModalCrearDespachoTerramarLabel">Crear despacho – Etapa 0</h5><small class="modal-subtitle">Datos operacionales de despacho Terramar.</small></div><button type="button" class="close" data-dismiss="modal" aria-label="Cerrar"><span>&times;</span></button></div>
+        <form id="form_despacho_terramar">
+            <div class="modal-body">
+                <div class="row">
+                    <div class="col-lg-4 col-md-6"><div class="form-group"><label class="required-label">Fecha llegada</label><input class="form-control" type="date" id="despacho_terramar_fecha_llegada" value="{{ fecha_planificacion_existente|default:'' }}" required></div></div>
+                    <div class="col-lg-4 col-md-6"><div class="form-group"><label class="required-label">Cliente</label><select class="form-control" id="despacho_terramar_cliente" required><option value="">Seleccione cliente</option></select><input type="hidden" id="despacho_terramar_cliente_codigo"></div></div>
+                    <div class="col-lg-4 col-md-6"><div class="form-group"><label class="required-label">Destino</label><input class="form-control" id="despacho_terramar_destino" required></div></div>
+
+                    <div class="col-lg-4 col-md-6"><div class="form-group"><label class="required-label">Contenedor 1 / CRT</label><input class="form-control" id="despacho_terramar_contenedor_crt" required></div></div>
+                    <div class="col-lg-4 col-md-6"><div class="form-group"><label class="required-label">Peso 1</label><input class="form-control" type="number" min="0.00001" step="0.00001" id="despacho_terramar_peso_1" required></div></div>
+                    <div class="col-lg-4 col-md-6"><div class="form-group"><label class="required-label">N&deg; Maxis 1</label><input class="form-control" type="number" min="1" step="1" id="despacho_terramar_maxis_1" required></div></div>
+
+                    <div class="col-lg-4 col-md-6"><div class="form-group"><label class="required-label">Insumo</label><select class="form-control" id="despacho_terramar_insumo" required><option value="">Seleccione insumo</option>{% for insumo in insumos_despacho_terramar %}<option value="{{ insumo.id }}" data-codigo="{{ insumo.IT_CCODIGO }}" data-nombre="{{ insumo.IT_CNOMBRE }}">{{ insumo.IT_CCODIGO }} &mdash; {{ insumo.IT_CNOMBRE }}</option>{% endfor %}</select></div></div>
+                    <div class="col-lg-4 col-md-6"><div class="form-group"><label class="required-label">Bodega</label><input class="form-control" id="despacho_terramar_bodega" required></div></div>
+                    <div class="col-lg-4 col-md-6"><div class="form-group"><label class="required-label">Tipo cami&oacute;n</label><select class="form-control" id="despacho_terramar_tipo_camion" required><option value="">Seleccione</option><option value="Plano">Plano</option><option value="Cortina">Cortina</option></select></div></div>
+
+                    <div class="col-lg-4 col-md-6"><div class="form-group"><label class="required-label">Carga con pallet</label><select class="form-control" id="despacho_terramar_pallet" required><option value="">Seleccione</option><option value="SI">S&iacute;</option><option value="NO">No</option></select></div></div>
+                    <div class="col-lg-4 col-md-6"><div class="form-group"><label class="required-label">Carga con relleno</label><select class="form-control" id="despacho_terramar_relleno" required><option value="">Seleccione</option><option value="SI">S&iacute;</option><option value="NO">No</option></select></div></div>
+                    <div class="col-lg-4 col-md-6"><div class="form-group"><label>Patente Rampla</label><input class="form-control text-uppercase" id="despacho_terramar_patente_rampla"></div></div>
+
+                    <div class="col-12 despacho-terramar-relleno-secundario d-none">
+                        <div class="row">
+                            <div class="col-lg-4 col-md-6"><div class="form-group"><label class="required-label">Contenedor 2 / CRT</label><input class="form-control" id="despacho_terramar_contenedor_2_crt"></div></div>
+                            <div class="col-lg-4 col-md-6"><div class="form-group"><label class="required-label">Peso 2</label><input class="form-control" type="number" min="0.00001" step="0.00001" id="despacho_terramar_peso_2"></div></div>
+                            <div class="col-lg-4 col-md-6"><div class="form-group"><label class="required-label">N&deg; Maxis 2</label><input class="form-control" type="number" min="1" step="1" id="despacho_terramar_maxis_2"></div></div>
+                        </div>
+                    </div>
+
+                    <div class="col-lg-4 col-md-6"><div class="form-group"><label class="required-label">Transporte a cargo de</label><select class="form-control" id="despacho_terramar_transporte_cargo" required><option value="">Seleccione</option><option value="Terramar">Terramar</option><option value="Cliente">Cliente</option></select></div></div>
+                    <div class="col-lg-4 col-md-6 despacho-terramar-maestro"><div class="form-group"><label>Empresa transporte</label><select class="form-control" id="despacho_terramar_empresa_transporte"></select><input type="hidden" id="despacho_terramar_empresa_transporte_id"></div></div>
+                    <div class="col-lg-4 col-md-6 despacho-terramar-manual d-none"><div class="form-group"><label>Empresa transporte</label><input class="form-control" id="despacho_terramar_empresa_transporte_manual"></div></div>
+                    <div class="col-lg-4 col-md-6 despacho-terramar-maestro"><div class="form-group"><label class="required-label">Secuencia Tarifa</label><select class="form-control" id="despacho_terramar_ruta_transportista" disabled><option value="">Seleccione primero empresa transporte</option></select><input type="hidden" id="despacho_terramar_ruta_id"><input type="hidden" id="despacho_terramar_tarifa_id"><small class="text-muted" id="despacho_terramar_ruta_ayuda"></small></div></div>
+
+                    <div class="col-12 despacho-terramar-maestro" id="despacho_terramar_conductor_pendiente_bloque"><div class="form-group mb-2"><div class="custom-control custom-checkbox"><input type="checkbox" class="custom-control-input" id="despacho_terramar_conductor_pendiente"><label class="custom-control-label" for="despacho_terramar_conductor_pendiente">Conductor se confirmar&aacute; en ingreso de camiones</label></div></div></div>
+                    <div class="col-lg-4 col-md-6 despacho-terramar-maestro"><div class="form-group"><label>Conductor</label><select class="form-control" id="despacho_terramar_conductor"></select><input type="hidden" id="despacho_terramar_conductor_id"></div></div>
+                    <div class="col-lg-4 col-md-6 despacho-terramar-manual d-none"><div class="form-group"><label>Conductor</label><input class="form-control" id="despacho_terramar_conductor_manual"></div></div>
+                    <div class="col-lg-4 col-md-6"><div class="form-group"><label class="required-label">C&oacute;digo pa&iacute;s</label><select class="form-control" id="despacho_terramar_codigo_pais" required><option value="">Seleccione</option>{% for pais in paises_telefono %}<option value="{{ pais.codigo_telefonico }}" {% if pais.codigo_telefonico == '+56' %}selected{% endif %}>{{ pais.nombre }} ({{ pais.codigo_telefonico }})</option>{% endfor %}</select></div></div>
+                    <div class="col-lg-4 col-md-6"><div class="form-group"><label class="required-label">Celular conductor</label><input class="form-control" id="despacho_terramar_celular" inputmode="tel" required></div></div>
+                    <div class="col-lg-4 col-md-6"><div class="form-group"><label class="required-label">Patente cami&oacute;n</label><input class="form-control text-uppercase" id="despacho_terramar_patente" required></div></div>
+
+                    <div class="col-12"><div id="despacho_terramar_control_documental_conductor" class="alert alert-light py-2 d-none" aria-live="polite"></div></div>
+                    <div class="col-12"><div id="despacho_terramar_control_documental_camion" class="alert alert-light py-2 d-none" aria-live="polite"></div></div>
+                    <div class="col-lg-4 col-md-6"><div class="form-group"><label class="required-label">Hora citaci&oacute;n</label><input class="form-control" type="time" id="despacho_terramar_hora_citacion" required></div></div>
+                    <div class="col-lg-4 col-md-6"><div class="form-group"><label class="required-label">Flujo operacional</label><select class="form-control" id="despacho_terramar_flujo_operacional" required><option value="">Seleccione flujo</option>{% for secuencia in secuencias_despacho_terramar %}<option value="{{ secuencia.id }}" data-codigo="{{ secuencia.SE_CCODIGO }}">{{ secuencia.SE_CNOMBRE }}</option>{% endfor %}</select></div></div>
+                </div>
+            </div>
+            <div class="modal-footer modal-footer-custom">
+                <button type="button" class="btn btn-secondary" data-dismiss="modal">Cancelar</button>
+                <button type="button" class="btn btn-success" onclick="agregarDespachoTerramarTemporal()">Crear</button>
+            </div>
+        </form>
+    </div></div>
+</div>

@@ -25,6 +25,7 @@ urlpatterns = [
 
     # The home page
     path('dashboard_grafico/', login_required(views.DASHBOARD_GRAFICO), name="dashboard_grafico"),
+    path('dashboard_grafico/estado/', login_required(views.DASHBOARD_GRAFICO_ESTADO), name='dashboard_grafico_estado'),
     path('', login_required(views.inicio), name='home'),
     path('cambio_contraseña/', login_required(views.CambioContrasena.as_view()), name="cambio_contraseña"),
     #########################################

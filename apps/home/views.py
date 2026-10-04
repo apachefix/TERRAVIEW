@@ -336,6 +336,10 @@ def es_recepcion_terramar_principal(citacion):
 
 SECUENCIA_RECEPCION_ESTANQUE_SBH = 'RECEPCION_ESTANQUE_SBH'
 SECUENCIA_RECEPCION_TRANSFERENCIA_SBH = 'RECEPCION_TRANSFERENCIA_SBH'
+SECUENCIAS_PATIO_LF_HISTORICAS_SBH = {
+    'RECEPCION_PATIO_LF_CON_CALIDAD',
+    'RECEPCION_PATIO_LF_SIN_CALIDAD',
+}
 FLUJOS_NAVEGACION_RECEPCION_SBH = {'INGRESO_MERCADERIA', 'TRANSFERENCIA'}
 SECUENCIA_RECEPCION_PROSESA_PISO_1 = 'RECEPCION_PROSESA_PISO_1'
 SECUENCIA_RECEPCION_PROSESA_PISO_2 = 'RECEPCION_PROSESA_PISO_2'
@@ -388,7 +392,7 @@ def queryset_secuencias_recepcion_sbh_por_flujo(empresa_id, flujo):
     )
     if normalizar_flujo_recepcion_sbh(flujo) == 'TRANSFERENCIA':
         return secuencias.filter(SE_CCODIGO=SECUENCIA_RECEPCION_TRANSFERENCIA_SBH)
-    return secuencias.exclude(
+    secuencias = secuencias.exclude(
         SE_CCODIGO__in={
             SECUENCIA_RECEPCION_TRANSFERENCIA_SBH,
             SECUENCIA_RECEPCION_NEW_JERSEY_P2,
@@ -396,6 +400,58 @@ def queryset_secuencias_recepcion_sbh_por_flujo(empresa_id, flujo):
             *SECUENCIAS_RECEPCION_LEGACY_NO_ETAPA_0,
         }
     )
+    if empresa_id == ID_ACEITES_SBH:
+        secuencias = secuencias.exclude(SE_CCODIGO__in=SECUENCIAS_PATIO_LF_HISTORICAS_SBH)
+    return secuencias
+
+
+def resolver_formulario_etapa0(planificacion):
+    """Resuelve el formulario vigente desde la empresa, tipo y secuencias guardadas."""
+    if not planificacion or planificacion.PL_BARCHIVADO or not planificacion.PL_FFECHAINICIO:
+        return ''
+    empresa_id = planificacion.EP_NID_id
+    tipo = str(planificacion.PL_CTIPOCUPO or '').upper()
+    citaciones = list(CITACION.objects.filter(
+        PL_NID=planificacion, CI_BHABILITADO=True,
+    ).values('EP_NID_id', 'CI_CTIPO', 'SC_NID_id'))
+    if not citaciones or any(
+        item['EP_NID_id'] != empresa_id
+        or str(item['CI_CTIPO'] or '').upper() != tipo
+        or not item['SC_NID_id']
+        for item in citaciones
+    ):
+        return ''
+    secuencias_actuales = {item['SC_NID_id'] for item in citaciones}
+    if empresa_id == ID_ACEITES_SBH and tipo == CIT_RECEPCION:
+        transferencia = set(queryset_secuencias_recepcion_sbh_por_flujo(
+            empresa_id, 'TRANSFERENCIA',
+        ).values_list('id', flat=True))
+        if secuencias_actuales.issubset(transferencia):
+            return 'transferencia_sbh'
+        ingreso = set(queryset_secuencias_recepcion_sbh_por_flujo(
+            empresa_id, 'INGRESO_MERCADERIA',
+        ).values_list('id', flat=True))
+        return 'recepcion_sbh' if secuencias_actuales.issubset(ingreso) else ''
+    if empresa_id == ID_ACEITES_SBH and tipo == CIT_DESPACHO:
+        codigos = {flujo[0] for flujo in FLUJOS_DESPACHO_ETAPA_0}
+        permitidas = set(SECUENCIA.objects.filter(
+            EP_NID_id=empresa_id, SE_CTIPO=tipo, SE_BHABILITADO=True,
+            SE_CCODIGO__in=codigos,
+        ).values_list('id', flat=True))
+        return 'despacho_sbh' if secuencias_actuales.issubset(permitidas) else ''
+    if empresa_es_terramar_chile(empresa_id) and tipo == CIT_RECEPCION:
+        permitidas = set(queryset_secuencias_recepcion_terramar(
+            empresa_id,
+        ).values_list('id', flat=True))
+        return 'recepcion_terramar' if secuencias_actuales.issubset(permitidas) else ''
+    if empresa_es_terramar_chile(empresa_id) and tipo == CIT_DESPACHO:
+        codigos = {flujo[0] for flujo in FLUJOS_DESPACHO_TERRAMAR_ETAPA_0}
+        permitidas = set(SECUENCIA.objects.filter(
+            EP_NID_id=empresa_id, SE_CTIPO=tipo, SE_BHABILITADO=True,
+            SE_CCODIGO__in=codigos,
+        ).values_list('id', flat=True))
+        return 'despacho_terramar' if secuencias_actuales.issubset(permitidas) else ''
+    return ''
 
 
 def es_flujo_recepcion_transferencia_sbh(citacion):
@@ -941,6 +997,9 @@ def citaciones_prosesa_piso_2_pendientes_por_patente(patente):
         dato_operacion__DO_CVALOR=patente,
     ).distinct()
 
+def es_flujo_recepcion_new_jersey_sin_calidad(citacion):
+    return es_recepcion_new_jersey_p1_sin_calidad(citacion)
+
 
 def es_citacion_despacho_terramar(citacion):
     return bool(
@@ -1474,8 +1533,30 @@ def CREAR_PLANIFICACION_CITACION(request):
             return JsonResponse({'success': False, 'message': 'Debe seleccionar una empresa.'})
 
         usuario = request.user
+        planificacion_existente_id = str(request.POST.get('planificacion_existente_id') or '').strip()
+        planificacion_existente = None
+        formulario_etapa0_existente = ''
+        if planificacion_existente_id:
+            if not (usuario.is_superuser or usuario_es_planificador(usuario) or validar_perfiles_activos(usuario.id, 'pla_addone')):
+                return JsonResponse({'success': False, 'message': 'No tiene permisos para agregar citaciones.'}, status=403)
+            if not planificacion_existente_id.isdigit():
+                return JsonResponse({'success': False, 'message': 'Planificación no válida para este modo.'}, status=400)
+            planificacion_existente = PLANIFICACION.objects.select_for_update().filter(
+                pk=planificacion_existente_id,
+                EP_NID_id=Empresa,
+                PL_CTIPOCUPO__in=(CIT_RECEPCION, CIT_DESPACHO),
+                PL_BARCHIVADO=False,
+                PL_FFECHAINICIO__isnull=False,
+            ).first()
+            if not planificacion_existente:
+                return JsonResponse({'success': False, 'message': 'Planificación activa no encontrada en la empresa seleccionada.'}, status=404)
+            formulario_etapa0_existente = resolver_formulario_etapa0(planificacion_existente)
+            if not formulario_etapa0_existente:
+                return JsonResponse({'success': False, 'message': 'La planificación no tiene un formulario Etapa 0 vigente y homogéneo.'}, status=404)
         solicitud_patio = None
         solicitud_patio_id = str(request.POST.get('solicitud_no_planificado_id') or '').strip()
+        if planificacion_existente and solicitud_patio_id:
+            return JsonResponse({'success': False, 'message': 'Agregar citaciones no admite solicitudes de camión no planificado.'}, status=400)
         if solicitud_patio_id:
             if not usuario_puede_revisar_no_planificado_patio(usuario):
                 return JsonResponse({'success': False, 'message': 'No tiene permisos para completar esta solicitud.'}, status=403)
@@ -1532,6 +1613,48 @@ def CREAR_PLANIFICACION_CITACION(request):
         pl_sobrecupo = es_sobrecupo.lower() in ['si', 'sí', 'true', '1', 'on'] or cantidad_sobrecupo > 0
 
         fecha_llegada_obj = datetime.strptime(fecha_llegada, '%Y-%m-%d')
+        if planificacion_existente:
+            fecha_planificacion = planificacion_existente.PL_FFECHAINICIO
+            if timezone.is_aware(fecha_planificacion):
+                fecha_planificacion = timezone.localtime(fecha_planificacion)
+            if (
+                tipo_operacion.upper() != planificacion_existente.PL_CTIPOCUPO
+                or fecha_llegada_obj.date() != fecha_planificacion.date()
+                or any(
+                    str(item.get('tipo_operacion') or '').upper() != planificacion_existente.PL_CTIPOCUPO
+                    or str(item.get('fecha_llegada') or '') != fecha_llegada
+                    for item in citaciones_data
+                )
+            ):
+                return JsonResponse({'success': False, 'message': 'Las citaciones deben usar el tipo y la fecha de la planificación.'}, status=400)
+            espera_recepcion_terramar = formulario_etapa0_existente == 'recepcion_terramar'
+            espera_despacho_terramar = formulario_etapa0_existente == 'despacho_terramar'
+            if any(
+                bool(item.get('recepcion_terramar')) != espera_recepcion_terramar
+                or bool(item.get('despacho_terramar')) != espera_despacho_terramar
+                for item in citaciones_data
+            ):
+                return JsonResponse({'success': False, 'message': 'El formulario enviado no corresponde al flujo de esta planificación.'}, status=400)
+            if formulario_etapa0_existente in {'recepcion_sbh', 'transferencia_sbh'}:
+                flujo_esperado = ('TRANSFERENCIA' if formulario_etapa0_existente == 'transferencia_sbh'
+                                  else 'INGRESO_MERCADERIA')
+                if str(request.POST.get('flujo') or '').strip().upper() != flujo_esperado:
+                    return JsonResponse({'success': False, 'message': 'El flujo enviado no corresponde a esta planificación.'}, status=400)
+            else:
+                secuencias_permitidas_existente = {
+                    'despacho_sbh': {flujo[0] for flujo in FLUJOS_DESPACHO_ETAPA_0},
+                    'recepcion_terramar': {'RECEPCION_TERRAMAR', 'RECEPCION_TERRAMAR_BODEGA_EXTERNA'},
+                    'despacho_terramar': {flujo[0] for flujo in FLUJOS_DESPACHO_TERRAMAR_ETAPA_0},
+                }[formulario_etapa0_existente]
+                for item in citaciones_data:
+                    secuencia_item_id = str(item.get('secuencia_id') or '').strip()
+                    if not secuencia_item_id.isdigit() or not SECUENCIA.objects.filter(
+                        pk=secuencia_item_id, EP_NID_id=Empresa,
+                        SE_CTIPO=planificacion_existente.PL_CTIPOCUPO,
+                        SE_CCODIGO__in=secuencias_permitidas_existente,
+                        SE_BHABILITADO=True,
+                    ).exists():
+                        return JsonResponse({'success': False, 'message': 'La secuencia no corresponde al formulario de esta planificación.'}, status=400)
         es_recepcion_terramar = (
             empresa_es_terramar_chile(Empresa)
             and str(primera_citacion.get('tipo_operacion') or '').upper() == 'RECEPCION'
@@ -1566,6 +1689,13 @@ def CREAR_PLANIFICACION_CITACION(request):
                 Empresa,
                 flujo_recepcion_sbh,
             )
+            if planificacion_existente:
+                secuencias_actuales = set(CITACION.objects.filter(
+                    PL_NID=planificacion_existente, CI_BHABILITADO=True,
+                ).values_list('SC_NID_id', flat=True))
+                secuencias_del_flujo = set(secuencias_permitidas.values_list('id', flat=True))
+                if not secuencias_actuales or not secuencias_actuales.issubset(secuencias_del_flujo):
+                    return JsonResponse({'success': False, 'message': 'El flujo no coincide con las secuencias de esta planificación.'}, status=400)
             secuencia_transferencia = None
             if flujo_recepcion_sbh == 'TRANSFERENCIA':
                 secuencia_transferencia = secuencias_permitidas.filter(
@@ -1585,6 +1715,12 @@ def CREAR_PLANIFICACION_CITACION(request):
                     }, status=400)
                 item['flujo'] = flujo_recepcion_sbh
                 if secuencia_transferencia:
+                    secuencia_enviada = str(item.get('secuencia_id') or '').strip()
+                    if secuencia_enviada and secuencia_enviada != str(secuencia_transferencia.pk):
+                        return JsonResponse({
+                            'success': False,
+                            'message': 'La secuencia enviada no corresponde a Transferencia.',
+                        }, status=400)
                     item['secuencia_id'] = secuencia_transferencia.pk
                     continue
                 secuencia_item_id = str(item.get('secuencia_id') or '').strip()
@@ -1653,6 +1789,19 @@ def CREAR_PLANIFICACION_CITACION(request):
                                 'success': False,
                                 'message': str(exc),
                             }, status=400)
+        if planificacion_existente:
+            secuencias_de_la_carpeta = {str(secuencia_id) for secuencia_id in CITACION.objects.filter(
+                PL_NID=planificacion_existente, CI_BHABILITADO=True,
+            ).values_list('SC_NID_id', flat=True)}
+            if any(
+                str(item.get('secuencia_id') or '').strip() not in secuencias_de_la_carpeta
+                for item in citaciones_data
+            ):
+                return JsonResponse({
+                    'success': False,
+                    'message': 'La secuencia debe corresponder a esta planificación.',
+                }, status=400)
+
         es_recepcion_transferencia_sbh = (
             es_recepcion_sbh and flujo_recepcion_sbh == 'TRANSFERENCIA'
         )
@@ -1801,6 +1950,12 @@ def CREAR_PLANIFICACION_CITACION(request):
                         'success': False,
                         'message': mensaje_destino,
                     }, status=400)
+                try:
+                    item['_proveedor_manual_sbh'] = normalizar_proveedor_recepcion_sbh_etapa_0(
+                        item, Empresa
+                    )
+                except ValueError as exc:
+                    return JsonResponse({'success': False, 'message': str(exc)}, status=400)
                 if flujo_recepcion_sbh == 'INGRESO_MERCADERIA':
                     proveedor_final, mensaje_proveedor = normalizar_proveedor_ingreso_mercaderia_sbh(item)
                     if mensaje_proveedor:
@@ -1961,7 +2116,7 @@ def CREAR_PLANIFICACION_CITACION(request):
             CA_BHABILITADO=True
         ).first()
 
-        if not calendario:
+        if not calendario and not planificacion_existente:
             calendario = CALENDARIO.objects.create(
                 CA_CNOMBRE=f'ACEITES SBH: {fecha_llegada_obj.day}/{fecha_llegada_obj.month}/{fecha_llegada_obj.year}',
                 CA_FHORA_APERTURA=time(0, 0),
@@ -1976,19 +2131,25 @@ def CREAR_PLANIFICACION_CITACION(request):
                 EP_NID_id=Empresa
             )
 
-        planificacion = PLANIFICACION()
-        planificacion.US_NID = usuario
-        planificacion.EP_NID_id = Empresa
-        planificacion.CAL_NID = calendario
-        planificacion.PL_FFECHAREGISTRO = timezone.now()
-        planificacion.PL_FFECHAINICIO = fecha_llegada_obj
-        planificacion.PL_FFECHAFIN = fecha_termino_obj
-        planificacion.PL_CTIPOCUPO = tipo_operacion.upper()
-        planificacion.PL_NCANTIDADCUPOS = cantidad_repetir
-        planificacion.PL_NSOBRECUPO = pl_sobrecupo
-        planificacion.PL_NCANTIDADSOBRECUPO = cantidad_sobrecupo
-        planificacion.PL_BARCHIVADO = False
-        planificacion.save()
+        if planificacion_existente:
+            planificacion = planificacion_existente
+            siguiente_numero_cupo = (CITACION.objects.filter(PL_NID=planificacion)
+                                     .order_by('-CI_NCUPO').values_list('CI_NCUPO', flat=True).first() or 0) + 1
+        else:
+            planificacion = PLANIFICACION()
+            planificacion.US_NID = usuario
+            planificacion.EP_NID_id = Empresa
+            planificacion.CAL_NID = calendario
+            planificacion.PL_FFECHAREGISTRO = timezone.now()
+            planificacion.PL_FFECHAINICIO = fecha_llegada_obj
+            planificacion.PL_FFECHAFIN = fecha_termino_obj
+            planificacion.PL_CTIPOCUPO = tipo_operacion.upper()
+            planificacion.PL_NCANTIDADCUPOS = cantidad_repetir
+            planificacion.PL_NSOBRECUPO = pl_sobrecupo
+            planificacion.PL_NCANTIDADSOBRECUPO = cantidad_sobrecupo
+            planificacion.PL_BARCHIVADO = False
+            planificacion.save()
+            siguiente_numero_cupo = 1
 
         citaciones_creadas = []
         operaciones_new_jersey_creadas = []
@@ -2269,8 +2430,8 @@ def CREAR_PLANIFICACION_CITACION(request):
 
 
             proveedor_sn = None if (
-                tipo_item_citacion == 'DESPACHO'
-                and item.get('condicion_entrega') == 'Cliente'
+                (tipo_item_citacion == 'DESPACHO' and item.get('condicion_entrega') == 'Cliente')
+                or item.get('_proveedor_manual_sbh')
             ) else resolver_socio_negocio_planificacion(
                 Empresa,
                 'S',
@@ -2308,7 +2469,7 @@ def CREAR_PLANIFICACION_CITACION(request):
                 SC_NID=secuencia_item,
                 CI_FFECHAREGISTRO=timezone.now(),
                 CI_FFECHACITACION=fecha_llegada_obj,
-                CI_NCUPO=i + 1,
+                CI_NCUPO=siguiente_numero_cupo + i,
                 CI_CTIPO=item.get('tipo_operacion', tipo_operacion),
                 CI_CTIPO_FLETE=item.get('tipo_carga', ''),
                 CI_CESTADO='Despacho Programado' if tipo_item_citacion == 'DESPACHO' else 'Insumo Programado',
@@ -2450,7 +2611,11 @@ def CREAR_PLANIFICACION_CITACION(request):
 
         return JsonResponse({
             'success': True,
-            'message': f'Planificación y {len(citaciones_creadas)} citación(es) creadas correctamente.',
+            'message': (
+                f'Se agregaron {len(citaciones_creadas)} citaciones a la planificación #{planificacion.id}.'
+                if planificacion_existente else
+                f'Planificación y {len(citaciones_creadas)} citación(es) creadas correctamente.'
+            ),
             'planificacion_id': planificacion.id,
             'citaciones': citaciones_creadas,
             'operaciones_new_jersey': operaciones_new_jersey_creadas,
@@ -5152,6 +5317,8 @@ def condicion_entrega_despacho_revision(citacion):
 
 def requiere_ruta_transportista_revision(citacion, contexto_ingreso=None):
     """En Despacho usa la condicion persistida; Recepcion conserva el contexto del camion."""
+    if es_flujo_recepcion_new_jersey_sin_calidad(citacion):
+        return False
     if es_recepcion_new_jersey_p3(citacion):
         return False
     # El retiro de contenedor PROSESA Piso 2 siempre necesita una ruta tarifada.
@@ -8051,6 +8218,7 @@ ESTANQUES_POR_ALMACEN = {
         'TK15',
         'TK16',
         'TK17',
+        'TK18',
         'TKMX01',
         'TKMX02',
         'TKMX03',
@@ -8938,6 +9106,49 @@ def resolver_socio_negocio_planificacion(empresa_id, tipo, valor=None, codigo=No
             return socio
 
     return None
+
+
+def normalizar_proveedor_recepcion_sbh_etapa_0(item, empresa_id):
+    """Keep the selected supplier's code and name together in a new SBH receipt."""
+    seleccionado = str(item.get('proveedor') or '').strip()
+    if seleccionado.startswith('maestro:'):
+        socio_id = seleccionado.partition(':')[2]
+        socio = SOCIONEGOCIO.objects.filter(
+            pk=socio_id if socio_id.isdigit() else None,
+            EP_NID_id=empresa_id,
+            SN_CTIPO='S',
+            SN_BHABILITADO=True,
+        ).first()
+        if not socio:
+            raise ValueError('El proveedor seleccionado no pertenece al maestro habilitado de SBH.')
+        codigo = str(socio.SN_CCODIGO_SAP or '').strip()
+        nombre = socio.SN_CRAZONSOCIAL
+        item['proveedor'] = codigo or str(socio.id)
+    elif seleccionado.startswith('manual:'):
+        nombre = seleccionado.partition(':')[2].strip()
+        if not nombre or len(nombre) > 128:
+            raise ValueError('Debe ingresar un nombre de proveedor válido (máximo 128 caracteres).')
+        codigo = ''
+        item['proveedor'] = ''
+    elif seleccionado.startswith('sap:'):
+        codigo = seleccionado.partition(':')[2].strip()
+        nombre = str(item.get('proveedor_nombre') or '').strip()
+        if not codigo or not nombre or len(codigo) > 128 or len(nombre) > 256:
+            raise ValueError('El proveedor sugerido por SAP no tiene código y nombre válidos.')
+        item['proveedor'] = codigo
+    else:
+        # Legacy clients send the CardCode directly; it remains the source for
+        # both code snapshots even if hidden inputs contain a previous choice.
+        if seleccionado:
+            item['proveedor_codigo'] = seleccionado
+            item['codigo_proveedor_sap'] = seleccionado
+        return False
+
+    item['proveedor_nombre'] = nombre
+    item['proveedor_sap'] = nombre
+    item['proveedor_codigo'] = codigo
+    item['codigo_proveedor_sap'] = codigo
+    return seleccionado.startswith('manual:')
 
 
 def observacion_con_metadata_sap(data):
@@ -10788,6 +10999,7 @@ def PLANIFICACION_CITACION_REVISION_ASISTENTE(request, pk):
         contexto_ingreso = _contexto_ingreso_camion_patio(citacion)
         requiere_ruta_transportista = requiere_ruta_transportista_revision(citacion, contexto_ingreso)
         valores_ingreso = obtener_valores_ingreso_camion(citacion)
+        es_new_jersey_sin_calidad = es_flujo_recepcion_new_jersey_sin_calidad(citacion)
         ruta_tarifa_transportista = (
             obtener_rutas_tarifa_transportista(citacion, valores_ingreso)
             if requiere_ruta_transportista else {'opciones': [], 'rutas_texto': '', 'tarifa_texto': ''}
@@ -10823,6 +11035,10 @@ def PLANIFICACION_CITACION_REVISION_ASISTENTE(request, pk):
         es_despacho = tipo_citacion_actual == CIT_DESPACHO
         es_recepcion = tipo_citacion_actual == CIT_RECEPCION
         es_recepcion_estanque_sbh = es_flujo_recepcion_estanque_sbh(citacion)
+        requiere_ruta_transportista = not es_new_jersey_sin_calidad and (
+            es_recepcion_estanque_sbh or contexto_ingreso['requiere_ruta_transportista']
+        )
+        requiere_peso_informado_guia = es_recepcion_estanque_sbh or es_new_jersey_sin_calidad
         es_flujo_terramar = es_flujo_preoperacional_terramar(citacion)
         snapshot_recepcion_sbh = datos_snapshot_recepcion_sbh_presentacion(
             citacion,
@@ -10848,7 +11064,9 @@ def PLANIFICACION_CITACION_REVISION_ASISTENTE(request, pk):
             (detalle_recepcion_terramar.SN_NID_TRANSPORTISTA.SN_CRAZONSOCIAL if detalle_recepcion_terramar and detalle_recepcion_terramar.SN_NID_TRANSPORTISTA else (detalle_recepcion_terramar.RTD_CEMPRESA_TRANSPORTE if detalle_recepcion_terramar else 'No informado'))
         )
         ruta_transportista_resumen = {
-            'Ruta': ruta_seleccionada_texto or dato('AR_RUTA_TRANSPORTISTA') or 'No hay ruta registrada desde planificación.',
+            'Ruta': ('No aplica' if es_new_jersey_sin_calidad else (
+                ruta_seleccionada_texto or dato('AR_RUTA_TRANSPORTISTA') or 'No hay ruta registrada desde planificación.'
+            )),
             'Transportista': transportista_planificado or 'No informado',
             'Tarifa': tarifa_seleccionada_texto or 'No informada',
             'Valor tarifa': str(citacion.CI_NVALORTARIFA) if citacion.CI_NVALORTARIFA is not None else 'No informado',
@@ -11220,8 +11438,12 @@ def PLANIFICACION_CITACION_EDITAR_INGRESO_ASISTENTE(request, pk):
                     anteriores[campo] = anterior
                     cambios.append(campo)
                     setattr(camion, campo, valor)
+            requiere_ruta_transportista = (
+                datos['transporte_a_cargo'] == 'TERRAMAR'
+                and not es_flujo_recepcion_new_jersey_sin_calidad(citacion)
+            )
             if not cambios:
-                return JsonResponse({'success': True, 'ok': True, 'message': 'No hay cambios para guardar.', 'requiere_ruta_transportista': datos['transporte_a_cargo'] == 'TERRAMAR'})
+                return JsonResponse({'success': True, 'ok': True, 'message': 'No hay cambios para guardar.', 'requiere_ruta_transportista': requiere_ruta_transportista})
             cambia_transportista = any(campo in cambios for campo in ('transporte_a_cargo', 'CPA_CTRANSPORTISTA_DECLARADO'))
             camion.save(update_fields=cambios + ['CPA_FFECHAACTUALIZACION'])
             camion.refresh_from_db()
@@ -11246,12 +11468,12 @@ def PLANIFICACION_CITACION_EDITAR_INGRESO_ASISTENTE(request, pk):
                 f'Edicion datos asistente recepcion citacion #{citacion.id}, camion patio #{camion.id}. {detalle_cambios}',
                 citacion.id, camion.id, raise_on_error=True
             )
-        rutas = obtener_rutas_tarifa_transportista(citacion) if camion.transporte_a_cargo == 'TERRAMAR' else {'opciones': []}
+        rutas = obtener_rutas_tarifa_transportista(citacion) if requiere_ruta_transportista else {'opciones': []}
         return JsonResponse({
             'success': True,
             'ok': True,
             'message': 'Datos de ingreso actualizados.',
-            'requiere_ruta_transportista': camion.transporte_a_cargo == 'TERRAMAR',
+            'requiere_ruta_transportista': requiere_ruta_transportista,
             'ruta_invalidada': cambia_transportista,
             'rutas_transportista': rutas.get('opciones', []),
             'datos': {
@@ -11576,6 +11798,7 @@ def APROBAR_CAMION_ASISTENTE(request, pk):
                     return JsonResponse({'success': False, 'message': str(exc)}, status=400)
             es_flujo_terramar = es_flujo_preoperacional_terramar(citacion)
             es_recepcion_estanque_sbh = es_flujo_recepcion_estanque_sbh(citacion)
+            es_new_jersey_sin_calidad = es_flujo_recepcion_new_jersey_sin_calidad(citacion)
             datos_validados = str(request.POST.get('datos_validados') or '').strip().lower() == 'true'
             if es_flujo_terramar and not datos_validados:
                 return JsonResponse({
@@ -11641,6 +11864,7 @@ def APROBAR_CAMION_ASISTENTE(request, pk):
             ) if requiere_ruta_transportista else (
                 'No aplica (transportista heredado P3)'
                 if es_new_jersey_p3_aprobacion
+                else 'No aplica (flujo New Jersey sin Calidad)' if es_new_jersey_sin_calidad
                 else 'No aplica (transporte a cargo del Cliente)'
             )
 
@@ -14900,7 +15124,10 @@ def nombre_visible_paso_operacion(citacion, nombre_paso):
     return nombre_paso
 
 
-def resolver_estado_operacional_visible(citacion, pasos_config, pasos_completados=None):
+_CALIDAD_NO_PRECARGADA = object()
+
+
+def resolver_estado_operacional_visible(citacion, pasos_config, pasos_completados=None, *, resultado_calidad=_CALIDAD_NO_PRECARGADA):
     pasos_completados = pasos_completados or set()
     if leer_inspeccion_inicio_carga(citacion).get('resultado') == 'RECHAZADO':
         return PASO_CONFIRMAR_SALIDA
@@ -14916,7 +15143,8 @@ def resolver_estado_operacional_visible(citacion, pasos_config, pasos_completado
         or ''
     ).strip().upper()
 
-    resultado_calidad = RESULTADO_CALIDAD_OPERACION.objects.filter(CI_NID=citacion).only('RCO_CESTADO').first()
+    if resultado_calidad is _CALIDAD_NO_PRECARGADA:
+        resultado_calidad = RESULTADO_CALIDAD_OPERACION.objects.filter(CI_NID=citacion).only('RCO_CESTADO').first()
     es_recepcion_bodega_externa = es_recepcion_bodega_externa_operacion(citacion)
     if (
         not es_recepcion_bodega_externa
@@ -19740,10 +19968,14 @@ def asegurar_flujos_recepcion_etapa_0(empresa_id, usuario):
     flujos_new_jersey = asegurar_flujos_new_jersey(empresa_id, usuario)
 
     for codigo, nombre, nombre_base in FLUJOS_RECEPCION_ETAPA_0:
-        if empresa_id != ID_ACEITES_SBH and codigo in {
-            SECUENCIA_RECEPCION_PROSESA_PISO_1,
-            SECUENCIA_RECEPCION_PROSESA_PISO_2,
-        }:
+        if (
+            empresa_id != ID_ACEITES_SBH and codigo in {
+                SECUENCIA_RECEPCION_PROSESA_PISO_1,
+                SECUENCIA_RECEPCION_PROSESA_PISO_2,
+            }
+        ) or (
+            empresa_id == ID_ACEITES_SBH and codigo in SECUENCIAS_PATIO_LF_HISTORICAS_SBH
+        ):
             continue
         secuencia = SECUENCIA.objects.filter(
             EP_NID_id=empresa_id
@@ -20079,13 +20311,40 @@ def PLANIFICACION_ADDONE(request):
         if Empresa is None:
             return redirect('/seleccionar_empresa/')
 
+        planificacion_existente = None
+        formulario_etapa0_existente = ''
+        planificacion_existente_id = str(request.GET.get('planificacion_existente_id') or '').strip()
+        if planificacion_existente_id:
+            if not planificacion_existente_id.isdigit():
+                return HttpResponse(status=404)
+            planificacion_existente = PLANIFICACION.objects.filter(
+                pk=planificacion_existente_id,
+                EP_NID_id=Empresa,
+                PL_CTIPOCUPO__in=(CIT_RECEPCION, CIT_DESPACHO),
+                PL_BARCHIVADO=False,
+                PL_FFECHAINICIO__isnull=False,
+            ).first()
+            if not planificacion_existente:
+                return HttpResponse(status=404)
+            formulario_etapa0_existente = resolver_formulario_etapa0(planificacion_existente)
+            if not formulario_etapa0_existente:
+                return HttpResponse(status=404)
+
         tipo_planificacion = str(request.GET.get('tipo') or '').strip().upper()
+        if planificacion_existente:
+            if tipo_planificacion and tipo_planificacion != planificacion_existente.PL_CTIPOCUPO:
+                return HttpResponse(status=404)
+            tipo_planificacion = planificacion_existente.PL_CTIPOCUPO
         if tipo_planificacion not in ['RECEPCION', 'DESPACHO']:
             tipo_planificacion = ''
         flujo_navegacion = ''
         if Empresa == ID_ACEITES_SBH and tipo_planificacion == CIT_RECEPCION:
             flujo_solicitado = str(request.GET.get('flujo') or '').strip().upper()
-            flujo_navegacion = normalizar_flujo_recepcion_sbh(flujo_solicitado)
+            flujo_navegacion = ('TRANSFERENCIA' if formulario_etapa0_existente == 'transferencia_sbh'
+                                else 'INGRESO_MERCADERIA') if planificacion_existente else normalizar_flujo_recepcion_sbh(flujo_solicitado)
+            if planificacion_existente:
+                if flujo_solicitado and flujo_solicitado != flujo_navegacion:
+                    return HttpResponse(status=404)
 
         solicitud_patio_inicial = None
         solicitud_patio_id = str(
@@ -20093,6 +20352,8 @@ def PLANIFICACION_ADDONE(request):
             or request.POST.get('solicitud_no_planificado_id')
             or ''
         ).strip()
+        if planificacion_existente and solicitud_patio_id:
+            return HttpResponse(status=400)
         if solicitud_patio_id and usuario_puede_revisar_no_planificado_patio(request.user):
             solicitud_patio_inicial = CAMION_PATIO_NO_PLANIFICADO.objects.select_related(
                 'CPA_NID'
@@ -20104,6 +20365,8 @@ def PLANIFICACION_ADDONE(request):
             ).first()
 
         if request.method == 'POST':
+            if planificacion_existente:
+                return HttpResponse(status=405)
             form = formPLANIFICACION(request.POST)
 
             if form.is_valid():
@@ -20138,23 +20401,42 @@ def PLANIFICACION_ADDONE(request):
                 avisos_desarrollo.append('Clientes SAP no disponibles. El modal se muestra con el selector vacio.')
 
         proveedores_sap = []
+        proveedores_recepcion_sbh = list(SOCIONEGOCIO.objects.filter(
+            EP_NID_id=Empresa,
+            SN_CTIPO='S',
+            SN_BHABILITADO=True,
+        ).order_by('SN_CRAZONSOCIAL', 'id')) if Empresa == ID_ACEITES_SBH and tipo_planificacion == CIT_RECEPCION and flujo_navegacion != 'TRANSFERENCIA' else []
 
         es_despacho_terramar = (
             empresa_es_terramar_chile(Empresa)
             and tipo_planificacion == CIT_DESPACHO
         )
         try:
-            secuencias_recepcion = asegurar_flujos_recepcion_etapa_0(Empresa, request.user)
+            secuencias_recepcion = (
+                [] if planificacion_existente else asegurar_flujos_recepcion_etapa_0(Empresa, request.user)
+            )
             if es_despacho_terramar:
-                secuencias_despacho_terramar = asegurar_flujos_despacho_terramar_etapa_0(Empresa, request.user)
+                secuencias_despacho_terramar = (
+                    list(SECUENCIA.objects.filter(
+                        EP_NID_id=Empresa, SE_CTIPO=CIT_DESPACHO, SE_BHABILITADO=True,
+                        SE_CCODIGO__in={flujo[0] for flujo in FLUJOS_DESPACHO_TERRAMAR_ETAPA_0},
+                    ).order_by('SE_CNOMBRE', 'id'))
+                    if planificacion_existente else asegurar_flujos_despacho_terramar_etapa_0(Empresa, request.user)
+                )
                 secuencias_despacho = secuencias_despacho_terramar
             else:
-                asegurar_flujos_despacho_etapa_0(Empresa, request.user)
-                secuencias_despacho = list(SECUENCIA.objects.filter(
+                if not planificacion_existente:
+                    asegurar_flujos_despacho_etapa_0(Empresa, request.user)
+                queryset_despacho = SECUENCIA.objects.filter(
                     EP_NID_id=Empresa,
                     SE_CTIPO=CIT_DESPACHO,
-                    SE_BHABILITADO=True
-                ).order_by("SE_CNOMBRE"))
+                    SE_BHABILITADO=True,
+                )
+                if formulario_etapa0_existente == 'despacho_sbh':
+                    queryset_despacho = queryset_despacho.filter(
+                        SE_CCODIGO__in={flujo[0] for flujo in FLUJOS_DESPACHO_ETAPA_0},
+                    )
+                secuencias_despacho = list(queryset_despacho.order_by('SE_CNOMBRE', 'id'))
                 secuencias_despacho_terramar = []
             if Empresa == ID_ACEITES_SBH and tipo_planificacion == CIT_RECEPCION:
                 secuencias_recepcion = list(
@@ -20176,6 +20458,18 @@ def PLANIFICACION_ADDONE(request):
             insumos_despacho_terramar = []
             avisos_desarrollo.append('Secuencias no disponibles. El modal se muestra con el selector vacio.')
 
+        if planificacion_existente:
+            secuencias_de_la_carpeta = set(CITACION.objects.filter(
+                PL_NID=planificacion_existente, CI_BHABILITADO=True,
+            ).values_list('SC_NID_id', flat=True))
+            secuencias = [s for s in secuencias if s.pk in secuencias_de_la_carpeta]
+            secuencias_recepcion_terramar = [
+                s for s in secuencias_recepcion_terramar if s.pk in secuencias_de_la_carpeta
+            ]
+            secuencias_despacho_terramar = [
+                s for s in secuencias_despacho_terramar if s.pk in secuencias_de_la_carpeta
+            ]
+
         es_recepcion_sbh = Empresa == 2 and tipo_planificacion == CIT_RECEPCION
         es_ingreso_mercaderia_sbh = (
             es_recepcion_sbh
@@ -20184,8 +20478,18 @@ def PLANIFICACION_ADDONE(request):
 
         ctx = {
             'form': form,
+            'planificacion': planificacion_existente,
+            'planificacion_existente_id': planificacion_existente.pk if planificacion_existente else None,
+            'formulario_etapa0_existente': formulario_etapa0_existente,
+            'formulario_etapa0': formulario_etapa0_existente,
+            'fecha_planificacion_existente': (
+                timezone.localtime(planificacion_existente.PL_FFECHAINICIO).strftime('%Y-%m-%d')
+                if planificacion_existente and timezone.is_aware(planificacion_existente.PL_FFECHAINICIO)
+                else planificacion_existente.PL_FFECHAINICIO.strftime('%Y-%m-%d') if planificacion_existente else ''
+            ),
             'clientes_sap': clientes_sap,
             'proveedores_sap': proveedores_sap,
+            'proveedores_recepcion_sbh': proveedores_recepcion_sbh,
             'secuencias': secuencias,
             'secuencias_json': json.dumps({
                 str(secuencia.id): secuencia.SE_CCODIGO for secuencia in secuencias
@@ -21085,41 +21389,48 @@ def pages(request):
         html_template = loader.get_template('home/GRADIENT/page-500.html')
         return HttpResponse(html_template.render(context, request))
 
+def _empresa_mapa_operacional(request):
+    """Select a display company only; both map URLs enforce login_required.
+
+    Viewing companies 1/2 does not grant operational permissions or change the
+    user's active company. Shared membership/profile helpers remain unchanged.
+    """
+    valor = request.GET.get(EMPRESA_ACTIVA_PARAM, request.GET.get('empresa_id'))
+    if valor is None:
+        valor = request.session.get('empresa_id')
+    if valor is None:
+        empresas = list(USERS_EMPRESA.objects.filter(US_NID=request.user).values_list('EP_NID_id', flat=True)[:2])
+        valor = empresas[0] if len(empresas) == 1 else None
+    if not str(valor or '').isdigit():
+        return None
+    empresa_id = int(valor)
+    return empresa_id if empresa_id in (1, 2) else None
+
+
 def DASHBOARD_GRAFICO(request):
-    try:
-        Empresa = Verificar_empresa(request)
-        zonas = get_list_zonas(Empresa)
-        object_list = []
-        object_list_zonas = []
+    if request.method != 'GET':
+        return HttpResponse(status=405, headers={'Allow': 'GET'})
+    empresa_id = _empresa_mapa_operacional(request)
+    if empresa_id is None:
+        return HttpResponse('Empresa no válida para el mapa.', status=400)
+    respuesta = render(request, 'home/HOME/monitor.html', {'mapa_empresa_id': empresa_id})
+    respuesta['Cache-Control'] = 'no-store, private'
+    return respuesta
 
-        if zonas:
-            for tupla in zonas:
-                # Asegúrate de que el décimo elemento no sea None
-                if len(tupla) > 10 and tupla[10] is not None:
-                    object_list_zonas.append(list(tupla))
-                else:
-                    # Si es None, puedes asignar un color por defecto o manejarlo de otra manera
-                    tupla = list(tupla)
-                    tupla[10] = '#bada55'  # Color por defecto
-                    object_list_zonas.append(tupla)
 
-        citaciones = get_citaciones_zonas(Empresa)
-        if citaciones:
-            object_list = [list(tupla) for tupla in citaciones]
+def DASHBOARD_GRAFICO_ESTADO(request):
+    if request.method != 'GET':
+        return JsonResponse({'error': 'Solo lectura.'}, status=405, headers={'Allow': 'GET'})
+    empresa_id = _empresa_mapa_operacional(request)
+    if empresa_id is None:
+        return JsonResponse({'error': 'Empresa no válida para el mapa.'}, status=400)
+    from .services.mapa_operacional import obtener_estado_mapa_operacional
+    estado = obtener_estado_mapa_operacional(empresa_id)
+    respuesta = JsonResponse(estado)
+    respuesta['Cache-Control'] = 'no-store, private'
+    respuesta['Vary'] = 'Cookie'
+    return respuesta
 
-        ctx = {
-            "object_list": object_list,
-            'object_list_zonas': object_list_zonas,
-            "lat_init": LAT_INIT,
-            "lon_init": LON_INIT,
-            'map_zoom': str(MAP_ZOOM_INIT),
-            'map_height': MAP_HEIGHT_RAM,
-        }
-        return render(request, 'home/HOME/monitor.html', ctx)
-    except Exception as e:
-        print(e)
-        messages.error(request, f'Error, {str(e)}')
-        return redirect("/")
 
 ##########################################################################
 ######################   CAMBIO CONTRASEÑA   #############################
@@ -25120,6 +25431,44 @@ def PLANIFICACION_LISTONE(request, pk):
 
         citaciones_recepcion_plan = [fila for fila in citaciones if str(fila.CI_CTIPO or '').upper() == CIT_RECEPCION]
         es_recepcion_terramar = bool(citaciones_recepcion_plan) and all(es_citacion_recepcion_terramar(fila) for fila in citaciones_recepcion_plan)
+        formulario_etapa0 = resolver_formulario_etapa0(planificacion)
+        puede_agregar_citaciones = bool(
+            formulario_etapa0
+            and (request.user.is_superuser or usuario_es_planificador(request.user)
+                 or validar_perfiles_activos(request.user.id, 'pla_addone'))
+        )
+        if not puede_agregar_citaciones:
+            formulario_etapa0 = ''
+        flujo_etapa0 = ('TRANSFERENCIA' if formulario_etapa0 == 'transferencia_sbh'
+                        else 'INGRESO_MERCADERIA' if formulario_etapa0 == 'recepcion_sbh' else '')
+        if formulario_etapa0 == 'recepcion_sbh':
+            secuencias_etapa0 = list(queryset_secuencias_recepcion_sbh_por_flujo(
+                Empresa, flujo_etapa0,
+            ).order_by('SE_CNOMBRE', 'id'))
+        elif formulario_etapa0 == 'transferencia_sbh':
+            secuencias_etapa0 = list(queryset_secuencias_recepcion_sbh_por_flujo(
+                Empresa, flujo_etapa0,
+            ).order_by('SE_CNOMBRE', 'id'))
+        elif formulario_etapa0 == 'recepcion_terramar':
+            secuencias_etapa0 = list(queryset_secuencias_recepcion_terramar(Empresa))
+        elif formulario_etapa0 in {'despacho_sbh', 'despacho_terramar'}:
+            codigos_etapa0 = ({flujo[0] for flujo in FLUJOS_DESPACHO_TERRAMAR_ETAPA_0}
+                               if formulario_etapa0 == 'despacho_terramar'
+                               else {flujo[0] for flujo in FLUJOS_DESPACHO_ETAPA_0})
+            secuencias_etapa0 = list(SECUENCIA.objects.filter(
+                EP_NID_id=Empresa, SE_CTIPO=CIT_DESPACHO, SE_BHABILITADO=True,
+                SE_CCODIGO__in=codigos_etapa0,
+            ).order_by('SE_CNOMBRE', 'id'))
+        else:
+            secuencias_etapa0 = []
+        if formulario_etapa0:
+            secuencias_de_la_carpeta = set(CITACION.objects.filter(
+                PL_NID=planificacion, CI_BHABILITADO=True,
+            ).values_list('SC_NID_id', flat=True))
+            secuencias_etapa0 = [
+                secuencia for secuencia in secuencias_etapa0
+                if secuencia.pk in secuencias_de_la_carpeta
+            ]
 
         ctx = {
             'despachos': despachos,
@@ -25128,6 +25477,34 @@ def PLANIFICACION_LISTONE(request, pk):
             'recepcion_borrador_sap_habilitado': any(len(row) > 46 and bool(row[46]) for row in recepciones),
             'planificacion': planificacion,
             'planificacion_id': planificacion.id,
+            'puede_agregar_citaciones': puede_agregar_citaciones,
+            'formulario_etapa0': formulario_etapa0,
+            'flujo_etapa0': flujo_etapa0,
+            'es_recepcion_sbh_etapa0': formulario_etapa0 == 'recepcion_sbh',
+            'es_recepcion_transferencia_sbh_etapa0': formulario_etapa0 == 'transferencia_sbh',
+            'es_recepcion_terramar_etapa0': formulario_etapa0 == 'recepcion_terramar',
+            'es_despacho_terramar_etapa0': formulario_etapa0 == 'despacho_terramar',
+            'planificacion_existente_id': planificacion.id if puede_agregar_citaciones else None,
+            'fecha_planificacion_existente': (
+                timezone.localtime(planificacion.PL_FFECHAINICIO).strftime('%Y-%m-%d')
+                if puede_agregar_citaciones and timezone.is_aware(planificacion.PL_FFECHAINICIO)
+                else planificacion.PL_FFECHAINICIO.strftime('%Y-%m-%d')
+                if puede_agregar_citaciones and planificacion.PL_FFECHAINICIO else ''
+            ),
+            'secuencias_etapa0': secuencias_etapa0,
+            'secuencias_etapa0_recepcion': secuencias_etapa0 if formulario_etapa0 == 'recepcion_sbh' else [],
+            'secuencias_recepcion_terramar': secuencias_etapa0 if formulario_etapa0 == 'recepcion_terramar' else [],
+            'secuencias_despacho_terramar': secuencias_etapa0 if formulario_etapa0 == 'despacho_terramar' else [],
+            'insumos_recepcion_terramar': list(queryset_insumos_recepcion_terramar(Empresa)) if formulario_etapa0 == 'recepcion_terramar' else [],
+            'insumos_despacho_terramar': list(queryset_insumos_despacho_terramar(Empresa)) if formulario_etapa0 == 'despacho_terramar' else [],
+            'paises_telefono': country_options() if formulario_etapa0 in {'recepcion_terramar', 'despacho_terramar'} else [],
+            'estanques_recepcion_transferencia_sbh': ESTANQUES_RECEPCION_TRANSFERENCIA_SBH if formulario_etapa0 == 'transferencia_sbh' else (),
+            'proveedores_etapa0_recepcion': list(SOCIONEGOCIO.objects.filter(
+                EP_NID_id=Empresa, SN_CTIPO='S', SN_BHABILITADO=True,
+            ).order_by('SN_CRAZONSOCIAL', 'id')) if puede_agregar_citaciones else [],
+            'almacenes_recepcion_operacional': ALMACENES_RECEPCION_SBH_ETAPA_0 if puede_agregar_citaciones else (),
+            'estanques_etapa0_json': json.dumps(ALMACENES_DESTINO_RECEPCION_SBH) if puede_agregar_citaciones else '{}',
+            'camion_patio_inicial': {},
             'citaciones_responsable': citaciones_responsable,
             'modo_ingreso_camion': bool(usuario_es_ingreso_camion(request.user) or es_asistente_despacho_ingreso),
             'es_asistente_despacho_ingreso': es_asistente_despacho_ingreso,

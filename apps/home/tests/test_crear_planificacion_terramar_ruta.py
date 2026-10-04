@@ -260,6 +260,36 @@ class CrearPlanificacionTerramarRutaTests(TestCase):
             ).exists()
         )
 
+    def test_agregar_recepcion_terramar_conserva_carpeta_y_capacidad(self):
+        primera = self.crear_citacion_para_edicion()
+        plan = primera.PL_NID
+        antes = (
+            PLANIFICACION.objects.count(), CITACION.objects.filter(PL_NID=plan).count(),
+            plan.PL_NCANTIDADCUPOS, plan.PL_NCANTIDADSOBRECUPO,
+        )
+        data = self.payload()
+        data['planificacion_existente_id'] = str(plan.pk)
+        data['cantidad_sobrecupo'] = '999'
+        with patch.object(views, 'guardar_detalle_operacional_citacion'), \
+             patch.object(views, 'guardar_detalle_despacho_citacion'), \
+             patch.object(views, 'guardar_detalle_recepcion_terramar_citacion'), \
+             patch.object(views, 'guardar_ruta_transportista_revision'), \
+             patch.object(views, 'guardar_datos_planificacion_operacional',
+                          side_effect=self.crear_dato_operacion):
+            response = self.client.post(reverse('crear_planificacion_citacion'), data)
+        self.assertEqual(response.status_code, 200, response.content)
+        self.assertTrue(response.json()['success'], response.content)
+        self.assertEqual(response.json()['planificacion_id'], plan.pk)
+        nueva = CITACION.objects.get(pk=response.json()['citaciones'][0])
+        self.assertEqual((nueva.PL_NID_id, nueva.EP_NID_id, nueva.SC_NID_id),
+                         (plan.pk, self.empresa.pk, self.secuencia.pk))
+        self.assertFalse(nueva.CI_BSOBRECUPO)
+        plan.refresh_from_db()
+        self.assertEqual((
+            PLANIFICACION.objects.count(), CITACION.objects.filter(PL_NID=plan).count(),
+            plan.PL_NCANTIDADCUPOS, plan.PL_NCANTIDADSOBRECUPO,
+        ), (antes[0], antes[1] + 1, antes[2], antes[3]))
+
     def test_error_de_auditoria_revierte_planificacion_y_citacion(self):
         self.autenticar()
         with patch.object(views.SYSLOGGER.objects, 'create',

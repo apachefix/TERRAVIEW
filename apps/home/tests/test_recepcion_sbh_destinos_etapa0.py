@@ -21,18 +21,18 @@ class DestinosRecepcionSbhEtapa0Tests(SimpleTestCase):
                 'PATIO SBH': 12,
                 'PROSESA': 9,
                 'PUERTO': 2,
-                'SBH': 16,
+                'SBH': 22,
             },
         )
 
-    def test_sbh_y_canopy_no_duplican_estanques(self):
+    def test_sbh_incluye_tk01_a_tk18_y_conserva_tkmx(self):
         codigos_sbh = set(ALMACENES_DESTINO_RECEPCION_SBH['SBH'])
         codigos_canopy = set(ALMACENES_DESTINO_RECEPCION_SBH['CANOPY'])
-        self.assertEqual(codigos_sbh & codigos_canopy, set())
-        self.assertIn('TK12', codigos_sbh)
-        self.assertNotIn('TK13', codigos_sbh)
-        self.assertIn('TK13', codigos_canopy)
-        self.assertIn('TK18', codigos_canopy)
+        self.assertTrue({f'TK{numero:02d}' for numero in range(1, 19)} <= codigos_sbh)
+        self.assertTrue({f'TKMX{numero:02d}' for numero in range(1, 5)} <= codigos_sbh)
+        self.assertTrue({f'TK{numero:02d}' for numero in range(13, 19)} <= codigos_canopy)
+        for numero in range(13, 19):
+            self.assertEqual(validar_destino_recepcion_sbh('SBH', f'TK{numero:02d}'), (True, ''))
 
     def test_codigos_especiales_se_conservan_exactamente(self):
         self.assertIn('PTO SBH', ALMACENES_DESTINO_RECEPCION_SBH['PUERTO'])

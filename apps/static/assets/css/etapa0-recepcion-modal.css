@@ -1,0 +1,38 @@
+/* Los cinco formularios Etapa 0 tienen un form entre modal-content y modal-body. */
+.etapa0-modal .modal-dialog,
+.etapa0-modal .modal-content {
+    max-height: calc(100vh - 30px);
+    max-height: calc(100dvh - 30px);
+}
+
+.etapa0-modal .modal-dialog {
+    margin-top: 15px;
+    margin-bottom: 15px;
+}
+
+.etapa0-modal .modal-content,
+.etapa0-modal .modal-content > form {
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+}
+
+.etapa0-modal .modal-content > form {
+    flex: 1 1 auto;
+    min-height: 0;
+}
+
+.etapa0-modal .modal-header,
+.etapa0-modal .modal-footer {
+    flex: 0 0 auto;
+}
+
+.etapa0-modal .modal-body {
+    flex: 1 1 auto;
+    min-height: 0;
+    max-height: none !important;
+    overflow-x: hidden;
+    overflow-y: auto !important;
+    overscroll-behavior: contain;
+    -webkit-overflow-scrolling: touch;
+}
