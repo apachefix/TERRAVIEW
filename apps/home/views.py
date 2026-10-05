@@ -16037,11 +16037,13 @@ def _payload_ticket_mop_guardado(citacion, request=None):
 
 def _buscar_ticket_pesaje_mas_reciente(patente, tipo_ticket):
     patente_normalizada = _normalizar_patente(patente)
+    fecha_actual = timezone.localdate()
     _debug_ticket_pesaje(
         'Inicio busqueda ticket',
         patente_original=repr(patente),
         patente_normalizada=patente_normalizada,
-        tipo_ticket=tipo_ticket
+        tipo_ticket=tipo_ticket,
+        fecha_actual=fecha_actual,
     )
     if not patente_normalizada or tipo_ticket not in {'ENT', 'SAL'}:
         _debug_ticket_pesaje('Busqueda cancelada por patente o tipo invalido', patente=patente_normalizada, tipo_ticket=tipo_ticket)
@@ -16069,17 +16071,28 @@ def _buscar_ticket_pesaje_mas_reciente(patente, tipo_ticket):
             patente_archivo = _normalizar_patente(match.group(2))
             if tipo_archivo != tipo_ticket or patente_archivo != patente_normalizada:
                 continue
+            try:
+                fecha_nombre = datetime(
+                    2000 + int(match.group(3)),
+                    int(match.group(4)),
+                    int(match.group(5)),
+                    int(match.group(6)),
+                    int(match.group(7)),
+                )
+            except ValueError:
+                continue
+            if fecha_nombre.date() != fecha_actual:
+                continue
             ruta = os.path.join(carpeta, nombre)
             if not os.path.isfile(ruta):
                 continue
-            fecha_nombre = _fecha_ticket_desde_nombre(nombre) or datetime.min
             try:
                 fecha_modificacion = datetime.fromtimestamp(os.path.getmtime(ruta))
             except OSError:
                 fecha_modificacion = datetime.min
             candidatos.append((fecha_nombre, fecha_modificacion, ruta))
             _debug_ticket_pesaje(
-                'Candidato ticket encontrado',
+                'Candidato ticket de hoy encontrado',
                 archivo=nombre,
                 patente_archivo=patente_archivo,
                 fecha_nombre=fecha_nombre,
@@ -16087,11 +16100,16 @@ def _buscar_ticket_pesaje_mas_reciente(patente, tipo_ticket):
             )
 
     if not candidatos:
-        _debug_ticket_pesaje('Sin candidatos ticket', patente=patente_normalizada, tipo_ticket=tipo_ticket)
+        _debug_ticket_pesaje(
+            'Sin candidatos ticket de hoy',
+            patente=patente_normalizada,
+            tipo_ticket=tipo_ticket,
+            fecha_actual=fecha_actual,
+        )
         return None
     candidatos.sort(key=lambda item: (item[0], item[1]), reverse=True)
     _debug_ticket_pesaje(
-        'Ticket seleccionado',
+        'Ticket de hoy seleccionado',
         archivo=os.path.basename(candidatos[0][2]),
         ruta=candidatos[0][2],
         total_candidatos=len(candidatos)
@@ -16119,7 +16137,9 @@ def _extraer_folio_ticket_pesaje(lineas):
 
 def _filas_fecha_pesaje_ticket(lineas):
     filas = []
-    patron_fecha_peso = re.compile(r'^\d{2}-\d{2}-\d{4}\s+\d{2}:\d{2}\s+([\d\.,]+)\b')
+    patron_fecha_peso = re.compile(
+        r'^\d{2}-\d{2}-\d{4}\s*\d{2}:\d{2}\s+([0-9]+(?:[.,][0-9]+)*)(?=[^0-9.,]|$)'
+    )
     for linea in lineas:
         if linea.startswith('01-01-1900'):
             continue
@@ -32793,7 +32813,10 @@ def ajax_operacion_planta_obtener_ticket_pesaje(request):
 
         ruta_pdf = _buscar_ticket_pesaje_mas_reciente(patente_normalizada, tipo_ticket)
         if not ruta_pdf:
-            return JsonResponse({'valid': False, 'msg': f'No se encontro ticket COM_{tipo_ticket} para la patente {patente_normalizada}.'}, status=404)
+            return JsonResponse({
+                'valid': False,
+                'msg': f'No se encontró un ticket de pesaje de hoy para la patente {patente_normalizada}.',
+            }, status=404)
 
         datos_ticket = _extraer_datos_ticket_pesaje(
             ruta_pdf,
