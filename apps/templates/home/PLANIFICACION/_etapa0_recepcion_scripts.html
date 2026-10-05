@@ -1069,24 +1069,45 @@
         this.classList.remove('is-invalid');
     });
     function actualizarModoRecepcionTerramarTransporte() {
-        const terramar=$('#rt_transporte_a_cargo').val()==='Terramar';
-        $('.rt-maestro').toggleClass('d-none',!terramar).prop('disabled',!terramar);
-        $('.rt-manual').toggleClass('d-none',terramar).prop('disabled',terramar);
-        $('#rt_empresa_label,#rt_conductor_label,#rt_codigo_pais_label,#rt_telefono_label,#rt_patente_label').toggleClass('required-label',terramar);
-        if (!terramar) { $('#rt_empresa_transporte,#rt_conductor').val(null).trigger('change'); $('#rt_empresa_transporte_id,#rt_conductor_id,#rt_patente,#rt_telefono').val(''); }
+        const modo=$('#rt_transporte_a_cargo').val();
+        const terramar=modo==='Terramar';
+        const cliente=modo==='Cliente';
+        const definido=terramar||cliente;
+        $('.rt-maestro').toggleClass('d-none',!terramar);
+        $('.rt-manual').toggleClass('d-none',!cliente).prop('disabled',!cliente);
+        $('.rt-manual-group').toggleClass('d-none',!cliente);
+        $('#rt_empresa_transporte,#rt_ruta_transportista,#rt_conductor,#rt_empresa_transporte_id,#rt_conductor_id').prop('disabled',!terramar);
+        $('#rt_conductor').prop('required',terramar);
+        $('#rt_conductor_manual,#rt_rut_conductor').prop('disabled',!cliente).prop('required',cliente);
+        $('#rt_codigo_pais,#rt_telefono,#rt_patente').prop('required',definido);
+        $('#rt_empresa_label,#rt_ruta_label').toggleClass('required-label',terramar);
+        $('#rt_conductor_label,#rt_codigo_pais_label,#rt_telefono_label,#rt_patente_label').toggleClass('required-label',definido);
+        if (terramar) {
+            $('#rt_conductor_manual,#rt_rut_conductor').val('');
+        } else {
+            $('#rt_empresa_transporte,#rt_conductor').val(null).trigger('change');
+            $('#rt_empresa_transporte_id,#rt_conductor_id').val('');
+        }
         cargarRutasTransportistaRecepcionTerramar();
-
     }
 
     function agregarRecepcionTerramarTemporal() {
-        const form=document.getElementById('form_recepcion_terramar'); if(!form.checkValidity()){form.reportValidity();return;}
+        const form=document.getElementById('form_recepcion_terramar');
+        const terramar=$('#rt_transporte_a_cargo').val()==='Terramar';
+        const cliente=$('#rt_transporte_a_cargo').val()==='Cliente';
+        const conductorManual=$('#rt_conductor_manual').val().trim();
+        const rutConductor=$('#rt_rut_conductor').val().trim();
+        const patente=$('#rt_patente').val().trim().toUpperCase();
+        if(cliente && !conductorManual) { swalFront({title:'Atención',text:'Debe ingresar el nombre del conductor.',icon:'warning'});return; }
+        if(cliente && !rutConductor) { swalFront({title:'Atención',text:'Debe ingresar el RUT del conductor.',icon:'warning'});return; }
+        if(cliente && !patente) { swalFront({title:'Atención',text:'Debe ingresar la patente del camión.',icon:'warning'});return; }
+        if(!form.checkValidity()){form.reportValidity();return;}
         const secuenciaId=$('#rt_secuencia').val();
         const itemId=$('#rt_insumo').val();
-        if(!/^\d+$/.test(String(itemId||''))) { swalFront({title:'Atencion',text:'Debe seleccionar un insumo valido.',icon:'warning'}); return; }
+        if(!/^\d+$/.test(String(itemId||''))) { swalFront({title:'Atención',text:'Debe seleccionar un insumo válido.',icon:'warning'}); return; }
         const itemOption=$('#rt_insumo option:selected');
         if(!/^\d+$/.test(String(secuenciaId||''))) { swalFront({title:'Atención',text:'Debe seleccionar un flujo operacional válido.',icon:'warning'}); return; }
-        const terramar=$('#rt_transporte_a_cargo').val()==='Terramar';
-        if(terramar && (!$('#rt_empresa_transporte_id').val()||!$('#rt_conductor_id').val()||!$('#rt_patente').val().trim()||!$('#rt_codigo_pais').val()||!$('#rt_telefono').val().trim())) { swalFront({title:'Atención',text:'Para transporte Terramar debe completar empresa, conductor, código país, celular y patente.',icon:'warning'});return; }
+        if(terramar && (!$('#rt_empresa_transporte_id').val()||!$('#rt_conductor_id').val()||!patente||!$('#rt_codigo_pais').val()||!$('#rt_telefono').val().trim())) { swalFront({title:'Atención',text:'Para transporte Terramar debe completar empresa, conductor, código país, celular y patente.',icon:'warning'});return; }
         const rutaId=String($('#rt_ruta_id').val()||'').trim();
         const tarifaId=String($('#rt_tarifa_id').val()||'').trim();
         const rutaSelector=document.getElementById('rt_ruta_transportista');
@@ -1100,9 +1121,29 @@
             return;
         }
         if (rutaSelector) { rutaSelector.setCustomValidity(''); rutaSelector.classList.remove('is-invalid'); }
-        const conductor=terramar?$('#rt_conductor').val()||'':$('#rt_conductor_manual').val()||'';
-        citacionesTemporales.push({recepcion_terramar:true,tipo_operacion:'RECEPCION',tipo_operacion_texto:'Recepción',fecha_llegada:$('#rt_fecha_llegada').val(),hora_citacion:$('#rt_hora_citacion').val(),secuencia_id:$('#rt_secuencia').val(),secuencia_nombre:$('#rt_secuencia option:selected').text(),item_id:itemId,codigo_sap:itemOption.data('codigo')||'',insumo:itemOption.data('nombre')||'',bodega:$('#rt_bodega').val().trim(),estanque_destino:$('#rt_bodega').val().trim(),estanque_destino_texto:$('#rt_bodega').val().trim(),numero_guia:$('#rt_numero_guia').val().trim(),contenedor_crt:$('#rt_contenedor_crt').val().trim(),transporte_a_cargo:$('#rt_transporte_a_cargo').val(),empresa_transporte:terramar?$('#rt_empresa_transporte').val()||'':'',empresa_transporte_id:terramar?$('#rt_empresa_transporte_id').val():'',ruta_id:terramar?rutaId:'',tarifa_id:terramar?tarifaId:'',conductor:conductor,conductor_id:terramar?$('#rt_conductor_id').val():'',telefono_codigo_pais:$('#rt_codigo_pais').val()||'',telefono_conductor:$('#rt_telefono').val().trim(),patente:$('#rt_patente').val().trim().toUpperCase(),cliente:'',cliente_nombre:'',cliente_codigo:'',inf_24hrs:'',tipo_carga:'',tipo_carga_texto:'',codigo:itemOption.data('codigo')||'',pedido:'',proveedor:'',proveedor_nombre:'',cantidad_disponible:'',observacion:''});
-        renderizarCitacionesTemporales(); cerrarModalEtapa0YMostrarResumen('#ModalCrearRecepcionTerramar'); form.reset(); $('#rt_codigo_pais').val('+56'); actualizarModoRecepcionTerramarTransporte();
+        const conductor=terramar?$('#rt_conductor').val()||'':conductorManual;
+        citacionesTemporales.push({
+            recepcion_terramar:true,tipo_operacion:'RECEPCION',tipo_operacion_texto:'Recepción',
+            fecha_llegada:$('#rt_fecha_llegada').val(),hora_citacion:$('#rt_hora_citacion').val(),
+            secuencia_id:$('#rt_secuencia').val(),secuencia_nombre:$('#rt_secuencia option:selected').text(),
+            item_id:itemId,codigo_sap:itemOption.data('codigo')||'',insumo:itemOption.data('nombre')||'',
+            bodega:$('#rt_bodega').val().trim(),estanque_destino:$('#rt_bodega').val().trim(),
+            estanque_destino_texto:$('#rt_bodega').val().trim(),numero_guia:$('#rt_numero_guia').val().trim(),
+            contenedor_crt:$('#rt_contenedor_crt').val().trim(),transporte_a_cargo:$('#rt_transporte_a_cargo').val(),
+            empresa_transporte:terramar?$('#rt_empresa_transporte').val()||'':'',
+            empresa_transporte_id:terramar?$('#rt_empresa_transporte_id').val():'',
+            ruta_id:terramar?rutaId:'',tarifa_id:terramar?tarifaId:'',conductor:conductor,
+            conductor_id:terramar?$('#rt_conductor_id').val():'',conductor_rut:terramar?'':rutConductor,
+            telefono_codigo_pais:$('#rt_codigo_pais').val()||'',telefono_conductor:$('#rt_telefono').val().trim(),
+            patente:patente,cliente:'',cliente_nombre:'',cliente_codigo:'',inf_24hrs:'',tipo_carga:'',
+            tipo_carga_texto:'',codigo:itemOption.data('codigo')||'',pedido:'',proveedor:'',proveedor_nombre:'',
+            cantidad_disponible:'',observacion:''
+        });
+        renderizarCitacionesTemporales();
+        cerrarModalEtapa0YMostrarResumen('#ModalCrearRecepcionTerramar');
+        form.reset();
+        $('#rt_codigo_pais').val('+56');
+        actualizarModoRecepcionTerramarTransporte();
     }
     function abrirModalDespachoTerramar() {
         inicializarDespachoTerramar();
@@ -3584,6 +3625,7 @@
             <td>${escapeHtml(item.transporte_a_cargo)}</td>
             <td class="td-empresa-transporte">${escapeHtml(item.empresa_transporte)}</td>
             <td>${escapeHtml(item.conductor)}</td>
+            <td>${escapeHtml(item.conductor_rut || '')}</td>
             <td>${escapeHtml(item.telefono_codigo_pais)}</td>
             <td>${escapeHtml(item.telefono_conductor)}</td>
             <td>${escapeHtml(item.patente)}</td>
@@ -3767,7 +3809,7 @@
         const tbody = document.getElementById('tbody_citaciones_temporales');
         const contador = document.getElementById('contador_citaciones_temporales');
         const resumen = document.getElementById('resumen_citaciones_agregadas');
-        const columnas = ES_RECEPCION_TRANSFERENCIA_SBH ? 7 : (ES_RECEPCION_TERRAMAR ? 16 : (ES_DESPACHO_TERRAMAR ? 22 : (ES_DESPACHO_SBH_ETAPA0 ? 8 : (MOSTRAR_BL_PLANIFICACION ? 14 : 13))));
+        const columnas = ES_RECEPCION_TRANSFERENCIA_SBH ? 7 : (ES_RECEPCION_TERRAMAR ? 17 : (ES_DESPACHO_TERRAMAR ? 22 : (ES_DESPACHO_SBH_ETAPA0 ? 8 : (MOSTRAR_BL_PLANIFICACION ? 14 : 13))));
 
         if (!tbody) return;
         tbody.innerHTML = '';

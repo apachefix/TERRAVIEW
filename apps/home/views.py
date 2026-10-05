@@ -15827,17 +15827,20 @@ def _codigo_campo_ticket_pesaje(tipo_ticket):
 def _fecha_ticket_desde_nombre(nombre_archivo):
     nombre = os.path.basename(str(nombre_archivo or ''))
     match = re.search(
-        r'COM_(?:ENT|SAL)_[A-Z0-9]+_(\d{2})_(\d{2})_(\d{2})_(\d{2})_(\d{2})(?:_(\d{8})_(\d{6}))?\.pdf$',
+        r'COM_(?:ENT|SAL)_[^_]+_(\d{2})_(\d{2})_(\d{2})_(\d{2})_(\d{2})(?:_(\d{2}))?(?:_(\d{8})_(\d{6}))?\.pdf$',
         nombre,
         re.IGNORECASE
     )
     if not match:
         return None
-    yy, mes, dia, hora, minuto, fecha_larga, hora_larga = match.groups()
+    yy, mes, dia, hora, minuto, segundo, fecha_larga, hora_larga = match.groups()
     try:
         if fecha_larga and hora_larga:
             return datetime.strptime(fecha_larga + hora_larga, '%Y%m%d%H%M%S')
-        return datetime(2000 + int(yy), int(mes), int(dia), int(hora), int(minuto))
+        return datetime(
+            2000 + int(yy), int(mes), int(dia), int(hora), int(minuto),
+            int(segundo or 0),
+        )
     except ValueError:
         return None
 
@@ -15857,7 +15860,7 @@ def es_pesaje_salida_mop_despacho_terramar(citacion, paso_actual, tipo_ticket):
 def _timestamp_base_ticket_salida(nombre_archivo):
     nombre = os.path.basename(str(nombre_archivo or ''))
     match = re.match(
-        r'^COM_SAL_(.+?)_(\d{2})_(\d{2})_(\d{2})_(\d{2})_(\d{2})(?:_\d{8}_\d{6})?\.pdf$',
+        r'^COM_SAL_([^_]+)_(\d{2})_(\d{2})_(\d{2})_(\d{2})_(\d{2})(?:_(\d{2}))?(?:_\d{8}_\d{6})?\.pdf$',
         nombre,
         re.IGNORECASE,
     )
@@ -15866,7 +15869,7 @@ def _timestamp_base_ticket_salida(nombre_archivo):
     try:
         return datetime(
             2000 + int(match.group(2)), int(match.group(3)), int(match.group(4)),
-            int(match.group(5)), int(match.group(6)),
+            int(match.group(5)), int(match.group(6)), int(match.group(7) or 0),
         )
     except ValueError:
         return None
@@ -16051,7 +16054,7 @@ def _buscar_ticket_pesaje_mas_reciente(patente, tipo_ticket):
 
     candidatos = []
     patron_ticket = re.compile(
-        r'^COM_(ENT|SAL)_(.+?)_(\d{2})_(\d{2})_(\d{2})_(\d{2})_(\d{2})(?:_\d{8}_\d{6})?\.pdf$',
+        r'^COM_(ENT|SAL)_([^_]+)_(\d{2})_(\d{2})_(\d{2})_(\d{2})_(\d{2})(?:_(\d{2}))?(?:_(\d{8})_(\d{6}))?\.pdf$',
         re.IGNORECASE
     )
     for carpeta in [TICKET_PESAJE_SHARED_PATH, TICKET_PESAJE_LOCAL_PATH]:
@@ -16078,6 +16081,7 @@ def _buscar_ticket_pesaje_mas_reciente(patente, tipo_ticket):
                     int(match.group(5)),
                     int(match.group(6)),
                     int(match.group(7)),
+                    int(match.group(8) or 0),
                 )
             except ValueError:
                 continue

@@ -1,5 +1,5 @@
 import json
-from datetime import date
+from datetime import date, datetime
 from pathlib import Path
 from tempfile import TemporaryDirectory
 from types import SimpleNamespace
@@ -74,6 +74,52 @@ class TicketPesajeSeleccionFechaTests(SimpleTestCase):
             )
             seleccionado = self._buscar(shared, local)
         self.assertEqual(Path(seleccionado).name, 'COM_ENT_SG1502_26_10_05_11_20.pdf')
+
+    def test_ag386ou_con_segundos_se_encuentra_y_elige_el_mas_reciente(self):
+        with TemporaryDirectory() as base:
+            shared = Path(base) / 'shared'
+            local = Path(base) / 'local'
+            self._crear(
+                shared,
+                'COM_ENT_AG386OU_26_10_04_23_59_59.pdf',
+                'COM_ENT_OTRA99_26_10_05_13_06_00.pdf',
+                'COM_SAL_AG386OU_26_10_05_13_07_00.pdf',
+                'COM_ENT_AG386OU_26_10_05_13_05_19.pdf',
+                'COM_ENT_AG386OU_26_10_05_13_05_20.pdf',
+            )
+            seleccionado = self._buscar(shared, local, patente='AG386OU', tipo='ENT')
+        self.assertEqual(
+            Path(seleccionado).name,
+            'COM_ENT_AG386OU_26_10_05_13_05_20.pdf',
+        )
+
+    def test_nombre_con_segundos_interpreta_2026_10_05_y_conserva_formatos_previos(self):
+        self.assertEqual(
+            views._fecha_ticket_desde_nombre(
+                'COM_ENT_AG386OU_26_10_05_13_05_20.pdf'
+            ),
+            datetime(2026, 10, 5, 13, 5, 20),
+        )
+        self.assertEqual(
+            views._fecha_ticket_desde_nombre(
+                'COM_ENT_AG386OU_26_10_05_13_05.pdf'
+            ),
+            datetime(2026, 10, 5, 13, 5),
+        )
+        self.assertEqual(
+            views._fecha_ticket_desde_nombre(
+                'COM_ENT_AG386OU_26_10_05_13_05_20261005_130541.pdf'
+            ),
+            datetime(2026, 10, 5, 13, 5, 41),
+        )
+
+    def test_salida_con_segundos_conserva_timestamp_base_para_mop(self):
+        self.assertEqual(
+            views._timestamp_base_ticket_salida(
+                'COM_SAL_AG386OU_26_10_05_13_05_20.pdf'
+            ),
+            datetime(2026, 10, 5, 13, 5, 20),
+        )
 
     def test_solo_ticket_historico_no_retorna_candidato(self):
         with TemporaryDirectory() as base:

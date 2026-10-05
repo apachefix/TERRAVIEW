@@ -1,4 +1,6 @@
 import json
+from datetime import datetime
+from pathlib import Path
 
 from django.contrib.auth import get_user_model
 from django.db import DataError
@@ -9,8 +11,10 @@ from unittest.mock import patch
 
 from apps.home import views
 from apps.home.models import (
-    CAMION_PATIO, CAMPO, CITACION, COMUNA, CONDUCTOR, DATO_OPERACION,
-    DETALLE_SECUENCIA, EMPRESA, ETAPA, ETAPA_LOG, ITEM, OPERACION_PLANTA_LOG, PLANIFICACION, PROVINCIA, REGION, RUTA, SECUENCIA,
+    CALENDARIO, CAMION_PATIO, CAMPO, CITACION, CITACION_RECEPCION_TERRAMAR_DETALLE,
+    COMUNA, CONDUCTOR, DATO_OPERACION, DETALLE_SECUENCIA, EMPRESA, ETAPA,
+    ETAPA_LOG, ITEM, OPERACION_PLANTA_LOG, PLANIFICACION, PROVINCIA, REGION,
+    RUTA, SECUENCIA,
     SOCIONEGOCIO, SYSLOGGER, TARIFA_GLOBAL, USERS_EMPRESA, USERS_EXTENSION,
 )
 
@@ -519,3 +523,133 @@ class CrearPlanificacionTerramarRutaTests(TestCase):
         self.assertEqual(response.status_code, 409, response.content)
         citacion.refresh_from_db()
         self.assertEqual(citacion.CI_CNUMERODOCUMENTO, numero_original)
+
+    def planificacion_cliente_1306(self):
+        self.autenticar()
+        calendario = CALENDARIO.objects.create(
+            US_NID=self.usuario, EP_NID=self.empresa, CA_CNOMBRE='05/10/2026',
+            CA_NDIA=5, CA_NMES=10, CA_NANO=2026, CA_NCANTIDADCUPOS=10,
+            CA_BHABILITADO=True,
+        )
+        planificacion = PLANIFICACION.objects.create(
+            id=1306, US_NID=self.usuario, EP_NID=self.empresa,
+            CAL_NID=calendario, PL_CTIPOCUPO='RECEPCION',
+            PL_FFECHAREGISTRO=timezone.now(),
+            PL_FFECHAINICIO=timezone.make_aware(datetime(2026, 10, 5, 0, 0)),
+            PL_NCANTIDADCUPOS=10,
+        )
+        CITACION.objects.create(
+            US_NID=self.usuario, EP_NID=self.empresa, PL_NID=planificacion,
+            SC_NID=self.secuencia,
+            CI_FFECHACITACION=timezone.make_aware(datetime(2026, 10, 5, 7, 0)),
+            CI_NCUPO=1, CI_CTIPO='RECEPCION', CI_CESTADO='Insumo Programado',
+        )
+        return planificacion
+
+    def payload_recepcion_cliente(self, planificacion, **cambios):
+        self.item.IT_CCODIGO = '500026'
+        self.item.IT_CNOMBRE = 'HARINA DE CERDO 50%-SS'
+        self.item.save(update_fields=['IT_CCODIGO', 'IT_CNOMBRE'])
+        item = json.loads(self.payload()['citaciones_json'])[0]
+        item.update({
+            'fecha_llegada': '2026-10-05',
+            'hora_citacion': '08:00',
+            'item_id': self.item.id,
+            'codigo_sap': '500026',
+            'insumo': self.item.IT_CNOMBRE,
+            'bodega': 'T1',
+            'numero_guia': '58682',
+            'contenedor_crt': 'BR622309312',
+            'transporte_a_cargo': 'Cliente',
+            'empresa_transporte': '',
+            'empresa_transporte_id': '',
+            'ruta_id': '',
+            'tarifa_id': '',
+            'conductor': 'Conductor Cliente Prueba',
+            'conductor_rut': '12.345.678-5',
+            'conductor_id': '',
+            'telefono_codigo_pais': '+56',
+            'telefono_conductor': '912345678',
+            'patente': 'IWS5121',
+        })
+        item.update(cambios)
+        return {
+            'citaciones_json': json.dumps([item]),
+            'planificacion_existente_id': str(planificacion.pk),
+            'es_sobrecupo': 'No',
+            'cantidad_sobrecupo': '0',
+        }
+
+    def test_recepcion_cliente_sin_rut_bloquea_con_mensaje_claro(self):
+        planificacion = self.planificacion_cliente_1306()
+        response = self.client.post(
+            reverse('crear_planificacion_citacion'),
+            self.payload_recepcion_cliente(planificacion, conductor_rut=''),
+        )
+
+        self.assertEqual(response.status_code, 400, response.content)
+        self.assertEqual(response.json()['message'], 'Debe ingresar el RUT del conductor.')
+        self.assertEqual(CITACION.objects.filter(PL_NID=planificacion).count(), 1)
+
+    def test_recepcion_cliente_valida_crea_y_persiste_transporte_manual(self):
+        planificacion = self.planificacion_cliente_1306()
+        planificaciones_antes = PLANIFICACION.objects.count()
+        with patch.object(views, 'guardar_ruta_transportista_revision') as guardar_ruta:
+            response = self.client.post(
+                reverse('crear_planificacion_citacion'),
+                self.payload_recepcion_cliente(planificacion),
+            )
+
+        self.assertEqual(response.status_code, 200, response.content)
+        self.assertTrue(response.json()['success'], response.content)
+        self.assertEqual(response.json()['planificacion_id'], 1306)
+        self.assertEqual(PLANIFICACION.objects.count(), planificaciones_antes)
+        citacion = CITACION.objects.get(pk=response.json()['citaciones'][0])
+        self.assertEqual(citacion.PL_NID_id, 1306)
+        self.assertIsNone(citacion.CON_NID_id)
+        self.assertIsNone(citacion.RUT_NID_id)
+        self.assertIsNone(citacion.TAR_NID_id)
+        detalle = CITACION_RECEPCION_TERRAMAR_DETALLE.objects.get(CI_NID=citacion)
+        self.assertEqual(detalle.RTD_CTRANSPORTE_A_CARGO, 'Cliente')
+        self.assertEqual(detalle.RTD_CCONDUCTOR, 'Conductor Cliente Prueba')
+        self.assertEqual(detalle.RTD_CCODIGO_PAIS_TELEFONO, '+56')
+        self.assertEqual(detalle.RTD_CTELEFONO_CONDUCTOR, '912345678')
+        self.assertEqual(detalle.RTD_CPATENTE, 'IWS5121')
+        self.assertIsNone(detalle.CON_NID_id)
+        self.assertIsNone(detalle.SN_NID_TRANSPORTISTA_id)
+        rut = DATO_OPERACION.objects.get(
+            CI_NID=citacion,
+            CAMP_NID__CA_CCODIGO='ING_RUT_CONDUCTOR',
+        )
+        self.assertEqual(rut.DO_CVALOR, '12345678-5')
+        guardar_ruta.assert_not_called()
+        self.assertNotIn('NoneType', response.content.decode('utf-8'))
+
+    def test_recepcion_cliente_valida_nombre_rut_y_patente(self):
+        planificacion = self.planificacion_cliente_1306()
+        casos = (
+            ({'conductor': ''}, 'Debe ingresar el nombre del conductor.'),
+            ({'conductor_rut': '12345678-4'}, 'El RUT del conductor no es válido.'),
+            ({'patente': ''}, 'Debe ingresar la patente del camión.'),
+        )
+        for cambios, mensaje in casos:
+            with self.subTest(cambios=cambios):
+                response = self.client.post(
+                    reverse('crear_planificacion_citacion'),
+                    self.payload_recepcion_cliente(planificacion, **cambios),
+                )
+                self.assertEqual(response.status_code, 400, response.content)
+                self.assertEqual(response.json()['message'], mensaje)
+        self.assertEqual(CITACION.objects.filter(PL_NID=planificacion).count(), 1)
+
+    def test_recepcion_cliente_modal_borrador_y_resumen_conservan_rut(self):
+        base = Path(__file__).resolve().parents[3]
+        formulario = (base / 'apps/templates/home/PLANIFICACION/_etapa0_recepcion_terramar_form.html').read_text(encoding='utf-8')
+        scripts = (base / 'apps/templates/home/PLANIFICACION/_etapa0_recepcion_scripts.html').read_text(encoding='utf-8')
+        cabecera = (base / 'apps/templates/home/PLANIFICACION/_etapa0_resumen_cabecera.html').read_text(encoding='utf-8')
+
+        self.assertIn('id="rt_rut_conductor"', formulario)
+        self.assertIn("conductor_rut:terramar?'':rutConductor", scripts)
+        self.assertIn("escapeHtml(item.conductor_rut || '')", scripts)
+        self.assertIn('Debe ingresar el RUT del conductor.', scripts)
+        self.assertIn('<th>RUT conductor</th>', cabecera)
