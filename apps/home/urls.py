@@ -74,6 +74,7 @@ urlpatterns = [
     path('camiones-patio/mapa/', login_required(views.CAMIONES_PATIO_MAPA), name='camiones_patio_mapa'),
     path('camiones-patio/pendientes-citacion/<int:pk>/', login_required(views.CAMIONES_PATIO_PENDIENTES_CITACION), name='camiones_patio_pendientes_citacion'),
     path('camiones-patio/<int:pk>/detalle/', login_required(views.CAMION_PATIO_DETALLE), name='camion_patio_detalle'),
+    path('camiones-patio/<int:pk>/eliminar/', login_required(views.CAMION_PATIO_ELIMINAR), name='camion_patio_eliminar'),
     path('camiones-patio/<int:pk>/derivar/', login_required(views.CAMION_PATIO_DERIVAR), name='camion_patio_derivar'),
     path('camiones-patio/<int:pk>/no-planificado/', login_required(views.CAMION_PATIO_NO_PLANIFICADO_SOLICITAR), name='camion_patio_no_planificado_solicitar'),
     path('camiones-patio/no-planificado/<int:pk>/revisar/', login_required(views.CAMION_PATIO_NO_PLANIFICADO_REVISAR), name='camion_patio_no_planificado_revisar'),

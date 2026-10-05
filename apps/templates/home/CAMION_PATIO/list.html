@@ -208,7 +208,30 @@
                     {% endif %}
                     {% if camion.CI_NID_id %}
                         <div class="mt-2"><span class="badge badge-success">Citacion #{{ camion.CI_NID_id }}</span></div>
-                    {% endif %}                    {% if puede_retirar_camion_patio %}
+                    {% endif %}
+                    {% if puede_eliminar_camion_patio %}
+                        {% if camion.CPA_CESTADO == 'PENDIENTE_ASOCIACION' and not camion.CI_NID_id and not camion.US_ASOCIA_ID_id and not camion.CPA_FFECHAASOCIACION %}
+                            <button type="button"
+                                    class="btn btn-sm btn-outline-danger mt-2 btn-eliminar-camion-patio"
+                                    data-camion-id="{{ camion.id }}"
+                                    data-patente="{{ camion.CPA_CPATENTE }}">
+                                <i class="fas fa-trash-alt mr-1"></i>Eliminar
+                            </button>
+                        {% else %}
+                            <span class="d-inline-block mt-2"
+                                  tabindex="0"
+                                  title="No se puede eliminar: camión asociado a una citación o con avance operacional.">
+                                <button type="button"
+                                        class="btn btn-sm btn-outline-danger"
+                                        disabled
+                                        aria-disabled="true"
+                                        style="pointer-events: none;">
+                                    <i class="fas fa-trash-alt mr-1"></i>Eliminar
+                                </button>
+                            </span>
+                        {% endif %}
+                    {% endif %}
+                    {% if puede_retirar_camion_patio %}
                         <button type="button" class="btn btn-sm btn-outline-danger mt-2 btn-retirar-patio" data-camion-id="{{ camion.id }}" data-patente="{{ camion.CPA_CPATENTE }}" data-conductor="{{ camion.CPA_CNOMBRE_CONDUCTOR }}" data-citacion="{{ camion.CI_NID_id|default:'' }}" data-llegada="{{ camion.CPA_FFECHALLEGADA|date:'d/m/Y H:i' }}"><i class="fas fa-sign-out-alt mr-1"></i>Retirar del patio</button>
                     {% endif %}
                 </div>

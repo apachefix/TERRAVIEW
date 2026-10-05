@@ -5372,6 +5372,68 @@ CAMION_PATIO_LOG_ASOCIACION = 'CAMION_PATIO_ASOC'
 CAMION_PATIO_LOG_EDICION = 'CAMION_PATIO_EDIT'
 CAMION_PATIO_LOG_ADJUNTO = 'CAMION_PATIO_ADJ'
 CAMION_PATIO_LOG_DERIVACION = 'CAM_PATIO_DERIVA'
+CAMION_PATIO_LOG_ELIMINACION = 'ELIMINA_CAMION_PATIO'
+CAMION_PATIO_MENSAJE_ELIMINACION_BLOQUEADA = (
+    'No es posible eliminar este camión porque ya tiene asociación o avance operacional.'
+)
+
+
+def usuario_puede_eliminar_camion_patio(user, empresa_id):
+    if not user or not getattr(user, 'is_authenticated', False) or not getattr(user, 'is_active', False):
+        return False
+    if getattr(user, 'is_superuser', False):
+        return True
+    return bool(
+        _usuario_tiene_acceso_empresa(user, empresa_id)
+        and usuario_puede_registrar_camion_patio_empresa(user, empresa_id)
+    )
+
+
+def _condicion_eliminacion_camion_patio(camion):
+    if (
+        camion.CPA_CESTADO != CAMION_PATIO.ESTADO_PENDIENTE_ASOCIACION
+        or camion.CI_NID_id
+        or camion.US_ASOCIA_ID_id
+        or camion.CPA_FFECHAASOCIACION
+    ):
+        return False, CAMION_PATIO_MENSAJE_ELIMINACION_BLOQUEADA
+
+    if CAMION_PATIO_NO_PLANIFICADO.objects.filter(CPA_NID_id=camion.pk).exists():
+        return False, CAMION_PATIO_MENSAJE_ELIMINACION_BLOQUEADA
+
+    traza = CAMION_PATIO_TRAZABILIDAD_PLANIFICACION.objects.filter(
+        CPA_NID_id=camion.pk
+    ).only('CI_NID_id').first()
+    citaciones_relacionadas = {
+        citacion_id for citacion_id in (
+            camion.CI_NID_id,
+            traza.CI_NID_id if traza else None,
+        ) if citacion_id
+    }
+    if citaciones_relacionadas and (
+        OPERACION_PLANTA_LOG.objects.filter(
+            EP_NID_id=camion.EP_NID_id,
+            CI_NID_id__in=citaciones_relacionadas,
+        ).exists()
+        or SYSLOGGER.objects.filter(
+            EP_NID_id=camion.EP_NID_id,
+            LOG_CADD1__in=[str(citacion_id) for citacion_id in citaciones_relacionadas],
+            LOG_COPERACION__in=[
+                'ING_CAMION', 'AUTORIZA_INGRESO_PLANTA', 'AVANZA_AR',
+                'ENVIA_CD_DESP_SBH',
+            ],
+        ).exists()
+    ):
+        return False, CAMION_PATIO_MENSAJE_ELIMINACION_BLOQUEADA
+
+    if SYSLOGGER.objects.filter(
+        EP_NID_id=camion.EP_NID_id,
+        LOG_COPERACION=CAMION_PATIO_LOG_ASOCIACION,
+        LOG_CADD2=str(camion.pk),
+    ).exists():
+        return False, CAMION_PATIO_MENSAJE_ELIMINACION_BLOQUEADA
+
+    return True, ''
 CAMION_PATIO_EXTENSIONES_ADJUNTO = {'.pdf', '.jpg', '.jpeg', '.png', '.doc', '.docx', '.xls', '.xlsx'}
 
 
@@ -6096,6 +6158,9 @@ def CAMIONES_PATIO_LIST(request):
         'empresa_activa_id': Empresa,
         'es_asistente_despacho_patio': es_asistente_despacho_patio,
         'puede_retirar_camion_patio': _usuario_puede_retirar_camion_patio(request.user),
+        'puede_eliminar_camion_patio': usuario_puede_eliminar_camion_patio(
+            request.user, Empresa,
+        ),
     })
 
 
@@ -6696,6 +6761,89 @@ def CAMION_PATIO_ACTUALIZAR(request, pk):
     response = _detalle_camion_patio_response(camion, request)
     response['X-Patio-Message'] = 'Datos actualizados.'
     return response
+
+
+def CAMION_PATIO_ELIMINAR(request, pk):
+    if request.method != 'POST':
+        return JsonResponse({'success': False, 'message': 'Método no permitido.'}, status=405)
+
+    empresa_id = Verificar_empresa(request)
+    if empresa_id is None:
+        return JsonResponse({'success': False, 'message': 'Debe seleccionar una empresa.'}, status=400)
+    if not usuario_puede_eliminar_camion_patio(request.user, empresa_id):
+        return JsonResponse({
+            'success': False,
+            'message': 'No tiene permisos para eliminar camiones ingresados en patio.',
+        }, status=403)
+
+    try:
+        with transaction.atomic():
+            camion = CAMION_PATIO.objects.select_for_update(of=('self',)).select_related(
+                'EP_NID', 'CI_NID', 'US_ASOCIA_ID',
+            ).get(pk=pk, EP_NID_id=empresa_id)
+            permitido, mensaje = _condicion_eliminacion_camion_patio(camion)
+            if not permitido:
+                return JsonResponse({'success': False, 'message': mensaje}, status=409)
+
+            adjuntos = list(
+                CAMION_PATIO_ADJUNTO.objects.filter(CPA_NID=camion).only('CPA_FARCHIVO')
+            )
+            archivos = [
+                (adjunto.CPA_FARCHIVO.storage, adjunto.CPA_FARCHIVO.name)
+                for adjunto in adjuntos if adjunto.CPA_FARCHIVO and adjunto.CPA_FARCHIVO.name
+            ]
+            camion_id = camion.pk
+            patente = str(camion.CPA_CPATENTE or '').strip() or 'Sin patente'
+            estado_previo = camion.CPA_CESTADO
+            empresa = camion.EP_NID
+            trazabilidades_eliminadas = CAMION_PATIO_TRAZABILIDAD_PLANIFICACION.objects.filter(
+                CPA_NID=camion
+            ).count()
+
+            registrar_log_camion_no_planificado(
+                request.user,
+                empresa,
+                CAMION_PATIO_LOG_ELIMINACION,
+                (
+                    f'Eliminación manual desde Camiones en Patio. Camión patio #{camion_id}; '
+                    f'patente {patente}; empresa #{empresa_id}; usuario #{request.user.id}; '
+                    f'estado previo {estado_previo}; motivo: registro ingresado por error.'
+                ),
+                camion_id,
+                patente,
+                raise_on_error=True,
+            )
+            camion.delete()
+
+            def eliminar_archivos_adjuntos():
+                for storage, nombre in archivos:
+                    try:
+                        storage.delete(nombre)
+                    except Exception:
+                        logger.exception(
+                            'No fue posible eliminar archivo adjunto de CAMION_PATIO eliminado: %s',
+                            nombre,
+                        )
+
+            transaction.on_commit(eliminar_archivos_adjuntos)
+
+        return JsonResponse({
+            'success': True,
+            'message': 'Camión eliminado correctamente.',
+            'camion_patio_id': camion_id,
+            'adjuntos_eliminados': len(adjuntos),
+            'trazabilidades_eliminadas': trazabilidades_eliminadas,
+        })
+    except CAMION_PATIO.DoesNotExist:
+        return JsonResponse({
+            'success': False,
+            'message': 'Camión no encontrado en la empresa activa.',
+        }, status=404)
+    except (ProtectedError, IntegrityError):
+        return JsonResponse({
+            'success': False,
+            'message': CAMION_PATIO_MENSAJE_ELIMINACION_BLOQUEADA,
+        }, status=409)
 
 
 def _usuario_puede_retirar_camion_patio(user):

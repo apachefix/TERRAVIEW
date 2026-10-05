@@ -415,6 +415,47 @@ return '<form id="patioEditForm">' +
         card.find('.patio-card-title span:first, .patio-truck-plate').first().text(camion.patente || '');
     }
 
+    function eliminarCamionPatio(id, patente) {
+        patente = patente || 'Sin patente';
+        Swal.fire({
+            icon: 'warning',
+            title: 'Eliminar camión',
+            html: '¿Desea eliminar el camión <strong>' + patioEscape(patente)
+                + '</strong>?<br>Esta acción eliminará el registro de patio ingresado por error.',
+            showCancelButton: true,
+            confirmButtonText: 'Eliminar camión',
+            cancelButtonText: 'Cancelar',
+            confirmButtonColor: '#dc3545'
+        }).then(function (resultado) {
+            if (!resultado.isConfirmed) return;
+            $.ajax({
+                url: '/camiones-patio/' + id + '/eliminar/',
+                type: 'POST',
+                headers: {'X-CSRFToken': patioCookie('csrftoken')},
+                data: {_empresa_id: PATIO_EMPRESA_ID}
+            }).done(function (response) {
+                $('.patio-card[data-camion-id="' + id + '"]').remove();
+                if (!$('.patio-card-grid .patio-card').length) {
+                    $('.patio-card-grid').html(
+                        '<div class="alert alert-info">No hay camiones en patio para los filtros seleccionados.</div>'
+                    );
+                }
+                Swal.fire({
+                    icon: 'success',
+                    title: 'Camión eliminado',
+                    text: response.message || 'Camión eliminado correctamente.'
+                });
+            }).fail(function (xhr) {
+                const response = xhr.responseJSON || {};
+                Swal.fire({
+                    icon: 'error',
+                    title: 'No fue posible eliminar',
+                    text: response.message || 'No fue posible eliminar el camión.'
+                });
+            });
+        });
+    }
+
     function retirarCamionPatio(id, datos) {
         const patente = datos.patente || 'Sin patente';
         const conductor = datos.conductor || 'Sin informacion';
@@ -458,6 +499,12 @@ return '<form id="patioEditForm">' +
         });
     }
     $(document).off('click', '.patio-card');
+    $(document).off('click', '.btn-eliminar-camion-patio');
+    $(document).on('click', '.btn-eliminar-camion-patio', function (event) {
+        event.stopPropagation();
+        const boton = $(this);
+        eliminarCamionPatio(boton.data('camion-id'), boton.data('patente'));
+    });
     $(document).off('click', '.btn-retirar-patio');
     $(document).on('click', '.btn-retirar-patio', function (event) {
         event.stopPropagation();
