@@ -10,7 +10,9 @@ from django.utils import timezone
 from apps.home import views
 from apps.home.models import (
     CALENDARIO, CAMION_PATIO_NO_PLANIFICADO, CITACION, CITACION_ITEM,
-    DETALLE_SECUENCIA, EMPRESA, ETAPA, ITEM, PLANIFICACION, SECUENCIA,
+    COMUNA, CONDUCTOR, DETALLE_SECUENCIA, EMPRESA, ETAPA, ITEM,
+    PLANIFICACION, PROVINCIA, REGION, RUTA, SECUENCIA, SOCIONEGOCIO,
+    TARIFA_GLOBAL,
 )
 
 
@@ -127,7 +129,7 @@ class AgregarCitacionesMultiflujoTests(TestCase):
                     self.assertFalse(legacy in detalle, legacy)
                 if formulario == 'despacho_sbh':
                     self.assertIn('id="despacho_sap_busqueda"', html)
-                    self.assertIn('id="despacho_transportado_por"', html)
+                    self.assertIn('id="despacho_direccion_sap"', html)
                     self.assertEqual(html.count('id="ModalCrearDespacho"'), 1)
 
     def test_boton_abre_formulario_etapa0_de_su_carpeta(self):
@@ -158,8 +160,11 @@ class AgregarCitacionesMultiflujoTests(TestCase):
                 if formulario == 'transferencia_sbh':
                     self.assertIn('modal-dialog modal-dialog-scrollable modal-lg', html)
 
-    def test_recepcion_sbh_agrega_citacion_en_misma_carpeta(self):
+    def test_recepcion_sbh_agrega_dos_citaciones_sin_cupos_en_misma_carpeta(self):
         plan = self.planes['recepcion_sbh']
+        plan.PL_NCANTIDADCUPOS = 1
+        plan.PL_NCANTIDADSOBRECUPO = 0
+        plan.save(update_fields=['PL_NCANTIDADCUPOS', 'PL_NCANTIDADSOBRECUPO'])
         secuencia = CITACION.objects.get(PL_NID=plan).SC_NID
         antes = (PLANIFICACION.objects.count(),
                  CITACION.objects.filter(PL_NID=plan).count(),
@@ -177,7 +182,7 @@ class AgregarCitacionesMultiflujoTests(TestCase):
             'planificacion_existente_id': str(plan.pk),
             'flujo': 'INGRESO_MERCADERIA',
             'cantidad_sobrecupo': '999',
-            'citaciones_json': json.dumps([item]),
+            'citaciones_json': json.dumps([item, dict(item)]),
         })
         request.user = self.usuario
         with patch.object(views, 'Verificar_empresa', return_value=2):
@@ -186,16 +191,65 @@ class AgregarCitacionesMultiflujoTests(TestCase):
         resultado = json.loads(response.content)
         self.assertTrue(resultado['success'])
         self.assertEqual(resultado['planificacion_id'], plan.pk)
-        nueva = CITACION.objects.get(pk=resultado['citaciones'][0])
-        self.assertEqual((nueva.PL_NID_id, nueva.EP_NID_id, nueva.SC_NID_id),
-                         (plan.pk, 2, secuencia.pk))
-        self.assertFalse(nueva.CI_BSOBRECUPO)
+        self.assertEqual(len(resultado['citaciones']), 2)
+        nuevas = CITACION.objects.filter(pk__in=resultado['citaciones'])
+        self.assertEqual(nuevas.count(), 2)
+        self.assertTrue(all(
+            (nueva.PL_NID_id, nueva.EP_NID_id, nueva.SC_NID_id)
+            == (plan.pk, 2, secuencia.pk)
+            for nueva in nuevas
+        ))
+        self.assertFalse(nuevas.filter(CI_BSOBRECUPO=True).exists())
         plan.refresh_from_db()
         self.assertEqual((PLANIFICACION.objects.count(),
                           CITACION.objects.filter(PL_NID=plan).count(),
                           CAMION_PATIO_NO_PLANIFICADO.objects.count(),
                           plan.PL_NCANTIDADCUPOS, plan.PL_NCANTIDADSOBRECUPO),
-                         (antes[0], antes[1] + 1, antes[2], antes[3], antes[4]))
+                         (antes[0], antes[1] + 2, antes[2], 1, 0))
+
+    def test_modal_temporal_abre_resumen_y_resumen_ejecuta_post(self):
+        script = Path(
+            'apps/templates/home/PLANIFICACION/_etapa0_recepcion_scripts.html'
+        ).read_text(encoding='utf-8')
+        self.assertIn('function cerrarModalEtapa0YMostrarResumen(selectorModal)', script)
+        for selector in (
+            '#ModalCrearCitacion',
+            '#ModalCrearRecepcionTransferencia',
+            '#ModalCrearDespacho',
+            '#ModalCrearRecepcionTerramar',
+            '#ModalCrearDespachoTerramar',
+        ):
+            with self.subTest(selector=selector):
+                self.assertIn(
+                    "cerrarModalEtapa0YMostrarResumen('" + selector + "')",
+                    script,
+                )
+        self.assertIn("resumen.modal('show')", script)
+        self.assertIn("url: '/crear-planificacion-citacion/'", script)
+        self.assertIn(
+            "formData.append('planificacion_existente_id', PLANIFICACION_EXISTENTE_ID)",
+            script,
+        )
+
+    def test_post_muestra_errores_claros_para_datos_obligatorios(self):
+        plan = self.planes['recepcion_sbh']
+        request = self.factory.post('/crear-planificacion-citacion/', {
+            'planificacion_existente_id': str(plan.pk),
+            'flujo': 'INGRESO_MERCADERIA',
+            'citaciones_json': '[]',
+        })
+        request.user = self.usuario
+        with patch.object(views, 'Verificar_empresa', return_value=2):
+            response = views.CREAR_PLANIFICACION_CITACION(request)
+        self.assertFalse(json.loads(response.content)['success'])
+        self.assertIn('al menos una citación', json.loads(response.content)['message'])
+
+        response = self._agregar(plan, {
+            'tipo_operacion': 'RECEPCION',
+            'secuencia_id': CITACION.objects.get(PL_NID=plan).SC_NID_id,
+        }, {'flujo': 'INGRESO_MERCADERIA'})
+        self.assertFalse(json.loads(response.content)['success'])
+        self.assertIn('fecha de llegada', json.loads(response.content)['message'])
 
     def test_post_rechaza_empresa_tipo_flujo_y_modal_ajenos(self):
         plan = self.planes['transferencia_sbh']
@@ -275,7 +329,11 @@ class AgregarCitacionesMultiflujoTests(TestCase):
              }), \
              patch.object(views, 'consultar_clientes_sap', return_value={
                  'clientes': [{'cardcode': 'C001', 'cardname': 'Cliente prueba'}],
-             }):
+             }), \
+             patch.object(views, 'validar_lote_borradores_sbh'), \
+             patch.object(views, 'validar_transportes_borradores_despacho_sbh'), \
+             patch.object(views, 'validar_asignaciones_sap_planificadas'), \
+             patch.object(views, 'validar_programacion_despacho_sbh_item'):
             response = views.CREAR_PLANIFICACION_CITACION(request)
         return response
 
@@ -289,6 +347,7 @@ class AgregarCitacionesMultiflujoTests(TestCase):
             'fecha_llegada': '2026-10-05', 'estanque_origen': 'PROSEG10',
             'codigo': '950066', 'codigo_sap': '950066',
             'insumo': 'Aceite de alga', 'cantidad_camion': 1,
+            'cantidad_a_mover': 1,
             'almacen_destino': 'SBH', 'estanque_destino': 'TK18',
         }
         response = self._agregar(plan, item, {'flujo': 'TRANSFERENCIA'})
@@ -348,7 +407,8 @@ class AgregarCitacionesMultiflujoTests(TestCase):
             'destino': 'Puerto', 'contenedor_crt': 'CRT-1',
             'item_id': producto.pk, 'insumo': producto.IT_CNOMBRE,
             'bodega': 'Bodega', 'tipo_camion': 'Plano', 'pallet': 'SI',
-            'relleno': 'NO', 'transporte_a_cargo': 'Cliente',
+            'relleno': 'NO', 'peso_1': '1000', 'maxis_1': '1',
+            'transporte_a_cargo': 'Cliente',
             'condicion_entrega': 'Cliente', 'empresa_transporte': 'Transportes cliente',
             'conductor': 'Juan prueba', 'telefono_codigo_pais': '+56',
             'telefono_conductor': '912345678', 'patente': 'ABCD12',
@@ -365,3 +425,80 @@ class AgregarCitacionesMultiflujoTests(TestCase):
                           CAMION_PATIO_NO_PLANIFICADO.objects.count()), antes)
         plan.refresh_from_db()
         self.assertEqual((plan.PL_NCANTIDADCUPOS, plan.PL_NCANTIDADSOBRECUPO), (16, 30))
+
+    def test_agregar_recepcion_terramar_en_misma_carpeta(self):
+        plan = self.planes['recepcion_terramar']
+        secuencia = CITACION.objects.get(PL_NID=plan).SC_NID
+        producto = ITEM.objects.create(
+            EP_NID=plan.EP_NID, IT_CCODIGO='200001',
+            IT_CNOMBRE='Producto recepción Terramar',
+        )
+        region = REGION.objects.create(RG_CNOMBRE='Biobío', RG_CCODIGO='08')
+        provincia = PROVINCIA.objects.create(
+            RG_NID=region, PV_CNOMBRE='Concepción', PV_CCODIGO='081',
+        )
+        comuna_origen = COMUNA.objects.create(
+            PV_NID=provincia, COM_CNOMBRE='Coronel', COM_CCODIGO='08101',
+        )
+        comuna_destino = COMUNA.objects.create(
+            PV_NID=provincia, COM_CNOMBRE='Chillán', COM_CCODIGO='16101',
+        )
+        ruta = RUTA.objects.create(
+            EP_NID=plan.EP_NID,
+            RG_NID_INICIO=region, PV_NID_INICIO=provincia,
+            COM_NID_INICIO=comuna_origen,
+            RG_NID_TERMINO=region, PV_NID_TERMINO=provincia,
+            COM_NID_TERMINO=comuna_destino,
+            RUT_NTIEMPOMAXIMOENTREGA=1, RUT_NTIEMPOESTADIAPLANTA=1,
+            RUT_CNOMBRE='Coronel - Chillán', RUT_CCODIGO='R-TEST',
+            RUT_BHABILITADO=True,
+        )
+        transportista = SOCIONEGOCIO.objects.create(
+            EP_NID=plan.EP_NID, SN_CCODIGO_SAP='TR-TEST',
+            SN_CRAZONSOCIAL='Transportes Terramar', SN_CRUT='11-1',
+            SN_CTIPO='S', SN_BHABILITADO=True,
+        )
+        conductor = CONDUCTOR.objects.create(
+            EP_NID=plan.EP_NID, SN_NID=transportista, US_NID=self.usuario,
+            CON_CNOMBRE='Juan', CON_CAPELLIDO='Prueba', CON_CRUT='22-2',
+            CON_CTELEFONO='912345678', CON_CCODIGO_PAIS_TELEFONO='+56',
+            CON_BHABILITADO=True,
+        )
+        tarifa = TARIFA_GLOBAL.objects.create(
+            EP_NID=plan.EP_NID, RUT_NID=ruta, US_NID=self.usuario,
+            MODIFICADO_POR=self.usuario, SN_NID=transportista,
+            TAR_NVALOR=1000, TAR_NVALORPREVIO=1000,
+            TAR_CNOMBRETARIFA='Tarifa prueba', TAR_CTIPOTARIFA='FLETE',
+            TAR_CDIVISA='CLP', TAR_BHABILITADO=True,
+        )
+        antes = (PLANIFICACION.objects.count(),
+                 CITACION.objects.filter(PL_NID=plan).count(),
+                 CAMION_PATIO_NO_PLANIFICADO.objects.count())
+        item = {
+            'recepcion_terramar': True, 'tipo_operacion': 'RECEPCION',
+            'fecha_llegada': '2026-10-05', 'hora_citacion': '09:00',
+            'secuencia_id': secuencia.pk, 'item_id': producto.pk,
+            'codigo': producto.IT_CCODIGO, 'codigo_sap': producto.IT_CCODIGO,
+            'insumo': producto.IT_CNOMBRE, 'bodega': 'Bodega 1',
+            'numero_guia': 'GUIA-1', 'contenedor_crt': 'CRT-1',
+            'transporte_a_cargo': 'Terramar',
+            'empresa_transporte': transportista.SN_CRAZONSOCIAL,
+            'empresa_transporte_id': transportista.pk,
+            'conductor': 'Juan Prueba', 'conductor_id': conductor.pk,
+            'ruta_id': ruta.pk, 'tarifa_id': tarifa.pk,
+            'telefono_codigo_pais': '+56',
+            'telefono_conductor': '912345678', 'patente': 'ABCD12',
+        }
+        response = self._agregar(plan, item)
+        self.assertEqual(response.status_code, 200, response.content)
+        resultado = json.loads(response.content)
+        self.assertTrue(resultado['success'], response.content)
+        nueva = CITACION.objects.get(pk=resultado['citaciones'][0])
+        self.assertEqual((nueva.PL_NID_id, nueva.EP_NID_id, nueva.SC_NID_id),
+                         (plan.pk, 1, secuencia.pk))
+        self.assertFalse(nueva.CI_BSOBRECUPO)
+        self.assertEqual((PLANIFICACION.objects.count(),
+                          CITACION.objects.filter(PL_NID=plan).count(),
+                          CAMION_PATIO_NO_PLANIFICADO.objects.count()),
+                         (antes[0], antes[1] + 1, antes[2]))
+

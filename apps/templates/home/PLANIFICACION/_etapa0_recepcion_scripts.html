@@ -51,6 +51,24 @@
     let camionesPlanificadosDespachoSbh = [];
     let firmaCalculoCamionesDespachoSbh = '';
     let distribucionCamionesDespachoSbh = 'INICIAL_CAPACIDAD';
+
+    function cerrarModalEtapa0YMostrarResumen(selectorModal) {
+        const modal = $(selectorModal);
+        const resumen = $('#ModalResumenCitacionesEtapa0');
+
+        if (!resumen.length) {
+            modal.modal('hide');
+            return;
+        }
+
+        modal
+            .off('hidden.bs.modal.etapa0Resumen')
+            .one('hidden.bs.modal.etapa0Resumen', function () {
+                resumen.modal('show');
+            })
+            .modal('hide');
+    }
+
     function poblarEstanquesRecepcionSbh() {
         if (!ES_RECEPCION_SBH) return;
 
@@ -995,7 +1013,7 @@
             citacionesTemporales.push({...datosBase, movimientos: recopilado.movimientos.map(function (movimiento) { return {...movimiento}; }), numero_camion: numeroCamion});
         }
         renderizarCitacionesTemporales();
-        $('#ModalCrearRecepcionTransferencia').modal('hide');
+        cerrarModalEtapa0YMostrarResumen('#ModalCrearRecepcionTransferencia');
     }
 
     function inicializarRecepcionTerramar() {
@@ -1084,7 +1102,7 @@
         if (rutaSelector) { rutaSelector.setCustomValidity(''); rutaSelector.classList.remove('is-invalid'); }
         const conductor=terramar?$('#rt_conductor').val()||'':$('#rt_conductor_manual').val()||'';
         citacionesTemporales.push({recepcion_terramar:true,tipo_operacion:'RECEPCION',tipo_operacion_texto:'Recepción',fecha_llegada:$('#rt_fecha_llegada').val(),hora_citacion:$('#rt_hora_citacion').val(),secuencia_id:$('#rt_secuencia').val(),secuencia_nombre:$('#rt_secuencia option:selected').text(),item_id:itemId,codigo_sap:itemOption.data('codigo')||'',insumo:itemOption.data('nombre')||'',bodega:$('#rt_bodega').val().trim(),estanque_destino:$('#rt_bodega').val().trim(),estanque_destino_texto:$('#rt_bodega').val().trim(),numero_guia:$('#rt_numero_guia').val().trim(),contenedor_crt:$('#rt_contenedor_crt').val().trim(),transporte_a_cargo:$('#rt_transporte_a_cargo').val(),empresa_transporte:terramar?$('#rt_empresa_transporte').val()||'':'',empresa_transporte_id:terramar?$('#rt_empresa_transporte_id').val():'',ruta_id:terramar?rutaId:'',tarifa_id:terramar?tarifaId:'',conductor:conductor,conductor_id:terramar?$('#rt_conductor_id').val():'',telefono_codigo_pais:$('#rt_codigo_pais').val()||'',telefono_conductor:$('#rt_telefono').val().trim(),patente:$('#rt_patente').val().trim().toUpperCase(),cliente:'',cliente_nombre:'',cliente_codigo:'',inf_24hrs:'',tipo_carga:'',tipo_carga_texto:'',codigo:itemOption.data('codigo')||'',pedido:'',proveedor:'',proveedor_nombre:'',cantidad_disponible:'',observacion:''});
-        renderizarCitacionesTemporales(); $('#ModalCrearRecepcionTerramar').modal('hide'); form.reset(); $('#rt_codigo_pais').val('+56'); actualizarModoRecepcionTerramarTransporte();
+        renderizarCitacionesTemporales(); cerrarModalEtapa0YMostrarResumen('#ModalCrearRecepcionTerramar'); form.reset(); $('#rt_codigo_pais').val('+56'); actualizarModoRecepcionTerramarTransporte();
     }
     function abrirModalDespachoTerramar() {
         inicializarDespachoTerramar();
@@ -1300,7 +1318,7 @@
             secuencia_id: $('#despacho_terramar_flujo_operacional').val(), secuencia_nombre: secuencia.text().trim(), secuencia_codigo: secuencia.data('codigo') || '', salida_documento: 'Guía de despacho', observacion: ''
         });
         renderizarCitacionesTemporales();
-        $('#ModalCrearDespachoTerramar').modal('hide'); form.reset();
+        cerrarModalEtapa0YMostrarResumen('#ModalCrearDespachoTerramar'); form.reset();
         $('#despacho_terramar_cliente').val('').trigger('change'); $('#despacho_terramar_cliente_codigo').val('');
         $('#despacho_terramar_empresa_transporte,#despacho_terramar_conductor').val(null).trigger('change');
         $('#despacho_terramar_conductor_pendiente').prop('checked', false);
@@ -2852,7 +2870,7 @@
 
         renderizarCitacionesTemporales();
 
-        $('#ModalCrearCitacion').modal('hide');
+        cerrarModalEtapa0YMostrarResumen('#ModalCrearCitacion');
 
         swalFront({
             title: 'Citación agregada',
@@ -3363,7 +3381,7 @@
                 Object.assign(borrador, configuracionTransporteBorradorSbh(camionesPlanificadosDespachoSbh[index]));
             });
             renderizarCitacionesTemporales();
-            $('#ModalCrearDespacho').modal('hide');
+            cerrarModalEtapa0YMostrarResumen('#ModalCrearDespacho');
             swalFront({ title: 'Borradores generados', text: 'Se generaron ' + cantidad + ' borradores para revision.', icon: 'success' });
             limpiarFormularioDespacho();
         });
@@ -3540,7 +3558,7 @@
         citacionesTemporales.push(citacion);
         renderizarCitacionesTemporales();
 
-        $('#ModalCrearDespacho').modal('hide');
+        cerrarModalEtapa0YMostrarResumen('#ModalCrearDespacho');
 
         swalFront({
             title: 'Despacho agregado',
