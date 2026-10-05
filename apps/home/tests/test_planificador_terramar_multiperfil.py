@@ -1,3 +1,4 @@
+import json
 from types import SimpleNamespace
 from unittest.mock import patch
 
@@ -8,8 +9,13 @@ from django.test import RequestFactory, TestCase
 from django.urls import reverse
 
 from apps.home.models import EMPRESA, PERFIL, PERFIL_USUARIO, USERS_EMPRESA
-from apps.home.services.permisos_planificacion import usuario_es_planificador_terramar
+from apps.home.services.permisos_planificacion import (
+    usuario_es_planificador_terramar,
+    usuario_planifica_solo_despacho_sbh,
+    usuario_prioriza_planificacion_empresa,
+)
 from apps.home.templatetags.permission_filters import (
+    es_asistente_despacho_empresa,
     es_ingreso_camion,
     puede_gestionar_planificaciones,
     puede_gestionar_planificaciones_empresa,
@@ -22,7 +28,9 @@ class PlanificadorTerramarMultiperfilTests(TestCase):
         cls.terramar = cls._crear_empresa(1, 'TERRAMAR CHILE')
         cls.sbh = cls._crear_empresa(2, 'ACEITES SBH')
         cls.dual = User.objects.create_user('planificador_asistente', password='test')
+        cls.despacho_dual = User.objects.create_user('planificador_asistente_despacho', password='test')
         cls.planificador = User.objects.create_user('planificador_terramar', password='test')
+        cls.planificador_sbh = User.objects.create_user('planificador_sbh', password='test')
         cls.asistente = User.objects.create_user('asistente_recepcion', password='test')
 
         perfil_plan = PERFIL.objects.create(
@@ -37,7 +45,13 @@ class PlanificadorTerramarMultiperfilTests(TestCase):
             PR_CNOMBRE='Asistente de Recepción',
             PR_BHABILITADO=True,
         )
-        for usuario in (cls.dual, cls.planificador):
+        perfil_asistente_despacho = PERFIL.objects.create(
+            US_NID=cls.dual,
+            PR_CCODIGO='ASISTENTE_DESPACHO',
+            PR_CNOMBRE='Asistente Despacho',
+            PR_BHABILITADO=True,
+        )
+        for usuario in (cls.dual, cls.despacho_dual, cls.planificador, cls.planificador_sbh):
             PERFIL_USUARIO.objects.create(
                 US_NID=usuario,
                 PR_NID=perfil_plan,
@@ -49,11 +63,18 @@ class PlanificadorTerramarMultiperfilTests(TestCase):
                 PR_NID=perfil_asistente,
                 PE_BHABILITADO=True,
             )
+        PERFIL_USUARIO.objects.create(
+            US_NID=cls.despacho_dual,
+            PR_NID=perfil_asistente_despacho,
+            PE_BHABILITADO=True,
+        )
 
         USERS_EMPRESA.objects.create(US_NID=cls.planificador, EP_NID=cls.terramar)
+        USERS_EMPRESA.objects.create(US_NID=cls.planificador_sbh, EP_NID=cls.sbh)
         USERS_EMPRESA.objects.create(US_NID=cls.asistente, EP_NID=cls.terramar)
-        for empresa in (cls.terramar, cls.sbh):
-            USERS_EMPRESA.objects.create(US_NID=cls.dual, EP_NID=empresa)
+        for usuario in (cls.dual, cls.despacho_dual):
+            for empresa in (cls.terramar, cls.sbh):
+                USERS_EMPRESA.objects.create(US_NID=usuario, EP_NID=empresa)
 
     @staticmethod
     def _crear_empresa(pk, nombre):
@@ -142,3 +163,91 @@ class PlanificadorTerramarMultiperfilTests(TestCase):
         self.assertTrue(es_ingreso_camion(self.asistente))
         self.assertTrue(usuario_es_planificador_terramar(self.planificador, self.terramar.id))
         self.assertFalse(es_ingreso_camion(self.planificador))
+
+    def test_plan_mas_asistente_despacho_tiene_alcance_por_empresa(self):
+        self.assertTrue(es_asistente_despacho_empresa(self.despacho_dual, self.terramar.id))
+        self.assertTrue(usuario_prioriza_planificacion_empresa(self.despacho_dual, self.terramar.id))
+        self.assertFalse(usuario_planifica_solo_despacho_sbh(self.despacho_dual, self.terramar.id))
+        self.assertTrue(usuario_prioriza_planificacion_empresa(self.despacho_dual, self.sbh.id))
+        self.assertTrue(usuario_planifica_solo_despacho_sbh(self.despacho_dual, self.sbh.id))
+        self.assertTrue(puede_gestionar_planificaciones_empresa(self.despacho_dual, self.sbh.id))
+
+    def test_menu_plan_asistente_despacho_es_completo_en_terramar_y_solo_despacho_en_sbh(self):
+        html_terramar = self._render_menu(self.despacho_dual, self.terramar.id)
+        self.assertIn('<span class="pcoded-mtext">Planificaciones</span>', html_terramar)
+        self.assertIn('?tipo=RECEPCION&_empresa_id=1', html_terramar)
+        self.assertIn('?tipo=DESPACHO&_empresa_id=1', html_terramar)
+        self.assertIn(reverse('camiones_patio_registrar'), html_terramar)
+
+        html_sbh = self._render_menu(self.despacho_dual, self.sbh.id)
+        self.assertIn('<span class="pcoded-mtext">Planificaciones</span>', html_sbh)
+        self.assertNotIn('<span class="pcoded-mtext">Ingreso de cami&oacute;n</span>', html_sbh)
+        self.assertIn('?tipo=DESPACHO&_empresa_id=2', html_sbh)
+        self.assertNotIn('?tipo=RECEPCION', html_sbh)
+        self.assertNotIn(reverse('planificacion_new_jersey_p2'), html_sbh)
+        self.assertNotIn(reverse('planificacion_recepcion_transferencia'), html_sbh)
+
+    def test_backend_sbh_fuerza_despacho_y_bloquea_recepcion(self):
+        self._activar(self.despacho_dual, self.sbh.id)
+        response = self.client.get(
+            reverse('pla_listall'),
+            {'tipo': 'DESPACHO', '_empresa_id': self.sbh.id},
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertFalse(response.context['modo_ingreso_camion'])
+        self.assertEqual(response.context['tipo_planificacion'], 'DESPACHO')
+
+        response = self.client.get(
+            reverse('pla_listall'),
+            {'tipo': 'RECEPCION', '_empresa_id': self.sbh.id},
+        )
+        self.assertRedirects(
+            response,
+            '/pla_listall/?tipo=DESPACHO&_empresa_id=2',
+            fetch_redirect_response=False,
+        )
+
+        response = self.client.post(reverse('crear_planificacion_citacion'), {
+            '_empresa_id': self.sbh.id,
+            'citaciones_json': json.dumps([{
+                'fecha_llegada': '2026-10-05',
+                'tipo_operacion': 'RECEPCION',
+            }]),
+        })
+        self.assertEqual(response.status_code, 403)
+
+    def test_etapa_cero_sbh_admite_despacho_y_rechaza_recepcion(self):
+        with patch('apps.home.views.obtener_clientes_aceite', return_value=[]), patch(
+            'apps.home.views.asegurar_flujos_recepcion_etapa_0', return_value=[]
+        ), patch('apps.home.views.asegurar_flujos_despacho_etapa_0'), patch(
+            'apps.home.views.render', return_value=HttpResponse('ok')
+        ):
+            self._activar(self.despacho_dual, self.sbh.id)
+            response = self.client.get(
+                reverse('pla_addone'),
+                {'tipo': 'DESPACHO', '_empresa_id': self.sbh.id},
+            )
+            self.assertEqual(response.status_code, 200)
+            response = self.client.get(
+                reverse('pla_addone'),
+                {'tipo': 'RECEPCION', '_empresa_id': self.sbh.id},
+            )
+            self.assertEqual(response.status_code, 403)
+
+    def test_rutas_recepcion_sbh_bloqueadas_y_planificador_sbh_normal_sin_cambios(self):
+        self._activar(self.despacho_dual, self.sbh.id)
+        response = self.client.get(
+            reverse('planificacion_recepcion_transferencia'),
+            {'_empresa_id': self.sbh.id},
+        )
+        self.assertRedirects(response, '/', fetch_redirect_response=False)
+        response = self.client.get(
+            reverse('planificacion_new_jersey_p2'),
+            {'_empresa_id': self.sbh.id},
+        )
+        self.assertEqual(response.status_code, 403)
+
+        html_maesc_equivalente = self._render_menu(self.planificador_sbh, self.sbh.id)
+        self.assertIn('?tipo=RECEPCION', html_maesc_equivalente)
+        self.assertIn('?tipo=DESPACHO&_empresa_id=2', html_maesc_equivalente)
+

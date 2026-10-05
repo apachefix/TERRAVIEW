@@ -204,7 +204,10 @@ from .despacho_sbh_transporte import (
 from .phone_utils import normalize_international_phone, split_legacy_phone
 from .constants.country_calling_codes import country_options
 from .services.planificacion_historica import construir_resumen_planificacion, construir_resumenes_planificaciones_archivadas
-from .services.permisos_planificacion import usuario_es_planificador_terramar
+from .services.permisos_planificacion import (
+    usuario_planifica_solo_despacho_sbh,
+    usuario_prioriza_planificacion_empresa,
+)
 from .services.eli_service import enriquecer_expediente_eli
 from .services.eli.selectors.despacho import seleccionar_datos_eli_despacho
 from .services.eli.selectors.recepcion import seleccionar_datos_eli_recepcion
@@ -1567,6 +1570,14 @@ def CREAR_PLANIFICACION_CITACION(request):
             ).first()
             if not planificacion_existente:
                 return JsonResponse({'success': False, 'message': 'Planificación activa no encontrada en la empresa seleccionada.'}, status=404)
+            if (
+                usuario_planifica_solo_despacho_sbh(usuario, Empresa)
+                and planificacion_existente.PL_CTIPOCUPO != CIT_DESPACHO
+            ):
+                return JsonResponse({
+                    'success': False,
+                    'message': 'Su perfil PLAN en Empresa 2 permite planificación de Despacho SBH.',
+                }, status=403)
             formulario_etapa0_existente = resolver_formulario_etapa0(planificacion_existente)
             if not formulario_etapa0_existente:
                 return JsonResponse({'success': False, 'message': 'La planificación no tiene un formulario Etapa 0 vigente y homogéneo.'}, status=404)
@@ -1617,6 +1628,14 @@ def CREAR_PLANIFICACION_CITACION(request):
 
         if not tipo_operacion:
             return JsonResponse({'success': False, 'message': 'Debe seleccionar tipo de operación.'})
+        if (
+            usuario_planifica_solo_despacho_sbh(usuario, Empresa)
+            and tipo_operacion.upper() != CIT_DESPACHO
+        ):
+            return JsonResponse({
+                'success': False,
+                'message': 'Su perfil PLAN en Empresa 2 permite planificación de Despacho SBH.',
+            }, status=403)
 
         cantidad_repetir = len(citaciones_data)
         try:
@@ -20532,7 +20551,7 @@ def PLANIFICACION_ADDONE(request):
         if Empresa is None:
             return redirect('/seleccionar_empresa/')
 
-        if usuario_es_ingreso_camion(request.user) and not usuario_es_planificador_terramar(request.user, Empresa):
+        if usuario_es_ingreso_camion(request.user) and not usuario_prioriza_planificacion_empresa(request.user, Empresa):
             messages.error(request, 'Su perfil puede ingresar camiones, pero no crear planificaciones.')
             return redirect('/pla_listall/')
 
@@ -20568,6 +20587,12 @@ def PLANIFICACION_ADDONE(request):
             tipo_planificacion = planificacion_existente.PL_CTIPOCUPO
         if tipo_planificacion not in ['RECEPCION', 'DESPACHO']:
             tipo_planificacion = ''
+        if usuario_planifica_solo_despacho_sbh(request.user, Empresa):
+            if planificacion_existente and planificacion_existente.PL_CTIPOCUPO != CIT_DESPACHO:
+                return HttpResponse(status=403)
+            if tipo_planificacion and tipo_planificacion != CIT_DESPACHO:
+                return HttpResponse(status=403)
+            tipo_planificacion = CIT_DESPACHO
         flujo_navegacion = ''
         if Empresa == ID_ACEITES_SBH and tipo_planificacion == CIT_RECEPCION:
             flujo_solicitado = str(request.GET.get('flujo') or '').strip().upper()
@@ -20601,6 +20626,11 @@ def PLANIFICACION_ADDONE(request):
             form = formPLANIFICACION(request.POST)
 
             if form.is_valid():
+                if (
+                    usuario_planifica_solo_despacho_sbh(request.user, Empresa)
+                    and form.instance.PL_CTIPOCUPO != CIT_DESPACHO
+                ):
+                    return HttpResponse(status=403)
                 form.instance.US_NID = request.user
                 form.instance.EP_NID_id = Empresa
                 form.instance.PL_FFECHAREGISTRO = datetime.now()
@@ -24998,7 +25028,11 @@ def PLANIFICACION_RECEPCION_TRANSFERENCIA(request):
     if empresa is None:
         return redirect('/seleccionar_empresa/')
 
-    if empresa != ID_ACEITES_SBH or not usuario_es_planificador(request.user):
+    if (
+        empresa != ID_ACEITES_SBH
+        or not usuario_es_planificador(request.user)
+        or usuario_planifica_solo_despacho_sbh(request.user, empresa)
+    ):
         messages.error(request, 'No tiene permisos para acceder a Transferencia de Recepción SBH.')
         return redirect('/')
 
@@ -25028,7 +25062,13 @@ def PLANIFICACION_LISTALL(request):
             PL_BARCHIVADO=False
         )
         tipo_planificacion = str(request.GET.get('tipo') or '').strip().upper()
-        if tipo_planificacion in ['RECEPCION', 'DESPACHO']:
+        if usuario_planifica_solo_despacho_sbh(request.user, Empresa):
+            if tipo_planificacion and tipo_planificacion != CIT_DESPACHO:
+                messages.error(request, 'Su perfil PLAN en Empresa 2 permite planificación de Despacho SBH.')
+                return redirect(f'/pla_listall/?tipo={CIT_DESPACHO}&_empresa_id={Empresa}')
+            tipo_planificacion = CIT_DESPACHO
+            planificaciones = planificaciones.filter(PL_CTIPOCUPO=CIT_DESPACHO)
+        elif tipo_planificacion in ['RECEPCION', 'DESPACHO']:
             planificaciones = planificaciones.filter(PL_CTIPOCUPO=tipo_planificacion)
         flujo_navegacion = ''
         if Empresa == ID_ACEITES_SBH and tipo_planificacion == CIT_RECEPCION:
@@ -25070,7 +25110,7 @@ def PLANIFICACION_LISTALL(request):
             ),
             'modo_ingreso_camion': bool(
                 (usuario_es_ingreso_camion(request.user) or es_asistente_despacho_ingreso)
-                and not usuario_es_planificador_terramar(request.user, Empresa)
+                and not usuario_prioriza_planificacion_empresa(request.user, Empresa)
             ),
             'solicitud_camion_patio_no_planificado': solicitud_camion_patio_no_planificado,
         }
@@ -25240,6 +25280,12 @@ def PLANIFICACION_LISTONE(request, pk):
         empresa_activa = EMPRESA.objects.filter(pk=Empresa).first()
 
         planificacion = PLANIFICACION.objects.get(id=pk, EP_NID_id=Empresa)
+        if (
+            usuario_planifica_solo_despacho_sbh(request.user, Empresa)
+            and planificacion.PL_CTIPOCUPO != CIT_DESPACHO
+        ):
+            messages.error(request, 'Su perfil PLAN en Empresa 2 permite planificación de Despacho SBH.')
+            return redirect(f'/pla_listall/?tipo={CIT_DESPACHO}&_empresa_id={Empresa}')
         camion_patio_param_id = _int_parametro_patio(request.GET.get('camion_patio_id') or request.GET.get('camion_patio'))
         citacion_sugerida_id = _int_parametro_patio(request.GET.get('citacion'))
         camion_patio_asociacion = None
@@ -25749,7 +25795,7 @@ def PLANIFICACION_LISTONE(request, pk):
             'citaciones_responsable': citaciones_responsable,
             'modo_ingreso_camion': bool(
                 (usuario_es_ingreso_camion(request.user) or es_asistente_despacho_ingreso)
-                and not usuario_es_planificador_terramar(request.user, Empresa)
+                and not usuario_prioriza_planificacion_empresa(request.user, Empresa)
             ),
             'es_asistente_despacho_ingreso': es_asistente_despacho_ingreso,
 
@@ -25795,10 +25841,16 @@ def PLANIFICACION_FILEDONE(request, pk):
             usuario = request.user.id
             if not usuario_es_planificador(request.user) and not validar_perfiles_activos(usuario, 'pla_filedlistall'):
                 return HttpResponse(status=403)
-        if usuario_es_ingreso_camion(request.user) and not usuario_es_planificador_terramar(request.user, empresa):
+        if usuario_es_ingreso_camion(request.user) and not usuario_prioriza_planificacion_empresa(request.user, empresa):
             messages.error(request, 'Su perfil no puede archivar planificaciones.')
             return redirect('/pla_listall/')
         planificacion = PLANIFICACION.objects.filter(id=pk, EP_NID_id=empresa, PL_BARCHIVADO=False).first()
+        if (
+            planificacion
+            and usuario_planifica_solo_despacho_sbh(request.user, empresa)
+            and planificacion.PL_CTIPOCUPO != CIT_DESPACHO
+        ):
+            return HttpResponse(status=403)
         if not planificacion:
             messages.warning(request, 'La planificación no existe, no pertenece a la empresa activa o ya está archivada.')
             return redirect('/pla_listall/')
@@ -25826,14 +25878,17 @@ def PLANIFICACION_FILEDLISTALL(request):
                 messages.error(request, 'No tiene permisos para acceder a esta sección')
                 return redirect('/')
 
-        if usuario_es_ingreso_camion(request.user) and not usuario_es_planificador_terramar(request.user, Empresa):
+        if usuario_es_ingreso_camion(request.user) and not usuario_prioriza_planificacion_empresa(request.user, Empresa):
             messages.error(request, 'Su perfil no puede acceder a planificaciones archivadas.')
             return redirect('/pla_listall/')
 
         planificaciones = PLANIFICACION.objects.filter(
             EP_NID_id=Empresa,
             PL_BARCHIVADO=True,
-        ).select_related('US_ARCHIVADOR_ID').order_by('-PL_FFECHAINICIO', '-id')
+        )
+        if usuario_planifica_solo_despacho_sbh(request.user, Empresa):
+            planificaciones = planificaciones.filter(PL_CTIPOCUPO=CIT_DESPACHO)
+        planificaciones = planificaciones.select_related('US_ARCHIVADOR_ID').order_by('-PL_FFECHAINICIO', '-id')
         resumenes_por_id = construir_resumenes_planificaciones_archivadas(planificaciones, Empresa)
         resumenes = [{'planificacion': planificacion, **resumenes_por_id[planificacion.id]} for planificacion in planificaciones]
         return render(request, 'home/PLANIFICACION/pla_archived_list.html', {'resumenes': resumenes, 'empresa_id': Empresa})
@@ -25981,7 +26036,7 @@ def ajax_archivar_planificaciones_seleccionadas(request):
             usuario = request.user.id
             if not usuario_es_planificador(request.user) and not validar_perfiles_activos(usuario, 'pla_filedlistall'):
                 return JsonResponse({'success': False, 'msg': 'No tienes permisos para archivar planificaciones'}, status=403)
-        if usuario_es_ingreso_camion(request.user) and not usuario_es_planificador_terramar(request.user, empresa):
+        if usuario_es_ingreso_camion(request.user) and not usuario_prioriza_planificacion_empresa(request.user, empresa):
             return JsonResponse({'success': False, 'msg': 'Su perfil no puede archivar planificaciones'}, status=403)
         try:
             seleccionadas = json.loads(request.POST.get('planificaciones', ''))
@@ -25991,7 +26046,12 @@ def ajax_archivar_planificaciones_seleccionadas(request):
         if not isinstance(seleccionadas, list) or not ids:
             return JsonResponse({'success': False, 'msg': 'Debe seleccionar al menos una planificación.'}, status=400)
         with transaction.atomic():
-            archivables = list(PLANIFICACION.objects.select_for_update().filter(id__in=ids, EP_NID_id=empresa, PL_BARCHIVADO=False))
+            archivables_qs = PLANIFICACION.objects.select_for_update().filter(
+                id__in=ids, EP_NID_id=empresa, PL_BARCHIVADO=False,
+            )
+            if usuario_planifica_solo_despacho_sbh(request.user, empresa):
+                archivables_qs = archivables_qs.filter(PL_CTIPOCUPO=CIT_DESPACHO)
+            archivables = list(archivables_qs)
             ids_archivados = [planificacion.id for planificacion in archivables]
             if ids_archivados:
                 PLANIFICACION.objects.filter(id__in=ids_archivados).update(PL_BARCHIVADO=True, US_ARCHIVADOR_ID=request.user, PL_FFECHAARCHIVADO=timezone.localdate())
@@ -26007,7 +26067,12 @@ def PLANIFICACION_ARCHIVADA_RESUMEN(request, pk):
     empresa = Verificar_empresa(request)
     if empresa is None:
         return redirect('/seleccionar_empresa/')
-    planificacion = get_object_or_404(PLANIFICACION.objects.select_related('US_ARCHIVADOR_ID'), pk=pk, EP_NID_id=empresa, PL_BARCHIVADO=True)
+    planificaciones = PLANIFICACION.objects.select_related('US_ARCHIVADOR_ID').filter(
+        EP_NID_id=empresa, PL_BARCHIVADO=True,
+    )
+    if usuario_planifica_solo_despacho_sbh(request.user, empresa):
+        planificaciones = planificaciones.filter(PL_CTIPOCUPO=CIT_DESPACHO)
+    planificacion = get_object_or_404(planificaciones, pk=pk)
     return render(request, 'home/PLANIFICACION/pla_archived_detail.html', {'planificacion': planificacion, **construir_resumen_planificacion(planificacion)})
 def download_citaciones_data(request, pk):
     try:
@@ -45184,6 +45249,8 @@ def PLANIFICACION_NEW_JERSEY_P2(request):
         return JsonResponse({'success': False, 'message': 'Empresa no permitida.'}, status=403)
     if not (request.user.is_superuser or usuario_es_planificador(request.user)):
         return JsonResponse({'success': False, 'message': 'Solo Planificador puede gestionar New Jersey.'}, status=403)
+    if usuario_planifica_solo_despacho_sbh(request.user, empresa_id):
+        return JsonResponse({'success': False, 'message': 'Su perfil PLAN en Empresa 2 permite sólo planificación de Despacho SBH.'}, status=403)
     if not request.user.is_superuser and not _usuario_tiene_acceso_empresa(request.user, empresa_id):
         return JsonResponse({'success': False, 'message': 'Sin acceso a Empresa 2.'}, status=403)
     estado = str(request.GET.get('estado') or 'PENDIENTE').upper()

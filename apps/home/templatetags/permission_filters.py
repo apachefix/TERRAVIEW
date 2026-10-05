@@ -1,6 +1,10 @@
 from django import template
 from apps.home.models import PERFIL_USUARIO, PERMISO, USERS_EMPRESA, VISTA
-from apps.home.services.permisos_planificacion import usuario_es_planificador_terramar
+from apps.home.services.permisos_planificacion import (
+    usuario_es_planificador_terramar,
+    usuario_planifica_solo_despacho_sbh,
+    usuario_prioriza_planificacion_empresa,
+)
 from apps.home.services.proforma_service import usuario_tiene_permiso_pro_cit
 import unicodedata
 
@@ -425,9 +429,19 @@ def es_planificador_terramar(user, empresa_id):
     return usuario_es_planificador_terramar(user, empresa_id)
 
 
+@register.filter(name='prioriza_planificacion_empresa')
+def prioriza_planificacion_empresa(user, empresa_id):
+    return usuario_prioriza_planificacion_empresa(user, empresa_id)
+
+
+@register.filter(name='planifica_solo_despacho_sbh')
+def planifica_solo_despacho_sbh(user, empresa_id):
+    return usuario_planifica_solo_despacho_sbh(user, empresa_id)
+
+
 @register.filter(name='puede_gestionar_planificaciones_empresa')
 def puede_gestionar_planificaciones_empresa(user, empresa_id):
-    return puede_gestionar_planificaciones(user) or usuario_es_planificador_terramar(user, empresa_id)
+    return puede_gestionar_planificaciones(user) or usuario_prioriza_planificacion_empresa(user, empresa_id)
 
 @register.filter(name='es_asistente_despacho_terramar')
 def es_asistente_despacho_terramar(user):
