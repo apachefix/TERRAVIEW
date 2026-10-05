@@ -2323,6 +2323,7 @@ def CREAR_PLANIFICACION_CITACION(request):
                     return JsonResponse({'success': False, 'message': 'Transporte a cargo de inválido.'}, status=400)
                 item['patente'] = re.sub(r'\s+', ' ', str(item.get('patente') or '')).strip().upper()
                 item['conductor'] = re.sub(r'\s+', ' ', str(item.get('conductor') or '')).strip()
+                item['conductor_rut'] = str(item.get('conductor_rut') or '').strip()
                 item['empresa_transporte'] = re.sub(r'\s+', ' ', str(item.get('empresa_transporte') or '')).strip()
                 item['telefono_conductor'] = str(item.get('telefono_conductor') or '').strip()
                 item['telefono_codigo_pais'] = str(item.get('telefono_codigo_pais') or '').strip()
@@ -2352,7 +2353,30 @@ def CREAR_PLANIFICACION_CITACION(request):
                         return JsonResponse({'success': False, 'message': str(exc)}, status=400)
                     item.update({'empresa_transporte': transportista.SN_CRAZONSOCIAL, 'conductor': f'{conductor.CON_CNOMBRE or ""} {conductor.CON_CAPELLIDO or ""}'.strip(), 'empresa_transporte_id': str(transportista.id), 'conductor_id': str(conductor.id), 'telefono_codigo_pais': telefono['country_code'], 'telefono_conductor': telefono['local_number']})
                 else:
-                    item.update({'empresa_transporte': '', 'empresa_transporte_id': '', 'conductor_id': '', 'telefono_codigo_pais': '', 'telefono_conductor': '' if not item['telefono_conductor'] else item['telefono_conductor']})
+                    if not item['conductor']:
+                        return JsonResponse({'success': False, 'message': 'Debe ingresar el nombre del conductor.'}, status=400)
+                    if not item['conductor_rut']:
+                        return JsonResponse({'success': False, 'message': 'Debe ingresar el RUT del conductor.'}, status=400)
+                    try:
+                        rut_conductor = normalizar_rut_chileno(item['conductor_rut'])
+                    except RutChilenoInvalido:
+                        return JsonResponse({'success': False, 'message': 'El RUT del conductor no es válido.'}, status=400)
+                    if not item['patente']:
+                        return JsonResponse({'success': False, 'message': 'Debe ingresar la patente del camión.'}, status=400)
+                    try:
+                        telefono = normalize_international_phone(
+                            item['telefono_codigo_pais'], item['telefono_conductor']
+                        )
+                    except ValueError as exc:
+                        return JsonResponse({'success': False, 'message': str(exc)}, status=400)
+                    item.update({
+                        'empresa_transporte': '',
+                        'empresa_transporte_id': '',
+                        'conductor_id': '',
+                        'conductor_rut': rut_conductor,
+                        'telefono_codigo_pais': telefono['country_code'],
+                        'telefono_conductor': telefono['local_number'],
+                    })
             if tipo_item_citacion == 'DESPACHO':
                 condicion_entrega = str(
                     item.get('condicion_entrega')
@@ -2619,12 +2643,21 @@ def CREAR_PLANIFICACION_CITACION(request):
                 citacion.CI_CNUMERODOCUMENTO = str(item.get('numero_guia') or '').strip()
                 citacion.save(update_fields=['CI_CNUMERODOCUMENTO'])
                 guardar_detalle_recepcion_terramar_citacion(citacion, item, usuario)
-                guardar_ruta_transportista_revision(citacion, tarifa_planificacion, usuario)
-                registrar_log_camion_no_planificado(
-                    usuario, citacion.EP_NID, SYSLOGGER_OP_ASIGNA_RUTA_PLANIF,
-                    f'Ruta asignada desde planificación para citación #{citacion.id}: {tarifa_planificacion.RUT_NID.RUT_CNOMBRE} / tarifa #{tarifa_planificacion.id}.',
-                    citacion.id, planificacion.id
-                )
+                if item.get('transporte_a_cargo') == 'Cliente':
+                    guardar_dato_operacion_codigo(
+                        citacion,
+                        'ING_RUT_CONDUCTOR',
+                        item.get('conductor_rut'),
+                        usuario,
+                        etiqueta='RUT conductor',
+                    )
+                if tarifa_planificacion:
+                    guardar_ruta_transportista_revision(citacion, tarifa_planificacion, usuario)
+                    registrar_log_camion_no_planificado(
+                        usuario, citacion.EP_NID, SYSLOGGER_OP_ASIGNA_RUTA_PLANIF,
+                        f'Ruta asignada desde planificación para citación #{citacion.id}: {tarifa_planificacion.RUT_NID.RUT_CNOMBRE} / tarifa #{tarifa_planificacion.id}.',
+                        citacion.id, planificacion.id
+                    )
 
             citaciones_creadas.append(citacion.id)
 
@@ -11219,9 +11252,6 @@ def PLANIFICACION_CITACION_REVISION_ASISTENTE(request, pk):
         es_despacho = tipo_citacion_actual == CIT_DESPACHO
         es_recepcion = tipo_citacion_actual == CIT_RECEPCION
         es_recepcion_estanque_sbh = es_flujo_recepcion_estanque_sbh(citacion)
-        requiere_ruta_transportista = not es_new_jersey_sin_calidad and (
-            es_recepcion_estanque_sbh or contexto_ingreso['requiere_ruta_transportista']
-        )
         requiere_peso_informado_guia = es_recepcion_estanque_sbh or es_new_jersey_sin_calidad
         es_flujo_terramar = es_flujo_preoperacional_terramar(citacion)
         snapshot_recepcion_sbh = datos_snapshot_recepcion_sbh_presentacion(

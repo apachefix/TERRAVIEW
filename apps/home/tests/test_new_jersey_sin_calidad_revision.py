@@ -65,7 +65,12 @@ class NewJerseySinCalidadRevisionTests(SimpleTestCase):
             self.citacion('RECEPCION_ESTANQUE_SBH')
         ))
 
-    def revision(self, codigo='RECEPCION_NEW_JERSEY_P1_SIN_CALIDAD'):
+    def revision(
+        self,
+        codigo='RECEPCION_NEW_JERSEY_P1_SIN_CALIDAD',
+        *,
+        transporte_a_cargo='TERRAMAR',
+    ):
         citacion = self.citacion(codigo)
         camion = SimpleNamespace(
             CPA_CTRANSPORTISTA_DECLARADO='Transportes Saez',
@@ -87,9 +92,9 @@ class NewJerseySinCalidadRevisionTests(SimpleTestCase):
         )
         contexto = {
             'camion': camion,
-            'requiere_ruta_transportista': True,
-            'transporte_a_cargo': 'TERRAMAR',
-            'transporte_a_cargo_display': 'Terramar',
+            'requiere_ruta_transportista': transporte_a_cargo == 'TERRAMAR',
+            'transporte_a_cargo': transporte_a_cargo,
+            'transporte_a_cargo_display': 'Cliente' if transporte_a_cargo == 'CLIENTE' else 'Terramar',
             'usuario_ingreso_nombre': 'guardia_real',
         }
         request = self.factory.get('/pla-citacion-revision-asistente/38748/')
@@ -166,7 +171,28 @@ class NewJerseySinCalidadRevisionTests(SimpleTestCase):
         self.assertTrue(data['requiere_ruta_transportista'])
         self.assertTrue(rutas_consultadas)
 
-    def aprobar(self, peso, codigo='RECEPCION_NEW_JERSEY_P1_SIN_CALIDAD', contenedor='CONT-01'):
+    def test_recepcion_estanque_sbh_cliente_oculta_ruta_y_no_la_consulta(self):
+        response, rutas_consultadas = self.revision(
+            'RECEPCION_ESTANQUE_SBH',
+            transporte_a_cargo='CLIENTE',
+        )
+        self.assertEqual(response.status_code, 200, response.content)
+        data = json.loads(response.content)
+        self.assertEqual(data['transporte_a_cargo'], 'CLIENTE')
+        self.assertTrue(data['requiere_peso_informado_guia'])
+        self.assertFalse(data['requiere_ruta_transportista'])
+        self.assertTrue(data['ruta_transportista_guardada'])
+        self.assertEqual(data['rutas_transportista'], {'options': [], 'message': ''})
+        self.assertFalse(rutas_consultadas)
+
+    def aprobar(
+        self,
+        peso,
+        codigo='RECEPCION_NEW_JERSEY_P1_SIN_CALIDAD',
+        contenedor='CONT-01',
+        *,
+        requiere_ruta=True,
+    ):
         citacion = self.citacion(codigo)
         request = self.factory.post('/pla-citacion-aprobar-asistente/38748/', {
             'peso_informado_guia': peso,
@@ -180,7 +206,11 @@ class NewJerseySinCalidadRevisionTests(SimpleTestCase):
             stack.enter_context(patch.object(views.transaction, 'atomic', return_value=nullcontext()))
             stack.enter_context(patch.object(views, 'es_flujo_preoperacional_terramar', return_value=False))
             stack.enter_context(patch.object(views, 'es_citacion_despacho', return_value=False))
-            stack.enter_context(patch.object(views, '_contexto_ingreso_camion_patio', return_value={'requiere_ruta_transportista': True}))
+            stack.enter_context(patch.object(
+                views,
+                '_contexto_ingreso_camion_patio',
+                return_value={'requiere_ruta_transportista': requiere_ruta},
+            ))
             stack.enter_context(patch.object(views, 'obtener_detalle_operacional_citacion', return_value=None))
             stack.enter_context(patch.object(views, 'obtener_datos_operacion_citacion', return_value=({}, [])))
             stack.enter_context(patch.object(views, 'obtener_almacen_planificacion', return_value='TK-06'))
@@ -242,3 +272,15 @@ class NewJerseySinCalidadRevisionTests(SimpleTestCase):
         self.assertFalse(guardar)
         self.assertFalse(avance)
         self.assertTrue(rutas)
+
+    def test_recepcion_estanque_sbh_cliente_aprueba_sin_tarifa_ni_ruta(self):
+        response, guardar, avance, rutas = self.aprobar(
+            '28650',
+            'RECEPCION_ESTANQUE_SBH',
+            requiere_ruta=False,
+        )
+        self.assertEqual(response.status_code, 200, response.content)
+        self.assertFalse(rutas)
+        self.assertEqual(len(avance), 1)
+        peso = [call for call in guardar if call.args[1] == views.CAMPO_PESO_INFORMADO_GUIA]
+        self.assertEqual(len(peso), 1)

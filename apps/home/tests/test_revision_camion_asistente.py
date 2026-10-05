@@ -97,6 +97,37 @@ class RevisionCamionAsistenteTests(SimpleTestCase):
         self.assertIn('no corresponde', response.content.decode('utf-8'))
         validar_tarifa.assert_not_called()
 
+    def test_backend_recepcion_cliente_no_acepta_guardar_ruta_ni_valida_tarifa(self):
+        request = RequestFactory().post('/pla-citacion-guardar-ruta-asistente/38761/', {
+            'ruta_id': '', 'tarifa_id': '',
+        })
+        request.user = SimpleNamespace(is_superuser=False)
+        request.session = {'empresa_id': 2}
+        citacion = SimpleNamespace(CI_CTIPO='RECEPCION', EP_NID_id=2)
+        consulta = MagicMock()
+        consulta.get.return_value = citacion
+        with patch.object(views, 'Verificar_empresa', return_value=2), \
+             patch.object(views, 'usuario_es_asistente_recepcion', return_value=True), \
+             patch.object(views, 'usuario_es_asistente_despacho_empresa', return_value=False), \
+             patch.object(views.CITACION.objects, 'select_related', return_value=consulta), \
+             patch.object(views, '_contexto_ingreso_camion_patio', return_value={'requiere_ruta_transportista': False}), \
+             patch.object(views, 'validar_tarifa_transportista_revision') as validar_tarifa:
+            response = views.GUARDAR_RUTA_CAMION_ASISTENTE(request, 38761)
+        self.assertEqual(response.status_code, 400, response.content)
+        self.assertIn('no corresponde', response.content.decode('utf-8'))
+        validar_tarifa.assert_not_called()
+
+    def test_frontend_renderiza_y_consulta_ruta_solo_si_backend_la_requiere(self):
+        template = Path('apps/templates/home/PLANIFICACION/pla_listone.html').read_text(encoding='utf-8')
+        self.assertIn(
+            "${data.requiere_ruta_transportista ? renderRevisionRutaTransportistaCampo(rutas, rutaMensaje) : ''}",
+            template,
+        )
+        self.assertIn(
+            'if (puedeEditarRevision && revisionRequiereRutaTransportista)',
+            template,
+        )
+
     def test_modal_sbh_reconstruye_controles_en_ambos_sentidos(self):
         template = Path('apps/templates/home/PLANIFICACION/pla_listone.html').read_text(encoding='utf-8')
         self.assertIn('function reconstruirCamposTransporteRevision(modalidad)', template)
