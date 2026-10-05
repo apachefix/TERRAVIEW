@@ -1,4 +1,6 @@
 import hashlib
+from io import BytesIO
+from zipfile import ZipFile
 import json
 import os
 import tempfile
@@ -460,6 +462,84 @@ class OperacionPlantaTerramarEtapa2Tests(TestCase):
         self.client.force_login(self.ajeno)
         forbidden = self.client.get(self.endpoint('ajax_operacion_planta_documento_terramar', source['key']))
         self.assertEqual(forbidden.status_code, 403, forbidden.content)
+
+    def test_descarga_zip_incluye_paquete_salida_sin_ruta_servidor(self):
+        self.assertEqual(self.timbrar().status_code, 200)
+        self.client.force_login(self.recepcion)
+        panel = self.client.get(self.endpoint('operacion_planta_citacion'))
+        self.assertEqual(panel.status_code, 200)
+        self.assertContains(panel, self.endpoint('descargar_documentos_timbrados_terramar').replace('&', '&amp;'))
+        self.assertContains(panel, 'Abrir WhatsApp')
+        self.assertNotContains(panel, 'Copiar ruta')
+        response = self.client.get(self.endpoint('descargar_documentos_timbrados_terramar'))
+        self.assertEqual(response.status_code, 200, response.content)
+        self.assertEqual(response['Content-Type'], 'application/zip')
+        self.assertEqual(
+            response['Content-Disposition'],
+            f'attachment; filename="ABCD12_{timezone.localdate():%Y%m%d}_CIT{self.citacion.id}.zip"',
+        )
+        with ZipFile(BytesIO(response.content)) as paquete:
+            nombres = paquete.namelist()
+            self.assertEqual(len(nombres), 3)
+            self.assertEqual(len(nombres), len(set(nombres)))
+            self.assertTrue(any(nombre.startswith('guia_original_') for nombre in nombres))
+            self.assertTrue(any(nombre.startswith('sernapesca_original_') for nombre in nombres))
+            self.assertTrue(any(nombre.startswith('COM_SAL') for nombre in nombres))
+            self.assertFalse(any('COM_ENT' in nombre for nombre in nombres))
+            self.assertTrue(all(paquete.read(nombre) for nombre in nombres))
+        self.assertNotIn(b'C:\\Documentos_firmados', response.content)
+        self.assertFalse(os.listdir(self.export_dir))
+        self.assertTrue(SYSLOGGER.objects.filter(
+            EP_NID=self.empresa,
+            LOG_COPERACION='EXPORTA_DOC_TER',
+            LOG_CADD1=str(self.citacion.id),
+        ).exists())
+
+    def test_descarga_zip_bloquea_sin_timbrar_y_sin_permisos(self):
+        url = self.endpoint('descargar_documentos_timbrados_terramar')
+        self.client.force_login(self.recepcion)
+        pendiente = self.client.get(url)
+        self.assertEqual(pendiente.status_code, 409)
+        self.assertIn('obligatorios', pendiente.json()['message'])
+        self.assertEqual(self.timbrar().status_code, 200)
+        self.client.logout()
+        anonimo = self.client.get(url)
+        self.assertEqual(anonimo.status_code, 302)
+        for usuario in (self.despacho, self.ajeno):
+            with self.subTest(usuario=usuario.username):
+                self.client.force_login(usuario)
+                self.assertEqual(self.client.get(url).status_code, 403)
+
+    def test_descarga_zip_exige_com_sal_timbrado(self):
+        self.assertEqual(self.timbrar().status_code, 200)
+        DATO_OPERACION.objects.filter(
+            CI_NID=self.citacion,
+            CAMP_NID__CA_CCODIGO=views._codigo_campo_ticket_pesaje('SAL'),
+        ).delete()
+        self.client.force_login(self.recepcion)
+        response = self.client.get(self.endpoint('descargar_documentos_timbrados_terramar'))
+        self.assertEqual(response.status_code, 409)
+        self.assertIn('COM_SAL', response.json()['message'])
+        self.assertFalse(SYSLOGGER.objects.filter(
+            LOG_COPERACION='EXPORTA_DOC_TER',
+            LOG_CADD1=str(self.citacion.id),
+        ).exists())
+
+    def test_descarga_zip_resuelve_nombres_duplicados(self):
+        from apps.home.services.terramar_documentos import generar_zip_documentos_timbrados
+        primero = os.path.join(self.tempdir.name, 'primero.pdf')
+        segundo = os.path.join(self.tempdir.name, 'segundo.pdf')
+        self._crear_pdf(primero, 'PRIMERO')
+        self._crear_pdf(segundo, 'SEGUNDO')
+        contenido, nombres = generar_zip_documentos_timbrados([
+            {'key': 'copia-a', 'stamped_name': 'mismo.pdf', 'stamped_path': primero, 'timbrado_disponible': True},
+            {'key': 'copia-b', 'stamped_name': 'mismo.pdf', 'stamped_path': segundo, 'timbrado_disponible': True},
+            {'key': 'copia-b', 'stamped_name': 'mismo.pdf', 'stamped_path': primero, 'timbrado_disponible': True},
+        ])
+        self.assertEqual(len(nombres), len(set(nombres)))
+        with ZipFile(BytesIO(contenido)) as paquete:
+            self.assertEqual(paquete.namelist(), nombres)
+            self.assertTrue(all(paquete.read(nombre) for nombre in nombres))
 
     def test_exportacion_incluye_citacion_documento_com_sal_excluye_com_ent_y_es_idempotente(self):
         self.assertEqual(self.timbrar().status_code, 200)

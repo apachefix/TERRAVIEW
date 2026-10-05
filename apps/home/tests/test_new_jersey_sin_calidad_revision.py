@@ -100,6 +100,7 @@ class NewJerseySinCalidadRevisionTests(SimpleTestCase):
             stack.enter_context(patch.object(views, 'usuario_es_guardia_porteria', return_value=False))
             stack.enter_context(patch.object(views, 'Verificar_empresa', return_value=2))
             stack.enter_context(patch.object(views, 'detalle_operacional_dict', return_value={}))
+            stack.enter_context(patch.object(views, '_contenedor_descarga_new_jersey_con_calidad', return_value=''))
             stack.enter_context(patch.object(views, 'obtener_datos_operacion_citacion', return_value=({}, [])))
             stack.enter_context(patch.object(views, 'documentos_revision_camion', return_value=[]))
             stack.enter_context(patch.object(views, 'obtener_valores_ingreso_camion', return_value={'transportista': 'Transportes Saez'}))
@@ -142,6 +143,7 @@ class NewJerseySinCalidadRevisionTests(SimpleTestCase):
         data = json.loads(response.content)
         self.assertTrue(data['requiere_peso_informado_guia'])
         self.assertFalse(data['requiere_ruta_transportista'])
+        self.assertFalse(data['requiere_contenedor_new_jersey_con_calidad'])
         self.assertTrue(data['ruta_transportista_guardada'])
         self.assertEqual(data['rutas_transportista'], {'options': [], 'message': ''})
         self.assertFalse(rutas_consultadas)
@@ -152,6 +154,7 @@ class NewJerseySinCalidadRevisionTests(SimpleTestCase):
         data = json.loads(response.content)
         self.assertTrue(data['requiere_peso_informado_guia'])
         self.assertTrue(data['requiere_ruta_transportista'])
+        self.assertTrue(data['requiere_contenedor_new_jersey_con_calidad'])
         self.assertFalse(data['ruta_transportista_guardada'])
         self.assertTrue(rutas_consultadas)
 
@@ -163,12 +166,12 @@ class NewJerseySinCalidadRevisionTests(SimpleTestCase):
         self.assertTrue(data['requiere_ruta_transportista'])
         self.assertTrue(rutas_consultadas)
 
-    def aprobar(self, peso, codigo='RECEPCION_NEW_JERSEY_P1_SIN_CALIDAD'):
+    def aprobar(self, peso, codigo='RECEPCION_NEW_JERSEY_P1_SIN_CALIDAD', contenedor='CONT-01'):
         citacion = self.citacion(codigo)
         request = self.factory.post('/pla-citacion-aprobar-asistente/38748/', {
             'peso_informado_guia': peso,
             'bl': 'BL-01',
-            'lote_contenedor': 'CONT-01',
+            'lote_contenedor': contenedor,
         })
         request.user = self.usuario
         with ExitStack() as stack:
@@ -221,6 +224,16 @@ class NewJerseySinCalidadRevisionTests(SimpleTestCase):
         self.assertEqual(len(avance), 1)
         self.assertIs(avance[0].kwargs['usuario'], self.usuario)
         self.assertEqual(avance[0].kwargs['accion'], 'APRUEBA_ASISTENTE')
+
+    def test_con_calidad_exige_contenedor_antes_de_aprobar(self):
+        response, guardar, avance, rutas = self.aprobar(
+            '28650', 'RECEPCION_NEW_JERSEY_P1_CON_CALIDAD', contenedor='  '
+        )
+        self.assertEqual(response.status_code, 400)
+        self.assertIn(b'Debe ingresar el Lote / Contenedor', response.content)
+        self.assertFalse(guardar)
+        self.assertFalse(avance)
+        self.assertFalse(rutas)
 
     def test_con_calidad_no_acepta_aprobacion_sin_ruta(self):
         response, guardar, avance, rutas = self.aprobar('28650', 'RECEPCION_NEW_JERSEY_P1_CON_CALIDAD')

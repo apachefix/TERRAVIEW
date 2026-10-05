@@ -130,6 +130,73 @@ class AgregarCitacionesMultiflujoTests(TestCase):
                     self.assertIn('id="despacho_transportado_por"', html)
                     self.assertEqual(html.count('id="ModalCrearDespacho"'), 1)
 
+    def test_boton_abre_formulario_etapa0_de_su_carpeta(self):
+        aperturas = {
+            'recepcion_sbh': ('ModalCrearCitacion', 'abrirModalRecepcion'),
+            'transferencia_sbh': ('ModalCrearRecepcionTransferencia', 'abrirModalRecepcionTransferencia'),
+            'despacho_sbh': ('ModalCrearDespacho', 'abrirModalDespacho'),
+            'recepcion_terramar': ('ModalCrearRecepcionTerramar', 'abrirModalRecepcionTerramar'),
+            'despacho_terramar': ('ModalCrearDespachoTerramar', 'abrirModalDespachoTerramar'),
+        }
+        for formulario, plan in self.planes.items():
+            with self.subTest(formulario=formulario):
+                request = self.factory.get(f'/pla_listone/{plan.pk}', {'_empresa_id': plan.EP_NID_id})
+                request.user = self.usuario
+                with patch.object(views, 'Verificar_empresa', return_value=plan.EP_NID_id), \
+                     patch.object(views, 'obtener_clientes_aceite', return_value=[]):
+                    response = views.PLANIFICACION_LISTONE(request, plan.pk)
+                self.assertEqual(response.status_code, 200)
+                html = response.content.decode()
+                modal_id, apertura = aperturas[formulario]
+                self.assertIn('onclick="abrirModalEtapa0Planificacion()"', html)
+                self.assertEqual(html.count('function abrirModalEtapa0Planificacion()'), 1)
+                self.assertIn(f'id="{modal_id}"', html)
+                self.assertIn(f"const modalId = '{modal_id}';", html)
+                self.assertIn(f'{apertura}();', html)
+                self.assertIn(f"const PLANIFICACION_EXISTENTE_ID = '{plan.pk}';", html)
+                self.assertIn(f'Agregar citaciones - Planificación #{plan.pk}', html)
+                if formulario == 'transferencia_sbh':
+                    self.assertIn('modal-dialog modal-dialog-scrollable modal-lg', html)
+
+    def test_recepcion_sbh_agrega_citacion_en_misma_carpeta(self):
+        plan = self.planes['recepcion_sbh']
+        secuencia = CITACION.objects.get(PL_NID=plan).SC_NID
+        antes = (PLANIFICACION.objects.count(),
+                 CITACION.objects.filter(PL_NID=plan).count(),
+                 CAMION_PATIO_NO_PLANIFICADO.objects.count(),
+                 plan.PL_NCANTIDADCUPOS, plan.PL_NCANTIDADSOBRECUPO)
+        item = {
+            'fecha_llegada': '2026-10-05', 'tipo_operacion': 'RECEPCION',
+            'tipo_origen_recepcion': 'NACIONAL',
+            'secuencia_id': secuencia.pk, 'almacen_destino': 'SBH',
+            'estanque_destino': 'TK18', 'codigo': 'ITEM-recepcion_sbh',
+            'insumo': 'Producto recepcion_sbh',
+            'proveedor': 'manual:Proveedor prueba',
+        }
+        request = self.factory.post('/crear-planificacion-citacion/', {
+            'planificacion_existente_id': str(plan.pk),
+            'flujo': 'INGRESO_MERCADERIA',
+            'cantidad_sobrecupo': '999',
+            'citaciones_json': json.dumps([item]),
+        })
+        request.user = self.usuario
+        with patch.object(views, 'Verificar_empresa', return_value=2):
+            response = views.CREAR_PLANIFICACION_CITACION(request)
+        self.assertEqual(response.status_code, 200, response.content)
+        resultado = json.loads(response.content)
+        self.assertTrue(resultado['success'])
+        self.assertEqual(resultado['planificacion_id'], plan.pk)
+        nueva = CITACION.objects.get(pk=resultado['citaciones'][0])
+        self.assertEqual((nueva.PL_NID_id, nueva.EP_NID_id, nueva.SC_NID_id),
+                         (plan.pk, 2, secuencia.pk))
+        self.assertFalse(nueva.CI_BSOBRECUPO)
+        plan.refresh_from_db()
+        self.assertEqual((PLANIFICACION.objects.count(),
+                          CITACION.objects.filter(PL_NID=plan).count(),
+                          CAMION_PATIO_NO_PLANIFICADO.objects.count(),
+                          plan.PL_NCANTIDADCUPOS, plan.PL_NCANTIDADSOBRECUPO),
+                         (antes[0], antes[1] + 1, antes[2], antes[3], antes[4]))
+
     def test_post_rechaza_empresa_tipo_flujo_y_modal_ajenos(self):
         plan = self.planes['transferencia_sbh']
         data = {

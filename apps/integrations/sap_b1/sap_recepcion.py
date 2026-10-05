@@ -54,6 +54,7 @@ MODO_LOTE_AUTOMATICO_TERRAVIEW = 'AUTOMATICO_TERRAVIEW'
 DEFAULT_DRAFT_OBJECT_CODE = "oPurchaseDeliveryNotes"
 SECUENCIA_RECEPCION_PROSESA_DESCARGA_CAMION = "RECEPCION_BODEGA_EXTERNA"
 SECUENCIA_RECEPCION_PROSESA_CONTENEDOR_PISO_1 = "RECEPCION_PROSESA_PISO_1"
+SECUENCIA_RECEPCION_ESTANQUE_SBH = "RECEPCION_ESTANQUE_SBH"
 
 
 class GoodsReceiptDraftError(Exception):
@@ -107,7 +108,11 @@ def _decimal_text(value: Any) -> str:
     return format(decimal_value, "f") if decimal_value is not None else ""
 
 
-def _enviar_lote_en_update_draft_recepcion() -> bool:
+def _enviar_lote_en_update_draft_recepcion(citacion: Optional[CITACION] = None) -> bool:
+    # Estanque SBH requiere que el lote viaje en la actualizacion final del mismo Draft.
+    # Las demas recepciones conservan la configuracion global de marcha blanca.
+    if citacion is not None and es_recepcion_estanque_sbh(citacion):
+        return True
     return bool(getattr(settings, 'SAP_RECEPCION_ENVIAR_LOTE_EN_UPDATE_DRAFT', False))
 
 
@@ -117,6 +122,36 @@ def convertir_peso_salida_kg_a_cantidad_sap_mt(peso_salida_kg: Any) -> Optional[
         return None
     return peso / KILOGRAMOS_POR_TONELADA_METRICA
 
+
+def es_recepcion_estanque_sbh(citacion: CITACION) -> bool:
+    if getattr(citacion, "EP_NID_id", None) != 2:
+        return False
+    tipo = _clean_text(getattr(citacion, "CI_CTIPO", ""))
+    if not tipo:
+        planificacion = getattr(citacion, "PL_NID", None)
+        tipo = _clean_text(getattr(planificacion, "PL_CTIPOCUPO", ""))
+    secuencia = getattr(citacion, "SC_NID", None)
+    return bool(
+        tipo.upper() == "RECEPCION"
+        and _clean_text(getattr(secuencia, "SE_CCODIGO", "")).upper()
+        == SECUENCIA_RECEPCION_ESTANQUE_SBH
+    )
+
+
+def convertir_peso_guia_kg_a_unidad_linea_sap(
+    peso_guia_kg: Any,
+    unidad_sap: Any,
+) -> Tuple[Optional[Decimal], Optional[Decimal]]:
+    """Normaliza el peso externo solo cuando la linea SAP declara kg o MT."""
+    peso = _as_decimal(peso_guia_kg)
+    if peso is None:
+        return None, None
+    unidad_normalizada = re.sub(r"[^A-Z]", "", _clean_text(unidad_sap).upper())
+    if unidad_normalizada in {"MT", "TONELADAMETRICA", "TONELADASMETRICAS"}:
+        return peso / KILOGRAMOS_POR_TONELADA_METRICA, Decimal("0.001")
+    if unidad_normalizada in {"KG", "KGS", "KILOGRAMO", "KILOGRAMOS"}:
+        return peso, Decimal("1")
+    return None, None
 
 def obtener_fecha_sistema_sap(company_db_esperada: str = "") -> str:
     """Obtiene CURRENT_DATE de HANA y valida la CompanyDB configurada."""
@@ -1454,6 +1489,10 @@ def build_goods_receipt_draft_preview(
     detalle = _latest_detail(citacion)
     doc_entry = _resolve_doc_entry(citacion, detalle)
     aplica_documentos_prosesa = es_recepcion_prosesa_descarga_camion(citacion, detalle)
+    normaliza_peso_guia_estanque_sbh = bool(
+        origen_cantidad == ORIGEN_CANTIDAD_PESO_GUIA
+        and es_recepcion_estanque_sbh(citacion)
+    )
     datos_documentales = (
         resolver_datos_documentales_recepcion(citacion, detalle)
         if aplica_documentos_prosesa
@@ -1615,7 +1654,12 @@ def build_goods_receipt_draft_preview(
         )
 
     if quantity and origen_cantidad == ORIGEN_CANTIDAD_PESO_GUIA:
-        if aplica_documentos_prosesa:
+        if normaliza_peso_guia_estanque_sbh:
+            validations.append(
+                "Peso informado en guia encontrado: "
+                f"{_decimal_text(quantity)} kg"
+            )
+        elif aplica_documentos_prosesa:
             validations.append(
                 "Cantidad informada en guia encontrada: "
                 f"{_decimal_text(quantity)} {UNIDAD_SAP_TONELADA_METRICA}"
@@ -1755,7 +1799,10 @@ def build_goods_receipt_draft_preview(
             **({
                 "UoMCode": selected_line.get("UoMCode") or "",
                 "MeasureUnit": selected_line.get("MeasureUnit") or "",
-            } if aplica_documentos_prosesa and origen_cantidad == ORIGEN_CANTIDAD_PESO_GUIA else {}),
+            } if (
+                origen_cantidad == ORIGEN_CANTIDAD_PESO_GUIA
+                and (aplica_documentos_prosesa or normaliza_peso_guia_estanque_sbh)
+            ) else {}),
             "LineStatus": line_status,
             "U_NXContenedor": (
                 selected_line.get("U_NXContenedor")
@@ -1784,8 +1831,38 @@ def build_goods_receipt_draft_preview(
                 f"Linea SAP no esta abierta: {line_status}"
             )
 
-        sap_quantity_unit = _clean_text(selected_line.get("UoMCode"))
-        if aplica_documentos_prosesa and origen_cantidad == ORIGEN_CANTIDAD_PESO_GUIA:
+        sap_quantity_unit = _clean_text(
+            selected_line.get("UoMCode") or selected_line.get("MeasureUnit")
+        )
+        peso_guia_kg = None
+        if normaliza_peso_guia_estanque_sbh:
+            peso_guia_kg = quantity
+            quantity, conversion_factor = convertir_peso_guia_kg_a_unidad_linea_sap(
+                peso_guia_kg,
+                sap_quantity_unit,
+            )
+            source_data.update({
+                "peso_informado_guia_kg": _json_safe(peso_guia_kg),
+                "quantity_source_unit": "kg",
+                "sap_quantity_unit": sap_quantity_unit,
+                "quantity_unit": sap_quantity_unit,
+                "quantity_conversion_factor": _json_safe(conversion_factor),
+                "quantity_semantics": "peso_guia_kg_convertido_a_unidad_sap",
+                "quantity": _json_safe(quantity),
+            })
+            if quantity is None:
+                errors.append(
+                    "No se puede crear Borrador SAP: la linea del pedido no "
+                    "informa una unidad KG o MT compatible con el peso de guia en kg."
+                )
+            else:
+                validations.append(
+                    "Peso de guia normalizado para SAP: "
+                    f"{_decimal_text(peso_guia_kg)} kg -> "
+                    f"{_decimal_text(quantity)} {sap_quantity_unit} "
+                    f"(factor {_decimal_text(conversion_factor)})."
+                )
+        elif aplica_documentos_prosesa and origen_cantidad == ORIGEN_CANTIDAD_PESO_GUIA:
             source_data["sap_quantity_unit"] = sap_quantity_unit
         if (
             aplica_documentos_prosesa
@@ -1809,7 +1886,15 @@ def build_goods_receipt_draft_preview(
                 )
             )
 
-            if aplica_documentos_prosesa and origen_cantidad == ORIGEN_CANTIDAD_PESO_GUIA:
+            if normaliza_peso_guia_estanque_sbh:
+                warnings.append(
+                    "El peso informado "
+                    f"({_decimal_text(peso_guia_kg)} kg = "
+                    f"{_decimal_text(quantity)} {sap_quantity_unit}) "
+                    "difiere de la cantidad abierta disponible en SAP "
+                    f"({_decimal_text(remaining)} {sap_quantity_unit})."
+                )
+            elif aplica_documentos_prosesa and origen_cantidad == ORIGEN_CANTIDAD_PESO_GUIA:
                 warnings.append(
                     "La cantidad informada "
                     f"({_decimal_text(quantity)} {UNIDAD_SAP_TONELADA_METRICA}) "
@@ -1833,7 +1918,15 @@ def build_goods_receipt_draft_preview(
 
         quantity_exceeds_message = ""
         if quantity_exceeds_remaining:
-            if aplica_documentos_prosesa and origen_cantidad == ORIGEN_CANTIDAD_PESO_GUIA:
+            if normaliza_peso_guia_estanque_sbh:
+                quantity_exceeds_message = (
+                    "El peso informado "
+                    f"({_decimal_text(peso_guia_kg)} kg = "
+                    f"{_decimal_text(quantity)} {sap_quantity_unit}) "
+                    "supera la cantidad abierta disponible en SAP "
+                    f"({_decimal_text(remaining)} {sap_quantity_unit})."
+                )
+            elif aplica_documentos_prosesa and origen_cantidad == ORIGEN_CANTIDAD_PESO_GUIA:
                 quantity_exceeds_message = (
                     "La cantidad informada "
                     f"({_decimal_text(quantity)} {UNIDAD_SAP_TONELADA_METRICA}) "
@@ -1854,7 +1947,10 @@ def build_goods_receipt_draft_preview(
         source_data["quantity_exceeds_remaining"] = (
             quantity_exceeds_remaining
         )
-        if aplica_documentos_prosesa and origen_cantidad == ORIGEN_CANTIDAD_PESO_GUIA:
+        if (
+            origen_cantidad == ORIGEN_CANTIDAD_PESO_GUIA
+            and (aplica_documentos_prosesa or normaliza_peso_guia_estanque_sbh)
+        ):
             source_data["quantity_exceeds_message"] = quantity_exceeds_message
 
         if (
@@ -2095,7 +2191,9 @@ def _latest_update_recepcion_log(citacion: CITACION) -> Optional[OPERACION_PLANT
 def get_goods_receipt_draft_update_status(citacion: CITACION) -> Dict[str, Any]:
     draft_status = get_goods_receipt_draft_guide_status(citacion)
     peso_salida = get_exit_weight_from_citation(citacion)
-    enviar_lote = _enviar_lote_en_update_draft_recepcion()
+    requiere_lote_persistido = es_recepcion_estanque_sbh(citacion)
+    lote_persistido = obtener_lote_recepcion_sap(citacion) if requiere_lote_persistido else ""
+    enviar_lote = _enviar_lote_en_update_draft_recepcion(citacion)
     modo_lote_configurado = (
         MODO_LOTE_AUTOMATICO_TERRAVIEW if enviar_lote else MODO_LOTE_MANUAL_SAP
     )
@@ -2111,7 +2209,7 @@ def get_goods_receipt_draft_update_status(citacion: CITACION) -> Dict[str, Any]:
             "docentry": draft_status.get("docentry") or "",
             "docnum": draft_status.get("docnum") or "",
             "item_code": draft_status.get("item_code") or "",
-            "lote": "",
+            "lote": lote_persistido,
             "peso_salida": _json_safe(peso_salida),
             "peso_salida_kg": _json_safe(peso_salida),
             "cantidad_sap": _json_safe(convertir_peso_salida_kg_a_cantidad_sap_mt(peso_salida)),
@@ -2131,7 +2229,22 @@ def get_goods_receipt_draft_update_status(citacion: CITACION) -> Dict[str, Any]:
         }
 
     data = _parse_log_json(log)
-    success = bool(data.get("success")) and log.OPL_CPASO == LOG_UPDATE_SAP_RECEPCION_ENVIO
+    envio_sap_exitoso = bool(data.get("success")) and log.OPL_CPASO == LOG_UPDATE_SAP_RECEPCION_ENVIO
+    lote_log = _clean_text(data.get("lote"))
+    lote_final_enviado = bool(data.get("lote_enviado") and lote_log)
+    if requiere_lote_persistido:
+        lote_final_enviado = bool(
+            lote_final_enviado
+            and lote_persistido
+            and lote_log == lote_persistido
+        )
+    success = bool(
+        envio_sap_exitoso
+        and (not requiere_lote_persistido or lote_final_enviado)
+    )
+    actualizacion_antigua_sin_lote = bool(
+        envio_sap_exitoso and requiere_lote_persistido and not lote_final_enviado
+    )
     request_json = data.get("payload") if isinstance(data.get("payload"), dict) else {}
     response_json = data.get("response") if isinstance(data.get("response"), dict) else {}
     sap_error = data.get("sap_error") if isinstance(data.get("sap_error"), dict) else {}
@@ -2141,13 +2254,23 @@ def get_goods_receipt_draft_update_status(citacion: CITACION) -> Dict[str, Any]:
     modo_lote = data.get("modo_lote") or (
         MODO_LOTE_AUTOMATICO_TERRAVIEW if data.get("lote") else modo_lote_configurado
     )
+    if requiere_lote_persistido:
+        modo_lote = MODO_LOTE_AUTOMATICO_TERRAVIEW
     lote_manual = modo_lote == MODO_LOTE_MANUAL_SAP
     return {
         "updated": success,
-        "is_error": not success,
-        "estado": "OK" if success else "ERROR",
-        "label": "Borrador SAP actualizado" if success else "Error al actualizar SAP",
-        "result_label": "OK" if success else "ERROR",
+        "is_error": not envio_sap_exitoso,
+        "estado": "OK" if success else ("PENDIENTE_LOTE" if actualizacion_antigua_sin_lote else "ERROR"),
+        "label": (
+            "Borrador SAP actualizado"
+            if success
+            else (
+                "Pendiente de actualizar con lote"
+                if actualizacion_antigua_sin_lote
+                else "Error al actualizar SAP"
+            )
+        ),
+        "result_label": "OK" if success else ("PENDIENTE" if actualizacion_antigua_sin_lote else "ERROR"),
         "resumen_mensaje": (
             (
                 "Borrador SAP actualizado con el pesaje de salida. "
@@ -2156,12 +2279,16 @@ def get_goods_receipt_draft_update_status(citacion: CITACION) -> Dict[str, Any]:
                 else "Borrador SAP actualizado correctamente con lote y peso de salida."
             )
             if success
-            else "No se puede autorizar la salida porque la actualizacion SAP fallo."
+            else (
+                "Genere el Lote SAP y vuelva a actualizar el mismo Borrador SAP."
+                if actualizacion_antigua_sin_lote
+                else "No se puede autorizar la salida porque la actualizacion SAP fallo."
+            )
         ),
         "docentry": data.get("docentry") or draft_status.get("docentry") or "",
         "docnum": data.get("docnum") or draft_status.get("docnum") or "",
         "item_code": data.get("item_code") or draft_status.get("item_code") or "",
-        "lote": data.get("lote") or "",
+        "lote": lote_persistido or lote_log,
         "peso_salida": data.get("peso_salida") or _json_safe(peso_salida),
         "peso_salida_kg": data.get("peso_salida_kg") or data.get("peso_salida") or _json_safe(peso_salida),
         "cantidad_sap": data.get("cantidad_sap") or _json_safe(
@@ -2201,6 +2328,19 @@ def generar_lote_recepcion_sap(item_code: str) -> str:
     if not lote:
         raise GoodsReceiptDraftError("No se pudo obtener lote SAP para el producto.")
     return lote
+
+
+def obtener_lote_recepcion_sap(citacion: CITACION) -> str:
+    dato = (
+        DATO_OPERACION.objects.filter(
+            CI_NID=citacion,
+            SC_NID=citacion.SC_NID,
+            CAMP_NID__CA_CCODIGO=CAMPO_LOTE_RECEPCION_SAP,
+        )
+        .order_by("-id")
+        .first()
+    )
+    return _clean_text(getattr(dato, "DO_CVALOR", ""))
 
 
 def _guardar_lote_recepcion(citacion: CITACION, user: Any, lote: str) -> None:
@@ -2256,7 +2396,7 @@ def build_goods_receipt_draft_update_with_salida_lote(
     )
     cantidad_sap = convertir_peso_salida_kg_a_cantidad_sap_mt(peso_salida_kg)
     lote = _clean_text(lote)
-    enviar_lote = _enviar_lote_en_update_draft_recepcion() if enviar_lote is None else bool(enviar_lote)
+    enviar_lote = _enviar_lote_en_update_draft_recepcion(citacion) if enviar_lote is None else bool(enviar_lote)
     lote_enviado = bool(enviar_lote and lote)
     modo_lote = MODO_LOTE_AUTOMATICO_TERRAVIEW if enviar_lote else MODO_LOTE_MANUAL_SAP
 
@@ -2287,6 +2427,8 @@ def build_goods_receipt_draft_update_with_salida_lote(
             "ItemCode": item_code,
             "Quantity": _json_safe(cantidad_sap),
         }
+        if es_recepcion_estanque_sbh(citacion) and _clean_text(line.get("WarehouseCode")):
+            document_line["WarehouseCode"] = _clean_text(line.get("WarehouseCode"))
         if enviar_lote:
             document_line["BatchNumbers"] = [
                 {
@@ -2330,8 +2472,11 @@ def build_goods_receipt_draft_update_preview(
     draft_status = get_goods_receipt_draft_guide_status(citacion)
     item_code = draft_status.get("item_code") or ""
     peso_salida = get_exit_weight_from_citation(citacion)
-    enviar_lote = _enviar_lote_en_update_draft_recepcion()
-    lote = generar_lote_recepcion_sap(item_code) if enviar_lote else ""
+    enviar_lote = _enviar_lote_en_update_draft_recepcion(citacion)
+    if es_recepcion_estanque_sbh(citacion):
+        lote = obtener_lote_recepcion_sap(citacion)
+    else:
+        lote = generar_lote_recepcion_sap(item_code) if enviar_lote else ""
     return build_goods_receipt_draft_update_with_salida_lote(
         citacion,
         peso_salida,

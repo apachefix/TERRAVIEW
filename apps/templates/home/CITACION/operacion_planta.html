@@ -493,6 +493,18 @@
         overflow: hidden;
     }
 
+    .operacion-nj-descarga-contenedor .nj-con-calidad-iniciar,
+    .operacion-nj-descarga-contenedor .nj-con-calidad-captura {
+        max-width: 380px;
+    }
+
+    @media (max-width: 767.98px) {
+        .operacion-nj-descarga-contenedor .nj-con-calidad-iniciar,
+        .operacion-nj-descarga-contenedor .nj-con-calidad-captura {
+            max-width: none;
+        }
+    }
+
     .op-glass-button:before {
         content: "";
         position: absolute;
@@ -2937,6 +2949,22 @@
                                                 <div class="op-field-summary-value">{{ paso.descarga_contenedor_new_jersey.destino_fisico|default:'Sin registrar' }}</div>
                                             </div>
                                         </div>
+                                        {% if es_new_jersey_p1_con_calidad and paso.activo and paso.puede_editar and not paso.descarga_contenedor_new_jersey.contenedor and not paso.descarga_contenedor_new_jersey.iniciada %}
+                                        <form method="post" action="{% url 'operacion_planta_guardar_paso' citacion.id %}" class="nj-con-calidad-captura mb-3">
+                                            {% csrf_token %}
+                                            <input type="hidden" name="_empresa_id" value="{{ empresa_activa_id }}">
+                                            <input type="hidden" name="empresa_id" value="{{ empresa_activa_id }}">
+                                            <input type="hidden" name="origen" value="descarga_new_jersey">
+                                            <input type="hidden" name="citacion_id" value="{{ citacion.id }}">
+                                            <input type="hidden" name="paso" value="{{ paso.nombre }}">
+                                            <input type="hidden" name="accion" value="guardar_contenedor">
+                                            <div class="form-group mb-2">
+                                                <label for="nj_numero_contenedor_{{ citacion.id }}">N&deg; Contenedor <span class="text-danger">*</span></label>
+                                                <input type="text" class="form-control" id="nj_numero_contenedor_{{ citacion.id }}" name="contenedor" maxlength="128" required autocomplete="off">
+                                            </div>
+                                            <button type="submit" class="btn btn-outline-primary btn-block">Guardar contenedor</button>
+                                        </form>
+                                        {% endif %}
                                         {% if paso.descarga_contenedor_new_jersey.iniciada %}
                                         <div class="op-dashboard-muted mb-2">
                                             Inicio: {{ paso.descarga_contenedor_new_jersey.inicio_iso }} por {{ paso.descarga_contenedor_new_jersey.usuario_inicio }}.
@@ -2962,7 +2990,7 @@
                                             </button>
                                             {% else %}
                                             <input type="hidden" name="accion" value="iniciar">
-                                            <button type="submit" class="op-glass-button is-primary">
+                                            <button type="submit" class="op-glass-button is-primary{% if es_new_jersey_p1_con_calidad %} nj-con-calidad-iniciar{% endif %}">
                                                 <i class="op-glass-icon fas fa-play"></i> Iniciar descarga
                                             </button>
                                             {% endif %}
@@ -3266,6 +3294,37 @@
                                                 </div>
                                             </div>
                                         </div>
+
+                                        {% if sap_recepcion_reintento_manual.visible %}
+                                        <div class="card border-warning mt-3 mb-3 operacion-reintento-draft-sap-recepcion">
+                                            <div class="card-body">
+                                                <h6 class="card-title text-warning mb-2">
+                                                    <i class="fas fa-exclamation-triangle mr-1"></i>
+                                                    Reintento manual Draft SAP
+                                                </h6>
+                                                {% if sap_recepcion_reintento_manual.draft_existente %}
+                                                    <div class="alert alert-success mb-0">
+                                                        <strong>Draft SAP ya creado.</strong><br>
+                                                        DocEntry: {{ sap_recepcion_reintento_manual.docentry|default:'-' }}
+                                                        &middot; DocNum: {{ sap_recepcion_reintento_manual.docnum|default:'-' }}
+                                                    </div>
+                                                {% else %}
+                                                    <p class="text-muted mb-3">
+                                                        Acci&oacute;n de emergencia habilitada por SAP_RECEPCION_PREVIEW_ENABLED.
+                                                        Reintenta la creaci&oacute;n del borrador SAP sin avanzar etapas.
+                                                    </p>
+                                                    {% if sap_recepcion_reintento_manual.habilitado and paso.activo %}
+                                                    <button type="button"
+                                                            class="btn btn-outline-warning btn-reintentar-draft-sap-recepcion"
+                                                            data-citacion="{{ citacion.id }}">
+                                                        <i class="fas fa-redo-alt mr-1"></i>
+                                                        Reintentar creaci&oacute;n Draft SAP
+                                                    </button>
+                                                    {% endif %}
+                                                {% endif %}
+                                            </div>
+                                        </div>
+                                        {% endif %}
 
                                         <div class="op-result-dashboard-section">
                                             <div class="op-lab-title mt-3"><i class="fas fa-industry"></i> Preparacion descarga</div>
@@ -3707,7 +3766,7 @@
                                                     Ciclo Descarga
                                                 </div>
                                                 <div class="op-cycle-subtitle">
-                                                    Responsable: {% if paso.es_flujo_terramar or paso.es_new_jersey_p2 %}{{ paso.responsable }}{% else %}Sala_Control{% endif %} | {% if paso.es_new_jersey_p2 %}Contenedor: {{ snapshot_recepcion_sbh.Contenedor }}{% else %}Patente: {{ patente }}{% endif %}
+                                                    Responsable: {{ paso.responsable }} | {% if paso.es_new_jersey_p2 %}Contenedor: {{ snapshot_recepcion_sbh.Contenedor }}{% else %}Patente: {{ patente }}{% endif %}
                                                 </div>
                                             </div>
                                             <span class="op-cycle-state-badge {% if paso.ciclo_descarga.finalizada %}is-done{% elif paso.ciclo_descarga.en_proceso %}is-active{% endif %}">
@@ -4374,6 +4433,7 @@
                                          data-ultimas-cargas="{% if paso.datos_finales_despacho_sbh.ultimas_cargas_completas %}true{% else %}false{% endif %}"
                                          data-sap-recepcion-updated="{% if paso.sap_update_recepcion.updated %}true{% else %}false{% endif %}"
                                          data-sap-recepcion-error="{% if paso.sap_update_recepcion.is_error %}true{% else %}false{% endif %}">
+                                        {% if not paso.permite_generar_lote_sap_recepcion %}
                                         <div class="op-cycle-header">
                                             <div>
                                                 <div class="op-cycle-title">
@@ -4389,6 +4449,7 @@
                                                 {% if paso.autorizar_salida.registrada %}Salida autorizada{% elif paso.activo %}Pendiente de autorizacion{% else %}Pendiente{% endif %}
                                             </span>
                                         </div>
+                                        {% endif %}
 
                                         {% if paso.es_new_jersey_p3 %}
                                         {% with nj=transferencia_sap_new_jersey_p3 transferencia=transferencia_sap_new_jersey_p3.transferencia_sap %}
@@ -4548,7 +4609,9 @@
                                                         </div>
                                                         <div class="op-dashboard-muted">
                                                             Actualiza el Draft SAP con el peso real del Pesaje de Salida.
-                                                            {% if paso.sap_update_recepcion.lote_manual %}
+                                                            {% if paso.permite_generar_lote_sap_recepcion %}
+                                                                Genere y persista el lote SAP. Luego actualice el mismo Draft con el peso real y el lote.
+                                                            {% elif paso.sap_update_recepcion.lote_manual %}
                                                                 El lote ser&aacute; ingresado manualmente en SAP durante la marcha blanca.
                                                             {% else %}
                                                                 TERRAVIEW generar&aacute; y enviar&aacute; el lote SAP.
@@ -4573,12 +4636,14 @@
                                                         | ItemCode: <strong>{{ paso.sap_update_recepcion.item_code|default:'-' }}</strong>
                                                     </div>
                                                     <div class="sap-update-result-line">
-                                                        {% if paso.sap_update_recepcion.lote_manual %}
-                                                            Lote: <strong>Pendiente de ingreso manual en SAP</strong>
-                                                        {% else %}
-                                                            Lote: <strong>{{ paso.sap_update_recepcion.lote|default:'-' }}</strong>
+                                                        {% if not paso.permite_generar_lote_sap_recepcion %}
+                                                            {% if paso.sap_update_recepcion.lote_manual %}
+                                                                Lote: <strong>Pendiente de ingreso manual en SAP</strong> |
+                                                            {% else %}
+                                                                Lote: <strong>{{ paso.sap_update_recepcion.lote|default:'-' }}</strong> |
+                                                            {% endif %}
                                                         {% endif %}
-                                                        | Peso salida: <strong>{{ paso.sap_update_recepcion.peso_salida_kg|default:'-' }} kg</strong>
+                                                        Peso salida: <strong>{{ paso.sap_update_recepcion.peso_salida_kg|default:'-' }} kg</strong>
                                                         | Cantidad SAP: <strong>{{ paso.sap_update_recepcion.cantidad_sap|default:'-' }} {{ paso.sap_update_recepcion.unidad_sap|default:'MT' }}</strong>
                                                     </div>
                                                     <div class="sap-update-result-line">
@@ -4594,22 +4659,63 @@
                                                         </div>
                                                     {% endif %}
                                                     <div class="sap-update-result-line">
-                                                        {{ paso.sap_update_recepcion.resumen_mensaje|default:'Debe actualizar el Borrador SAP de recepcion antes de autorizar la salida.' }}
+                                                        {% if paso.permite_generar_lote_sap_recepcion and paso.sap_update_recepcion.updated %}
+                                                            Borrador SAP actualizado correctamente con el lote SAP.
+                                                        {% elif paso.permite_generar_lote_sap_recepcion and paso.lote_sap_recepcion %}
+                                                            Lote SAP generado. Actualice el Borrador SAP para continuar.
+                                                        {% elif paso.permite_generar_lote_sap_recepcion %}
+                                                            Genere el Lote SAP antes de actualizar el borrador.
+                                                        {% else %}
+                                                            {{ paso.sap_update_recepcion.resumen_mensaje|default:'Debe actualizar el Borrador SAP de recepcion antes de autorizar la salida.' }}
+                                                        {% endif %}
                                                     </div>
                                                 </div>
+                                                {% if paso.permite_generar_lote_sap_recepcion %}
+                                                    <div class="sap-info-section mt-3">
+                                                        <div class="sap-info-section-title">Lote SAP</div>
+                                                        {% if paso.lote_sap_recepcion %}
+                                                            <div class="d-flex flex-wrap align-items-center">
+                                                                <span class="badge badge-success">
+                                                                    <i class="fas fa-check-circle mr-1"></i> Generado
+                                                                </span>
+                                                                <strong class="ml-2">Lote SAP: {{ paso.lote_sap_recepcion }}</strong>
+                                                            </div>
+                                                        {% else %}
+                                                            <button type="button"
+                                                                    class="btn btn-outline-primary btn-sm btn-generar-lote-sap-recepcion"
+                                                                    {% if not paso.sap_update_recepcion.docentry or not paso.sap_update_recepcion.peso_salida_kg or not paso.activo or not paso.puede_operar_sap_recepcion %}disabled aria-disabled="true"{% endif %}>
+                                                                <i class="fas fa-barcode mr-1"></i> Generar Lote SAP
+                                                            </button>
+                                                            {% if not paso.sap_update_recepcion.docentry %}
+                                                                <div class="text-muted mt-2">Primero debe existir el Borrador SAP.</div>
+                                                            {% elif not paso.sap_update_recepcion.peso_salida_kg %}
+                                                                <div class="text-muted mt-2">Primero debe existir el Pesaje Salida.</div>
+                                                            {% elif not paso.activo or not paso.puede_operar_sap_recepcion %}
+                                                                <div class="text-muted mt-2">La acci&oacute;n no est&aacute; disponible para el usuario o etapa actual.</div>
+                                                            {% endif %}
+                                                        {% endif %}
+                                                    </div>
+                                                {% endif %}
                                                 {% if paso.activo and paso.puede_operar_sap_recepcion and not paso.sap_update_recepcion.updated %}
-                                                    <div class="d-flex flex-wrap align-items-center">
+                                                    <div class="d-flex flex-wrap align-items-center mt-3">
                                                         {% if sap_recepcion_update_preview_enabled %}
-                                                        <button type="button" class="btn btn-outline-info btn-sm btn-preview-update-sap-recepcion mr-2 mb-2">
+                                                        <button type="button"
+                                                                class="btn btn-outline-info btn-sm btn-preview-update-sap-recepcion mr-2 mb-2"
+                                                                {% if paso.permite_generar_lote_sap_recepcion and not paso.lote_sap_recepcion %}disabled aria-disabled="true"{% endif %}>
                                                             <i class="fas fa-file-code mr-1"></i> Previsualizar JSON SAP
                                                         </button>
                                                         {% endif %}
-                                                        <button type="button" class="btn btn-primary btn-sm btn-actualizar-sap-recepcion mb-2">
+                                                        <button type="button"
+                                                                class="btn btn-primary btn-sm btn-actualizar-sap-recepcion mb-2"
+                                                                {% if paso.permite_generar_lote_sap_recepcion and not paso.sap_update_recepcion.docentry or paso.permite_generar_lote_sap_recepcion and not paso.sap_update_recepcion.peso_salida_kg or paso.permite_generar_lote_sap_recepcion and not paso.lote_sap_recepcion %}disabled aria-disabled="true"{% endif %}>
                                                             <i class="fas fa-sync-alt mr-1"></i> Actualizar Borrador SAP
                                                         </button>
                                                     </div>
+                                                    {% if paso.permite_generar_lote_sap_recepcion and not paso.lote_sap_recepcion %}
+                                                        <div class="text-muted">Genere el Lote SAP antes de actualizar el borrador.</div>
+                                                    {% endif %}
                                                 {% elif paso.sap_update_recepcion.updated %}
-                                                    <span class="badge badge-success">
+                                                    <span class="badge badge-success mt-3">
                                                         <i class="fas fa-check-circle mr-1"></i> Borrador SAP actualizado
                                                     </span>
                                                 {% endif %}
@@ -4833,7 +4939,7 @@
                                                                    name="recepcion_conforme_{{ paso.orden }}"
                                                                    value="SI"
                                                                    {% if paso.autorizar_salida.revision_conformidad.recepcion_conforme == 'SI' %}checked{% endif %}
-                                                                   {% if paso.autorizar_salida.revision_conformidad.recepcion_conforme or not paso.activo or not paso.puede_editar or paso.datos_finales_despacho_sbh and not paso.datos_finales_despacho_sbh.ultimas_cargas_completas or paso.requiere_update_sap_despacho and not paso.sap_update_despacho.updated or paso.requiere_update_sap_recepcion and not paso.sap_update_recepcion.updated and not paso.es_sbh_recepcion %}disabled{% endif %}>
+                                                                   {% if paso.autorizar_salida.revision_conformidad.recepcion_conforme or not paso.activo or not paso.puede_editar or paso.datos_finales_despacho_sbh and not paso.datos_finales_despacho_sbh.ultimas_cargas_completas or paso.requiere_update_sap_despacho and not paso.sap_update_despacho.updated or paso.requiere_update_sap_recepcion and not paso.sap_update_recepcion.updated and not paso.es_sbh_recepcion or paso.permite_generar_lote_sap_recepcion and not paso.sap_update_recepcion.updated %}disabled{% endif %}>
                                                             <span><i class="fas fa-check"></i> Si</span>
                                                         </label>
                                                         <label class="op-auth-option op-conforme-option op-conforme-no is-no">
@@ -4841,7 +4947,7 @@
                                                                    name="recepcion_conforme_{{ paso.orden }}"
                                                                    value="NO"
                                                                    {% if paso.autorizar_salida.revision_conformidad.recepcion_conforme == 'NO' %}checked{% endif %}
-                                                                   {% if paso.autorizar_salida.revision_conformidad.recepcion_conforme or not paso.activo or not paso.puede_editar or paso.datos_finales_despacho_sbh and not paso.datos_finales_despacho_sbh.ultimas_cargas_completas or paso.requiere_update_sap_despacho and not paso.sap_update_despacho.updated or paso.requiere_update_sap_recepcion and not paso.sap_update_recepcion.updated and not paso.es_sbh_recepcion %}disabled{% endif %}>
+                                                                   {% if paso.autorizar_salida.revision_conformidad.recepcion_conforme or not paso.activo or not paso.puede_editar or paso.datos_finales_despacho_sbh and not paso.datos_finales_despacho_sbh.ultimas_cargas_completas or paso.requiere_update_sap_despacho and not paso.sap_update_despacho.updated or paso.requiere_update_sap_recepcion and not paso.sap_update_recepcion.updated and not paso.es_sbh_recepcion or paso.permite_generar_lote_sap_recepcion and not paso.sap_update_recepcion.updated %}disabled{% endif %}>
                                                             <span><i class="fas fa-times"></i> No</span>
                                                         </label>
                                                     </div>
@@ -4852,7 +4958,7 @@
                                             {% if not paso.es_sbh_recepcion or citacion.SC_NID.SE_CCODIGO != 'RECEPCION_BODEGA_EXTERNA' %}
                                             <div class="op-authorize-final-actions" {% if not paso.autorizar_salida.revision_conformidad.recepcion_conforme %}hidden{% endif %}>
                                                 <button type="button" class="op-glass-button is-success btn-autorizar-salida-operacion"
-                                                        {% if paso.es_new_jersey_p3 and not transferencia_sap_new_jersey_p3.transferencia_sap_creada or paso.drafts_sap_despacho_operacionales.aplicable and not paso.drafts_sap_despacho_operacionales.documentacion_completa or paso.drafts_sap_despacho_operacionales.aplicable and not paso.drafts_sap_despacho_operacionales.todos_actualizados or paso.drafts_sap_despacho_operacionales.aplicable and not paso.drafts_sap_despacho_operacionales.completos %}disabled{% endif %}>
+                                                        {% if paso.es_new_jersey_p3 and not transferencia_sap_new_jersey_p3.transferencia_sap_creada or paso.drafts_sap_despacho_operacionales.aplicable and not paso.drafts_sap_despacho_operacionales.documentacion_completa or paso.drafts_sap_despacho_operacionales.aplicable and not paso.drafts_sap_despacho_operacionales.todos_actualizados or paso.drafts_sap_despacho_operacionales.aplicable and not paso.drafts_sap_despacho_operacionales.completos or paso.permite_generar_lote_sap_recepcion and not paso.sap_update_recepcion.updated %}disabled{% endif %}>
                                                     <i class="op-glass-icon fas fa-check-circle"></i> Autorizar salida
                                                 </button>
                                             </div>
@@ -5499,6 +5605,7 @@
     }
 
     const BORRADOR_SAP_PREVIEW_URL = "{% url 'ajax_operacion_planta_borrador_sap_preview' citacion.id %}";
+    const REINTENTO_DRAFT_SAP_RECEPCION_URL = "{% url 'ajax_operacion_planta_reintentar_draft_sap_recepcion' citacion.id %}";
     const BORRADOR_SAP_ENVIAR_URL = "{% url 'ajax_operacion_planta_borrador_sap_enviar' citacion.id %}";
     const SAP_DESPACHO_PREVIEW_URL = "{% url 'ajax_operacion_planta_preview_sap_despacho' citacion.id %}";
     const SAP_DESPACHO_UPDATE_URL = "{% url 'ajax_operacion_planta_actualizar_sap_despacho' citacion.id %}";
@@ -5623,6 +5730,64 @@
             complete: function () {
                 button.prop('disabled', false).html(originalHtml);
             }
+        });
+    });
+
+    $(document).on('click', '.btn-reintentar-draft-sap-recepcion', function () {
+        const button = $(this);
+        if (button.data('processing')) {
+            return;
+        }
+        const originalHtml = button.html();
+        button.data('processing', true).prop('disabled', true);
+
+        Swal.fire({
+            icon: 'warning',
+            title: 'Reintentar creación Draft SAP',
+            html: '<p>Se reintentará la creación del borrador SAP para la citación <strong>#' +
+                escapeHtml(button.data('citacion')) +
+                '</strong>.</p><p class="mb-0">Esta acción no avanzará el proceso operacional.</p>',
+            showCancelButton: true,
+            confirmButtonText: 'Reintentar Draft SAP',
+            cancelButtonText: 'Cancelar',
+            confirmButtonColor: '#d39e00'
+        }).then(function (confirmation) {
+            if (!confirmation.isConfirmed) {
+                button.data('processing', false).prop('disabled', false).html(originalHtml);
+                return;
+            }
+
+            button.html('<i class="fas fa-spinner fa-spin mr-1"></i> Reintentando...');
+            $.ajax({
+                url: REINTENTO_DRAFT_SAP_RECEPCION_URL,
+                type: 'POST',
+                headers: { 'X-CSRFToken': getCookie('csrftoken') },
+                data: {
+                    _empresa_id: OPERACION_PLANTA_EMPRESA_ID,
+                    empresa_id: OPERACION_PLANTA_EMPRESA_ID
+                },
+                success: function (response) {
+                    Swal.fire({
+                        icon: 'success',
+                        title: response.reused ? 'Draft SAP existente' : 'Draft SAP creado correctamente',
+                        html: '<p>' + escapeHtml(response.message || '') + '</p>' +
+                            '<p class="mb-0">DocEntry: <strong>' + escapeHtml(response.docentry || '-') +
+                            '</strong><br>DocNum: <strong>' + escapeHtml(response.docnum || '-') + '</strong></p>',
+                        confirmButtonText: 'Aceptar'
+                    }).then(function () {
+                        location.reload();
+                    });
+                },
+                error: function (xhr) {
+                    const response = xhr.responseJSON || {};
+                    Swal.fire({
+                        icon: 'error',
+                        title: 'No fue posible reintentar el Draft SAP',
+                        text: response.message || xhr.responseText || 'Error al crear el borrador SAP.'
+                    });
+                    button.data('processing', false).prop('disabled', false).html(originalHtml);
+                }
+            });
         });
     });
 
@@ -6314,68 +6479,6 @@
         });
     });
 
-    const TERRAMAR_EXPORT_FOLDERS = new WeakMap();
-
-    $(document).on('click', '.btn-exportar-documentos-terramar', function () {
-        const boton = $(this);
-        const box = boton.closest('.operacion-documentos-terramar');
-        const resultadoBox = box.find('.exportar-documentos-terramar-resultado');
-        const textoOriginal = boton.html();
-        boton.prop('disabled', true).html('<i class="fas fa-spinner fa-spin"></i> Procesando...');
-        resultadoBox.removeClass('d-none alert-success alert-warning alert-danger').addClass('alert-info').text('Procesando documentos firmados...');
-        $.ajax({
-            url: "{% url 'ajax_operacion_planta_exportar_documentos_terramar' citacion.id %}",
-            type: 'POST',
-            headers: { 'X-CSRFToken': getCookie('csrftoken') },
-            success: function (response) {
-                TERRAMAR_EXPORT_FOLDERS.set(box.get(0), response.carpeta);
-                box.find('.btn-copiar-ruta-terramar').prop('disabled', false);
-                const parcial = Boolean(response.partial);
-                resultadoBox
-                    .removeClass('alert-info alert-danger')
-                    .addClass(parcial ? 'alert-warning' : 'alert-success')
-                    .text(
-                        (parcial ? 'Exportación parcial. ' : 'Exportación completada. ') +
-                        'Carpeta: ' + response.carpeta + '. ' +
-                        'Copiados: ' + response.cantidad_copiada + '; reutilizados: ' +
-                        response.cantidad_reutilizada + '; reemplazados: ' +
-                        response.cantidad_reemplazada + '; fallidos: ' + response.cantidad_fallida + '.'
-                    );
-            },
-            error: function (xhr) {
-                const response = xhr.responseJSON || {};
-                resultadoBox.removeClass('alert-info alert-success alert-warning').addClass('alert-danger').text(response.message || 'No fue posible exportar los documentos firmados.');
-            },
-            complete: function () {
-                boton.prop('disabled', false).html(textoOriginal);
-            }
-        });
-    });
-
-    $(document).on('click', '.btn-copiar-ruta-terramar', function () {
-        const box = $(this).closest('.operacion-documentos-terramar');
-        const carpeta = TERRAMAR_EXPORT_FOLDERS.get(box.get(0));
-        if (!carpeta) {
-            Swal.fire({ icon: 'warning', title: 'Ruta no disponible', text: 'Primero descargue los documentos firmados.' });
-            return;
-        }
-        const confirmar = function () {
-            Swal.fire({ icon: 'success', title: 'Ruta copiada.', timer: 1400, showConfirmButton: false });
-        };
-        if (navigator.clipboard && navigator.clipboard.writeText) {
-            navigator.clipboard.writeText(carpeta).then(confirmar).catch(function () {
-                const temporal = $('<textarea>').val(carpeta).appendTo('body').select();
-                document.execCommand('copy');
-                temporal.remove();
-                confirmar();
-            });
-        } else {
-            const temporal = $('<textarea>').val(carpeta).appendTo('body').select();
-            document.execCommand('copy');
-            temporal.remove();
-            confirmar();
-        }
-    });
     $(document).on('click', '.btn-autorizar-salida-terramar', function () {
         const boton = $(this);
         const box = boton.closest('.operacion-autorizar-terramar');
@@ -6872,6 +6975,40 @@
         });
     });
 
+    $(document).on('click', '.btn-generar-lote-sap-recepcion', function () {
+        const button = $(this);
+        const textoOriginal = button.html();
+        $.ajax({
+            url: SAP_RECEPCION_UPDATE_URL,
+            type: 'POST',
+            data: {
+                _empresa_id: OPERACION_PLANTA_EMPRESA_ID,
+                empresa_id: OPERACION_PLANTA_EMPRESA_ID,
+                accion: 'generar_lote'
+            },
+            headers: {
+                'X-CSRFToken': getCookie('csrftoken')
+            },
+            beforeSend: function () {
+                button.prop('disabled', true).html('<i class="fas fa-spinner fa-spin mr-1"></i> Generando...');
+            },
+            success: function (response) {
+                if (!response.success) {
+                    button.prop('disabled', false).html(textoOriginal);
+                    Swal.fire({ icon: 'error', title: 'No fue posible generar el lote', text: response.message || 'No fue posible generar el lote SAP.' });
+                    return;
+                }
+                Swal.fire({ icon: 'success', title: 'Lote SAP generado', text: response.lote || response.message }).then(function () {
+                    location.reload();
+                });
+            },
+            error: function (xhr) {
+                const response = xhr.responseJSON || {};
+                button.prop('disabled', false).html(textoOriginal);
+                Swal.fire({ icon: 'error', title: 'No fue posible generar el lote', text: response.message || ('Error HTTP ' + xhr.status + ' al generar el lote SAP.') });
+            }
+        });
+    });
     function mensajeBloqueoSapDespacho(box) {
         if (box.attr('data-sap-error') === 'true') {
             return {

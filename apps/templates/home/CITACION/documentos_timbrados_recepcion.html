@@ -18,8 +18,11 @@
 {% if paso.activo and paso.puede_editar %}
 <div class="d-flex flex-wrap mb-3" style="gap:8px;">
     <button type="button" class="btn btn-dark btn-timbrar-documentos-terramar"><i class="fas fa-stamp"></i> Timbrar documentos</button>
-    <button type="button" class="btn btn-success btn-exportar-documentos-terramar" {% if not paso.documentacion_terramar.timbrado_completo %}disabled{% endif %}><i class="fas fa-download"></i> Descargar documentos firmados</button>
-    <button type="button" class="btn btn-outline-secondary btn-copiar-ruta-terramar" disabled><i class="fas fa-copy"></i> Copiar ruta</button>
+    {% if paso.documentacion_terramar.timbrado_completo %}
+    <a class="btn btn-success btn-exportar-documentos-terramar" href="{% url 'descargar_documentos_timbrados_terramar' citacion.id %}?_empresa_id={{ citacion.EP_NID_id }}&amp;empresa_id={{ citacion.EP_NID_id }}"><i class="fas fa-download"></i> Descargar documentos firmados</a>
+    {% else %}
+    <button type="button" class="btn btn-success" disabled><i class="fas fa-download"></i> Descargar documentos firmados</button>
+    {% endif %}
     <button type="button"
             class="btn btn-success btn-operacion-whatsapp btn-operacion-whatsapp-terramar"
             data-phone="{{ telefono_conductor|default:'' }}"
@@ -29,8 +32,8 @@
     </button>
 </div>
 <div class="alert alert-light border mb-3">
-    Descargue los documentos firmados y luego adj&uacute;ntelos manualmente desde WhatsApp.<br>
+    Descargue el paquete de documentos y adjunte los archivos manualmente en WhatsApp.<br>
     WhatsApp solo abrir&aacute; la conversaci&oacute;n; no adjunta ni env&iacute;a archivos autom&aacute;ticamente.
 </div>
-<div class="alert d-none exportar-documentos-terramar-resultado" role="status"></div>
+
 {% endif %}

@@ -13,7 +13,7 @@ from apps.home.models import (
     CALENDARIO, CAMION_PATIO, CITACION, CITACION_DETALLE_OPERACIONAL,
     DATO_OPERACION, EMPRESA, ETAPA, ETAPA_LOG, OPERACION_NEW_JERSEY,
     OPERACION_NEW_JERSEY_PROCESO, OPERACION_PLANTA_LOG,
-    PLANIFICACION, SECUENCIA,
+    PLANIFICACION, SECUENCIA, SYSLOGGER,
 )
 
 
@@ -100,8 +100,8 @@ class OperacionPlantaNewJerseyP1Tests(TestCase):
             OPL_CESTADO=OPERACION_PLANTA_LOG.ESTADO_COMPLETADO,
         )
 
-    def guardar(self, paso, accion=""):
-        data = {"paso": paso, "citacion_id": str(self.citacion.pk)}
+    def guardar(self, paso, accion="", **datos):
+        data = {"paso": paso, "citacion_id": str(self.citacion.pk), **datos}
         if accion:
             data["accion"] = accion
         request = RequestFactory().post(
@@ -306,6 +306,85 @@ class OperacionPlantaNewJerseyP1Tests(TestCase):
         ).count(), 1)
         self.assertEqual(views.obtener_paso_activo_operacion(self.citacion)[0],
                          "Pesaje Salida")
+
+    def test_descarga_permite_guardar_contenedor_faltante_sin_saltar_validacion(self):
+        self.log("Pesaje Entrada")
+        detalle = self.citacion.detalle_operacional
+        detalle.CDO_CBL_CONTENEDOR = ""
+        detalle.CDO_CESTANQUE_DESTINO = "TK18"
+        detalle.save(update_fields=["CDO_CBL_CONTENEDOR", "CDO_CESTANQUE_DESTINO"])
+        paso = views.PASO_NJ_DESCARGA_CONTENEDOR
+        self.assertEqual(self.guardar(paso, "guardar_contenedor", contenedor="   ").status_code, 409)
+        self.assertEqual(self.guardar(paso, "iniciar").status_code, 409)
+        self.assertEqual(
+            self.guardar(paso, "guardar_contenedor", contenedor="CONT-REAL").status_code,
+            200,
+        )
+        detalle.refresh_from_db()
+        self.assertEqual(detalle.CDO_CBL_CONTENEDOR, "CONT-REAL")
+        self.assertTrue(SYSLOGGER.objects.filter(
+            LOG_CADD1=str(self.citacion.pk), LOG_COPERACION="NJ_CONTENEDOR_GUARDADO",
+        ).exists())
+        self.camion.refresh_from_db()
+        self.assertFalse(self.camion.CPA_CLOTE_CONTENEDOR)
+        self.assertFalse(DATO_OPERACION.objects.filter(
+            CI_NID=self.citacion, CAMP_NID__CA_CCODIGO="AR_LOTE_CONTENEDOR",
+        ).exists())
+        self.assertEqual(views._payload_descarga_contenedor_new_jersey(
+            self.citacion
+        )["contenedor"], "CONT-REAL")
+        self.assertEqual(self.guardar(paso, "iniciar").status_code, 200)
+        self.assertEqual(views._payload_descarga_contenedor_new_jersey(
+            self.citacion
+        )["destino_fisico"], "TK18")
+        self.assertEqual(
+            self.guardar(paso, "guardar_contenedor", contenedor="OTRO").status_code,
+            409,
+        )
+
+    def test_guardar_contenedor_no_se_habilita_sin_calidad(self):
+        self.log("Pesaje Entrada")
+        self.secuencia.SE_CCODIGO = views.SECUENCIA_RECEPCION_NEW_JERSEY_P1_SIN_CALIDAD
+        self.secuencia.save(update_fields=["SE_CCODIGO"])
+        self.citacion.refresh_from_db()
+        self.assertEqual(
+            self.guardar(views.PASO_NJ_DESCARGA_CONTENEDOR, "guardar_contenedor",
+                         contenedor="CONT-REAL").status_code,
+            400,
+        )
+
+    def test_descarga_recupera_contenedor_validado_solo_con_calidad(self):
+        self.log("Pesaje Entrada")
+        detalle = self.citacion.detalle_operacional
+        detalle.CDO_CBL_CONTENEDOR = ""
+        detalle.CDO_CESTANQUE_DESTINO = "TK18"
+        detalle.save(update_fields=["CDO_CBL_CONTENEDOR", "CDO_CESTANQUE_DESTINO"])
+        views.guardar_dato_operacion_codigo(
+            self.citacion, "AR_LOTE_CONTENEDOR", "CONT-REAL", self.user,
+            etiqueta="Lote / Contenedor validado Asistente Recepcion",
+            etapa=self.citacion.ETAPA_ACTUAL,
+        )
+        payload = views._payload_descarga_contenedor_new_jersey(self.citacion)
+        self.assertEqual(payload["contenedor"], "CONT-REAL")
+        self.assertEqual(payload["destino_fisico"], "TK18")
+        self.assertEqual(
+            self.guardar(views.PASO_NJ_DESCARGA_CONTENEDOR, "iniciar").status_code,
+            200,
+        )
+        detalle.refresh_from_db()
+        self.assertEqual(detalle.CDO_CBL_CONTENEDOR, "CONT-REAL")
+        self.assertEqual(views._payload_descarga_contenedor_new_jersey(
+            self.citacion
+        )["contenedor"], "CONT-REAL")
+
+        self.secuencia.SE_CCODIGO = views.SECUENCIA_RECEPCION_NEW_JERSEY_P1_SIN_CALIDAD
+        self.secuencia.save(update_fields=["SE_CCODIGO"])
+        self.citacion.refresh_from_db()
+        detalle.CDO_CBL_CONTENEDOR = ""
+        detalle.save(update_fields=["CDO_CBL_CONTENEDOR"])
+        self.assertEqual(
+            views._contenedor_descarga_new_jersey_con_calidad(self.citacion), ""
+        )
 
     def test_descarga_no_acepta_contenedor_ausente_ni_perfil_ajeno(self):
         self.log("Pesaje Entrada")

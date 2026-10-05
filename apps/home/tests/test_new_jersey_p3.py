@@ -108,8 +108,8 @@ class NewJerseyProceso3Tests(TestCase):
             US_NID=cls.usuario,
             EP_NID=cls.empresa,
             ET_CTIPO='OPERACION',
-            ET_CCODIGO='NJ_P3_INGRESO',
-            ET_CNOMBRE='Ingreso camión P3',
+            ET_CCODIGO='NJ_P3_PROGRAMADO',
+            ET_CNOMBRE='Retiro vacío programado',
             ET_NCANTIDADMAXIMA=1,
             ET_BHABILITADO=True,
         )
@@ -124,10 +124,10 @@ class NewJerseyProceso3Tests(TestCase):
         )
         cls.etapas_revision_p3 = [cls.etapa_p3]
         for paso, (codigo, nombre) in enumerate((
-            ('NJ_P3_REVISION_ASISTENTE', 'Revisión Asistente Recepción'),
-            ('NJ_P3_AUTORIZACION_GUARDIA', 'Autorización Guardia'),
-            ('NJ_P3_INGRESO_PORTERIA', 'Ingreso físico Guardia Portería'),
-            ('NJ_P3_OPERACION', 'Operación Planta P3'),
+            ('NJ_P3_PESAJE_TARA', 'Pesaje tara camión'),
+            ('NJ_P3_RETIRO_CONTENEDOR', 'Retiro contenedor vacío'),
+            ('NJ_P3_PESAJE_CONTENEDOR', 'Pesaje camión y contenedor vacío'),
+            ('NJ_P3_CONFIRMAR_SALIDA', 'Confirmar Salida'),
         ), start=2):
             etapa = ETAPA.objects.create(
                 US_NID=cls.usuario,
@@ -148,7 +148,7 @@ class NewJerseyProceso3Tests(TestCase):
                 SE_BHABILITADO=True,
                 SE_BOBLIGATORIO=True,
             )
-        fecha_base = timezone.localdate() - timedelta(days=1)
+        fecha_base = timezone.localdate()
         cls.calendario_origen = CALENDARIO.objects.create(
             US_NID=cls.usuario,
             EP_NID=cls.empresa,
@@ -166,8 +166,8 @@ class NewJerseyProceso3Tests(TestCase):
             CAL_NID=cls.calendario_origen,
             PL_CTIPOCUPO='RECEPCION',
             PL_FFECHAREGISTRO=timezone.now(),
-            PL_FFECHAINICIO=timezone.now() - timedelta(days=1),
-            PL_FFECHAFIN=timezone.now() - timedelta(hours=1),
+            PL_FFECHAINICIO=timezone.now() - timedelta(hours=1),
+            PL_FFECHAFIN=timezone.now() + timedelta(hours=1),
             PL_NCANTIDADCUPOS=5,
         )
 
@@ -463,9 +463,9 @@ class NewJerseyProceso3Tests(TestCase):
         self.assertEqual(citacion.SC_NID.SE_CCODIGO, p3.SECUENCIA_P3)
         self.assertEqual(citacion.CI_NID_REF, self.p2.id)
         self.assertEqual(citacion.CI_CNUMERODOCUMENTO, '65688')
-        self.assertTrue(citacion.CI_BSOBRECUPO)
-        self.assertEqual(citacion.PL_NID.CAL_NID.CA_NDIA, timezone.localdate().day)
-        self.assertEqual(citacion.PL_NID.CAL_NID.CA_NMES, timezone.localdate().month)
+        self.assertFalse(citacion.CI_BSOBRECUPO)
+        self.assertEqual(citacion.PL_NID_id, self.p1.PL_NID_id)
+        self.assertEqual(citacion.PL_NID_id, self.planificacion_origen.id)
         self.assertEqual(snapshot['patente_esperada'], 'SDS45')
         self.assertEqual(snapshot['transportista_id'], self.transportista.id)
         self.assertEqual(snapshot['empresa_transporte'], 'TRANSPORTE P3')
@@ -502,15 +502,12 @@ class NewJerseyProceso3Tests(TestCase):
             views, 'obtener_clientes_aceite', return_value=[]
         ):
             listado = self.client.get(reverse('pla_listall'), {'_empresa_id': 2})
-            carpeta = self.client.get(
-                reverse('pla_listone', args=[citacion.PL_NID_id]),
-                {'_empresa_id': 2},
-            )
         self.assertEqual(listado.status_code, 200)
-        self.assertEqual(carpeta.status_code, 200)
+        self.assertEqual(citacion.PL_NID_id, self.planificacion_origen.id)
+        self.assertTrue(PLANIFICACION.objects.filter(pk=citacion.PL_NID_id).exists())
 
-    def test_usa_carpeta_activa_del_dia_e_informa_resultado(self):
-        planificacion = self._crear_plan_hoy(cupos=4)
+    def test_endpoint_usa_carpeta_p1_e_informa_resultado(self):
+        otra_planificacion = self._crear_plan_hoy(cupos=4)
         self.client.force_login(self.usuario)
         with patch.object(views, 'Verificar_empresa', return_value=2):
             response = self.client.post(
@@ -526,20 +523,43 @@ class NewJerseyProceso3Tests(TestCase):
             ONJ_NID=self.operacion,
             ONJP_CTIPO=OPERACION_NEW_JERSEY_PROCESO.TipoProceso.PROCESO_3,
         )
-        self.assertEqual(relacion.CI_NID.PL_NID_id, planificacion.id)
+        self.assertEqual(relacion.CI_NID.PL_NID_id, self.planificacion_origen.id)
+        self.assertFalse(CITACION.objects.filter(PL_NID=otra_planificacion).exists())
         mensajes = [str(mensaje) for mensaje in get_messages(response.wsgi_request)]
         self.assertTrue(any('P3 iniciado correctamente' in mensaje for mensaje in mensajes))
         self.assertTrue(any(
-            f'Carpeta de Recepción: #{planificacion.id}' in mensaje
+            f'#{self.planificacion_origen.id}' in mensaje and 'Carpeta' in mensaje
             for mensaje in mensajes
-        ))
+        ), mensajes)
 
-    def test_multiples_carpetas_activas_bloquean_sin_elegir_por_id(self):
-        self._crear_plan_hoy('Recepción A', cupos=1)
-        self._crear_plan_hoy('Recepción B', cupos=1)
+    def test_multiples_carpetas_activas_no_interfieren_con_p1(self):
+        otra_a = self._crear_plan_hoy('Recepci?n A', cupos=1)
+        otra_b = self._crear_plan_hoy('Recepci?n B', cupos=1)
+        planes_antes = PLANIFICACION.objects.count()
+        citaciones_ajenas_antes = {
+            plan.id: CITACION.objects.filter(PL_NID=plan).count()
+            for plan in (otra_a, otra_b)
+        }
+        resultado = self._iniciar()
+        self.assertTrue(resultado['created'])
+        self.assertEqual(resultado['citacion'].PL_NID_id, self.p1.PL_NID_id)
+        self.assertEqual(resultado['planificacion'].id, self.planificacion_origen.id)
+        self.assertEqual(PLANIFICACION.objects.count(), planes_antes)
+        for plan in (otra_a, otra_b):
+            self.assertEqual(
+                CITACION.objects.filter(PL_NID=plan).count(),
+                citaciones_ajenas_antes[plan.id],
+            )
+        self.assertFalse(CAMION_PATIO.objects.filter(CI_NID=resultado['citacion']).exists())
+
+    def test_sin_relacion_p1_bloquea_por_integridad_de_esa_operacion(self):
+        OPERACION_NEW_JERSEY_PROCESO.objects.filter(
+            ONJ_NID=self.operacion,
+            ONJP_CTIPO=OPERACION_NEW_JERSEY_PROCESO.TipoProceso.PROCESO_1,
+        ).delete()
         with self.assertRaisesMessage(
             p3.CarpetaRecepcionP3Ambigua,
-            'varias carpetas de Recepción activas',
+            'no existe una citaci?n P1 vinculada',
         ):
             self._iniciar()
         self.assertFalse(OPERACION_NEW_JERSEY_PROCESO.objects.filter(
@@ -629,6 +649,109 @@ class NewJerseyProceso3Tests(TestCase):
             p3.ESTADO_CITACION_P3_CAMION_CONFIRMADO,
         )
 
+    def test_confirmar_p3_ignora_camion_historico_de_otro_proceso(self):
+        historica = CITACION.objects.create(
+            US_NID=self.usuario,
+            EP_NID=self.empresa,
+            PL_NID=self.planificacion_origen,
+            SC_NID=self.secuencia_p1,
+            CI_FFECHAREGISTRO=timezone.now(),
+            CI_FFECHACITACION=timezone.now() - timedelta(days=30),
+            CI_NCUPO=99,
+            CI_CTIPO='RECEPCION',
+            CI_CESTADO='TERMINADO',
+            CI_CTIPODOCUMENTO='GD',
+            CI_CNUMERODOCUMENTO='HIST-001',
+        )
+        camion_historico = CAMION_PATIO.objects.create(
+            EP_NID=self.empresa,
+            CI_NID=historica,
+            CPA_CPATENTE='SDS45',
+            CPA_CNOMBRE_CONDUCTOR='Conductor histórico',
+            CPA_CTIPO_DOCUMENTO=CAMION_PATIO.TIPO_DOCUMENTO_GUIA_DESPACHO,
+            CPA_CESTADO=CAMION_PATIO.ESTADO_ASOCIADO_CITACION,
+            US_GUARDIA_ID=self.usuario,
+        )
+        citacion_p3 = self._iniciar()['citacion']
+
+        camion_p3, creado = p3.confirmar_camion_p3(citacion_p3.id, 'SDS45', self.usuario)
+
+        self.assertTrue(creado)
+        self.assertEqual(camion_p3.CI_NID_id, citacion_p3.id)
+        camion_historico.refresh_from_db()
+        self.assertEqual(camion_historico.CPA_CESTADO, CAMION_PATIO.ESTADO_ASOCIADO_CITACION)
+
+    def test_confirmar_p3_ignora_camion_cerrado_de_la_misma_operacion(self):
+        camion_p1 = CAMION_PATIO.objects.create(
+            EP_NID=self.empresa,
+            CI_NID=self.p1,
+            CPA_CPATENTE='SDS45',
+            CPA_CNOMBRE_CONDUCTOR='Conductor P1',
+            CPA_CTIPO_DOCUMENTO=CAMION_PATIO.TIPO_DOCUMENTO_GUIA_DESPACHO,
+            CPA_CESTADO=CAMION_PATIO.ESTADO_ASOCIADO_CITACION,
+            US_GUARDIA_ID=self.usuario,
+        )
+        citacion_p3 = self._iniciar()['citacion']
+
+        camion_p3, creado = p3.confirmar_camion_p3(citacion_p3.id, 'SDS45', self.usuario)
+
+        self.assertTrue(creado)
+        self.assertNotEqual(camion_p3.id, camion_p1.id)
+        self.assertEqual(camion_p3.CI_NID_id, citacion_p3.id)
+        self.assertEqual(
+            OPERACION_NEW_JERSEY_PROCESO.objects.get(CI_NID=citacion_p3).ONJ_NID_id,
+            self.operacion.id,
+        )
+
+    def test_confirmar_p3_mantiene_bloqueo_para_otro_proceso_realmente_activo(self):
+        activa = CITACION.objects.create(
+            US_NID=self.usuario,
+            EP_NID=self.empresa,
+            PL_NID=self.planificacion_origen,
+            SC_NID=self.secuencia_p1,
+            CI_FFECHAREGISTRO=timezone.now(),
+            CI_FFECHACITACION=timezone.now(),
+            CI_NCUPO=98,
+            CI_CTIPO='RECEPCION',
+            CI_CESTADO='EN PROCESO',
+            CI_CTIPODOCUMENTO='GD',
+            CI_CNUMERODOCUMENTO='ACTIVA-001',
+        )
+        CAMION_PATIO.objects.create(
+            EP_NID=self.empresa,
+            CI_NID=activa,
+            CPA_CPATENTE='SDS45',
+            CPA_CNOMBRE_CONDUCTOR='Conductor activo',
+            CPA_CTIPO_DOCUMENTO=CAMION_PATIO.TIPO_DOCUMENTO_GUIA_DESPACHO,
+            CPA_CESTADO=CAMION_PATIO.ESTADO_ASOCIADO_CITACION,
+            US_GUARDIA_ID=self.usuario,
+        )
+        citacion_p3 = self._iniciar()['citacion']
+
+        with self.assertRaisesMessage(ValueError, 'otro proceso activo en patio'):
+            p3.confirmar_camion_p3(citacion_p3.id, 'SDS45', self.usuario)
+
+        self.assertFalse(CAMION_PATIO.objects.filter(CI_NID=citacion_p3).exists())
+
+    def test_estado_camion_encuentra_p3_despues_de_confirmar_llegada(self):
+        citacion, camion = self._confirmar_p3()
+        self.client.force_login(self.usuario)
+        session = self.client.session
+        session['empresa_id'] = 2
+        session.save()
+
+        with patch.object(views, 'Verificar_empresa', return_value=2):
+            response = self.client.get(
+                reverse('estado_camion_ajax'),
+                {'patente': 'SDS-45', '_empresa_id': 2},
+            )
+
+        self.assertEqual(response.status_code, 200)
+        payload = response.json()
+        self.assertTrue(payload['success'])
+        self.assertEqual(payload['tipo_resultado'], 'PROCESO_ACTIVO')
+        self.assertEqual(payload['data']['camion_patio_id'], camion.id)
+        self.assertEqual(payload['data']['citacion_id'], citacion.id)
     def test_recepcion_servicio_busca_p3_por_patente_y_guia(self):
         resultado = self._iniciar('sds 45')
         citacion = resultado['citacion']
@@ -749,242 +872,107 @@ class NewJerseyProceso3Tests(TestCase):
         self.assertIn('@media (max-width: 767.98px)', servicio)
         self.assertIn("datos.flujo_codigo == 'NEW_JERSEY_P3'", servicio)
 
-    def test_confirmar_p3_deja_revision_asistente_pendiente_y_modal_editable(self):
+    def test_confirmar_p3_activa_pesaje_tara_sin_revision_asistente(self):
         citacion, camion = self._confirmar_p3()
 
         logs = list(ETAPA_LOG.objects.filter(CI_NID=citacion).order_by('EL_FFECHAINICIO', 'id'))
         self.assertEqual(len(logs), 2)
+        self.assertEqual(logs[0].ET_NID.ET_CCODIGO, p3.ETAPA_P3_PROGRAMADO)
         self.assertEqual(logs[0].EL_CACCION, 'CAMION_P3_CONFIRMADO')
         self.assertIsNotNone(logs[0].EL_FFECHAFIN)
-        self.assertEqual(logs[1].EL_CACCION, 'ENVIA_ASISTENTE')
+        self.assertEqual(logs[1].ET_NID.ET_CCODIGO, p3.ETAPA_P3_PESAJE_TARA)
+        self.assertEqual(logs[1].EL_CACCION, 'ACTIVA_PESAJE_TARA_P3')
         self.assertIsNone(logs[1].EL_FFECHAFIN)
-        self.assertEqual(logs[1].ET_NID_id, self.etapas_revision_p3[1].id)
         self.assertEqual(camion.CPA_CESTADO, CAMION_PATIO.ESTADO_ASOCIADO_CITACION)
-
-        self.client.force_login(self.usuario)
-        with patch.object(views, 'Verificar_empresa', return_value=2):
-            response = self.client.get(
-                reverse('pla_citacion_revision_asistente', args=[citacion.id])
-            )
-        self.assertEqual(response.status_code, 200)
-        payload = response.json()
-        self.assertTrue(payload['es_new_jersey_p3'])
-        self.assertFalse(payload['aprobado_asistente'])
-        self.assertTrue(payload['puede_editar_revision_asistente'])
-        self.assertEqual(payload['citacion']['Estado'], p3.ESTADO_CITACION_P3_CAMION_CONFIRMADO)
-        self.assertEqual(payload['citacion']['Numero documento'], '65688')
-        self.assertEqual(payload['datos_edicion_asistente']['patente'], 'SDS45')
-        self.assertEqual(payload['datos_edicion_asistente']['lote_contenedor'], 'MDFGD4533')
-
-    def test_aprobar_p3_avanza_a_guardia_notifica_y_reconfirmar_no_reabre_revision(self):
-        citacion, _ = self._confirmar_p3()
-        guardia = get_user_model().objects.create_user(
-            username='guardia_p3', email='guardia-p3@example.com', password='test'
-        )
-        USERS_EMPRESA.objects.create(US_NID=guardia, EP_NID=self.empresa)
-        response = self._aprobar_p3(citacion, guardias=[guardia])
-
-        self.assertEqual(response.status_code, 200)
-        payload = response.json()
-        self.assertTrue(payload['success'])
-        self.assertEqual(payload['notificados_guardia'], 1)
-        self.assertFalse(SYSLOGGER.objects.filter(
-            LOG_COPERACION='ENVIA_CD_NEXT', LOG_CADD1=str(citacion.id)
-        ).exists())
-        self.assertTrue(SYSLOGGER.objects.filter(
-            LOG_COPERACION='APRUEBA_AR', LOG_CADD1=str(citacion.id)
-        ).exists())
-        self.assertEqual(
-            views.operacion_envio_guardia_para_citacion(citacion),
-            'APRUEBA_AR',
-        )
+        self.assertTrue(views.citacion_habilitada_operacion(citacion))
         self.assertEqual(
             views.obtener_etapa_actual_operacional_citacion(citacion),
-            views.NOMBRE_ETAPA_PENDIENTE_GUARDIA,
+            'Pesaje tara camión',
+        )
+        self.assertNotIn(
+            'preparar_revision_asistente_p3',
+            p3.confirmar_camion_p3.__code__.co_names,
         )
         self.assertFalse(SYSLOGGER.objects.filter(
-            LOG_COPERACION='ENVIA_GUARDIA_PORTERIA', LOG_CADD1=str(citacion.id)
+            LOG_COPERACION__in=['APRUEBA_AR', 'ENVIA_CD_NEXT', 'ENVIA_GUARDIA_PORTERIA'],
+            LOG_CADD1=str(citacion.id),
         ).exists())
-        self.assertFalse(SYSLOGGER.objects.filter(
-            LOG_COPERACION='AUTORIZA_INGRESO_PLANTA', LOG_CADD1=str(citacion.id)
-        ).exists())
-        self.assertTrue(NOTIFICACION.objects.filter(
-            USER_RECEIVER_ID=guardia,
+
+    def test_p3_no_se_incluye_en_notificaciones_genericas_asistente(self):
+        citacion, _ = self._confirmar_p3()
+        citacion.CI_CESTADO = 'EN PROCESO'
+        citacion.save(update_fields=['CI_CESTADO'])
+        ETAPA_LOG.objects.filter(
+            CI_NID=citacion,
+            ET_NID__ET_CCODIGO=p3.ETAPA_P3_PESAJE_TARA,
+        ).update(EL_CACCION='ENVIA_ASISTENTE')
+
+        with patch.object(views, 'usuario_es_asistente_recepcion', return_value=True):
+            views.asegurar_notificaciones_asistente_recepcion_pendientes(
+                self.usuario,
+                self.empresa.id,
+            )
+
+        self.assertFalse(NOTIFICACION.objects.filter(
             EP_NID=self.empresa,
-            NOT_CCONTENIDO__icontains='debe ingresar a Planta',
-            NOT_CURL__endswith=f'citacion={citacion.id}',
-        ).exists())
-        revision = ETAPA_LOG.objects.get(
-            CI_NID=citacion, ET_NID=self.etapas_revision_p3[1]
-        )
-        self.assertIsNotNone(revision.EL_FFECHAFIN)
-        self.assertEqual(revision.EL_CACCION, 'APRUEBA_ASISTENTE')
-        etapa_guardia = ETAPA_LOG.objects.get(
-            CI_NID=citacion, ET_NID=self.etapas_revision_p3[2], EL_FFECHAFIN=None
-        )
-        self.assertEqual(etapa_guardia.EL_CACCION, 'APRUEBA_ASISTENTE')
-
-        p3.confirmar_camion_p3(citacion.id, 'SDS45', self.usuario)
-        self.assertTrue(ETAPA_LOG.objects.filter(pk=etapa_guardia.pk, EL_FFECHAFIN=None).exists())
-        self.assertFalse(ETAPA_LOG.objects.filter(
-            CI_NID=citacion, ET_NID=self.etapas_revision_p3[1], EL_FFECHAFIN=None
+            NOT_CCONTENIDO__icontains=f'Citacion: {citacion.id}',
+        ).filter(
+            NOT_CCONTENIDO__icontains='pendiente de aprobacion/revision',
         ).exists())
 
-    def test_reparar_transicion_legacy_conserva_aprobacion_y_deja_guardia(self):
-        citacion, camion = self._confirmar_p3()
-        self.assertEqual(self._aprobar_p3(citacion).status_code, 200)
-        planificacion_id = citacion.PL_NID_id
-        camion_id = camion.id
-
-        SYSLOGGER.objects.filter(
-            LOG_COPERACION='APRUEBA_AR',
-            LOG_CADD1=str(citacion.id),
-        ).update(LOG_COPERACION='ENVIA_CD_NEXT')
-        ETAPA_LOG.objects.filter(
-            CI_NID=citacion,
-            EL_CACCION='APRUEBA_ASISTENTE',
-        ).update(EL_CACCION='ENVIA_CD_NEXT')
-
-        resultado = p3.reparar_transicion_guardia_p3(citacion.id)
-
-        citacion.refresh_from_db()
-        camion.refresh_from_db()
-        self.assertEqual(resultado['responsable_siguiente'], 'GUARDIA')
-        self.assertTrue(resultado['aprobacion_conservada'])
-        self.assertEqual(citacion.PL_NID_id, planificacion_id)
-        self.assertEqual(camion.id, camion_id)
-        self.assertFalse(SYSLOGGER.objects.filter(
-            LOG_COPERACION='ENVIA_CD_NEXT',
-            LOG_CADD1=str(citacion.id),
-        ).exists())
-        self.assertTrue(SYSLOGGER.objects.filter(
-            LOG_COPERACION='APRUEBA_AR',
-            LOG_CADD1=str(citacion.id),
-        ).exists())
-        self.assertFalse(ETAPA_LOG.objects.filter(
-            CI_NID=citacion,
-            EL_CACCION='ENVIA_CD_NEXT',
-        ).exists())
-        self.assertTrue(ETAPA_LOG.objects.filter(
-            CI_NID=citacion,
-            ET_NID=self.etapas_revision_p3[2],
-            EL_CACCION='APRUEBA_ASISTENTE',
-            EL_FFECHAFIN=None,
-        ).exists())
-
-        with patch.object(views, 'Verificar_empresa', return_value=2):
-            modal = self.client.get(
-                reverse('pla_citacion_revision_asistente', args=[citacion.id])
-            )
-        self.assertTrue(modal.json()['aprobado_asistente'])
-        self.assertFalse(modal.json()['puede_editar_revision_asistente'])
-
-    def test_reparar_transicion_preserva_avance_valido_de_guardia(self):
-        citacion, _ = self._confirmar_p3()
-        self.assertEqual(self._aprobar_p3(citacion).status_code, 200)
-
-        with patch.object(views, 'Verificar_empresa', return_value=2), patch.object(
-            views, 'usuario_es_guardia', return_value=True
-        ), patch.object(
-            views, 'usuario_es_guardia_porteria', return_value=False
-        ), patch.object(
-            views, 'obtener_usuarios_guardia_porteria', return_value=[]
+    def test_p2_interno_sin_item_no_rompe_planificacion_ni_detalle(self):
+        citacion_p3 = self._iniciar()['citacion']
+        self.assertFalse(CITACION_ITEM.objects.filter(CI_NID=self.p2).exists())
+        self.assertIsNone(views.obtener_citacion_item_legacy(self.p2))
+        for secuencia, codigo, nombre in (
+            (self.secuencia_p1, 'NJ_P1_TEST', 'New Jersey P1'),
+            (self.secuencia_p2, 'NJ_P2_INTERNO_TEST', 'New Jersey P2 interno'),
         ):
-            respuesta_guardia = self.client.post(
-                reverse('pla_citacion_enviar_guardia_porteria', args=[citacion.id])
+            etapa = ETAPA.objects.create(
+                US_NID=self.usuario,
+                EP_NID=self.empresa,
+                ET_CTIPO='OPERACION',
+                ET_CCODIGO=codigo,
+                ET_CNOMBRE=nombre,
+                ET_NCANTIDADMAXIMA=1,
+                ET_BHABILITADO=True,
             )
-        self.assertEqual(respuesta_guardia.status_code, 200)
+            DETALLE_SECUENCIA.objects.create(
+                US_NID=self.usuario,
+                EP_NID=self.empresa,
+                SC_NID=secuencia,
+                ET_NID=etapa,
+                SE_NPASO=1,
+                SE_BHABILITADO=True,
+                SE_BOBLIGATORIO=True,
+            )
 
-        SYSLOGGER.objects.filter(
-            LOG_COPERACION='APRUEBA_AR',
-            LOG_CADD1=str(citacion.id),
-        ).update(LOG_COPERACION='ENVIA_CD_NEXT')
-        ETAPA_LOG.objects.filter(
-            CI_NID=citacion,
-            ET_NID=self.etapas_revision_p3[1],
-            EL_CACCION='APRUEBA_ASISTENTE',
-        ).update(EL_CACCION='ENVIA_CD_NEXT')
+        p3.confirmar_camion_p3(citacion_p3.id, 'SDS45', self.usuario)
 
-        resultado = p3.reparar_transicion_guardia_p3(citacion.id)
-
-        self.assertEqual(resultado['responsable_siguiente'], 'GUARDIA_PORTERIA')
-        self.assertTrue(SYSLOGGER.objects.filter(
-            LOG_COPERACION='ENVIA_GUARDIA_PORTERIA',
-            LOG_CADD1=str(citacion.id),
-        ).exists())
-        self.assertTrue(ETAPA_LOG.objects.filter(
-            CI_NID=citacion,
-            ET_NID=self.etapas_revision_p3[3],
-            EL_FFECHAFIN=None,
-        ).exists())
-    def test_asistente_cd_no_puede_intervenir_en_p3(self):
-        citacion, _ = self._confirmar_p3()
-        self.assertEqual(self._aprobar_p3(citacion).status_code, 200)
-
-        with patch.object(views, 'Verificar_empresa', return_value=2):
+        self.client.force_login(self.usuario)
+        with patch.object(views, 'Verificar_empresa', return_value=2), patch.object(
+            views, 'obtener_clientes_aceite', return_value=[]
+        ):
+            carpeta = self.client.get(
+                reverse('pla_listone', args=[self.planificacion_origen.id]),
+                {'_empresa_id': 2},
+            )
             detalle = self.client.get(
-                reverse('pla_citacion_estanque', args=[citacion.id])
-            )
-            avanzar = self.client.post(
-                reverse('pla_citacion_estanque_avanzar', args=[citacion.id])
+                reverse('cit_listone', args=[self.p2.id]),
+                {'_empresa_id': 2},
             )
 
-        self.assertEqual(detalle.status_code, 403)
-        self.assertEqual(avanzar.status_code, 403)
-        self.assertIn('directamente de Asistente Recepcion a Guardia', detalle.json()['message'])
-        self.assertIn('directamente de Asistente Recepcion a Guardia', avanzar.json()['message'])
-
-    def test_ui_p3_muestra_guardia_y_excluye_acciones_asistente_cd(self):
-        raiz = Path(__file__).resolve().parents[3]
-        template = (
-            raiz / 'apps/templates/home/PLANIFICACION/pla_listone.html'
-        ).read_text(encoding='utf-8')
-        self.assertIn('Aprobar y enviar a Guardia', template)
-        self.assertIn(
-            'request.user|es_asistente_cd and object.24 and not object.47.es_new_jersey_p3',
-            template,
-        )
-        self.assertIn(
-            'request.user|es_asistente_cd and not object.47.es_new_jersey_p3',
-            template,
-        )
-    def test_guardia_y_guardia_porteria_habilitan_operacion_en_dos_acciones(self):
-        citacion, _ = self._confirmar_p3()
-        self.assertEqual(self._aprobar_p3(citacion).status_code, 200)
-
-        with patch.object(views, 'Verificar_empresa', return_value=2), patch.object(
-            views, 'usuario_es_guardia', return_value=True
-        ), patch.object(
-            views, 'usuario_es_guardia_porteria', return_value=False
-        ), patch.object(
-            views, 'obtener_usuarios_guardia_porteria', return_value=[]
-        ):
-            response_guardia = self.client.post(
-                reverse('pla_citacion_enviar_guardia_porteria', args=[citacion.id])
-            )
-        self.assertEqual(response_guardia.status_code, 200)
-        self.assertTrue(SYSLOGGER.objects.filter(
-            LOG_COPERACION='ENVIA_GUARDIA_PORTERIA', LOG_CADD1=str(citacion.id)
-        ).exists())
-        self.assertFalse(SYSLOGGER.objects.filter(
-            LOG_COPERACION='AUTORIZA_INGRESO_PLANTA', LOG_CADD1=str(citacion.id)
-        ).exists())
-        self.assertFalse(views.citacion_habilitada_operacion(citacion))
-
-        with patch.object(views, 'Verificar_empresa', return_value=2), patch.object(
-            views, 'usuario_es_guardia', return_value=True
-        ), patch.object(
-            views, 'usuario_es_guardia_porteria', return_value=True
-        ):
-            response_porteria = self.client.post(
-                reverse('pla_citacion_enviar_guardia_porteria', args=[citacion.id])
-            )
-        self.assertEqual(response_porteria.status_code, 200)
-        self.assertTrue(SYSLOGGER.objects.filter(
-            LOG_COPERACION='AUTORIZA_INGRESO_PLANTA', LOG_CADD1=str(citacion.id)
-        ).exists())
-        self.assertTrue(views.citacion_habilitada_operacion(citacion))
-
+        self.assertEqual(carpeta.status_code, 200)
+        self.assertEqual(detalle.status_code, 200)
+        html = carpeta.content.decode('utf-8')
+        inicio_fila = html.index(f'citacion-row-{citacion_p3.id}')
+        fin_fila = html.index('</tr>', inicio_fila)
+        fila_p3 = html[inicio_fila:fin_fila]
+        self.assertNotIn(f'openRevisionAsistenteModal({citacion_p3.id})', fila_p3)
+        self.assertNotIn('Aprobar y enviar a Guardia', fila_p3)
+        self.assertIn('Pesaje tara camión', fila_p3)
+        self.assertFalse(CITACION_ITEM.objects.filter(CI_NID=self.p2).exists())
+        self.assertEqual(CITACION_ITEM.objects.filter(CI_NID=citacion_p3).count(), 1)
     def test_operacion_p3_tiene_cinco_etapas_y_no_altera_p1_p2_prosesa(self):
         citacion = self._iniciar()['citacion']
         nombre, pasos = views.obtener_pasos_operacion_citacion(citacion)

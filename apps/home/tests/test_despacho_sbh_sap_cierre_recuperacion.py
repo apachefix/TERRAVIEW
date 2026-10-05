@@ -226,7 +226,7 @@ class ResponsableCicloCargaEstanqueSbhTests(SimpleTestCase):
         self.assertEqual(especiales[views.PASO_AUTORIZAR_SALIDA], ['ASISTENTE DESPACHO'])
         self.assertEqual(especiales[views.PASO_CIERRE_CARGA], ['Asistente_C_D'])
         self.assertEqual(dict(views.FLUJOS_DESPACHO_OPERACION_PLANTA['TRASVASIJE_CLIENTE'])[views.PASO_CICLO_CARGA], ['SALA CONTROL'])
-        self.assertEqual(dict(views.PASOS_RECEPCION_CON_CALIDAD)['Ciclo Descarga'], ['SALA CONTROL'])
+        self.assertEqual(dict(views.PASOS_RECEPCION_CON_CALIDAD)['Ciclo Descarga'], ['SALA CONTROL', 'ASISTENTE C D'])
         self.assertEqual(dict(views.PASOS_DESPACHO_TERRAMAR)[views.PASO_CICLO_CARGA_TERRAMAR], [views.PERFIL_TERRAMAR_ASISTENTE_BODEGA])
 
 

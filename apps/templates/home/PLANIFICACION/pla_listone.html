@@ -930,6 +930,44 @@
     }
 </style>
 <link rel="stylesheet" href="/static/assets/css/etapa0-recepcion-modal.css">
+<style>
+    /* Scroll del modal de recepci?n aunque falte la copia en /static. */
+    #ModalCrearCitacion .modal-dialog,
+    #ModalCrearCitacion .modal-content {
+        max-height: calc(100vh - 30px);
+        max-height: calc(100dvh - 30px);
+    }
+
+    #ModalCrearCitacion .modal-dialog {
+        margin-top: 15px;
+        margin-bottom: 15px;
+    }
+
+    #ModalCrearCitacion .modal-content,
+    #ModalCrearCitacion .modal-content > form {
+        display: flex;
+        flex-direction: column;
+        overflow: hidden;
+    }
+
+    #ModalCrearCitacion .modal-content > form {
+        flex: 1 1 auto;
+        min-height: 0;
+    }
+
+    #ModalCrearCitacion .modal-header,
+    #ModalCrearCitacion .modal-footer {
+        flex: 0 0 auto;
+    }
+
+    #ModalCrearCitacion .modal-body {
+        flex: 1 1 auto;
+        min-height: 0;
+        overflow-x: hidden;
+        overflow-y: auto;
+        overscroll-behavior: contain;
+    }
+</style>
     {% load humanize %}
     {% load i18n %}
     {% load l10n %}
@@ -2806,6 +2844,40 @@
     <script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
     {% if puede_agregar_citaciones %}
     {% include "home/PLANIFICACION/_etapa0_recepcion_scripts.html" with tipo_planificacion=planificacion.PL_CTIPOCUPO flujo_navegacion=flujo_etapa0 estanques_por_almacen_json=estanques_etapa0_json es_recepcion_sbh=es_recepcion_sbh_etapa0 es_recepcion_transferencia_sbh=es_recepcion_transferencia_sbh_etapa0 es_recepcion_terramar=es_recepcion_terramar_etapa0 es_despacho_terramar=es_despacho_terramar_etapa0 %}
+    <script>
+    function abrirModalEtapa0Planificacion() {
+        {% if formulario_etapa0 == 'recepcion_sbh' %}
+        const modalId = 'ModalCrearCitacion';
+        {% elif formulario_etapa0 == 'transferencia_sbh' %}
+        const modalId = 'ModalCrearRecepcionTransferencia';
+        {% elif formulario_etapa0 == 'despacho_sbh' %}
+        const modalId = 'ModalCrearDespacho';
+        {% elif formulario_etapa0 == 'recepcion_terramar' %}
+        const modalId = 'ModalCrearRecepcionTerramar';
+        {% elif formulario_etapa0 == 'despacho_terramar' %}
+        const modalId = 'ModalCrearDespachoTerramar';
+        {% endif %}
+        $('#' + modalId + ' .modal-title').first().text('Agregar citaciones - Planificación #{{ planificacion.id }}');
+        {% if formulario_etapa0 == 'recepcion_sbh' %}
+        abrirModalRecepcion();
+        {% elif formulario_etapa0 == 'transferencia_sbh' %}
+        abrirModalRecepcionTransferencia();
+        {% elif formulario_etapa0 == 'despacho_sbh' %}
+        abrirModalDespacho();
+        {% elif formulario_etapa0 == 'recepcion_terramar' %}
+        abrirModalRecepcionTerramar();
+        {% elif formulario_etapa0 == 'despacho_terramar' %}
+        abrirModalDespachoTerramar();
+        {% endif %}
+    }
+
+    function reabrirModalEtapa0Planificacion() {
+        $('#ModalResumenCitacionesEtapa0')
+            .off('hidden.bs.modal', abrirModalEtapa0Planificacion)
+            .one('hidden.bs.modal', abrirModalEtapa0Planificacion)
+            .modal('hide');
+    }
+    </script>
     {% endif %}
     <script src="/static/assets/js/plugins/jquery.dataTables.min.js"></script>
     <script src="/static/assets/js/plugins/dataTables.bootstrap4.min.js"></script>
@@ -2844,6 +2916,7 @@
     let revisionRequiereRutaTransportista = true;
     let revisionCondicionEntregaPermiteRuta = true;
     let revisionRequierePesoInformadoGuia = false;
+    let revisionRequiereContenedorNewJerseyConCalidad = false;
     let revisionRequiereConfirmacionDatos = false;
     let revisionRequiereTiposDocumentoDespacho = false;
     let revisionAprobadoAsistente = false;
@@ -5425,7 +5498,8 @@
         const pesoTexto = normalizarTexto($('#revision_peso_informado_guia').val());
         const pesoNumero = Number(String(pesoTexto).replace(',', '.'));
         const pesoPendiente = revisionRequierePesoInformadoGuia && (!pesoTexto || !Number.isFinite(pesoNumero) || pesoNumero <= 0);
-        $('#btn_revision_aprobar').prop('disabled', revisionAprobadoAsistente || rutaPendiente || pesoPendiente || !confirmado);
+        const contenedorPendiente = revisionRequiereContenedorNewJerseyConCalidad && !normalizarTexto($('#revision_lote_contenedor').val());
+        $('#btn_revision_aprobar').prop('disabled', revisionAprobadoAsistente || rutaPendiente || pesoPendiente || contenedorPendiente || !confirmado);
     }
 
     function actualizarEstadoRutaRevision(mensaje) {
@@ -5918,8 +5992,8 @@ $(document).on('click', '#btn_revision_guardar_datos', guardarDatosRevisionAsist
                     </div>
                     `}
                     <div class="form-group col-md-6">
-                        <label for="revision_lote_contenedor">Lote / Contenedor</label>
-                        <input type="text" class="form-control" id="revision_lote_contenedor" value="${escapeHtml(campos.lote_contenedor || '')}">
+                        <label for="revision_lote_contenedor">Lote / Contenedor${data.requiere_contenedor_new_jersey_con_calidad ? ' <span class="text-danger">*</span>' : ''}</label>
+                        <input type="text" class="form-control" id="revision_lote_contenedor" value="${escapeHtml(campos.lote_contenedor || '')}" ${data.requiere_contenedor_new_jersey_con_calidad ? 'required maxlength="128"' : ''}>
                     </div>
                     ${data.requiere_peso_informado_guia ? `
                     <div class="form-group col-md-6">
@@ -5941,6 +6015,7 @@ $(document).on('click', '#btn_revision_guardar_datos', guardarDatosRevisionAsist
         revisionRequiereRutaTransportista = true;
         revisionCondicionEntregaPermiteRuta = true;
         revisionRequierePesoInformadoGuia = false;
+        revisionRequiereContenedorNewJerseyConCalidad = false;
         revisionRequiereConfirmacionDatos = false;
         revisionRequiereTiposDocumentoDespacho = false;
         revisionAprobadoAsistente = false;
@@ -5974,6 +6049,7 @@ $(document).on('click', '#btn_revision_guardar_datos', guardarDatosRevisionAsist
                 revisionCondicionEntregaPermiteRuta = String(response.condicion_entrega || '').toUpperCase() !== 'CLIENTE';
                 revisionRequiereRutaTransportista = !!response.requiere_ruta_transportista && !response.es_flujo_terramar;
                 revisionRequierePesoInformadoGuia = !!response.requiere_peso_informado_guia;
+                revisionRequiereContenedorNewJerseyConCalidad = !!response.requiere_contenedor_new_jersey_con_calidad;
                 revisionRutaGuardada = !!response.ruta_transportista_guardada;
                 const esDespachoRevision = String(response.tipo_citacion || '').toUpperCase() === 'DESPACHO';
                 const html = [
@@ -6029,7 +6105,8 @@ $(document).on('click', '#btn_revision_guardar_datos', guardarDatosRevisionAsist
     }
 
     $(document).on('change', '#revisionDatosValidados', actualizarEstadoAprobacionRevision);
-    $(document).on('input change', '#revision_peso_informado_guia', actualizarEstadoAprobacionRevision);    $(document).on('change', '#revision_tipo_despacho, #revision_tipo_traslado', function () {
+    $(document).on('input change', '#revision_peso_informado_guia, #revision_lote_contenedor', actualizarEstadoAprobacionRevision);
+    $(document).on('change', '#revision_tipo_despacho, #revision_tipo_traslado', function () {
         $('#revision_documento_despacho_estado').removeClass('text-success text-danger').text('Cambios pendientes de guardar.');
     });
 
@@ -6058,6 +6135,11 @@ $(document).on('click', '#btn_revision_guardar_datos', guardarDatosRevisionAsist
         const pesoInformadoNumero = Number(String(pesoInformadoGuia).replace(',', '.'));
         if (revisionRequierePesoInformadoGuia && (!pesoInformadoGuia || !Number.isFinite(pesoInformadoNumero) || pesoInformadoNumero <= 0)) {
             Swal.fire({ icon: 'warning', title: 'Peso requerido', text: 'Debe ingresar un peso informado en guía numérico y mayor a 0.' });
+            return;
+        }
+        if (revisionRequiereContenedorNewJerseyConCalidad && !normalizarTexto($('#revision_lote_contenedor').val())) {
+            Swal.fire({ icon: 'warning', title: 'Contenedor requerido', text: 'Debe ingresar el Lote / Contenedor antes de aprobar.' });
+            $('#revision_lote_contenedor').trigger('focus');
             return;
         }
         const boton = $('#btn_revision_aprobar');

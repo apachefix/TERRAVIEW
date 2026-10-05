@@ -6,6 +6,7 @@ import secrets
 import shutil
 import tempfile
 from io import BytesIO
+from zipfile import ZIP_DEFLATED, ZipFile
 
 import fitz
 from PIL import Image, ImageDraw, ImageFont, ImageOps
@@ -124,6 +125,53 @@ def nombre_carpeta_exportacion_terramar(patente, fecha_exportacion, citacion_id)
     return sanitizar_patente_exportacion(f'{patente}_{fecha}_CIT{citacion_id}')
 
 
+def documentos_timbrados_para_exportacion(documentos):
+    """Resuelve nombres y fuentes compartidas por carpeta y ZIP."""
+    nombres_usados = set()
+    for documento in documentos:
+        nombre_fuente = documento.get('stamped_name') or documento.get('nombre') or 'documento'
+        ruta = documento.get('stamped_path') if documento.get('timbrado_disponible') else ''
+        try:
+            if not ruta:
+                raise ValueError('No existe una version timbrada disponible.')
+            nombre = get_valid_filename(os.path.basename(nombre_fuente))
+            if not nombre or nombre in {'.', '..'}:
+                raise ValueError('El nombre del documento no es valido.')
+            if nombre.lower() in nombres_usados:
+                base_nombre, extension = os.path.splitext(nombre)
+                clave = re.sub(r'[^A-Za-z0-9_-]', '', str(documento.get('key') or ''))[:10]
+                nombre = f'{base_nombre}_{clave or "documento"}{extension}'
+            base_nombre, extension = os.path.splitext(nombre)
+            candidato = nombre
+            indice = 2
+            while candidato.lower() in nombres_usados:
+                candidato = f'{base_nombre}_{indice}{extension}'
+                indice += 1
+            nombre = candidato
+            nombres_usados.add(nombre.lower())
+            yield {'archivo': nombre, 'ruta': ruta, 'error': None}
+        except ValueError as exc:
+            yield {'archivo': os.path.basename(nombre_fuente), 'ruta': '', 'error': str(exc)}
+
+
+def generar_zip_documentos_timbrados(documentos):
+    """Genera el paquete completo en memoria, sin crear carpetas en el servidor."""
+    paquete = BytesIO()
+    nombres = []
+    with ZipFile(paquete, 'w', compression=ZIP_DEFLATED) as archivo_zip:
+        for documento in documentos_timbrados_para_exportacion(documentos):
+            if documento['error']:
+                raise ValueError('No todos los documentos timbrados est?n disponibles.')
+            ruta = documento['ruta']
+            validar_archivo_fuente(ruta)
+            with open(ruta, 'rb') as origen, archivo_zip.open(documento['archivo'], 'w') as destino:
+                shutil.copyfileobj(origen, destino, length=1024 * 1024)
+            nombres.append(documento['archivo'])
+    if not nombres:
+        raise ValueError('No existen documentos timbrados para descargar.')
+    return paquete.getvalue(), nombres
+
+
 def exportar_documentos_timbrados(base_dir, patente, documentos, fecha_exportacion, citacion_id):
     """Copia un paquete Terramar ya validado a una carpeta local por citación."""
     base_dir = os.path.abspath(os.path.expandvars(str(base_dir or '').strip()))
@@ -140,22 +188,13 @@ def exportar_documentos_timbrados(base_dir, patente, documentos, fecha_exportaci
     reutilizados = []
     reemplazados = []
     fallidos = []
-    nombres_usados = set()
-    for documento in documentos:
-        nombre_fuente = documento.get('stamped_name') or documento.get('nombre') or 'documento'
-        ruta = documento.get('stamped_path') if documento.get('timbrado_disponible') else ''
+    for documento in documentos_timbrados_para_exportacion(documentos):
+        nombre_fuente = documento['archivo']
+        ruta = documento['ruta']
         try:
-            if not ruta:
-                raise ValueError('No existe una version timbrada disponible.')
-            nombre = get_valid_filename(os.path.basename(nombre_fuente))
-            if not nombre or nombre in {'.', '..'}:
-                raise ValueError('El nombre del documento no es valido.')
-            if nombre.lower() in nombres_usados:
-                base_nombre, extension = os.path.splitext(nombre)
-                clave = re.sub(r'[^A-Za-z0-9_-]', '', str(documento.get('key') or ''))[:10]
-                nombre = f'{base_nombre}_{clave or "documento"}{extension}'
-            nombres_usados.add(nombre.lower())
-
+            if documento['error']:
+                raise ValueError(documento['error'])
+            nombre = documento['archivo']
             destino = os.path.abspath(os.path.join(carpeta, nombre))
             if os.path.normcase(os.path.commonpath([carpeta, destino])) != os.path.normcase(carpeta):
                 raise ValueError('El nombre del documento genera una ruta insegura.')

@@ -3,14 +3,13 @@
 import json
 import re
 import unicodedata
-from datetime import datetime, time
+from datetime import datetime
 
 from django.db import transaction
-from django.db.models import Q
 from django.utils import timezone
 
 from apps.home.models import (
-    CALENDARIO, CAMION_PATIO, CAMION_PATIO_TRAZABILIDAD_PLANIFICACION,
+    CAMION_PATIO, CAMION_PATIO_TRAZABILIDAD_PLANIFICACION,
     CAMPO, CITACION, CITACION_DETALLE_OPERACIONAL, CITACION_ITEM, DATO_OPERACION,
     DETALLE_SECUENCIA, ETAPA_LOG, OPERACION_NEW_JERSEY, OPERACION_NEW_JERSEY_PROCESO,
     OPERACION_PLANTA_LOG, PLANIFICACION, SECUENCIA, SOCIONEGOCIO, SYSLOGGER,
@@ -23,6 +22,8 @@ ESTADO_CITACION_P3_PENDIENTE = 'PENDIENTE_INGRESO_CAMION_P3'
 ESTADO_CITACION_P3_CAMION_CONFIRMADO = 'CAMION_P3_CONFIRMADO'
 CAMPO_SNAPSHOT_P3 = 'NJ_P3_SNAPSHOT'
 RESULTADO_PATIO_P3 = 'NEW_JERSEY_P3_MATCH'
+ETAPA_P3_PROGRAMADO = 'NJ_P3_PROGRAMADO'
+ETAPA_P3_PESAJE_TARA = 'NJ_P3_PESAJE_TARA'
 
 
 class CarpetaRecepcionP3Ambigua(ValueError):
@@ -52,96 +53,46 @@ def _normalizar_fecha_camion_patio(valor, etiqueta):
     raise ValueError(f'{etiqueta} persistida no es válida para confirmar el camión P3.')
 
 
-def _fecha_planificacion(planificacion):
-    calendario = planificacion.CAL_NID
-    return datetime(
-        calendario.CA_NANO, calendario.CA_NMES, calendario.CA_NDIA,
-    ).date()
-
-
-def _intervalo_planificacion(calendario, fecha):
-    inicio_hora = calendario.CA_FHORA_APERTURA or time(0, 0)
-    fin_hora = calendario.CA_FHORA_CIERRE or time(23, 59, 59)
-    inicio = timezone.make_aware(datetime.combine(fecha, inicio_hora))
-    fin = timezone.make_aware(datetime.combine(fecha, fin_hora))
-    return inicio, fin
-
-
-def resolver_planificacion_recepcion_p3(usuario, ahora=None):
-    """Resuelve una carpeta RECEPCION del día sin elegir duplicados arbitrariamente."""
-    ahora = timezone.localtime(ahora or timezone.now())
-    fecha = ahora.date()
-    base = PLANIFICACION.objects.select_for_update().select_related('CAL_NID').filter(
-        EP_NID_id=EMPRESA_NJ,
-        PL_CTIPOCUPO='RECEPCION',
-        PL_BARCHIVADO=False,
-    ).filter(
-        Q(CAL_NID__CA_NDIA=fecha.day,
-          CAL_NID__CA_NMES=fecha.month,
-          CAL_NID__CA_NANO=fecha.year)
-        | Q(PL_FFECHAINICIO__date=fecha)
-    ).order_by('PL_FFECHAINICIO', 'id')
-    candidatas = list(base)
-    activas = [
-        plan for plan in candidatas
-        if plan.PL_FFECHAINICIO
-        and plan.PL_FFECHAINICIO <= ahora
-        and (not plan.PL_FFECHAFIN or ahora <= plan.PL_FFECHAFIN)
-    ]
-    if len(activas) == 1:
-        return activas[0], False
-    if len(activas) > 1:
+def resolver_planificacion_recepcion_p3(operacion, p1_rel, p2_rel):
+    """Usa la carpeta de la citaci?n P1 vinculada a esta operaci?n."""
+    if not p1_rel or p1_rel.ONJ_NID_id != operacion.id:
         raise CarpetaRecepcionP3Ambigua(
-            'Existen varias carpetas de Recepción activas para hoy; debe corregirse la planificación antes de iniciar P3.'
+            'Integridad de operaci?n New Jersey: no existe una citaci?n P1 vinculada para iniciar P3.'
         )
-    if len(candidatas) == 1:
-        return candidatas[0], False
-    if len(candidatas) > 1:
+    p1 = p1_rel.CI_NID
+    if p1_rel.EP_NID_id != EMPRESA_NJ or p1.EP_NID_id != EMPRESA_NJ or not p1.PL_NID_id:
         raise CarpetaRecepcionP3Ambigua(
-            'Existen varias carpetas de Recepción para hoy y ninguna regla horaria permite resolver una única carpeta.'
+            'Integridad de operaci?n New Jersey: la citaci?n P1 no tiene una planificaci?n v?lida de Empresa 2.'
         )
-
-    calendarios = list(CALENDARIO.objects.select_for_update().filter(
-        EP_NID_id=EMPRESA_NJ,
-        CA_NDIA=fecha.day,
-        CA_NMES=fecha.month,
-        CA_NANO=fecha.year,
-        CA_BHABILITADO=True,
-    ).order_by('id')[:2])
-    if len(calendarios) > 1:
+    if not p2_rel or p2_rel.ONJ_NID_id != operacion.id:
         raise CarpetaRecepcionP3Ambigua(
-            'Existen varios calendarios habilitados para hoy; no es posible crear automáticamente la carpeta P3.'
+            'Integridad de operaci?n New Jersey: no existe una citaci?n P2 vinculada para iniciar P3.'
         )
-    if calendarios:
-        calendario = calendarios[0]
-    else:
-        calendario = CALENDARIO.objects.create(
-            US_NID=usuario,
-            EP_NID_id=EMPRESA_NJ,
-            CA_CNOMBRE=f'ACEITES SBH: {fecha:%d/%m/%Y}',
-            CA_FHORA_APERTURA=time(0, 0),
-            CA_FHORA_CIERRE=time(23, 59),
-            CA_NDIA=fecha.day,
-            CA_NMES=fecha.month,
-            CA_NANO=fecha.year,
-            CA_NCANTIDADCUPOS=0,
-            CA_BHABILITADO=True,
+    p2 = p2_rel.CI_NID
+    if (
+        p2_rel.EP_NID_id != EMPRESA_NJ
+        or p2.EP_NID_id != EMPRESA_NJ
+        or p2.CI_NID_REF != p1.id
+        or p2.PL_NID_id != p1.PL_NID_id
+    ):
+        raise CarpetaRecepcionP3Ambigua(
+            'Integridad de operaci?n New Jersey: P2 no corresponde a la citaci?n y carpeta de P1.'
         )
-    inicio, fin = _intervalo_planificacion(calendario, fecha)
-    planificacion = PLANIFICACION.objects.create(
-        US_NID=usuario,
-        EP_NID_id=EMPRESA_NJ,
-        CAL_NID=calendario,
-        PL_CTIPOCUPO='RECEPCION',
-        PL_FFECHAREGISTRO=timezone.now(),
-        PL_FFECHAINICIO=inicio,
-        PL_FFECHAFIN=fin,
-        PL_NCANTIDADCUPOS=max(calendario.CA_NCANTIDADCUPOS or 0, 0),
-        PL_NSOBRECUPO=True,
-        PL_NCANTIDADSOBRECUPO=0,
-        PL_BARCHIVADO=False,
-    )
-    return planificacion, True
+    try:
+        planificacion = PLANIFICACION.objects.select_for_update().get(pk=p1.PL_NID_id)
+    except PLANIFICACION.DoesNotExist:
+        raise CarpetaRecepcionP3Ambigua(
+            'Integridad de operaci?n New Jersey: no existe la planificaci?n vinculada a P1.'
+        )
+    if (
+        planificacion.EP_NID_id != EMPRESA_NJ
+        or planificacion.PL_CTIPOCUPO != 'RECEPCION'
+        or planificacion.PL_BARCHIVADO
+    ):
+        raise CarpetaRecepcionP3Ambigua(
+            'Integridad de operaci?n New Jersey: la carpeta de P1 no es una recepci?n activa de Empresa 2.'
+        )
+    return planificacion, False
 
 
 def _relaciones_operacion(operacion):
@@ -291,28 +242,36 @@ def leer_snapshot_p3(citacion):
     return metadata if isinstance(metadata, dict) else {}
 
 
-def preparar_revision_asistente_p3(citacion, usuario):
-    """Deja el camión confirmado en el mismo punto de revisión que una recepción normal."""
+def activar_pesaje_tara_p3(citacion, usuario):
+    """Cierra la programación y activa el pesaje de tara propio de P3."""
     detalles = list(DETALLE_SECUENCIA.objects.select_related('ET_NID').filter(
         SC_NID=citacion.SC_NID,
         EP_NID_id=EMPRESA_NJ,
         SE_BHABILITADO=True,
     ).order_by('SE_NPASO', 'id')[:2])
     if len(detalles) < 2:
-        raise ValueError('La secuencia P3 requiere al menos dos etapas para la revisión del camión.')
+        raise ValueError('La secuencia P3 requiere las etapas Programado y Pesaje Tara.')
 
     ahora = timezone.now()
-    primera, revision = detalles
+    primera, pesaje_tara = detalles
+    if (
+        primera.ET_NID.ET_CCODIGO != ETAPA_P3_PROGRAMADO
+        or pesaje_tara.ET_NID.ET_CCODIGO != ETAPA_P3_PESAJE_TARA
+    ):
+        raise ValueError(
+            'La secuencia P3 no tiene configuradas correctamente las etapas '
+            'NJ_P3_PROGRAMADO y NJ_P3_PESAJE_TARA.'
+        )
 
-    revision_cerrada = ETAPA_LOG.objects.filter(
+    pesaje_cerrado = ETAPA_LOG.objects.filter(
         CI_NID=citacion,
         EP_NID=citacion.EP_NID,
         SC_NID=citacion.SC_NID,
-        ET_NID=revision.ET_NID,
+        ET_NID=pesaje_tara.ET_NID,
         EL_FFECHAFIN__isnull=False,
     ).order_by('-EL_FFECHAFIN', '-id').first()
-    if revision_cerrada:
-        return revision_cerrada
+    if pesaje_cerrado:
+        return pesaje_cerrado
 
     log_primera, _ = ETAPA_LOG.objects.get_or_create(
         CI_NID=citacion,
@@ -329,38 +288,37 @@ def preparar_revision_asistente_p3(citacion, usuario):
         log_primera.EL_FFECHAFIN = ahora
         log_primera.US_FIN_ID = usuario
         log_primera.EL_CACCION = 'CAMION_P3_CONFIRMADO'
-        log_primera.EL_COBSERVACION = 'Camión P3 asociado físicamente; pendiente de revisión Asistente Recepción.'
+        log_primera.EL_COBSERVACION = 'Camión P3 asociado físicamente; habilitado para pesaje de tara.'
         log_primera.save(update_fields=[
             'EL_FFECHAFIN', 'US_FIN_ID', 'EL_CACCION', 'EL_COBSERVACION',
         ])
 
-    log_revision, _ = ETAPA_LOG.objects.get_or_create(
+    log_pesaje, _ = ETAPA_LOG.objects.get_or_create(
         CI_NID=citacion,
         EP_NID=citacion.EP_NID,
         SC_NID=citacion.SC_NID,
-        ET_NID=revision.ET_NID,
+        ET_NID=pesaje_tara.ET_NID,
         EL_FFECHAFIN=None,
         defaults={
             'EL_FFECHAINICIO': ahora,
             'US_INICIO_ID': usuario,
-            'EL_CACCION': 'ENVIA_ASISTENTE',
-            'EL_COBSERVACION': 'Camión P3 confirmado y pendiente de revisión Asistente Recepción.',
+            'EL_CACCION': 'ACTIVA_PESAJE_TARA_P3',
+            'EL_COBSERVACION': 'Llegada física P3 confirmada; pesaje de tara habilitado.',
         },
     )
     cambios = []
-    if log_revision.EL_CACCION != 'ENVIA_ASISTENTE':
-        log_revision.EL_CACCION = 'ENVIA_ASISTENTE'
+    if log_pesaje.EL_CACCION != 'ACTIVA_PESAJE_TARA_P3':
+        log_pesaje.EL_CACCION = 'ACTIVA_PESAJE_TARA_P3'
         cambios.append('EL_CACCION')
-    if not log_revision.EL_COBSERVACION:
-        log_revision.EL_COBSERVACION = 'Camión P3 confirmado y pendiente de revisión Asistente Recepción.'
+    if log_pesaje.EL_COBSERVACION != 'Llegada física P3 confirmada; pesaje de tara habilitado.':
+        log_pesaje.EL_COBSERVACION = 'Llegada física P3 confirmada; pesaje de tara habilitado.'
         cambios.append('EL_COBSERVACION')
-    if log_revision.US_INICIO_ID_id is None:
-        log_revision.US_INICIO_ID = usuario
+    if log_pesaje.US_INICIO_ID_id is None:
+        log_pesaje.US_INICIO_ID = usuario
         cambios.append('US_INICIO_ID')
     if cambios:
-        log_revision.save(update_fields=cambios)
-    return log_revision
-
+        log_pesaje.save(update_fields=cambios)
+    return log_pesaje
 
 @transaction.atomic
 def completar_p3(citacion, usuario, fecha=None):
@@ -429,7 +387,7 @@ def iniciar_p3(operacion_id, usuario, transportista_id, patente, ahora=None):
     if not secuencia:
         raise ValueError('La secuencia New Jersey P3 no está configurada.')
     etapa = _etapa_p3(secuencia)
-    planificacion, carpeta_creada = resolver_planificacion_recepcion_p3(usuario, ahora=ahora)
+    planificacion, carpeta_creada = resolver_planificacion_recepcion_p3(operacion, p1_rel, p2_rel)
     ahora = timezone.localtime(ahora or timezone.now())
     sin_cupo = planificacion.TOTAL_CUPOS_DISPONIBLES <= 0
     p2 = p2_rel.CI_NID
@@ -517,6 +475,21 @@ def _proceso_p3_vivo(proceso):
             'SALIDA_CONFIRMADA',
         }
     )
+
+
+def _camion_patio_bloquea_ingreso_p3(camion):
+    """Un registro histórico no bloquea una nueva llegada física P3."""
+    if camion.CPA_CESTADO not in CAMION_PATIO.ESTADOS_ACTIVOS:
+        return False
+    if not camion.CI_NID_id:
+        return True
+    citacion = camion.CI_NID
+    if not citacion.CI_BHABILITADO:
+        return False
+    return str(citacion.CI_CESTADO or '').strip().upper() not in {
+        'TERMINADO', 'COMPLETADO', 'COMPLETADA', 'CANCELADO', 'ANULADO',
+        'RECHAZADO', 'SALIDA_CONFIRMADA',
+    }
 
 
 def datos_proceso_p3(proceso):
@@ -655,14 +628,17 @@ def confirmar_camion_p3(
         camion = existentes[0]
         if normalizar_patente(camion.CPA_CPATENTE) != esperada:
             raise ValueError('El CAMION_PATIO existente no coincide con la patente planificada para P3.')
-        preparar_revision_asistente_p3(citacion, usuario)
+        activar_pesaje_tara_p3(citacion, usuario)
         return camion, False
     otros = [
-        camion for camion in CAMION_PATIO.objects.select_for_update().filter(
+        camion for camion in CAMION_PATIO.objects.select_for_update(of=('self',)).select_related('CI_NID').filter(
             EP_NID_id=EMPRESA_NJ,
             CPA_CESTADO__in=CAMION_PATIO.ESTADOS_ACTIVOS,
         ).exclude(CI_NID=citacion)
-        if normalizar_patente(camion.CPA_CPATENTE) == esperada
+        if (
+            normalizar_patente(camion.CPA_CPATENTE) == esperada
+            and _camion_patio_bloquea_ingreso_p3(camion)
+        )
     ]
     if otros:
         raise ValueError('La patente ya tiene otro proceso activo en patio.')
@@ -715,7 +691,7 @@ def confirmar_camion_p3(
     citacion.CI_CESTADO = ESTADO_CITACION_P3_CAMION_CONFIRMADO
     citacion.CI_FFECHAINICIO = citacion.CI_FFECHAINICIO or timezone.now()
     citacion.save(update_fields=['CI_CESTADO', 'CI_FFECHAINICIO'])
-    preparar_revision_asistente_p3(citacion, usuario)
+    activar_pesaje_tara_p3(citacion, usuario)
     OPERACION_PLANTA_LOG.objects.create(
         US_NID=usuario,
         EP_NID=citacion.EP_NID,
