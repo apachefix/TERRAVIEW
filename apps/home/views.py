@@ -204,6 +204,7 @@ from .despacho_sbh_transporte import (
 from .phone_utils import normalize_international_phone, split_legacy_phone
 from .constants.country_calling_codes import country_options
 from .services.planificacion_historica import construir_resumen_planificacion, construir_resumenes_planificaciones_archivadas
+from .services.permisos_planificacion import usuario_es_planificador_terramar
 from .services.eli_service import enriquecer_expediente_eli
 from .services.eli.selectors.despacho import seleccionar_datos_eli_despacho
 from .services.eli.selectors.recepcion import seleccionar_datos_eli_recepcion
@@ -20526,7 +20527,12 @@ def asegurar_flujos_despacho_terramar_etapa_0(empresa_id, usuario):
 
 def PLANIFICACION_ADDONE(request):
     try:
-        if usuario_es_ingreso_camion(request.user):
+        Empresa = Verificar_empresa(request)
+
+        if Empresa is None:
+            return redirect('/seleccionar_empresa/')
+
+        if usuario_es_ingreso_camion(request.user) and not usuario_es_planificador_terramar(request.user, Empresa):
             messages.error(request, 'Su perfil puede ingresar camiones, pero no crear planificaciones.')
             return redirect('/pla_listall/')
 
@@ -20535,11 +20541,6 @@ def PLANIFICACION_ADDONE(request):
             if not usuario_es_planificador(request.user) and not validar_perfiles_activos(usuario, "pla_addone"):
                 messages.error(request, 'No tiene permisos para acceder a esta sección')
                 return redirect('/')
-
-        Empresa = Verificar_empresa(request)
-
-        if Empresa is None:
-            return redirect('/seleccionar_empresa/')
 
         planificacion_existente = None
         formulario_etapa0_existente = ''
@@ -25067,7 +25068,10 @@ def PLANIFICACION_LISTALL(request):
                 solicitud_camion_patio_no_planificado.id
                 if solicitud_camion_patio_no_planificado else ''
             ),
-            'modo_ingreso_camion': bool(usuario_es_ingreso_camion(request.user) or es_asistente_despacho_ingreso),
+            'modo_ingreso_camion': bool(
+                (usuario_es_ingreso_camion(request.user) or es_asistente_despacho_ingreso)
+                and not usuario_es_planificador_terramar(request.user, Empresa)
+            ),
             'solicitud_camion_patio_no_planificado': solicitud_camion_patio_no_planificado,
         }
 
@@ -25743,7 +25747,10 @@ def PLANIFICACION_LISTONE(request, pk):
             'estanques_etapa0_json': json.dumps(ALMACENES_DESTINO_RECEPCION_SBH) if puede_agregar_citaciones else '{}',
             'camion_patio_inicial': {},
             'citaciones_responsable': citaciones_responsable,
-            'modo_ingreso_camion': bool(usuario_es_ingreso_camion(request.user) or es_asistente_despacho_ingreso),
+            'modo_ingreso_camion': bool(
+                (usuario_es_ingreso_camion(request.user) or es_asistente_despacho_ingreso)
+                and not usuario_es_planificador_terramar(request.user, Empresa)
+            ),
             'es_asistente_despacho_ingreso': es_asistente_despacho_ingreso,
 
             'empresa_activa': empresa_activa,
@@ -25781,16 +25788,16 @@ def PLANIFICACION_FILEDONE(request, pk):
     if request.method != 'POST':
         return HttpResponse(status=405)
     try:
+        empresa = Verificar_empresa(request)
+        if empresa is None:
+            return redirect('/seleccionar_empresa/')
         if not request.user.is_superuser:
             usuario = request.user.id
             if not usuario_es_planificador(request.user) and not validar_perfiles_activos(usuario, 'pla_filedlistall'):
                 return HttpResponse(status=403)
-        if usuario_es_ingreso_camion(request.user):
+        if usuario_es_ingreso_camion(request.user) and not usuario_es_planificador_terramar(request.user, empresa):
             messages.error(request, 'Su perfil no puede archivar planificaciones.')
             return redirect('/pla_listall/')
-        empresa = Verificar_empresa(request)
-        if empresa is None:
-            return redirect('/seleccionar_empresa/')
         planificacion = PLANIFICACION.objects.filter(id=pk, EP_NID_id=empresa, PL_BARCHIVADO=False).first()
         if not planificacion:
             messages.warning(request, 'La planificación no existe, no pertenece a la empresa activa o ya está archivada.')
@@ -25808,20 +25815,20 @@ def PLANIFICACION_FILEDONE(request, pk):
         return redirect('/pla_listall/')
 def PLANIFICACION_FILEDLISTALL(request):
     try:
+        Empresa = Verificar_empresa(request)
+
+        if Empresa is None:
+            return redirect('/seleccionar_empresa/')
+
         if not request.user.is_superuser:
             usuario = request.user.id
             if not usuario_es_planificador(request.user) and not validar_perfiles_activos(usuario, "pla_filedlistall"):
                 messages.error(request, 'No tiene permisos para acceder a esta sección')
                 return redirect('/')
 
-        if usuario_es_ingreso_camion(request.user):
+        if usuario_es_ingreso_camion(request.user) and not usuario_es_planificador_terramar(request.user, Empresa):
             messages.error(request, 'Su perfil no puede acceder a planificaciones archivadas.')
             return redirect('/pla_listall/')
-
-        Empresa = Verificar_empresa(request)
-
-        if Empresa is None:
-            return redirect('/seleccionar_empresa/')
 
         planificaciones = PLANIFICACION.objects.filter(
             EP_NID_id=Empresa,
@@ -25967,15 +25974,15 @@ def ajax_archivar_planificaciones_seleccionadas(request):
     if request.method != 'POST':
         return JsonResponse({'success': False, 'msg': 'Método no permitido.'}, status=405)
     try:
+        empresa = Verificar_empresa(request)
+        if empresa is None:
+            return JsonResponse({'success': False, 'msg': 'Debe seleccionar una empresa.'}, status=400)
         if not request.user.is_superuser:
             usuario = request.user.id
             if not usuario_es_planificador(request.user) and not validar_perfiles_activos(usuario, 'pla_filedlistall'):
                 return JsonResponse({'success': False, 'msg': 'No tienes permisos para archivar planificaciones'}, status=403)
-        if usuario_es_ingreso_camion(request.user):
+        if usuario_es_ingreso_camion(request.user) and not usuario_es_planificador_terramar(request.user, empresa):
             return JsonResponse({'success': False, 'msg': 'Su perfil no puede archivar planificaciones'}, status=403)
-        empresa = Verificar_empresa(request)
-        if empresa is None:
-            return JsonResponse({'success': False, 'msg': 'Debe seleccionar una empresa.'}, status=400)
         try:
             seleccionadas = json.loads(request.POST.get('planificaciones', ''))
             ids = sorted({int(valor) for valor in seleccionadas})
