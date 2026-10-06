@@ -17,6 +17,7 @@ from django.views.generic import FormView
 from django.contrib.auth import update_session_auth_hash, authenticate, logout
 from django.contrib.auth.decorators import login_required
 from django.conf import settings
+from decouple import config
 from django.template.loader import render_to_string
 from django.db.models import Q, Subquery, OuterRef, Count, F, Value, Exists, CharField, Prefetch
 from django.core.cache import cache
@@ -15610,7 +15611,7 @@ def construir_estado_pasos_operacion(nombres_pasos, paso_actual, pasos_completad
     return pasos
 
 
-TICKET_PESAJE_SHARED_PATH = r'\\172.16.1.144\ticket_pesaje'
+TICKET_PESAJE_SHARED_PATH = r'\\TERRAVIEW\tickets'
 TICKET_PESAJE_LOCAL_PATH = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'tickets')
 TICKET_PESAJE_REQUIRED_MESSAGE = 'Debe obtener y guardar el ticket de pesaje antes de continuar.'
 CAMPO_TICKET_MOP_SAL_DESP_TERRAMAR = 'OP_TICKET_MOP_SAL_DESP_TERRAMAR'
@@ -15804,10 +15805,25 @@ def _normalizar_patente(valor):
 
 def _debug_ticket_pesaje(mensaje, **datos):
     detalle = ' | '.join(f'{clave}={valor}' for clave, valor in datos.items())
-    texto = f'[OP_TICKET_PESAJE] {mensaje}'
+    texto = f'[OP_TICKET_PESAJE] [TICKET_PESAJE_DEBUG] {mensaje}'
     if detalle:
         texto = f'{texto} | {detalle}'
     logger.info(texto)
+    try:
+        log_diagnostico = logging.getLogger('apps.home.ticket_pesaje_debug')
+        if not log_diagnostico.handlers:
+            ruta_log = os.environ.get('WSGI_LOG') or os.path.join(
+                settings.CORE_DIR, 'logs', 'ticket_pesaje_debug.log'
+            )
+            handler = logging.FileHandler(ruta_log, encoding='utf-8')
+            handler.setFormatter(logging.Formatter('%(asctime)s %(message)s'))
+            log_diagnostico.addHandler(handler)
+            log_diagnostico.setLevel(logging.INFO)
+            log_diagnostico.propagate = False
+        log_diagnostico.info(texto)
+    except Exception:
+        # El diagnóstico temporal nunca debe impedir obtener un ticket.
+        pass
     if getattr(settings, 'DEBUG', False):
         print(texto)
 
@@ -16041,38 +16057,116 @@ def _payload_ticket_mop_guardado(citacion, request=None):
 def _buscar_ticket_pesaje_mas_reciente(patente, tipo_ticket):
     patente_normalizada = _normalizar_patente(patente)
     fecha_actual = timezone.localdate()
+    qa_pesaje = getattr(settings, 'QA_PESAJE', None)
+    if qa_pesaje is None:
+        qa_pesaje = config('QA_PESAJE', default=False, cast=bool)
+    modo = 'QA_SIN_FILTRO_FECHA' if qa_pesaje else 'PRODUCCION_FECHA_ACTUAL'
     _debug_ticket_pesaje(
-        'Inicio busqueda ticket',
+        'INICIO_BUSQUEDA',
         patente_original=repr(patente),
         patente_normalizada=patente_normalizada,
         tipo_ticket=tipo_ticket,
         fecha_actual=fecha_actual,
+        qa_pesaje=qa_pesaje,
+        timezone=timezone.get_current_timezone_name(),
     )
     if not patente_normalizada or tipo_ticket not in {'ENT', 'SAL'}:
-        _debug_ticket_pesaje('Busqueda cancelada por patente o tipo invalido', patente=patente_normalizada, tipo_ticket=tipo_ticket)
+        _debug_ticket_pesaje(
+            'RESULTADO_BUSQUEDA', resultado='NONE', motivo='PATENTE_O_TIPO_INVALIDO',
+            patente=patente_normalizada, tipo_ticket=tipo_ticket, modo=modo,
+        )
         return None
 
     candidatos = []
+    descartes = {
+        'NOMBRE_NO_COINCIDE_REGEX': 0,
+        'TIPO_NO_COINCIDE': 0,
+        'PATENTE_NO_COINCIDE': 0,
+        'FECHA_INVALIDA': 0,
+        'FECHA_NO_ES_HOY': 0,
+        'ARCHIVO_INVALIDO': 0,
+        'ACEPTADO': 0,
+    }
+    estado_carpetas = {}
     patron_ticket = re.compile(
         r'^COM_(ENT|SAL)_([^_]+)_(\d{2})_(\d{2})_(\d{2})_(\d{2})_(\d{2})(?:_(\d{2}))?(?:_(\d{8})_(\d{6}))?\.pdf$',
         re.IGNORECASE
     )
+
+    # Limita el detalle por archivo a la patente buscada y a variantes cercanas.
+    prefijo_patente = patente_normalizada[:5]
+    prefijos_diagnostico = tuple(
+        f'COM_{tipo}_{prefijo_patente}' for tipo in ('ENT', 'SAL')
+    )
+
+    def registrar_candidato(nombre, match, motivo, origen, fecha_nombre=None):
+        if not nombre.upper().startswith(prefijos_diagnostico):
+            return
+        _debug_ticket_pesaje(
+            'CANDIDATO',
+            origen=origen,
+            filename=nombre,
+            regex_match=bool(match),
+            tipo_encontrado=match.group(1).upper() if match else '',
+            patente_encontrada=match.group(2) if match else '',
+            patente_normalizada=_normalizar_patente(match.group(2)) if match else '',
+            fecha_extraida='_'.join(match.group(i) for i in (3, 4, 5)) if match else '',
+            fecha_interpretada=fecha_nombre.isoformat() if fecha_nombre else '',
+            hora_minuto='_'.join(match.group(i) for i in (6, 7)) if match else '',
+            fecha_actual_esperada=fecha_actual,
+            accepted=motivo == 'ACEPTADO',
+            motivo=motivo,
+        )
+
     for carpeta in [TICKET_PESAJE_SHARED_PATH, TICKET_PESAJE_LOCAL_PATH]:
-        _debug_ticket_pesaje('Revisando carpeta tickets', carpeta=carpeta, existe=os.path.isdir(carpeta) if carpeta else False)
-        if not carpeta or not os.path.isdir(carpeta):
+        origen = 'shared' if carpeta == TICKET_PESAJE_SHARED_PATH else 'local'
+        existe = os.path.exists(carpeta) if carpeta else False
+        es_directorio = os.path.isdir(carpeta) if carpeta else False
+        if not carpeta:
+            estado_carpetas[origen] = 'RUTA_VACIA'
+            _debug_ticket_pesaje(
+                'CARPETA', origen=origen, carpeta=carpeta, exists=existe,
+                isdir=es_directorio, intento_listdir=False, cantidad_nombres=0,
+            )
             continue
         try:
             nombres_archivos = os.listdir(carpeta)
         except OSError as e:
-            _debug_ticket_pesaje('No fue posible listar carpeta tickets', carpeta=carpeta, error=str(e))
+            estado_carpetas[origen] = type(e).__name__
+            _debug_ticket_pesaje(
+                'CARPETA', origen=origen, carpeta=carpeta, exists=existe,
+                isdir=es_directorio, intento_listdir=True, lista_ok=False,
+                cantidad_nombres=0,
+            )
+            _debug_ticket_pesaje(
+                'CARPETA_ERROR', folder=carpeta,
+                exception=type(e).__name__, message=str(e),
+            )
+            continue
+        estado_carpetas[origen] = 'LISTADA' if es_directorio else 'NO_ES_DIRECTORIO'
+        _debug_ticket_pesaje(
+            'CARPETA', origen=origen, carpeta=carpeta, exists=existe,
+            isdir=es_directorio, intento_listdir=True, lista_ok=True,
+            cantidad_nombres=len(nombres_archivos),
+            cantidad_pdf=sum(nombre.lower().endswith('.pdf') for nombre in nombres_archivos),
+        )
+        if not es_directorio:
             continue
         for nombre in nombres_archivos:
             match = patron_ticket.match(nombre)
             if not match:
+                descartes['NOMBRE_NO_COINCIDE_REGEX'] += 1
+                registrar_candidato(nombre, None, 'NOMBRE_NO_COINCIDE_REGEX', origen)
                 continue
             tipo_archivo = match.group(1).upper()
             patente_archivo = _normalizar_patente(match.group(2))
-            if tipo_archivo != tipo_ticket or patente_archivo != patente_normalizada:
+            if tipo_archivo != tipo_ticket:
+                descartes['TIPO_NO_COINCIDE'] += 1
+                registrar_candidato(nombre, match, 'TIPO_NO_COINCIDE', origen)
+                continue
+            if patente_archivo != patente_normalizada:
+                descartes['PATENTE_NO_COINCIDE'] += 1
+                registrar_candidato(nombre, match, 'PATENTE_NO_COINCIDE', origen)
                 continue
             try:
                 fecha_nombre = datetime(
@@ -16084,19 +16178,33 @@ def _buscar_ticket_pesaje_mas_reciente(patente, tipo_ticket):
                     int(match.group(8) or 0),
                 )
             except ValueError:
+                descartes['FECHA_INVALIDA'] += 1
+                registrar_candidato(nombre, match, 'FECHA_INVALIDA', origen)
                 continue
-            if fecha_nombre.date() != fecha_actual:
+            if not qa_pesaje and fecha_nombre.date() != fecha_actual:
+                descartes['FECHA_NO_ES_HOY'] += 1
+                registrar_candidato(nombre, match, 'FECHA_NO_ES_HOY', origen, fecha_nombre)
                 continue
             ruta = os.path.join(carpeta, nombre)
             if not os.path.isfile(ruta):
+                descartes['ARCHIVO_INVALIDO'] += 1
+                registrar_candidato(nombre, match, 'ARCHIVO_INVALIDO', origen, fecha_nombre)
                 continue
             try:
                 fecha_modificacion = datetime.fromtimestamp(os.path.getmtime(ruta))
             except OSError:
                 fecha_modificacion = datetime.min
             candidatos.append((fecha_nombre, fecha_modificacion, ruta))
+            descartes['ACEPTADO'] += 1
+            registrar_candidato(nombre, match, 'ACEPTADO', origen, fecha_nombre)
+            if qa_pesaje and fecha_nombre.date() != fecha_actual:
+                _debug_ticket_pesaje(
+                    'QA_PESAJE_ACTIVO', filename=nombre, patente=patente_archivo,
+                    tipo_ticket=tipo_archivo, fecha_ticket=fecha_nombre.isoformat(),
+                    fecha_actual=fecha_actual, motivo='FECHA_IGNORADA_POR_QA',
+                )
             _debug_ticket_pesaje(
-                'Candidato ticket de hoy encontrado',
+                'CANDIDATO_ACEPTADO',
                 archivo=nombre,
                 patente_archivo=patente_archivo,
                 fecha_nombre=fecha_nombre,
@@ -16104,19 +16212,33 @@ def _buscar_ticket_pesaje_mas_reciente(patente, tipo_ticket):
             )
 
     if not candidatos:
+        motivo = 'NO_EXISTE_TICKET' if qa_pesaje else 'NO_EXISTE_TICKET_HOY'
+        if estado_carpetas.get('shared') != 'LISTADA':
+            motivo = 'SHARED_NO_LISTADA_Y_LOCAL_SIN_CANDIDATOS'
+        elif descartes['FECHA_NO_ES_HOY']:
+            motivo = 'SOLO_TICKETS_HISTORICOS'
         _debug_ticket_pesaje(
-            'Sin candidatos ticket de hoy',
+            'RESULTADO_BUSQUEDA',
+            resultado='NONE', motivo=motivo, cantidad_candidatos_validos=0,
             patente=patente_normalizada,
             tipo_ticket=tipo_ticket,
+            modo=modo,
             fecha_actual=fecha_actual,
+            estado_carpetas=estado_carpetas,
+            descartes=descartes,
         )
         return None
     candidatos.sort(key=lambda item: (item[0], item[1]), reverse=True)
     _debug_ticket_pesaje(
-        'Ticket de hoy seleccionado',
-        archivo=os.path.basename(candidatos[0][2]),
+        'RESULTADO_BUSQUEDA',
+        resultado='FOUND',
+        modo=modo,
+        filename=os.path.basename(candidatos[0][2]),
+        source='shared' if os.path.dirname(candidatos[0][2]) == TICKET_PESAJE_SHARED_PATH else 'local',
         ruta=candidatos[0][2],
-        total_candidatos=len(candidatos)
+        cantidad_candidatos_validos=len(candidatos),
+        estado_carpetas=estado_carpetas,
+        descartes=descartes,
     )
     return candidatos[0][2]
 
@@ -32730,13 +32852,28 @@ def ajax_operacion_planta_obtener_ticket_pesaje(request):
     valores_ingreso = obtener_valores_ingreso_camion(citacion)
     patente = obtener_patente_operacional_vigente(citacion, valores_ingreso)
     patente_normalizada = _normalizar_patente(patente)
+    try:
+        camion_patio_diagnostico = _camion_patio_asociado_citacion(citacion)
+        fuente_patente = (
+            'CAMION_PATIO.CPA_CPATENTE'
+            if camion_patio_diagnostico and str(camion_patio_diagnostico.CPA_CPATENTE or '').strip()
+            else 'obtener_valores_ingreso_camion.patente'
+        )
+    except Exception as exc:
+        fuente_patente = f'NO_DETERMINADA ({type(exc).__name__}: {exc})'
     _debug_ticket_pesaje(
-        'Patente obtenida para ticket',
+        'REQUEST',
         citacion_id=citacion.id,
+        empresa_id=citacion.EP_NID_id,
         paso=paso_nombre,
         tipo_ticket=tipo_ticket,
         patente_original=repr(patente),
-        patente_normalizada=patente_normalizada
+        patente_normalizada=patente_normalizada,
+        fuente_patente=fuente_patente,
+        timezone=timezone.get_current_timezone_name(),
+        fecha_actual=timezone.localdate(),
+        usuario_id=getattr(request.user, 'id', None),
+        usuario=getattr(request.user, 'username', ''),
     )
     if not patente_normalizada:
         return JsonResponse({'valid': False, 'msg': 'La citacion no tiene patente para buscar ticket de pesaje.'}, status=400)
@@ -32817,19 +32954,41 @@ def ajax_operacion_planta_obtener_ticket_pesaje(request):
 
         ruta_pdf = _buscar_ticket_pesaje_mas_reciente(patente_normalizada, tipo_ticket)
         if not ruta_pdf:
+            _debug_ticket_pesaje(
+                'RESPUESTA', http_status=404, motivo='SIN_CANDIDATO',
+                citacion_id=citacion.id, patente=patente_normalizada,
+                tipo_ticket=tipo_ticket,
+            )
             return JsonResponse({
                 'valid': False,
                 'msg': f'No se encontró un ticket de pesaje de hoy para la patente {patente_normalizada}.',
             }, status=404)
 
-        datos_ticket = _extraer_datos_ticket_pesaje(
-            ruta_pdf,
-            tipo_ticket,
-            semantica_despacho_sbh=es_despacho_sbh_operacion(citacion),
-            conservar_pesos_brutos=(
-                es_recepcion_prosesa_piso_1(citacion)
-                or es_recepcion_prosesa_piso_2(citacion)
-            ),
+        _debug_ticket_pesaje(
+            'PARSER_START', filename=os.path.basename(ruta_pdf),
+            tipo_ticket=tipo_ticket,
+        )
+        try:
+            datos_ticket = _extraer_datos_ticket_pesaje(
+                ruta_pdf,
+                tipo_ticket,
+                semantica_despacho_sbh=es_despacho_sbh_operacion(citacion),
+                conservar_pesos_brutos=(
+                    es_recepcion_prosesa_piso_1(citacion)
+                    or es_recepcion_prosesa_piso_2(citacion)
+                ),
+            )
+        except Exception as exc:
+            _debug_ticket_pesaje(
+                'PARSER_ERROR', filename=os.path.basename(ruta_pdf),
+                exception=type(exc).__name__, message=str(exc),
+            )
+            raise
+        _debug_ticket_pesaje(
+            'PARSER_RESULT', filename=os.path.basename(ruta_pdf),
+            folio=datos_ticket.get('folio'),
+            peso=datos_ticket.get('peso_neto'),
+            observacion=datos_ticket.get('observacion'),
         )
         ruta_local = _copiar_ticket_local_si_necesario(ruta_pdf)
         if not _ruta_ticket_permitida(ruta_local):
