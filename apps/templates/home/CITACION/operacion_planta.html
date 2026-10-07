@@ -7883,24 +7883,40 @@
         const boton = $(this);
         const paso = boton.data('paso');
         const tipoTicket = String(boton.data('tipo-ticket') || '');
+        const citacionId = "{{ citacion.id|escapejs }}";
+        const patenteVisible = "{{ patente|default:''|escapejs }}";
+        const ticketUrl = "{% url 'ajax_operacion_planta_obtener_ticket_pesaje' %}";
         const ticketBox = obtenerTicketBoxOperacion(paso);
         const textoOriginal = boton.html();
         const esReintentoMop = boton.hasClass('btn-reintentar-ticket-mop');
         let solicitudProcesada = false;
+        const ticketRequestData = {
+            citacion_id: citacionId,
+            paso_nombre: paso,
+            _empresa_id: OPERACION_PLANTA_EMPRESA_ID,
+            empresa_id: OPERACION_PLANTA_EMPRESA_ID
+        };
+
+        console.group('[TICKET_PESAJE_DEBUG] Obtener ticket');
+        console.log('[TICKET_PESAJE_DEBUG] REQUEST', {
+            citacion_id: citacionId,
+            patente: patenteVisible,
+            tipo_ticket: tipoTicket,
+            paso: paso,
+            url: ticketUrl
+        });
+        console.log('[TICKET_PESAJE_DEBUG] GET enviado:', ticketRequestData);
 
         $.ajax({
-            url: "{% url 'ajax_operacion_planta_obtener_ticket_pesaje' %}",
+            url: ticketUrl,
             type: 'GET',
-            data: {
-                citacion_id: "{{ citacion.id }}",
-                paso_nombre: paso,
-                _empresa_id: OPERACION_PLANTA_EMPRESA_ID,
-                empresa_id: OPERACION_PLANTA_EMPRESA_ID
-            },
+            data: ticketRequestData,
             beforeSend: function () {
                 boton.prop('disabled', true).html('<i class="op-glass-icon fas fa-spinner fa-spin"></i> ' + (esReintentoMop ? 'Buscando MOP...' : 'Buscando ticket...'));
             },
-            success: function (response) {
+            success: function (response, _textStatus, xhr) {
+                console.log('[TICKET_PESAJE_DEBUG] HTTP status:', xhr.status);
+                console.log('[TICKET_PESAJE_DEBUG] Respuesta JSON:', response);
                 solicitudProcesada = true;
                 if (!response.valid) {
                     boton.prop('disabled', false).html(textoOriginal);
@@ -7940,6 +7956,13 @@
             },
             error: function (xhr) {
                 const response = xhr.responseJSON || {};
+                console.log('[TICKET_PESAJE_DEBUG] HTTP status:', xhr.status);
+                console.log('[TICKET_PESAJE_DEBUG] Respuesta JSON:', xhr.responseJSON || null);
+                console.error('[TICKET_PESAJE_DEBUG] ERROR', {
+                    status: xhr.status,
+                    statusText: xhr.statusText,
+                    respuesta: xhr.responseJSON || null
+                });
                 if (response.guardado) {
                     solicitudProcesada = true;
                     actualizarTicketEstandarOperacion(ticketBox, response);
@@ -7963,6 +7986,7 @@
                 if (!solicitudProcesada) {
                     boton.prop('disabled', false).html(textoOriginal);
                 }
+                console.groupEnd();
             }
         });
     });

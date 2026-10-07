@@ -1,0 +1,118 @@
+diff --git a/apps/home/views.py b/apps/home/views.py
+index 1c04921..1e35b6c 100644
+--- a/apps/home/views.py
++++ b/apps/home/views.py
+@@ -15610,7 +15610,7 @@ def construir_estado_pasos_operacion(nombres_pasos, paso_actual, pasos_completad
+     return pasos
+ 
+ 
+-TICKET_PESAJE_SHARED_PATH = r'\\172.16.1.144\ticket_pesaje'
++TICKET_PESAJE_SHARED_PATH = r'\\TERRAVIEW\tickets'
+ TICKET_PESAJE_LOCAL_PATH = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'tickets')
+ TICKET_PESAJE_REQUIRED_MESSAGE = 'Debe obtener y guardar el ticket de pesaje antes de continuar.'
+ CAMPO_TICKET_MOP_SAL_DESP_TERRAMAR = 'OP_TICKET_MOP_SAL_DESP_TERRAMAR'
+diff --git a/apps/home/tests/test_ticket_pesaje_parser_fecha.py b/apps/home/tests/test_ticket_pesaje_parser_fecha.py
+index be23f61..3f23b40 100644
+--- a/apps/home/tests/test_ticket_pesaje_parser_fecha.py
++++ b/apps/home/tests/test_ticket_pesaje_parser_fecha.py
+@@ -158,6 +158,100 @@ class TicketPesajeSeleccionFechaTests(SimpleTestCase):
+         self.assertIsNone(seleccionado)
+ 
+ 
++class TicketPesajeRutaCompartidaTests(SimpleTestCase):
++    fecha_actual = date(2026, 10, 6)
++
++    def _buscar(self, shared, local, tipo='ENT'):
++        with patch.object(views, 'TICKET_PESAJE_SHARED_PATH', str(shared)), patch.object(
++            views, 'TICKET_PESAJE_LOCAL_PATH', str(local)
++        ), patch.object(views.timezone, 'localdate', return_value=self.fecha_actual):
++            return views._buscar_ticket_pesaje_mas_reciente('AG386OU', tipo)
++
++    @staticmethod
++    def _crear(carpeta, nombre):
++        carpeta.mkdir(parents=True, exist_ok=True)
++        (carpeta / nombre).write_bytes(b'%PDF-1.4')
++
++    def test_ruta_configurada_es_unc_y_no_unidad_mapeada(self):
++        ruta = views.TICKET_PESAJE_SHARED_PATH
++        self.assertEqual(ruta, r'\\TERRAVIEW\tickets')
++        self.assertTrue(ruta.startswith('\\\\'))
++        self.assertNotIn('Z:', ruta.upper())
++        self.assertNotIn('TICKET:', ruta.upper())
++
++    def test_ticket_entrada_de_hoy_se_encuentra_en_shared(self):
++        with TemporaryDirectory() as base:
++            shared = Path(base) / 'shared'
++            local = Path(base) / 'local'
++            nombre = 'COM_ENT_AG386OU_26_10_06_09_12.pdf'
++            self._crear(shared, nombre)
++            seleccionado = self._buscar(shared, local)
++            self.assertEqual(Path(seleccionado), shared / nombre)
++
++    def test_ticket_salida_de_hoy_se_encuentra_en_shared(self):
++        with TemporaryDirectory() as base:
++            shared = Path(base) / 'shared'
++            local = Path(base) / 'local'
++            nombre = 'COM_SAL_AG386OU_26_10_06_17_34.pdf'
++            self._crear(shared, nombre)
++            seleccionado = self._buscar(shared, local, tipo='SAL')
++            self.assertEqual(Path(seleccionado), shared / nombre)
++
++    def test_ticket_historico_no_se_usa(self):
++        with TemporaryDirectory() as base:
++            shared = Path(base) / 'shared'
++            local = Path(base) / 'local'
++            self._crear(shared, 'COM_ENT_AG386OU_26_10_05_13_05.pdf')
++            self.assertIsNone(self._buscar(shared, local))
++
++    def test_patente_distinta_no_se_usa(self):
++        with TemporaryDirectory() as base:
++            shared = Path(base) / 'shared'
++            local = Path(base) / 'local'
++            self._crear(shared, 'COM_ENT_AG3860U_26_10_06_09_12.pdf')
++            self.assertIsNone(self._buscar(shared, local))
++
++    def test_shared_no_disponible_conserva_fallback_local(self):
++        with TemporaryDirectory() as base:
++            shared = Path(base) / 'no-existe'
++            local = Path(base) / 'local'
++            nombre = 'COM_ENT_AG386OU_26_10_06_09_12.pdf'
++            self._crear(local, nombre)
++            seleccionado = self._buscar(shared, local)
++            self.assertEqual(Path(seleccionado), local / nombre)
++
++    def test_shared_con_error_de_acceso_conserva_fallback_local(self):
++        with TemporaryDirectory() as base:
++            shared = Path(base) / 'shared'
++            local = Path(base) / 'local'
++            shared.mkdir()
++            nombre = 'COM_ENT_AG386OU_26_10_06_09_12.pdf'
++            self._crear(local, nombre)
++            listar_original = views.os.listdir
++
++            def listar(carpeta):
++                if carpeta == str(shared):
++                    raise PermissionError(1326, 'Acceso denegado', carpeta)
++                return listar_original(carpeta)
++
++            with patch.object(views.os, 'listdir', side_effect=listar):
++                seleccionado = self._buscar(shared, local)
++            self.assertEqual(Path(seleccionado), local / nombre)
++
++    def test_revisa_shared_antes_de_local(self):
++        with TemporaryDirectory() as base:
++            shared = Path(base) / 'shared'
++            local = Path(base) / 'local'
++            shared.mkdir()
++            nombre = 'COM_ENT_AG386OU_26_10_06_09_12.pdf'
++            self._crear(local, nombre)
++            listar_original = views.os.listdir
++            with patch.object(views.os, 'listdir', wraps=listar_original) as listar:
++                seleccionado = self._buscar(shared, local)
++            self.assertEqual([call.args[0] for call in listar.call_args_list], [str(shared), str(local)])
++            self.assertEqual(Path(seleccionado), local / nombre)
++
++
+ class TicketPesajeMensajeHoyTests(SimpleTestCase):
+     def test_endpoint_informa_que_no_existe_ticket_de_hoy(self):
+         request = RequestFactory().get('/ajax/operacion-planta/ticket-pesaje/', {

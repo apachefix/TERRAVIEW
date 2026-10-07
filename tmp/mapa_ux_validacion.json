@@ -1,0 +1,134 @@
+[
+  {
+    "company": 1,
+    "viewport": [
+      1920,
+      1080
+    ],
+    "fit": {
+      "fits": true,
+      "naturalWidth": 1786,
+      "noScroll": true,
+      "src": "http://127.0.0.1:62649/static/assets/plano/plantilla_planta.png",
+      "zoom": "100%"
+    },
+    "trucks": 30,
+    "empty": true,
+    "selection": true,
+    "timers": true,
+    "sidebar": true,
+    "stale": true,
+    "access_cleanup": true,
+    "polling_and_fullscreen": true
+  },
+  {
+    "company": 1,
+    "viewport": [
+      1366,
+      768
+    ],
+    "fit": {
+      "fits": true,
+      "naturalWidth": 1786,
+      "noScroll": true,
+      "src": "http://127.0.0.1:62649/static/assets/plano/plantilla_planta.png",
+      "zoom": "100%"
+    },
+    "trucks": 30,
+    "empty": true,
+    "selection": true,
+    "timers": true,
+    "sidebar": true,
+    "stale": true,
+    "access_cleanup": true,
+    "polling_and_fullscreen": false
+  },
+  {
+    "company": 1,
+    "viewport": [
+      390,
+      844
+    ],
+    "fit": {
+      "fits": true,
+      "naturalWidth": 1786,
+      "noScroll": true,
+      "src": "http://127.0.0.1:62649/static/assets/plano/plantilla_planta.png",
+      "zoom": "100%"
+    },
+    "trucks": 30,
+    "empty": true,
+    "selection": true,
+    "timers": true,
+    "sidebar": true,
+    "stale": true,
+    "access_cleanup": true,
+    "polling_and_fullscreen": false
+  },
+  {
+    "company": 2,
+    "viewport": [
+      1920,
+      1080
+    ],
+    "fit": {
+      "fits": true,
+      "naturalWidth": 1786,
+      "noScroll": true,
+      "src": "http://127.0.0.1:62649/static/assets/plano/plantilla_planta.png",
+      "zoom": "100%"
+    },
+    "trucks": 30,
+    "empty": true,
+    "selection": true,
+    "timers": true,
+    "sidebar": true,
+    "stale": true,
+    "access_cleanup": true,
+    "polling_and_fullscreen": true
+  },
+  {
+    "company": 2,
+    "viewport": [
+      1366,
+      768
+    ],
+    "fit": {
+      "fits": true,
+      "naturalWidth": 1786,
+      "noScroll": true,
+      "src": "http://127.0.0.1:62649/static/assets/plano/plantilla_planta.png",
+      "zoom": "100%"
+    },
+    "trucks": 30,
+    "empty": true,
+    "selection": true,
+    "timers": true,
+    "sidebar": true,
+    "stale": true,
+    "access_cleanup": true,
+    "polling_and_fullscreen": false
+  },
+  {
+    "company": 2,
+    "viewport": [
+      390,
+      844
+    ],
+    "fit": {
+      "fits": true,
+      "naturalWidth": 1786,
+      "noScroll": true,
+      "src": "http://127.0.0.1:62649/static/assets/plano/plantilla_planta.png",
+      "zoom": "100%"
+    },
+    "trucks": 30,
+    "empty": true,
+    "selection": true,
+    "timers": true,
+    "sidebar": true,
+    "stale": true,
+    "access_cleanup": true,
+    "polling_and_fullscreen": false
+  }
+]

@@ -1,0 +1,456 @@
+[
+  {
+    "baseZones": [
+      {
+        "code": "ZONA_ESPERA",
+        "hidden": false
+      },
+      {
+        "code": "ZONA_CARGA_DESCARGA",
+        "hidden": false
+      }
+    ],
+    "chain": [
+      {
+        "display": "block",
+        "height": 627.984375,
+        "id": "mapa-imagen",
+        "opacity": "1",
+        "overflow": "clip",
+        "tag": "IMG",
+        "visibility": "visible",
+        "width": 444.015625
+      },
+      {
+        "display": "block",
+        "height": 627.984375,
+        "id": "mapa-lienzo",
+        "opacity": "1",
+        "overflow": "visible",
+        "tag": "DIV",
+        "visibility": "visible",
+        "width": 444.015625
+      },
+      {
+        "display": "block",
+        "height": 631.8125,
+        "id": "mapa-visor",
+        "opacity": "1",
+        "overflow": "auto",
+        "tag": "DIV",
+        "visibility": "visible",
+        "width": 1045
+      },
+      {
+        "display": "block",
+        "height": 664.3125,
+        "id": "",
+        "opacity": "1",
+        "overflow": "visible",
+        "tag": "DIV",
+        "visibility": "visible",
+        "width": 1045
+      },
+      {
+        "display": "grid",
+        "height": 664.3125,
+        "id": "",
+        "opacity": "1",
+        "overflow": "visible",
+        "tag": "DIV",
+        "visibility": "visible",
+        "width": 1327
+      },
+      {
+        "display": "block",
+        "height": 1018.5,
+        "id": "mapa-operacional",
+        "opacity": "1",
+        "overflow": "visible",
+        "tag": "DIV",
+        "visibility": "visible",
+        "width": 1367
+      },
+      {
+        "display": "block",
+        "height": 1018.5,
+        "id": "",
+        "opacity": "1",
+        "overflow": "visible",
+        "tag": "SECTION",
+        "visibility": "visible",
+        "width": 1367
+      },
+      {
+        "display": "block",
+        "height": 1058.5,
+        "id": "",
+        "opacity": "1",
+        "overflow": "visible",
+        "tag": "BODY",
+        "visibility": "visible",
+        "width": 1407
+      },
+      {
+        "display": "block",
+        "height": 1058.5,
+        "id": "",
+        "opacity": "1",
+        "overflow": "visible",
+        "tag": "HTML",
+        "visibility": "visible",
+        "width": 1407
+      }
+    ],
+    "imageCount": 1,
+    "markers": 0,
+    "naturalHeight": 2526,
+    "naturalWidth": 1786,
+    "url": "https://terraview.terramar-group.com/static/assets/plano/plantilla_planta.png",
+    "visorHeight": 630,
+    "empresa_id": 1,
+    "fixture": "Dashboard template with zero trucks; static assets from real IIS",
+    "http": {
+      "url": "https://terraview.terramar-group.com/static/assets/plano/plantilla_planta.png",
+      "status": 200,
+      "mimeType": "image/png"
+    },
+    "mobile": {
+      "baseZones": [
+        {
+          "code": "ZONA_ESPERA",
+          "hidden": false
+        },
+        {
+          "code": "ZONA_CARGA_DESCARGA",
+          "hidden": false
+        }
+      ],
+      "chain": [
+        {
+          "display": "block",
+          "height": 455.40625,
+          "id": "mapa-imagen",
+          "opacity": "1",
+          "overflow": "clip",
+          "tag": "IMG",
+          "visibility": "visible",
+          "width": 322
+        },
+        {
+          "display": "block",
+          "height": 455.40625,
+          "id": "mapa-lienzo",
+          "opacity": "1",
+          "overflow": "visible",
+          "tag": "DIV",
+          "visibility": "visible",
+          "width": 322
+        },
+        {
+          "display": "block",
+          "height": 540,
+          "id": "mapa-visor",
+          "opacity": "1",
+          "overflow": "auto",
+          "tag": "DIV",
+          "visibility": "visible",
+          "width": 326
+        },
+        {
+          "display": "block",
+          "height": 605.5,
+          "id": "",
+          "opacity": "1",
+          "overflow": "visible",
+          "tag": "DIV",
+          "visibility": "visible",
+          "width": 326
+        },
+        {
+          "display": "grid",
+          "height": 1315.5625,
+          "id": "",
+          "opacity": "1",
+          "overflow": "visible",
+          "tag": "DIV",
+          "visibility": "visible",
+          "width": 326
+        },
+        {
+          "display": "block",
+          "height": 1983.9375,
+          "id": "mapa-operacional",
+          "opacity": "1",
+          "overflow": "visible",
+          "tag": "DIV",
+          "visibility": "visible",
+          "width": 350
+        },
+        {
+          "display": "block",
+          "height": 1983.9375,
+          "id": "",
+          "opacity": "1",
+          "overflow": "visible",
+          "tag": "SECTION",
+          "visibility": "visible",
+          "width": 350
+        },
+        {
+          "display": "block",
+          "height": 2023.9375,
+          "id": "",
+          "opacity": "1",
+          "overflow": "visible",
+          "tag": "BODY",
+          "visibility": "visible",
+          "width": 390
+        },
+        {
+          "display": "block",
+          "height": 2023.9375,
+          "id": "",
+          "opacity": "1",
+          "overflow": "visible",
+          "tag": "HTML",
+          "visibility": "visible",
+          "width": 390
+        }
+      ],
+      "imageCount": 1,
+      "markers": 0,
+      "naturalHeight": 2526,
+      "naturalWidth": 1786,
+      "url": "https://terraview.terramar-group.com/static/assets/plano/plantilla_planta.png",
+      "visorHeight": 538
+    }
+  },
+  {
+    "baseZones": [
+      {
+        "code": "ZONA_ESPERA",
+        "hidden": false
+      },
+      {
+        "code": "ZONA_CARGA_DESCARGA",
+        "hidden": false
+      }
+    ],
+    "chain": [
+      {
+        "display": "block",
+        "height": 627.984375,
+        "id": "mapa-imagen",
+        "opacity": "1",
+        "overflow": "clip",
+        "tag": "IMG",
+        "visibility": "visible",
+        "width": 444.015625
+      },
+      {
+        "display": "block",
+        "height": 627.984375,
+        "id": "mapa-lienzo",
+        "opacity": "1",
+        "overflow": "visible",
+        "tag": "DIV",
+        "visibility": "visible",
+        "width": 444.015625
+      },
+      {
+        "display": "block",
+        "height": 631.8125,
+        "id": "mapa-visor",
+        "opacity": "1",
+        "overflow": "auto",
+        "tag": "DIV",
+        "visibility": "visible",
+        "width": 1045
+      },
+      {
+        "display": "block",
+        "height": 664.3125,
+        "id": "",
+        "opacity": "1",
+        "overflow": "visible",
+        "tag": "DIV",
+        "visibility": "visible",
+        "width": 1045
+      },
+      {
+        "display": "grid",
+        "height": 664.3125,
+        "id": "",
+        "opacity": "1",
+        "overflow": "visible",
+        "tag": "DIV",
+        "visibility": "visible",
+        "width": 1327
+      },
+      {
+        "display": "block",
+        "height": 1018.5,
+        "id": "mapa-operacional",
+        "opacity": "1",
+        "overflow": "visible",
+        "tag": "DIV",
+        "visibility": "visible",
+        "width": 1367
+      },
+      {
+        "display": "block",
+        "height": 1018.5,
+        "id": "",
+        "opacity": "1",
+        "overflow": "visible",
+        "tag": "SECTION",
+        "visibility": "visible",
+        "width": 1367
+      },
+      {
+        "display": "block",
+        "height": 1058.5,
+        "id": "",
+        "opacity": "1",
+        "overflow": "visible",
+        "tag": "BODY",
+        "visibility": "visible",
+        "width": 1407
+      },
+      {
+        "display": "block",
+        "height": 1058.5,
+        "id": "",
+        "opacity": "1",
+        "overflow": "visible",
+        "tag": "HTML",
+        "visibility": "visible",
+        "width": 1407
+      }
+    ],
+    "imageCount": 1,
+    "markers": 0,
+    "naturalHeight": 2526,
+    "naturalWidth": 1786,
+    "url": "https://terraview.terramar-group.com/static/assets/plano/plantilla_planta.png",
+    "visorHeight": 630,
+    "empresa_id": 2,
+    "fixture": "Dashboard template with zero trucks; static assets from real IIS",
+    "http": {
+      "url": "https://terraview.terramar-group.com/static/assets/plano/plantilla_planta.png",
+      "status": 200,
+      "mimeType": "image/png"
+    },
+    "mobile": {
+      "baseZones": [
+        {
+          "code": "ZONA_ESPERA",
+          "hidden": false
+        },
+        {
+          "code": "ZONA_CARGA_DESCARGA",
+          "hidden": false
+        }
+      ],
+      "chain": [
+        {
+          "display": "block",
+          "height": 455.40625,
+          "id": "mapa-imagen",
+          "opacity": "1",
+          "overflow": "clip",
+          "tag": "IMG",
+          "visibility": "visible",
+          "width": 322
+        },
+        {
+          "display": "block",
+          "height": 455.40625,
+          "id": "mapa-lienzo",
+          "opacity": "1",
+          "overflow": "visible",
+          "tag": "DIV",
+          "visibility": "visible",
+          "width": 322
+        },
+        {
+          "display": "block",
+          "height": 540,
+          "id": "mapa-visor",
+          "opacity": "1",
+          "overflow": "auto",
+          "tag": "DIV",
+          "visibility": "visible",
+          "width": 326
+        },
+        {
+          "display": "block",
+          "height": 605.5,
+          "id": "",
+          "opacity": "1",
+          "overflow": "visible",
+          "tag": "DIV",
+          "visibility": "visible",
+          "width": 326
+        },
+        {
+          "display": "grid",
+          "height": 1315.5625,
+          "id": "",
+          "opacity": "1",
+          "overflow": "visible",
+          "tag": "DIV",
+          "visibility": "visible",
+          "width": 326
+        },
+        {
+          "display": "block",
+          "height": 1983.9375,
+          "id": "mapa-operacional",
+          "opacity": "1",
+          "overflow": "visible",
+          "tag": "DIV",
+          "visibility": "visible",
+          "width": 350
+        },
+        {
+          "display": "block",
+          "height": 1983.9375,
+          "id": "",
+          "opacity": "1",
+          "overflow": "visible",
+          "tag": "SECTION",
+          "visibility": "visible",
+          "width": 350
+        },
+        {
+          "display": "block",
+          "height": 2023.9375,
+          "id": "",
+          "opacity": "1",
+          "overflow": "visible",
+          "tag": "BODY",
+          "visibility": "visible",
+          "width": 390
+        },
+        {
+          "display": "block",
+          "height": 2023.9375,
+          "id": "",
+          "opacity": "1",
+          "overflow": "visible",
+          "tag": "HTML",
+          "visibility": "visible",
+          "width": 390
+        }
+      ],
+      "imageCount": 1,
+      "markers": 0,
+      "naturalHeight": 2526,
+      "naturalWidth": 1786,
+      "url": "https://terraview.terramar-group.com/static/assets/plano/plantilla_planta.png",
+      "visorHeight": 538
+    }
+  }
+]
